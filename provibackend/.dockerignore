@@ -1,0 +1,5 @@
+.venv/
+.github/
+
+ProViBackend/output/
+ProViBackend/app/static/questionnaire.csv

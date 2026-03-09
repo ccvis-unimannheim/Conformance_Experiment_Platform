@@ -1,0 +1,34 @@
+name: CI/CD Pipeline for Docker
+
+on:
+  push:
+    branches:
+      - development
+
+jobs:
+  build-and-deploy:
+    runs-on: self-hosted
+
+    steps:
+      # Step 1: Check out the code
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2: List repository files (for debugging)
+      - name: List repository files
+        run: ls -R
+
+      # Step 3: Build Docker image
+      - name: Build Docker image
+        run: |
+          docker build \
+          --build-arg HTTP_PROXY=http://www-cache.uni-mannheim.de:3128/ \
+          --build-arg HTTPS_PROXY=http://www-cache.uni-mannheim.de:3128/ \
+          --build-arg NO_PROXY=localhost,127.0.0.1 \
+          -t provifrontend -f ./Dockerfile .
+
+      # Step 4: Deploy with Docker Compose
+      - name: Deploy with Docker Compose
+        run: |
+          docker compose down || true
+          docker compose up -d
