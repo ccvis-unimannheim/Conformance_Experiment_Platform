@@ -1,3 +1,4 @@
+from cgitb import text
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict
 
@@ -23,7 +24,7 @@ class PreliminaryAnswers(BaseModel):
 class KnowledgeAnswers(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     id: str = Field(alias="_id")
-    answers: str          # JSON string, to store the answers
+    notes: str          
     score: int
     level: int
 
@@ -63,8 +64,16 @@ class AnswerForDatabase(BaseModel):
     user_id: str
     group_id: str
     experiment_id: str
-    answer: AnswerFromFrontend
+    question_id: str
+    task_id: str
+    idiom_id: str
+    dataset_id: str
+    ground_truth_id: str
+    trial_index: int
+    presentation_order: int
+    answer: str              
     is_correct: bool
+    response_time_ms: int
     insert_datetime: str
 
 class UILogging(BaseModel):
@@ -86,8 +95,9 @@ class UILogging(BaseModel):
 class UILogDataFrontend(BaseModel):
     ui_logs: List[UILogging]
 
-class UILogDataDatabase(BaseModel):
-    ui_log_data: UILogDataFrontend
+class UILogBatch(BaseModel):
+    """Frontend sends a batch of UI logs"""
+    ui_logs: List[UILogging]
 
 
 class Administrator(BaseModel):
