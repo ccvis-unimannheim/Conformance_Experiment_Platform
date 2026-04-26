@@ -61,12 +61,13 @@ export default function AdminPage() {
             </p>
             <div className="mt-4 p-3 rounded-md bg-surface-container border border-outline-variant/60 text-body-sm text-secondary">
               <label htmlFor="api-base" className="block text-on-surface font-medium mb-1">
-                API 基址（可粘贴公网或隧道）
+                API base URL (public or SSH tunnel)
               </label>
               <p className="text-xs text-secondary mb-2">
-                例如 <code className="text-on-surface/80">https://你的域名/...</code> 或{" "}
-                <code className="text-on-surface/80">127.0.0.1:8000</code>（会自动补为 …/api）。保存后写入本机
-                浏览器，仅当前浏览器有效。
+                For example <code className="text-on-surface/80">https://your-host/...</code> or{" "}
+                <code className="text-on-surface/80">127.0.0.1:8000</code> (a trailing{" "}
+                <code className="text-on-surface/80">/api</code> is added if missing). Saved to this
+                browser only (localStorage).
               </p>
               <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
                 <input
@@ -75,7 +76,7 @@ export default function AdminPage() {
                   className="flex-1 rounded border border-outline-variant bg-surface px-3 py-2 text-on-surface text-sm"
                   value={apiBaseInput}
                   onChange={(e) => setApiBaseInput(e.target.value)}
-                  placeholder="如 127.0.0.1:8000 或 https://pm-vis…"
+                  placeholder="e.g. 127.0.0.1:8000 or https://…"
                 />
                 <button
                   type="button"
@@ -85,11 +86,14 @@ export default function AdminPage() {
                   }}
                   className="shrink-0 text-button text-primary px-3 py-2 border border-primary rounded-md hover:bg-primary/5"
                 >
-                  使用此地址
+                  Use this base
                 </button>
               </div>
               <p className="text-xs mt-2 text-secondary">
-                当前请求：<span className="text-on-surface/90 font-mono">{normalizeApiBase(apiBaseInput || getApiBase())}/admin/…</span>
+                Current request:{" "}
+                <span className="text-on-surface/90 font-mono">
+                  {normalizeApiBase(apiBaseInput || getApiBase())}/admin/…
+                </span>
               </p>
             </div>
           </header>
