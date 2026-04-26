@@ -31,6 +31,19 @@ class Dataset(BaseModel):
     dataset_location: str
     insert_datetime: str
 
+class DatasetFile(BaseModel):
+    filename: str
+    location: str
+    checksum: str
+
+class DatasetPair(BaseModel):
+    dataset_id: str
+    dataset_title: str
+    dataset_is_active: bool
+    insert_datetime: str
+    log: DatasetFile
+    guideline: DatasetFile
+
 class DatasetFromFrontend(BaseModel):
     dataset_id: str
     dataset_title: str

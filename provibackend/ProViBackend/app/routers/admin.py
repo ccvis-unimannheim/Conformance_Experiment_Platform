@@ -55,6 +55,20 @@ def upload_meta_xes_data_to_db(file_path: pl.Path):
     redis_handler.write_key_to_redis(dataset_id_normal, dataset_location_normal)
 
 
+# @router.post("/upload", tags=["admin"])
+# async def upload_xes_file(file: UploadFile, background_tasks: BackgroundTasks):
+#     try:
+#         contents = file.file.read()
+#         file_path = config.BASE_DIRECTORY / "output" / file.filename
+#         with open(utils.convert_path_to_str(file_path), 'wb') as f:
+#             f.write(contents)
+#         background_tasks.add_task(process_xes_file, file_path)
+#         return {"message": f"Successfully uploaded {file.filename}. File is being processed."}
+#     except Exception:
+#         raise HTTPException(status_code=500, detail="Failed to upload file")
+#     finally:
+#         file.file.close()
+
 @router.post("/upload", tags=["admin"])
 async def upload_xes_file(file: UploadFile, background_tasks: BackgroundTasks):
     try:
@@ -68,6 +82,48 @@ async def upload_xes_file(file: UploadFile, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=500, detail="Failed to upload file")
     finally:
         file.file.close()
+
+
+@router.post("/datasets/pair", tags=["admin"])
+async def upload_dataset_pair(log: UploadFile, guideline: UploadFile):
+    pair_id = str(uuid.uuid4())
+    pair_dir = config.BASE_DIRECTORY / "output" / pair_id
+    try:
+        pair_dir.mkdir(parents=True, exist_ok=True)
+
+        log_contents = await log.read()
+        log_path = pair_dir / log.filename
+        log_path.write_bytes(log_contents)
+
+        guideline_contents = await guideline.read()
+        guideline_path = pair_dir / guideline.filename
+        guideline_path.write_bytes(guideline_contents)
+
+        dataset_pair = ds.DatasetPair(
+            dataset_id=pair_id,
+            dataset_title=pl.Path(log.filename).stem,
+            dataset_is_active=False,
+            insert_datetime=utils.get_current_datetime(),
+            log=ds.DatasetFile(
+                filename=log.filename,
+                location=str(log_path.relative_to(config.BASE_DIRECTORY)),
+                checksum=utils.get_file_checksum(log_path),
+            ),
+            guideline=ds.DatasetFile(
+                filename=guideline.filename,
+                location=str(guideline_path.relative_to(config.BASE_DIRECTORY)),
+                checksum=utils.get_file_checksum(guideline_path),
+            ),
+        )
+
+        db = dbc.connect_to_database()
+        db["DatasetPair"].insert_one(dataset_pair.model_dump())
+        return {"dataset_id": pair_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to upload dataset pair: {str(e)}")
+    finally:
+        await log.close()
+        await guideline.close()
 
 
 # Todo: Add validation for csv file and verify content after df structure.
