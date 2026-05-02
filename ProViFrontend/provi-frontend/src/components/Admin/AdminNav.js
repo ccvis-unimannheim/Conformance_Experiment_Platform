@@ -6,6 +6,7 @@ import UniLogo from "../../public/images/Logo_UMA_EN_RGB.png";
 
 const navItems = [
   { key: "home", label: "Home", href: "/admin" },
+  { key: "experiment-setup", label: "Experiment Setup", href: "/admin/experiments/new" },
 ];
 
 /** Next static image import → string URL (or StaticImageData with .src) */

@@ -1,5 +1,40 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
+
+class Experiment(BaseModel):
+    experiment_id: str
+    experiment_name: str
+    experiment_description: Optional[str] = None
+    experiment_type: Optional[str] = None
+    experiment_status: Optional[str] = None
+    experiment_design_type: Optional[str] = None
+    experiment_between_factors: List[str] = []
+    experiment_within_factors: List[str] = []
+    experiment_stratification_fields: List[str] = []
+    experiment_between_balance_mode: Optional[str] = None
+    experiment_within_sequence_mode: Optional[str] = None
+    experiment_dataset_ids: List[str] = []
+    experiment_task_configs: List[str] = []
+    experiment_created_at: str
+
+class ExperimentCreate(BaseModel):
+    experiment_name: str
+    experiment_description: Optional[str] = None
+    experiment_dataset_ids: List[str]
+
+class ExperimentPatch(BaseModel):
+    experiment_name: Optional[str] = None
+    experiment_description: Optional[str] = None
+    experiment_type: Optional[str] = None
+    experiment_status: Optional[str] = None
+    experiment_design_type: Optional[str] = None
+    experiment_between_factors: Optional[List[str]] = None
+    experiment_within_factors: Optional[List[str]] = None
+    experiment_stratification_fields: Optional[List[str]] = None
+    experiment_between_balance_mode: Optional[str] = None
+    experiment_within_sequence_mode: Optional[str] = None
+    experiment_dataset_ids: Optional[List[str]] = None
+    experiment_task_configs: Optional[List[str]] = None
 
 class PreEliminaryAnswers(BaseModel):
     gender: str

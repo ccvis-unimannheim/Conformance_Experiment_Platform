@@ -183,15 +183,17 @@ async def get_ui_tracking_from_db():
 
 @router.get("/datasets", tags=["admin"])
 async def get_datasets_from_db():
-    datasets = dbc.get_query_db("Dataset",
-                                query={},
-                                projection={"_id": 0,
-                                            "dataset_id": 1,
-                                            "dataset_title": 1,
-                                            "dataset_is_active": 1,
-                                            "dataset_location": 1,
-                                            })
-    return JSONResponse(content=datasets)
+    pairs = dbc.get_query_db("DatasetPair",
+                             query={},
+                             projection={"_id": 0,
+                                         "dataset_id": 1,
+                                         "dataset_title": 1,
+                                         "dataset_is_active": 1,
+                                         "insert_datetime": 1,
+                                         "log.filename": 1,
+                                         "guideline.filename": 1,
+                                         })
+    return JSONResponse(content=pairs)
 
 
 # Todo: Add validation for dataset_id and dataset_is_active that always two datasets are selected as active
@@ -201,6 +203,32 @@ async def select_active_datasets(selected_datasets_from_frontend: ds.ListDataset
     for dataset in selected_datasets_from_frontend.datasets:
         dbc.update_dataset_is_active_status(dataset.dataset_id, dataset.dataset_is_active)
     return {"message": "Successfully updated dataset_is_active in database"}
+
+
+@router.post("/experiments", tags=["admin"])
+async def create_experiment(body: ds.ExperimentCreate):
+    experiment_id = str(uuid.uuid4())
+    experiment = ds.Experiment(
+        experiment_id=experiment_id,
+        experiment_name=body.experiment_name,
+        experiment_description=body.experiment_description,
+        experiment_dataset_ids=body.experiment_dataset_ids,
+        experiment_status="draft",
+        experiment_created_at=utils.get_current_datetime(),
+    )
+    dbc.create_experiment(experiment)
+    return {"experiment_id": experiment_id}
+
+
+@router.patch("/experiments/{experiment_id}", tags=["admin"])
+async def update_experiment(experiment_id: str, body: ds.ExperimentPatch):
+    if dbc.get_experiment(experiment_id) is None:
+        raise HTTPException(status_code=404, detail="Experiment not found")
+    fields = body.model_dump(exclude_none=True)
+    if not fields:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    dbc.update_experiment(experiment_id, fields)
+    return {"message": "Experiment updated successfully"}
 
 
 @router.get("/usagedataset", tags=["admin"])

@@ -71,3 +71,19 @@ def save_ui_logging_data(ui_log_database: ds.UILogDataDatabase):
     ui_log_collection = db["UILogging"]
     ui_log_collection.insert_one(ui_log_database.model_dump())
     print("UI logging data saved successfully in database")
+
+
+def create_experiment(experiment: ds.Experiment):
+    db = connect_to_database()
+    db["Experiment"].insert_one(experiment.model_dump())
+    print("Experiment created successfully in database")
+
+
+def get_experiment(experiment_id: str) -> dict | None:
+    db = connect_to_database()
+    return db["Experiment"].find_one({"experiment_id": experiment_id}, {"_id": 0})
+
+
+def update_experiment(experiment_id: str, fields: dict):
+    db = connect_to_database()
+    db["Experiment"].update_one({"experiment_id": experiment_id}, {"$set": fields})
