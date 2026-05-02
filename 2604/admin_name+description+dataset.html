@@ -112,8 +112,7 @@
 <div class="flex items-center gap-8">
 <img alt="ProVi Logo" class="h-8 w-auto" src="https://lh3.googleusercontent.com/aida/ADBb0uiJ_C_XYXb72Ars9ccSxPeTk4D3Ho2Oiag1vWKu9BwIF_UDX-FsJ2oDt_IdfNzfunkhOXdhde0H1RU5aH_p-rzmGZxkWiJxY1RkvMDuV5765n3KteX2Jcn_Z72nrn07SLKua9ZyEBHIoWLz80y8wI370OWQbAqCBfayisCJ0cEUGwxep5dK-oQQyxK69PdLtpr9uNKpmLNnma3g61xFPln0xenuqOEDYSHpdctLdil-SsfK4MkYOZmFFoeYLuRiO_xQWsyn81M"/><img alt="University of Mannheim Logo" class="h-8 w-auto ml-4 pl-4 border-l border-slate-200 dark:border-slate-700" src="https://lh3.googleusercontent.com/aida/ADBb0uhSPNkFvqZ9l14FAwbG2Mvsi_8PY26_b58oiAInP6mQ1FiLewWbTKoP5ORkdPXr3jw5oI8fnYY2eMiy8Vb_miWU4Y4D8gHEKGBa5mgwf7AijhOzV3EJoVPfpk4bJpQVT3KjR18fUOt-9Z8E26bWywjN8VurrQtZ-6wy3FLcro0omGuwuH1VnimrTd-Gv4pv0GncEtzBrcQVhhjSeQzV5fBXia3hyFtz7Wgggm4Z-3WuUlfwdEykTAYER8dTID9sV4w3_trPqE5T"/>
 <nav class="hidden md:flex gap-6">
-<a class="font-sans antialiased text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-[#2B4B7B] transition-colors" href="#">Home</a>
-<a class="font-sans antialiased text-sm font-medium text-[#2B4B7B] dark:text-blue-400 border-b-2 border-[#2B4B7B] pb-1" href="#">Experiment Setup</a>
+<a class="font-sans antialiased text-sm font-medium text-[#2B4B7B] dark:text-blue-400 border-b-2 border-[#2B4B7B] pb-1" href="#">Home</a>
 </nav>
 </div>
 <!-- <div class="flex items-center gap-4">
@@ -124,59 +123,55 @@
 </div>
 </div>
 </header>
-<main class="flex-grow max-w-[800px] mx-auto w-full px-6 py-12 pb-32">
-<!-- Main Heading -->
-<div class="mb-12">
-<h1 class="font-h1 text-h1 text-primary mb-2">Create New Experiment</h1>
-<p class="font-body-lg text-body-lg text-secondary">Set up your research environment by defining project details and uploading your dataset files.</p>
-</div>
+<main class="max-w-7xl mx-auto px-8 py-section-gap flex items-center justify-center min-h-[calc(100vh-80px)]">
+<section class="w-full max-w-4xl">
+<div class="bg-surface-container-low rounded-xl p-8">
+<header class="mb-section-gap border-b border-surface-variant pb-4">
+<h2 class="font-h2 text-h2 text-primary">Create New Experiment</h2>
+<p class="font-body-sm text-body-sm text-secondary mt-2">Set up your research environment by defining project details and uploading your dataset files.</p>
+</header>
 <div class="space-y-section-gap">
-<!-- Basic Information Section -->
 <section class="bg-surface-container-lowest p-gutter rounded-xl border border-outline-variant">
-<h2 class="font-h2 text-h2 text-primary mb-6">Experiment Details</h2>
+<h3 class="font-h3 text-h3 text-primary mb-6">Experiment Details</h3>
 <div class="space-y-6">
 <div>
 <label class="block font-label-caps text-label-caps text-on-surface-variant mb-2" for="exp-name">EXPERIMENT NAME</label>
-<input class="w-full bg-white border border-outline-variant rounded-lg px-4 py-3 focus:border-primary-container focus:ring-1 focus:ring-primary-container transition-all font-body-sm text-body-sm outline-none" id="exp-name" placeholder="Enter experiment name..." type="text"/>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-3 focus:border-primary-container focus:ring-1 focus:ring-primary-container transition-all font-body-sm text-body-sm outline-none" id="exp-name" placeholder="Enter experiment name..." type="text"/>
 </div>
 <div>
 <label class="block font-label-caps text-label-caps text-on-surface-variant mb-2" for="exp-desc">DESCRIPTION</label>
-<textarea class="w-full bg-white border border-outline-variant rounded-lg px-4 py-3 focus:border-primary-container focus:ring-1 focus:ring-primary-container transition-all font-body-sm text-body-sm outline-none resize-none" id="exp-desc" placeholder="Enter an optional description for your experiment..." rows="4"></textarea>
+<textarea class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-3 focus:border-primary-container focus:ring-1 focus:ring-primary-container transition-all font-body-sm text-body-sm outline-none resize-none" id="exp-desc" placeholder="Enter an optional description for your experiment..." rows="4"></textarea>
 </div>
 </div>
 </section>
-<!-- Upload Section -->
-<section class="space-y-6">
-<h2 class="font-h2 text-h2 text-primary">Upload Dataset</h2>
-<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-<!-- XES Upload -->
-<div class="group bg-surface-container-low border-2 border-dashed border-outline-variant rounded-xl p-8 flex flex-col items-center justify-center text-center hover:border-primary transition-colors cursor-pointer">
-<div class="w-12 h-12 bg-primary-fixed rounded-full flex items-center justify-center mb-4 group-hover:bg-primary-container transition-colors">
-<span class="material-symbols-outlined text-primary text-2xl group-hover:text-white">upload_file</span>
+<section>
+<h3 class="font-h3 text-h3 text-primary mb-6">Upload Dataset</h3>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-gutter mb-section-gap">
+<div class="flex flex-col items-center justify-center p-8 bg-surface-container-lowest border-2 border-dashed border-outline-variant rounded hover:border-primary transition-colors group cursor-pointer">
+<div class="w-12 h-12 rounded-full bg-white flex items-center justify-center mb-4 shadow-sm">
+<span class="material-symbols-outlined text-primary text-2xl">upload_file</span>
 </div>
-<h3 class="font-h3 text-h3 text-on-surface mb-1">Upload Log</h3>
-<!-- <p class="font-body-sm text-body-sm text-on-surface-variant mb-4">Required event log data format</p> -->
-<button class="font-button text-button bg-white text-primary px-4 py-2 border border-outline-variant rounded-lg hover:bg-primary-fixed transition-colors">Select File</button>
+<h3 class="font-h3 text-h3 mb-2">Upload Log</h3>
+<button class="font-button text-button bg-white border border-outline px-6 py-2 rounded-lg hover:bg-surface-variant transition-all active:scale-95">Select File</button>
 </div>
-<!-- BPMN Upload -->
-<div class="group bg-surface-container-low border-2 border-dashed border-outline-variant rounded-xl p-8 flex flex-col items-center justify-center text-center hover:border-primary transition-colors cursor-pointer">
-<div class="w-12 h-12 bg-primary-fixed rounded-full flex items-center justify-center mb-4 group-hover:bg-primary-container transition-colors">
-<span class="material-symbols-outlined text-primary text-2xl group-hover:text-white">account_tree</span>
+<div class="flex flex-col items-center justify-center p-8 bg-surface-container-lowest border-2 border-dashed border-outline-variant rounded hover:border-primary transition-colors group cursor-pointer">
+<div class="w-12 h-12 rounded-full bg-white flex items-center justify-center mb-4 shadow-sm">
+<span class="material-symbols-outlined text-primary text-2xl">description</span>
 </div>
-<h3 class="font-h3 text-h3 text-on-surface mb-1">Upload Guideline</h3>
-<!-- <p class="font-body-sm text-body-sm text-on-surface-variant mb-4">Required process model format</p> -->
-<button class="font-button text-button bg-white text-primary px-4 py-2 border border-outline-variant rounded-lg hover:bg-primary-fixed transition-colors">Select File</button>
+<h3 class="font-h3 text-h3 mb-2">Upload Guideline</h3>
+<button class="font-button text-button bg-white border border-outline px-6 py-2 rounded-lg hover:bg-surface-variant transition-all active:scale-95">Select File</button>
 </div>
 </div>
 </section>
 </div>
-<!-- Primary Action -->
-<div class="mt-12 flex justify-end">
-<button class="bg-primary px-10 py-3 rounded-full text-white flex items-center gap-2 shadow-lg shadow-primary/20 hover:bg-primary-container transition-all active:scale-95">
-<span class="font-sans text-xs uppercase tracking-wider font-bold">Next</span>
-<span class="material-symbols-outlined text-lg">arrow_forward</span>
+<div class="flex justify-end pt-8 border-t border-surface-variant">
+<button class="flex items-center gap-2 font-button text-button bg-primary text-on-primary px-12 py-3 rounded-lg hover:opacity-90 transition-all active:scale-95">
+Next
+<span class="material-symbols-outlined text-sm">chevron_right</span>
 </button>
 </div>
+</div>
+</section>
 </main>
 <!-- Decorative Sidebar/Background Element -->
 <div class="fixed top-24 -right-24 w-96 h-96 bg-primary/5 rounded-full blur-3xl -z-10"></div>
