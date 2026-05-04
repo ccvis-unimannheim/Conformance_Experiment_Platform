@@ -4,6 +4,16 @@ Tracks files modified or created during development sessions.
 
 ---
 
+## Session: Admin Passcode Gate (2026-05-04)
+
+### Frontend (`ProViFrontend/`)
+
+| File | Change |
+|------|--------|
+| `provi-frontend/src/app/admin/layout.js` | Converted to client component; gates all `/admin/*` routes. Hydrates `authed` from `localStorage["adminAuthed"]` (no backend, no admin record — flag only). Unauthed visits to suffix routes (`/admin/experiments/new`, etc.) `router.replace("/admin")`. On `/admin` while unauthed, renders `LoginModal` overlay; on success sets the flag and reveals content. Authed users navigate freely; flag persists across tab/browser restarts until cleared. |
+
+---
+
 ## Session: Admin Home — Two-Column Layout (2026-05-03)
 
 ### Backend (`provibackend/`)
