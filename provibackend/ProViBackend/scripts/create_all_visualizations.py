@@ -1,56 +1,73 @@
-import ProViBackend.FilterModel.NewFilter as NewFilter
-import ProViBackend.MentalMapModel.MentalMap as MentalMap
+#!/usr/bin/env python3
+"""
+create_all_visualizations.py – CC Visualization Pipeline entry point.
+
+Usage:
+    python create_all_visualizations.py \
+        --log   <path_to_log.xes_or_.csv> \
+        --model <path_to_model.bpmn> \
+        --output <output_directory> \
+        [--outcome-activity <activity_name>]
+"""
+
+import argparse
 import os
-from pathlib import Path
-import time
-import ProViBackend.utils.utils as utils
-import ProViBackend.FilterModel.Styling as Styling
-from ProViBackend.scripts.cleaner import clean_directory_from_xes_and_pickle
+import sys
+import warnings
+warnings.filterwarnings("ignore")
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from io_helpers import load_event_log, load_model, run_alignments, fitness_summary_dataframe
+import tasks.task1 as task1
+import tasks.task2 as task2
+import tasks.task3 as task3
+import tasks.task4 as task4
+import tasks.task5 as task5
+import tasks.task6 as task6
 
 
-def create_all_visualizations(base_xes_filepath: Path, target_path: Path) -> None:
-    """
-    # create a file structure
-    # /visualisations
-    #   - ./
-    #   - ./normal
-    #   - mapping.json
-    """
-    start_time = time.time()
-    assert os.path.isdir(target_path)
-    assert os.path.isfile(base_xes_filepath)
-    base_xes_filepath = Path(base_xes_filepath)
-    filename = utils.extract_filename_from_path(str(base_xes_filepath.absolute()))
-    base_path = Path(target_path) / filename
-    mental_map_path = Path(base_path  / "mentalmap")
-    mental_map_path.mkdir(parents=True, exist_ok=True)
-    normal_map_path = Path(base_path / "normal")
-    normal_map_path.mkdir(parents=True, exist_ok=True)
-    base_xes_filepath_string = str(base_xes_filepath.absolute())
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="CC Visualization Pipeline – generates SVGs for conformance checking tasks."
+    )
+    parser.add_argument("--log",    required=True, help="Path to the input event log (.xes or .csv)")
+    parser.add_argument("--model",  required=True, help="Path to the process model (.bpmn)")
+    parser.add_argument("--output", required=True, help="Directory where SVGs will be saved")
+    parser.add_argument(
+        "--outcome-activity", default="A_ACTIVATED",
+        help="Activity name that constitutes a positive process outcome (Task 6). Default: A_ACTIVATED",
+    )
+    return parser.parse_args()
 
-    #  Create all filtered eventlogs as pickle files
-    NewFilter.create_all_subplots(base_xes_filepath, normal_map_path)
 
-    # Compute all mental map visualizations
-    print("Computing mental map")
-    start_time_mental_map = time.time()
-    MentalMap.mental_map(base_xes_filepath_string, normal_map_path, str(mental_map_path.absolute()))
-    print(f"Time taken to compute mental map: {round(time.time() - start_time_mental_map) / 60} minutes")
+def main():
+    args = parse_args()
 
-    # Compute all normal map visualizations and apply styling changes
-    print("Computing normal map")
-    start_time_normal_map = time.time()
-    node_mapping, edge_mapping = Styling.map_event_labels(base_xes_filepath, target_path)
-    Styling.adjust_xes_labels(target_path, base_xes_filepath, node_mapping, edge_mapping)
-    print(f"Time taken to compute normal map: {round(time.time() - start_time_normal_map) / 60} minutes")
+    for path, label in [(args.log, "Event log"), (args.model, "Model")]:
+        if not os.path.isfile(path):
+            print(f"ERROR: {label} not found: {path}", file=sys.stderr)
+            sys.exit(1)
 
-    # free up memory
-    clean_directory_from_xes_and_pickle(mental_map_path)
-    clean_directory_from_xes_and_pickle(normal_map_path)
-    print(f"Time taken to compute all svgs: {round(time.time() - start_time) /60 } minutes")
+    log         = load_event_log(args.log)
+    net, im, fm = load_model(args.model)
+    alignments  = run_alignments(log, net, im, fm)
+    fitness_df  = fitness_summary_dataframe(alignments)
+
+    def out(t): return os.path.join(args.output, t)
+
+    task1.generate(fitness_df,             out("task1"))
+    task2.generate(alignments, args.model, out("task2"))
+    task3.generate(alignments,             out("task3"))
+    task4.generate(log, alignments,        out("task4"))
+    task5.generate(fitness_df,             out("task5"))
+    task6.generate(log, alignments,        out("task6"),
+                   outcome_activity=args.outcome_activity)
+
+    print("\nDone! SVGs written to:")
+    for t in ["task1","task2","task3","task4","task5","task6"]:
+        print(f"  {out(t)}/")
 
 
 if __name__ == "__main__":
-    cwd = Path.cwd().parent.parent
-    xes_file = cwd / "tests/testdata/NoNoise.xes"
-    create_all_visualizations(xes_file, cwd / "tests/testdata/")
+    main()

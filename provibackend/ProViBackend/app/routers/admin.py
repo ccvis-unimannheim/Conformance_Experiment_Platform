@@ -37,6 +37,20 @@ def upload_meta_xes_data_to_db(file_path: pl.Path):
     redis_handler.write_key_to_redis(dataset_id, location)
 
 
+# @router.post("/upload", tags=["admin"])
+# async def upload_xes_file(file: UploadFile, background_tasks: BackgroundTasks):
+#     try:
+#         contents = file.file.read()
+#         file_path = config.BASE_DIRECTORY / "output" / file.filename
+#         with open(utils.convert_path_to_str(file_path), 'wb') as f:
+#             f.write(contents)
+#         background_tasks.add_task(process_xes_file, file_path)
+#         return {"message": f"Successfully uploaded {file.filename}. File is being processed."}
+#     except Exception:
+#         raise HTTPException(status_code=500, detail="Failed to upload file")
+#     finally:
+#         file.file.close()
+
 @router.post("/upload", tags=["admin"])
 async def upload_xes_file(file: UploadFile, background_tasks: BackgroundTasks):
     try:
@@ -50,6 +64,48 @@ async def upload_xes_file(file: UploadFile, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=500, detail="Failed to upload file")
     finally:
         file.file.close()
+
+
+@router.post("/datasets/pair", tags=["admin"])
+async def upload_dataset_pair(log: UploadFile, guideline: UploadFile):
+    pair_id = str(uuid.uuid4())
+    pair_dir = config.BASE_DIRECTORY / "output" / pair_id
+    try:
+        pair_dir.mkdir(parents=True, exist_ok=True)
+
+        log_contents = await log.read()
+        log_path = pair_dir / log.filename
+        log_path.write_bytes(log_contents)
+
+        guideline_contents = await guideline.read()
+        guideline_path = pair_dir / guideline.filename
+        guideline_path.write_bytes(guideline_contents)
+
+        dataset_pair = ds.DatasetPair(
+            dataset_id=pair_id,
+            dataset_title=pl.Path(log.filename).stem,
+            dataset_is_active=False,
+            insert_datetime=utils.get_current_datetime(),
+            log=ds.DatasetFile(
+                filename=log.filename,
+                location=str(log_path.relative_to(config.BASE_DIRECTORY)),
+                checksum=utils.get_file_checksum(log_path),
+            ),
+            guideline=ds.DatasetFile(
+                filename=guideline.filename,
+                location=str(guideline_path.relative_to(config.BASE_DIRECTORY)),
+                checksum=utils.get_file_checksum(guideline_path),
+            ),
+        )
+
+        db = dbc.connect_to_database()
+        db["DatasetPair"].insert_one(dataset_pair.model_dump())
+        return {"dataset_id": pair_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to upload dataset pair: {str(e)}")
+    finally:
+        await log.close()
+        await guideline.close()
 
 
 # Todo: Add validation for csv file and verify content after df structure.
@@ -109,15 +165,17 @@ async def get_ui_tracking_from_db():
 
 @router.get("/datasets", tags=["admin"])
 async def get_datasets_from_db():
-    datasets = dbc.get_query_db("Dataset",
-                                query={},
-                                projection={"_id": 0,
-                                            "dataset_id": 1,
-                                            "dataset_title": 1,
-                                            "is_active": 1,
-                                            "location": 1,
-                                            })
-    return JSONResponse(content=datasets)
+    pairs = dbc.get_query_db("DatasetPair",
+                             query={},
+                             projection={"_id": 0,
+                                         "dataset_id": 1,
+                                         "dataset_title": 1,
+                                         "dataset_is_active": 1,
+                                         "insert_datetime": 1,
+                                         "log.filename": 1,
+                                         "guideline.filename": 1,
+                                         })
+    return JSONResponse(content=pairs)
 
 
 # Todo: Add validation for dataset_id and dataset_is_active that always two datasets are selected as active
@@ -127,6 +185,48 @@ async def select_active_datasets(selected_datasets_from_frontend: ds.ListDataset
     for dataset in selected_datasets_from_frontend.datasets:
         dbc.update_dataset_is_active_status(dataset.dataset_id, dataset.is_active)
     return {"message": "Successfully updated dataset_is_active in database"}
+
+
+@router.get("/experiments", tags=["admin"])
+async def list_experiments():
+    experiments = dbc.get_query_db(
+        "Experiment",
+        query={},
+        projection={
+            "_id": 0,
+            "experiment_id": 1,
+            "experiment_name": 1,
+            "experiment_status": 1,
+            "experiment_created_at": 1,
+        },
+    )
+    return JSONResponse(content=experiments)
+
+
+@router.post("/experiments", tags=["admin"])
+async def create_experiment(body: ds.ExperimentCreate):
+    experiment_id = str(uuid.uuid4())
+    experiment = ds.Experiment(
+        experiment_id=experiment_id,
+        experiment_name=body.experiment_name,
+        experiment_description=body.experiment_description,
+        experiment_dataset_ids=body.experiment_dataset_ids,
+        experiment_status="draft",
+        experiment_created_at=utils.get_current_datetime(),
+    )
+    dbc.create_experiment(experiment)
+    return {"experiment_id": experiment_id}
+
+
+@router.patch("/experiments/{experiment_id}", tags=["admin"])
+async def update_experiment(experiment_id: str, body: ds.ExperimentPatch):
+    if dbc.get_experiment(experiment_id) is None:
+        raise HTTPException(status_code=404, detail="Experiment not found")
+    fields = body.model_dump(exclude_none=True)
+    if not fields:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    dbc.update_experiment(experiment_id, fields)
+    return {"message": "Experiment updated successfully"}
 
 
 @router.get("/usagedataset", tags=["admin"])

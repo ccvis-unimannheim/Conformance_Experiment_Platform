@@ -17,7 +17,15 @@ app = FastAPI(
     root_path="/api"
 )
 
-origins = ['http://pm-vis.uni-mannheim.de', 'https://pm-vis.uni-mannheim.de', 'http://localhost:3000', 'http://provifrontend:3000']
+origins = [
+    "http://pm-vis.uni-mannheim.de",
+    "https://pm-vis.uni-mannheim.de",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",  # SSH 隧道在浏览器用 127.0.0.1 打开时与 localhost 不同源
+    "http://127.0.0.1:8080",
+    "http://provifrontend:3000",
+    "http://127.0.0.1:22222"
+]
 
 app.add_middleware(
     CORSMiddleware,

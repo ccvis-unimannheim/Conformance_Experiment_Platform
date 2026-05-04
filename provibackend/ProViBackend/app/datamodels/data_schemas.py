@@ -1,5 +1,4 @@
-from cgitb import text
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel,Field, ConfigDict
 from typing import List, Optional, Dict
 
 class PreliminaryAnswersRequest(BaseModel):
@@ -40,6 +39,19 @@ class Dataset(BaseModel):
     checksum: str
     is_active: bool
     location: str
+
+class DatasetFile(BaseModel):
+    filename: str
+    location: str
+    checksum: str
+
+class DatasetPair(BaseModel):
+    dataset_id: str
+    dataset_title: str
+    dataset_is_active: bool
+    insert_datetime: str
+    log: DatasetFile
+    guideline: DatasetFile
 
 class DatasetFromFrontend(BaseModel):
     dataset_id: str
