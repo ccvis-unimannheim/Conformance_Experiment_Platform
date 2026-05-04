@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Create New Experiment – Step 2: Idiom Selection</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary:                   '#0f3463',
+            'primary-container':       '#2b4b7b',
+            'on-primary':              '#ffffff',
+            secondary:                 '#5b5f62',
+            'surface':                 '#f8f9fa',
+            'surface-container':       '#edeeef',
+            'surface-container-low':   '#f3f4f5',
+            'surface-container-lowest':'#ffffff',
+            'on-surface':              '#191c1d',
+            'on-surface-variant':      '#43474f',
+            'border-subtle':           '#dee2e6',
+            'outline-variant':         '#c4c6d0',
+            'surface-variant':         '#e1e3e4',
+            'error':                   '#ba1a1a',
+            'error-container':         '#ffdad6',
+          },
+          borderRadius: {
+            DEFAULT: '0.125rem',
+            lg:      '0.25rem',
+            xl:      '0.5rem',
+            full:    '0.75rem',
+          },
+          fontFamily: {
+            h1:       ['Inter'],
+            'body-lg':['Inter'],
+            button:   ['Inter'],
+          },
+          fontSize: {
+            h1:       ['32px', { lineHeight: '1.2', letterSpacing: '-0.02em', fontWeight: '700' }],
+            'body-lg':['16px', { lineHeight: '1.6', fontWeight: '400' }],
+            button:   ['14px', { lineHeight: '1',   fontWeight: '600' }],
+          },
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400; }
+    .icon-filled { font-variation-settings: 'FILL' 1, 'wght' 400; }
+  </style>
+</head>
+<body class="bg-surface text-on-surface min-h-screen flex flex-col">
+
+<!-- ── Backend URL config ──────────────────────────────────────────────── -->
+<script>
+  const BASE_URL = 'http://localhost:1234/api';
+</script>
+
+<!-- ── Header ─────────────────────────────────────────────────────────── -->
+<header class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-50">
+    <div class="flex justify-between items-center w-full px-8 py-4 max-w-screen-2xl mx-auto">
+    <div class="flex items-center gap-8">
+    <img alt="ProVi Logo" class="h-8 w-auto" src="../ProViFrontend/provi-frontend/src/public/images/logo-no-background.png"/>
+    <img alt="University of Mannheim Logo" class="h-8 w-auto ml-4 pl-4 border-l border-slate-200 dark:border-slate-700" src="../ProViFrontend/provi-frontend/src/public/images/Logo_UMA_EN_RGB.png"/>
+    <nav class="hidden md:flex gap-6">
+    <a class="font-sans antialiased text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-[#0f3463] transition-colors" href="#">Home</a>
+    <a class="font-sans antialiased text-sm font-medium text-[#0f3463] dark:text-blue-400 border-b-2 border-[#0f3463] pb-1" href="#">Experiment Setup</a>
+    </nav>
+    </div>
+    <div>
+    <span class="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-sans text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 uppercase tracking-wider">Admin</span>
+    </div>
+    </div>
+</header>
+
+
+<!-- ── Main ───────────────────────────────────────────────────────────── -->
+<main class="flex-grow max-w-[1140px] mx-auto w-full px-8 py-10 flex flex-col gap-8">
+
+  <!-- Page heading -->
+  <div class="flex flex-col gap-1">
+    <h1 class="font-h1 text-h1 text-primary mb-2">Allocate Idioms to Tasks</h1>
+    <p class="font-body-lg text-body-lg text-secondary max-w-2xl">
+      Choose which visualization idioms should be shown for each selected task.
+      Each task must have at least one idiom assigned before saving.
+    </p>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="flex justify-between items-center">
+    <h2 class="text-base font-semibold text-on-surface">
+      Task Cards
+      <span id="task-cards-count" class="ml-2 text-xs text-on-surface-variant font-normal"></span>
+    </h2>
+  </div>
+
+  <!-- Task cards with idiom allocation -->
+  <div id="task-cards-container" class="flex flex-col gap-6">
+    <div class="text-center text-on-surface-variant text-sm py-10
+                border-2 border-dashed border-outline-variant rounded-lg">
+      <span class="material-symbols-outlined text-3xl block mb-2 text-outline-variant">hourglass_empty</span>
+      Loading…
+    </div>
+  </div>
+
+  <!-- Success banner (hidden until saved) -->
+  <div id="success-banner"
+       class="hidden bg-green-50 border border-green-200 rounded-lg p-5 flex items-start gap-3">
+    <span class="material-symbols-outlined text-green-600 text-2xl flex-shrink-0 icon-filled">check_circle</span>
+    <div>
+      <p class="font-semibold text-green-800">Experiment saved successfully!</p>
+      <p class="text-sm text-green-700 mt-0.5" id="success-detail"></p>
+      <div class="flex gap-3 mt-3">
+        <a href="admin_task_selection.html"
+           class="text-xs bg-primary text-white px-4 py-1.5 rounded font-semibold hover:bg-primary-container transition-colors">
+          Create Another Experiment
+        </a>
+        <button onclick="viewExperiments()"
+                class="text-xs border border-border-subtle text-on-surface-variant px-4 py-1.5 rounded
+                       hover:bg-surface-container transition-colors">
+          View All Experiments
+        </button>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ── Footer action bar ──────────────────────────────────────────────── -->
+<div class="border-t border-border-subtle bg-white sticky bottom-0">
+  <div class="max-w-[1140px] mx-auto px-8 py-4 flex justify-between items-center">
+    <a href="admin_task_selection.html"
+       class="text-sm text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors">
+      <span class="material-symbols-outlined text-sm">arrow_back</span> Previous Step
+    </a>
+    <div class="flex items-center gap-4">
+      <span id="assignment-summary" class="text-xs text-on-surface-variant"></span>
+      <button onclick="saveExperiment()"
+              class="flex items-center gap-2 font-button text-button bg-primary text-on-primary px-12 py-3 rounded-lg hover:opacity-90 transition-all active:scale-95">
+        Next
+        <span class="material-symbols-outlined text-sm">chevron_right</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Create Idiom Modal ──────────────────────────────────────────────── -->
+<div id="modal-idiom" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+  <div class="bg-white rounded-xl p-6 w-full max-w-[480px] shadow-xl flex flex-col gap-4">
+    <div class="flex justify-between items-center">
+      <h3 class="text-lg font-bold text-on-surface">Create New Idiom</h3>
+      <button onclick="closeModal('modal-idiom')" class="text-on-surface-variant hover:text-on-surface">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+
+    <div class="flex flex-col gap-3">
+      <div>
+        <label class="text-xs font-bold uppercase tracking-wider text-on-surface-variant block mb-1">Idiom Key *</label>
+        <input id="new-idiom-key" type="text" placeholder="e.g. bar_chart"
+               class="w-full border border-border-subtle rounded px-3 py-2 text-sm
+                      focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"/>
+      </div>
+      <div>
+        <label class="text-xs font-bold uppercase tracking-wider text-on-surface-variant block mb-1">Display Label *</label>
+        <input id="new-idiom-label" type="text" placeholder="e.g. Bar Chart"
+               class="w-full border border-border-subtle rounded px-3 py-2 text-sm
+                      focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"/>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-xs font-bold uppercase tracking-wider text-on-surface-variant block mb-1">Granularity</label>
+          <select id="new-idiom-granularity"
+                  class="w-full border border-border-subtle rounded px-3 py-2 text-sm focus:outline-none focus:border-primary">
+            <option value="log">Log</option>
+            <option value="trace">Trace</option>
+            <option value="event">Event</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs font-bold uppercase tracking-wider text-on-surface-variant block mb-1">Renderer</label>
+          <select id="new-idiom-renderer"
+                  class="w-full border border-border-subtle rounded px-3 py-2 text-sm focus:outline-none focus:border-primary">
+            <option value="echarts">ECharts</option>
+            <option value="html">HTML / Table</option>
+            <option value="svg">SVG</option>
+            <option value="bpmn">BPMN</option>
+            <option value="d3">D3</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div id="idiom-modal-error" class="text-error text-xs bg-error-container px-3 py-2 rounded hidden"></div>
+
+    <div class="flex gap-2 justify-end pt-1">
+      <button onclick="closeModal('modal-idiom')"
+              class="text-sm text-on-surface-variant border border-border-subtle px-4 py-2 rounded
+                     hover:bg-surface-container transition-colors">
+        Cancel
+      </button>
+      <button onclick="submitCreateIdiom()"
+              class="text-sm bg-primary text-white px-5 py-2 rounded font-semibold hover:bg-primary-container transition-colors">
+        Create Idiom
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── View Experiments Modal ─────────────────────────────────────────── -->
+<div id="modal-experiments" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+  <div class="bg-white rounded-xl p-6 w-full max-w-[680px] shadow-xl flex flex-col gap-4 max-h-[80vh]">
+    <div class="flex justify-between items-center">
+      <h3 class="text-lg font-bold text-on-surface">All Experiments</h3>
+      <button onclick="closeModal('modal-experiments')" class="text-on-surface-variant hover:text-on-surface">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div id="experiments-list" class="overflow-y-auto flex flex-col gap-3 text-sm"></div>
+  </div>
+</div>
+
+<!-- ── Toast ──────────────────────────────────────────────────────────── -->
+<div id="toast"
+     class="fixed bottom-20 right-6 text-sm px-4 py-2.5 rounded-lg shadow-lg z-50 hidden">
+</div>
+
+<!-- ── Scripts ────────────────────────────────────────────────────────── -->
+<script>
+  // ── State ──────────────────────────────────────────────────────────────
+  let selectedTasks  = [];   // loaded from backend via URL param
+  let allIdioms      = [];   // loaded from backend
+  let experimentId   = null; // draft experiment created in step 1
+  // taskIdiomMap: { [taskId]: Set<idiomId> }
+  const taskIdiomMap = {};
+
+  const ALL_IDIOMS = [
+    { idiom_key: 'bar_chart',           label: 'Bar Chart',                              granularity: 'log',   renderer_type: 'echarts', active: true },
+    { idiom_key: 'donut_chart',         label: 'Donut Chart',                            granularity: 'log',   renderer_type: 'echarts', active: true },
+    { idiom_key: 'tile_metric',         label: 'Tile Metric',                            granularity: 'log',   renderer_type: 'html',    active: true },
+    { idiom_key: 'scatterplot',         label: 'Scatterplot',                            granularity: 'trace', renderer_type: 'echarts', active: true },
+    { idiom_key: 'table',               label: 'Table',                                  granularity: 'log',   renderer_type: 'html',    active: true },
+    { idiom_key: 'heatmap',             label: 'Heatmap',                                granularity: 'log',   renderer_type: 'echarts', active: true },
+    { idiom_key: 'boxplot',             label: 'Boxplot',                                granularity: 'log',   renderer_type: 'echarts', active: true },
+    { idiom_key: 'flow_chart_basic',    label: 'Flow Chart basic (Chevron Diagram)',     granularity: 'trace', renderer_type: 'svg',     active: true },
+    { idiom_key: 'flow_chart_elaborate',label: 'Flow Chart elaborate (BPMN Diagram)',    granularity: 'trace', renderer_type: 'bpmn',    active: true },
+    { idiom_key: 'pie_chart',           label: 'Pie Chart',                              granularity: 'log',   renderer_type: 'echarts', active: true },
+    { idiom_key: 'decision_tree',       label: 'Tree (Decision Tree)',                   granularity: 'log',   renderer_type: 'd3',      active: true },
+    { idiom_key: 'flow_chart_table',    label: 'Flow Chart & Table',                     granularity: 'trace', renderer_type: 'html',    active: true },
+    { idiom_key: 'table_bar_chart',     label: 'Table & Bar Chart',                      granularity: 'log',   renderer_type: 'html',    active: true },
+  ];
+
+  // Per-task allowed idiom keys (based on survey research)
+  const TASK_IDIOM_KEYS = {
+    'T-01': ['bar_chart', 'donut_chart', 'tile_metric', 'scatterplot', 'table', 'heatmap', 'boxplot'],
+    'T-02': ['flow_chart_basic', 'table', 'flow_chart_table', 'flow_chart_elaborate'],
+    'T-03': ['bar_chart', 'heatmap', 'pie_chart', 'flow_chart_table', 'table', 'table_bar_chart'],
+    'T-04': ['tile_metric', 'decision_tree', 'table'],
+    'T-05': ['bar_chart', 'pie_chart', 'scatterplot', 'heatmap', 'table'],
+    'T-06': ['table', 'decision_tree'],
+  };
+
+  // ── Init ────────────────────────────────────────────────────────────────
+  async function init() {
+    const params = new URLSearchParams(window.location.search);
+    experimentId = params.get('experiment_id');
+
+    if (!experimentId) {
+      window.location.href = 'admin_task_selection.html';
+      return;
+    }
+
+    // Load the draft experiment to get its task list
+    let taskIds = [];
+    try {
+      const res = await fetch(`${BASE_URL}/admin/experiments`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const experiments = await res.json();
+      const draft = experiments.find(e => getId(e) === experimentId);
+      if (!draft) throw new Error('Draft experiment not found.');
+      taskIds = draft.task_configs.map(tc => tc.task_id);
+    } catch (e) {
+      showToast(`Could not load draft experiment: ${e.message}`, true);
+      return;
+    }
+
+    // Load full task objects
+    try {
+      const res = await fetch(`${BASE_URL}/admin/tasks`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const allTasks = await res.json();
+      selectedTasks = allTasks.filter(t => taskIds.includes(getId(t)));
+    } catch (e) {
+      showToast(`Could not load tasks: ${e.message}`, true);
+      return;
+    }
+
+    if (selectedTasks.length === 0) {
+      window.location.href = 'admin_task_selection.html';
+      return;
+    }
+    selectedTasks.forEach(t => { taskIdiomMap[getId(t)] = new Set(); });
+
+    document.getElementById('task-cards-count').textContent =
+      `(${selectedTasks.length} task${selectedTasks.length !== 1 ? 's' : ''})`;
+
+    await fetchIdioms();
+    renderTaskCards();
+  }
+
+  // ── Data helpers ────────────────────────────────────────────────────────
+  function getId(obj) { return obj._id || obj.id; }
+
+  async function fetchIdioms() {
+    try {
+      const res = await fetch(`${BASE_URL}/admin/idioms`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      allIdioms = await res.json();
+    } catch (e) {
+      showToast(`Could not load idioms: ${e.message}`, true);
+    }
+  }
+
+  // ── Render task cards ───────────────────────────────────────────────────
+  function renderTaskCards() {
+    const container = document.getElementById('task-cards-container');
+    if (selectedTasks.length === 0) {
+      container.innerHTML = `<p class="text-sm text-on-surface-variant">No tasks selected.</p>`;
+      return;
+    }
+    container.innerHTML = selectedTasks.map(task => {
+      const tid = getId(task);
+      return `
+        <div class="bg-white rounded-lg border border-border-subtle shadow-sm overflow-hidden">
+          <!-- Task header -->
+          <div class="border-l-4 border-primary p-5">
+            <div class="flex items-start gap-3">
+              <span class="text-xs font-bold bg-blue-100 text-primary px-2 py-0.5 rounded flex-shrink-0 mt-0.5">
+                ${task.task_key}
+              </span>
+              <div>
+                <p class="text-sm font-semibold text-on-surface leading-snug">${task.label}</p>
+                ${task.description
+                  ? `<p class="text-xs text-on-surface-variant mt-0.5">${task.description}</p>`
+                  : ''}
+              </div>
+            </div>
+          </div>
+
+          <!-- Idiom options -->
+          <div class="p-5 pt-3 border-t border-border-subtle">
+            <p class="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-3">
+              Select Idioms
+              <span id="count-${tid}"
+                    class="ml-2 font-normal normal-case tracking-normal text-primary">
+                (0 selected)
+              </span>
+            </p>
+            ${allIdioms.length === 0
+              ? `<p class="text-xs text-on-surface-variant italic">
+                   No idioms in database yet. Click <strong>Seed Idioms</strong> above.
+                 </p>`
+              : `<div class="grid grid-cols-2 gap-2" id="idioms-grid-${tid}">
+                   ${renderIdiomOptions(tid, task)}
+                 </div>`}
+          </div>
+        </div>`;
+    }).join('');
+
+    updateAssignmentSummary();
+  }
+
+  function getIdiomsForTask(task) {
+    const allowed = TASK_IDIOM_KEYS[task.task_key];
+    if (!allowed) return allIdioms;
+    return allIdioms.filter(i => allowed.includes(i.idiom_key));
+  }
+
+  function renderIdiomOptions(taskId, task) {
+    const idioms = task ? getIdiomsForTask(task) : allIdioms;
+    if (idioms.length === 0) {
+      return `<p class="col-span-2 text-xs text-on-surface-variant italic">No matching idioms in database. Click <strong>Seed Idioms</strong> above.</p>`;
+    }
+    return idioms.map(idiom => {
+      const iid = getId(idiom);
+      const selected = taskIdiomMap[taskId]?.has(iid);
+      return `
+        <div onclick="toggleIdiom('${taskId}', '${iid}')"
+             class="cursor-pointer flex items-center gap-2 p-3 rounded-lg border transition-all select-none
+                    ${selected
+                      ? 'bg-blue-50 border-primary/30'
+                      : 'bg-surface-container-low border-transparent hover:border-outline-variant'}">
+          <span class="material-symbols-outlined text-base flex-shrink-0 transition-colors
+                       ${selected ? 'text-primary icon-filled' : 'text-outline-variant'}">
+            ${selected ? 'check_circle' : 'radio_button_unchecked'}
+          </span>
+          <div class="min-w-0">
+            <p class="text-xs font-semibold text-on-surface truncate">${idiom.label}</p>
+            <p class="text-[10px] text-on-surface-variant">${idiom.granularity} · ${idiom.renderer_type}</p>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function toggleIdiom(taskId, idiomId) {
+    const set = taskIdiomMap[taskId];
+    if (set.has(idiomId)) set.delete(idiomId);
+    else set.add(idiomId);
+
+    // Re-render only this task's grid
+    const grid = document.getElementById(`idioms-grid-${taskId}`);
+    const task = selectedTasks.find(t => getId(t) === taskId);
+    if (grid) grid.innerHTML = renderIdiomOptions(taskId, task);
+
+    // Update count label
+    const countEl = document.getElementById(`count-${taskId}`);
+    if (countEl) {
+      const n = set.size;
+      countEl.textContent = `(${n} selected)`;
+      countEl.className = `ml-2 font-normal normal-case tracking-normal ${n > 0 ? 'text-primary' : 'text-on-surface-variant'}`;
+    }
+
+    updateAssignmentSummary();
+  }
+
+  function updateAssignmentSummary() {
+    const total = Object.values(taskIdiomMap).reduce((sum, s) => sum + s.size, 0);
+    document.getElementById('assignment-summary').textContent =
+      total > 0 ? `${total} idiom assignment${total !== 1 ? 's' : ''}` : '';
+  }
+
+  // ── Create idiom modal ──────────────────────────────────────────────────
+  function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+  function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+  async function submitCreateIdiom() {
+    const key       = document.getElementById('new-idiom-key').value.trim();
+    const label     = document.getElementById('new-idiom-label').value.trim();
+    const gran      = document.getElementById('new-idiom-granularity').value;
+    const renderer  = document.getElementById('new-idiom-renderer').value;
+    const errEl     = document.getElementById('idiom-modal-error');
+
+    if (!key || !label) {
+      errEl.textContent = 'Idiom Key and Label are required.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    errEl.classList.add('hidden');
+
+    const payload = {
+      _id: crypto.randomUUID(),
+      idiom_key: key,
+      label,
+      granularity: gran,
+      renderer_type: renderer,
+      active: true,
+    };
+
+    try {
+      const res = await fetch(`${BASE_URL}/admin/idioms`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(await res.text());
+
+      closeModal('modal-idiom');
+      ['new-idiom-key', 'new-idiom-label'].forEach(id => {
+        document.getElementById(id).value = '';
+      });
+      showToast('Idiom created successfully!');
+      await fetchIdioms();
+      renderTaskCards();
+    } catch (e) {
+      errEl.textContent = `Error: ${e.message}`;
+      errEl.classList.remove('hidden');
+    }
+  }
+
+  // ── Seed idioms (idempotent — skips existing idiom_keys) ────────
+  async function seedIdioms() {
+    const btn = event.target.closest('button');
+    btn.disabled = true;
+    btn.textContent = 'Seeding…';
+
+    // Fetch existing idiom_keys to avoid duplicates
+    let existingKeys = new Set();
+    try {
+      const res = await fetch(`${BASE_URL}/admin/idioms`);
+      if (res.ok) {
+        const existing = await res.json();
+        existing.forEach(i => existingKeys.add(i.idiom_key));
+      }
+    } catch {}
+
+    let created = 0, skipped = 0;
+    for (const idiom of ALL_IDIOMS) {
+      if (existingKeys.has(idiom.idiom_key)) { skipped++; continue; }
+      try {
+        const res = await fetch(`${BASE_URL}/admin/idioms`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ _id: crypto.randomUUID(), ...idiom }),
+        });
+        if (res.ok) created++;
+      } catch {}
+    }
+
+    showToast(skipped === ALL_IDIOMS.length
+      ? 'All idioms already exist.'
+      : `Seeded ${created} idiom(s). ${skipped} already existed.`);
+    await fetchIdioms();
+    renderTaskCards();
+    btn.disabled = false;
+    btn.innerHTML = '<span class="material-symbols-outlined text-sm">download</span> Seed Idioms';
+  }
+
+  // ── Save experiment ─────────────────────────────────────────────────────
+  async function saveExperiment() {
+    // Validate: at least one idiom per task
+    const unassigned = selectedTasks.filter(t => taskIdiomMap[getId(t)].size === 0);
+    if (unassigned.length > 0) {
+      showToast(
+        `Please assign at least one idiom to: ${unassigned.map(t => t.task_key).join(', ')}`,
+        true
+      );
+      return;
+    }
+
+    // Build task_configs: one entry per (task, idiom) pair
+    const taskConfigs = [];
+    for (const task of selectedTasks) {
+      const tid = getId(task);
+      for (const idiomId of taskIdiomMap[tid]) {
+        taskConfigs.push({
+          task_id:      tid,
+          idiom_id:     idiomId,
+          dataset_id:   '',
+          question_ids: [],
+        });
+      }
+    }
+
+    try {
+      // PATCH the draft experiment created in step 1 with complete task_configs
+      const res = await fetch(`${BASE_URL}/admin/experiments/${experimentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_configs: taskConfigs, status: 'draft' }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+
+      // Show success banner
+      document.getElementById('success-detail').textContent =
+        `Experiment (ID: ${experimentId}) — ${taskConfigs.length} task-idiom assignments saved.`;
+      document.getElementById('success-banner').classList.remove('hidden');
+      document.getElementById('success-banner').scrollIntoView({ behavior: 'smooth' });
+
+    } catch (e) {
+      showToast(`Failed to save experiment: ${e.message}`, true);
+    }
+  }
+
+  // ── View all experiments ────────────────────────────────────────────────
+  async function viewExperiments() {
+    try {
+      const res = await fetch(`${BASE_URL}/admin/experiments`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const experiments = await res.json();
+
+      const listEl = document.getElementById('experiments-list');
+      if (experiments.length === 0) {
+        listEl.innerHTML = `<p class="text-on-surface-variant text-sm">No experiments found.</p>`;
+      } else {
+        listEl.innerHTML = experiments.map(exp => `
+          <div class="border border-border-subtle rounded-lg p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="font-semibold text-on-surface">${exp.name || '(unnamed)'}</p>
+                <p class="text-xs text-on-surface-variant mt-0.5">
+                  ID: ${exp._id} &nbsp;·&nbsp; Status: ${exp.status} &nbsp;·&nbsp; Type: ${exp.type}
+                </p>
+                <p class="text-xs text-on-surface-variant">
+                  ${exp.task_configs?.length ?? 0} task-idiom assignments
+                </p>
+              </div>
+              <span class="text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0
+                           ${exp.status === 'draft'
+                             ? 'bg-yellow-100 text-yellow-800'
+                             : 'bg-green-100 text-green-800'}">
+                ${exp.status}
+              </span>
+            </div>
+          </div>`).join('');
+      }
+      openModal('modal-experiments');
+    } catch (e) {
+      showToast(`Could not load experiments: ${e.message}`, true);
+    }
+  }
+
+  // ── Toast ───────────────────────────────────────────────────────────────
+  function showToast(msg, isError = false) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = `fixed bottom-20 right-6 text-sm px-4 py-2.5 rounded-lg shadow-lg z-50 transition-all
+                    ${isError ? 'bg-error text-white' : 'bg-on-surface text-white'}`;
+    el.classList.remove('hidden');
+    setTimeout(() => el.classList.add('hidden'), 4000);
+  }
+
+  // ── Close modals on backdrop click ──────────────────────────────────────
+  ['modal-idiom', 'modal-experiments'].forEach(id => {
+    document.getElementById(id).addEventListener('click', function(e) {
+      if (e.target === this) closeModal(id);
+    });
+  });
+
+  // ── Boot ─────────────────────────────────────────────────────────────────
+  init();
+</script>
+</body>
+</html>
