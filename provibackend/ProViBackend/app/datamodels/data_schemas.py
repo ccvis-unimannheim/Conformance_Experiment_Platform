@@ -99,6 +99,9 @@ class UILogBatch(BaseModel):
     """Frontend sends a batch of UI logs"""
     ui_logs: List[UILogging]
 
+class UILogDataDatabase(BaseModel):
+    ui_log_data: UILogDataFrontend
+
 
 class Administrator(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -176,3 +179,7 @@ class Idiom(BaseModel):
     granularity: str
     renderer_type: str
     active: bool
+
+class ExperimentUpdate(BaseModel):
+    task_configs: List[TaskConfig]
+    status: Optional[str] = None
