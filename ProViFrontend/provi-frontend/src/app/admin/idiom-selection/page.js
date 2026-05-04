@@ -283,22 +283,6 @@ function IdiomSelectionContent() {
               </span>
             )}
           </h2>
-          <div className="flex gap-2">
-            <button
-              onClick={seedIdioms}
-              disabled={isSeeding}
-              className="text-xs border border-border-subtle px-3 py-1.5 rounded text-on-surface-variant hover:bg-surface-container transition-colors flex items-center gap-1 disabled:opacity-60"
-            >
-              <span className="material-symbols-outlined text-sm">download</span>
-              {isSeeding ? "Seeding…" : "Seed Idioms"}
-            </button>
-            <button
-              onClick={() => setIdiomModalOpen(true)}
-              className="text-xs bg-primary text-white px-4 py-1.5 rounded font-semibold hover:bg-primary-container transition-colors flex items-center gap-1"
-            >
-              <span className="material-symbols-outlined text-sm">add</span> Add Idiom
-            </button>
-          </div>
         </div>
 
         {/* Task cards with idiom allocation */}
