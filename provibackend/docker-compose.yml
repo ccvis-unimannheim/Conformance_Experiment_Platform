@@ -24,7 +24,7 @@ services:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: example
     volumes:
-      - /home/pmvis/data/mongo:/data/db
+      - /home/ccvis/data/mongo:/data/db
     networks:
         - provi
     ports:
@@ -38,7 +38,7 @@ services:
     env_file:
       - .env
     volumes:
-      - /home/pmvis/data/provibackend:/code/ProViBackend/output/
+      - /home/ccvis/data/provibackend:/code/ProViBackend/output/
     networks:
         - provi
     depends_on:
@@ -52,7 +52,7 @@ services:
     container_name: redis
     restart: always
     volumes:
-      - /home/pmvis/data/redis:/data
+      - /home/ccvis/data/redis:/data
     ports:
       - "6379"
     networks:
