@@ -124,6 +124,8 @@ celerybeat.pid
 # Environments
 .env
 docker-compose.override.yml
+docker-compose.local.yml
+docker-data/
 .venv
 env/
 venv/

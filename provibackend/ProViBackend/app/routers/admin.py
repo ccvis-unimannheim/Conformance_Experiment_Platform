@@ -205,6 +205,22 @@ async def select_active_datasets(selected_datasets_from_frontend: ds.ListDataset
     return {"message": "Successfully updated dataset_is_active in database"}
 
 
+@router.get("/experiments", tags=["admin"])
+async def list_experiments():
+    experiments = dbc.get_query_db(
+        "Experiment",
+        query={},
+        projection={
+            "_id": 0,
+            "experiment_id": 1,
+            "experiment_name": 1,
+            "experiment_status": 1,
+            "experiment_created_at": 1,
+        },
+    )
+    return JSONResponse(content=experiments)
+
+
 @router.post("/experiments", tags=["admin"])
 async def create_experiment(body: ds.ExperimentCreate):
     experiment_id = str(uuid.uuid4())

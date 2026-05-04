@@ -4,6 +4,22 @@ Tracks files modified or created during development sessions.
 
 ---
 
+## Session: Admin Home — Two-Column Layout (2026-05-03)
+
+### Backend (`provibackend/`)
+
+| File | Change |
+|------|--------|
+| `ProViBackend/app/routers/admin.py` | Added `GET /admin/experiments` — returns list of all experiments (id, name, status, created_at) |
+
+### Frontend (`ProViFrontend/`)
+
+| File | Change |
+|------|--------|
+| `provi-frontend/src/app/admin/page.js` | Redesigned admin home as two-column layout: left column retains Upload Dataset + API base URL config; right column shows live experiment list fetched from `GET /admin/experiments`, with status-coded border colours (blue = published, amber = draft, grey = closed). "Create New Experiment" button links to `/admin/experiments/new` (the existing experiment setup page). |
+
+---
+
 ## Session: Experiment Creation Wizard — Step 1 (Name, Description, Dataset)
 
 ### Backend (`provibackend/`)
