@@ -8,20 +8,20 @@ import SaveResultModal from "../../components/Admin/SaveResultModal";
 import { getApiBase, setApiBase, normalizeApiBase } from "../../lib/apiConfig";
 
 const STATUS_STYLES = {
-  published: {
-    border: "border-blue-500",
-    dot: "bg-blue-500",
-    label: "Published",
-  },
   draft: {
     border: "border-amber-400",
     dot: "bg-amber-400",
     label: "Draft",
   },
-  closed: {
-    border: "border-on-surface-variant/30",
-    dot: "bg-on-surface-variant",
-    label: "Closed",
+  published: {
+    border: "border-blue-500",
+    dot: "bg-blue-500",
+    label: "Published",
+  },
+  finished: {
+    border: "border-slate-400",
+    dot: "bg-slate-400",
+    label: "Finished",
   },
 };
 
@@ -51,6 +51,19 @@ export default function AdminPage() {
       .catch(() => setExperiments([]))
       .finally(() => setExperimentsLoading(false));
   }, []);
+
+  const markAsFinished = useCallback(async (expId) => {
+    try {
+      const res = await fetch(
+        `${getApiBase()}/admin/experiments/${encodeURIComponent(expId)}/status?status=finished`,
+        { method: "PATCH" }
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      fetchExperiments();
+    } catch (e) {
+      setModal({ success: false, errorMessage: `Failed to mark as finished: ${e.message}` });
+    }
+  }, [fetchExperiments]);
 
   useEffect(() => {
     fetchExperiments();
@@ -188,7 +201,8 @@ export default function AdminPage() {
                 )}
                 {experiments.map((exp) => {
                   const expId = exp._id || exp.experiment_id;
-                  const s = statusStyle(exp.status || exp.experiment_status);
+                  const status = exp.status || exp.experiment_status || "draft";
+                  const s = statusStyle(status);
                   return (
                     <div
                       key={expId}
@@ -202,6 +216,35 @@ export default function AdminPage() {
                           <span className={`w-2 h-2 rounded-full ${s.dot}`} />
                           {s.label}
                         </p>
+                      </div>
+                      <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                        {status === "draft" && (() => {
+                          const hasTasks = exp.task_configs && exp.task_configs.length > 0;
+                          const continueHref = hasTasks
+                            ? `/admin/experiments/idiom?experiment_id=${encodeURIComponent(expId)}`
+                            : `/admin/experiments/task?experiment_id=${encodeURIComponent(expId)}`;
+                          return (
+                            <Link
+                              href={continueHref}
+                              className="text-xs border border-border-subtle text-on-surface-variant px-3 py-1.5 rounded hover:bg-surface-container transition-colors flex items-center gap-1"
+                            >
+                              <span className="material-symbols-outlined text-sm">edit</span>
+                              Continue Editing
+                            </Link>
+                          );
+                        })()}
+                        {status === "published" && (
+                          <button
+                            onClick={() => markAsFinished(expId)}
+                            className="text-xs border border-slate-300 text-slate-600 px-3 py-1.5 rounded hover:bg-slate-100 transition-colors flex items-center gap-1"
+                          >
+                            <span className="material-symbols-outlined text-sm">check_circle</span>
+                            Mark as Finished
+                          </button>
+                        )}
+                        {status === "finished" && (
+                          <span className="text-xs text-on-surface-variant italic">Read-only</span>
+                        )}
                       </div>
                     </div>
                   );

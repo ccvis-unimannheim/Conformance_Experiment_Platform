@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import ExperimentSetupHeader from "../../../components/Admin/ExperimentSetupHeader";
-import Toast from "../../../components/Admin/Toast";
+import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
+import Toast from "../../../../components/Admin/Toast";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:1234";
 
@@ -60,6 +60,12 @@ export default function TaskSelectionPage() {
   const [loadError, setLoadError] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
   const [isSeeding, setIsSeeding] = useState(false);
+
+  useEffect(() => {
+    if (!experimentId) {
+      router.replace("/admin/experiments/new");
+    }
+  }, [experimentId, router]);
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -193,7 +199,7 @@ export default function TaskSelectionPage() {
       showToast(`Failed to save tasks: ${e.message}`, true);
       return;
     }
-    router.push(`/admin/idiom-selection?experiment_id=${encodeURIComponent(experimentId)}`);
+    router.push(`/admin/experiments/idiom?experiment_id=${encodeURIComponent(experimentId)}`);
   }
 
   const selectedTasks = allTasks.filter((t) => selectedIds.includes(getTaskId(t)));
