@@ -4,6 +4,36 @@ Tracks files modified or created during development sessions.
 
 ---
 
+## Session: Docker One-Command Deploy (2026-05-07)
+
+### Infrastructure
+
+| File | Change |
+|------|--------|
+| `docker-compose.yml` | **New** — Root-level compose file consolidating all four services (mongo, redis, provibackend, provifrontend) plus nginx behind a `prod` profile. Uses `build:` so `--build` compiles images from source. Named volumes replace hard-coded host paths. `depends_on` with `condition: service_healthy` so backend waits for mongo and redis to be ready. `restart: unless-stopped` on every service. |
+| `.env.example` | **New** — Documents the three env vars needed: `PUBLIC_API_BASE` (Next.js build-time API URL), `MONGO_USERNAME`, `MONGO_PASSWORD`, `COMPOSE_PROFILES` (`prod` on server activates nginx). |
+| `Makefile` | **New** — `make up` / `make down` / `make logs` shortcuts. |
+| `.github/workflows/deploy.yml` | **New** — Single root-level workflow; triggers on push to `develop`; self-hosted runner writes `.env` from `SECRET_ENV` GitHub secret then runs `docker compose up -d --build`. |
+| `ProViFrontend/Dockerfile` | Added `ARG NEXT_PUBLIC_API_BASE` and `ENV NEXT_PUBLIC_API_BASE=$NEXT_PUBLIC_API_BASE` before `npm run build` so the API URL is baked into the Next.js bundle correctly per environment. |
+| `.gitignore` | Added `.env` so machine-specific env files are never committed. |
+| `ProViFrontend/docker-compose.yml` | **Deleted** — replaced by root compose file. |
+| `provibackend/docker-compose.yml` | **Deleted** — replaced by root compose file. |
+| `provibackend/docker-compose.override.yml` | **Deleted** — named volumes in root compose file replace this. |
+| `provibackend/docker-compose.local.yml` | **Deleted** — local/prod distinction now handled by `.env` + `COMPOSE_PROFILES`. |
+| `provibackend/.github/workflows/deploy.yml` | **Deleted** — dead code (GitHub only reads `.github/workflows/` at repo root). |
+| `ProViFrontend/.github/workflows/deploy.yml` | **Deleted** — same reason. |
+
+### How to deploy
+
+**Local dev** — copy `.env.example` to `.env` (defaults work as-is), then:
+```bash
+docker compose up -d --build   # or: make up
+```
+
+**Server** — set the `SECRET_ENV` GitHub secret to the prod `.env` contents (`PUBLIC_API_BASE=https://cc-vis.rz.uni-mannheim.de/api`, `COMPOSE_PROFILES=prod`, real `MONGO_PASSWORD`). Push to `develop`; the runner deploys automatically.
+
+---
+
 ## Session: Admin Passcode Gate (2026-05-04)
 
 ### Frontend (`ProViFrontend/`)
