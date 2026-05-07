@@ -3,7 +3,10 @@ import io
 import csv
 from fastapi import APIRouter, BackgroundTasks, UploadFile, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
-from ProViBackend.scripts.create_all_visualizations import create_all_visualizations
+try:
+    from ProViBackend.scripts.create_all_visualizations import create_all_visualizations
+except ImportError:
+    create_all_visualizations = None
 from ProViBackend.utils import config, utils
 from ProViBackend.app.datamodels import data_schemas as ds
 import pathlib as pl
@@ -187,46 +190,8 @@ async def select_active_datasets(selected_datasets_from_frontend: ds.ListDataset
     return {"message": "Successfully updated dataset_is_active in database"}
 
 
-@router.get("/experiments", tags=["admin"])
-async def list_experiments():
-    experiments = dbc.get_query_db(
-        "Experiment",
-        query={},
-        projection={
-            "_id": 0,
-            "experiment_id": 1,
-            "experiment_name": 1,
-            "experiment_status": 1,
-            "experiment_created_at": 1,
-        },
-    )
-    return JSONResponse(content=experiments)
 
 
-@router.post("/experiments", tags=["admin"])
-async def create_experiment(body: ds.ExperimentCreate):
-    experiment_id = str(uuid.uuid4())
-    experiment = ds.Experiment(
-        experiment_id=experiment_id,
-        experiment_name=body.experiment_name,
-        experiment_description=body.experiment_description,
-        experiment_dataset_ids=body.experiment_dataset_ids,
-        experiment_status="draft",
-        experiment_created_at=utils.get_current_datetime(),
-    )
-    dbc.create_experiment(experiment)
-    return {"experiment_id": experiment_id}
-
-
-@router.patch("/experiments/{experiment_id}", tags=["admin"])
-async def update_experiment(experiment_id: str, body: ds.ExperimentPatch):
-    if dbc.get_experiment(experiment_id) is None:
-        raise HTTPException(status_code=404, detail="Experiment not found")
-    fields = body.model_dump(exclude_none=True)
-    if not fields:
-        raise HTTPException(status_code=400, detail="No fields to update")
-    dbc.update_experiment(experiment_id, fields)
-    return {"message": "Experiment updated successfully"}
 
 
 @router.get("/usagedataset", tags=["admin"])

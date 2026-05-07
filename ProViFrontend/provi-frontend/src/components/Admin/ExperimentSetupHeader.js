@@ -22,7 +22,7 @@ export default function ExperimentSetupHeader() {
           />
           <nav className="hidden md:flex gap-6">
             <Link
-              href="/"
+              href="/admin"
               className="font-sans antialiased text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-[#0f3463] transition-colors"
             >
               Home

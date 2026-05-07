@@ -6,7 +6,7 @@ import Link from "next/link";
 import ExperimentSetupHeader from "../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../components/Admin/Toast";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:1234/api";
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:1234";
 
 const ALL_IDIOMS = [
   { idiom_key: "bar_chart",            label: "Bar Chart",                             granularity: "log",   renderer_type: "echarts", active: true },
@@ -283,6 +283,16 @@ function IdiomSelectionContent() {
               </span>
             )}
           </h2>
+          <button
+            onClick={seedIdioms}
+            disabled={isSeeding}
+            className="flex items-center gap-1.5 text-xs border border-border-subtle text-on-surface-variant px-3 py-1.5 rounded hover:bg-surface-container transition-colors disabled:opacity-50"
+          >
+            <span className="material-symbols-outlined text-sm">
+              {isSeeding ? "hourglass_empty" : "download"}
+            </span>
+            {isSeeding ? "Seeding…" : "Seed Idioms"}
+          </button>
         </div>
 
         {/* Task cards with idiom allocation */}
@@ -398,7 +408,7 @@ function IdiomSelectionContent() {
               <p className="text-sm text-green-700 mt-0.5">{successDetail}</p>
               <div className="flex gap-3 mt-3">
                 <Link
-                  href="/admin/task-selection"
+                  href="/admin/experiments/new"
                   className="text-xs bg-primary text-white px-4 py-1.5 rounded font-semibold hover:bg-primary-container transition-colors"
                 >
                   Create Another Experiment
@@ -419,7 +429,7 @@ function IdiomSelectionContent() {
       <div className="border-t border-border-subtle bg-white sticky bottom-0">
         <div className="max-w-[1140px] mx-auto px-8 py-4 flex justify-between items-center">
           <Link
-            href="/admin/task-selection"
+            href={`/admin/task-selection${experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""}`}
             className="text-sm text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors"
           >
             <span className="material-symbols-outlined text-sm">arrow_back</span> Previous Step
