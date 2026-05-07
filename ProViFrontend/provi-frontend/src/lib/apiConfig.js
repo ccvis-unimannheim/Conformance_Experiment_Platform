@@ -1,6 +1,6 @@
 const STORAGE_KEY = "provi_api_base";
 
-export const DEFAULT_API_BASE = "https://pm-vis.uni-mannheim.de/api";
+export const DEFAULT_API_BASE = "http://localhost:1234";
 
 /**
  * 规范化用户粘贴的地址：可写域名、http(s)、或 127.0.0.1:8000 这种。
@@ -11,7 +11,9 @@ export function normalizeApiBase(input) {
   if (!s) return DEFAULT_API_BASE;
   if (!/^https?:\/\//i.test(s)) s = `http://${s}`;
   s = s.replace(/\/$/, "");
-  if (!s.endsWith("/api")) s = `${s}/api`;
+  // Only add /api suffix for non-localhost URLs (production uses nginx that routes /api/)
+  const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/.test(s);
+  if (!isLocal && !s.endsWith("/api")) s = `${s}/api`;
   return s;
 }
 

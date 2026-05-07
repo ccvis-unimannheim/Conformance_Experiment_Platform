@@ -187,15 +187,16 @@ export default function AdminPage() {
                   <p className="text-body-sm text-secondary">No experiments yet.</p>
                 )}
                 {experiments.map((exp) => {
-                  const s = statusStyle(exp.experiment_status);
+                  const expId = exp._id || exp.experiment_id;
+                  const s = statusStyle(exp.status || exp.experiment_status);
                   return (
                     <div
-                      key={exp.experiment_id}
+                      key={expId}
                       className={`bg-surface-container-lowest p-5 rounded-xl flex items-center justify-between shadow-sm border-l-4 ${s.border}`}
                     >
                       <div>
                         <h3 className="text-sm font-bold text-on-surface mb-1">
-                          {exp.experiment_name}
+                          {exp.name || exp.experiment_name || "(unnamed)"}
                         </h3>
                         <p className="text-[11px] text-on-surface-variant font-medium flex items-center gap-1 uppercase tracking-wider">
                           <span className={`w-2 h-2 rounded-full ${s.dot}`} />

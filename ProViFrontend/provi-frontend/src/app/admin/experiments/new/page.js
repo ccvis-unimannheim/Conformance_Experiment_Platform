@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import AdminNav from "../../../../components/Admin/AdminNav";
 import ExperimentDetailsForm from "../../../../components/Admin/ExperimentDetailsForm";
 import DatasetSelectTable from "../../../../components/Admin/DatasetSelectTable";
-import { getApiBase } from "../../../../lib/apiConfig";
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:1234";
 
 export default function NewExperimentPage() {
   const router = useRouter();
@@ -22,7 +22,7 @@ export default function NewExperimentPage() {
   const [submitError, setSubmitError] = useState(null);
 
   useEffect(() => {
-    fetch(`${getApiBase()}/admin/datasets`)
+    fetch(`${BASE_URL}/admin/datasets`)
       .then((r) => {
         if (!r.ok) throw new Error(`Server error: ${r.status}`);
         return r.json();
@@ -58,13 +58,25 @@ export default function NewExperimentPage() {
     setSubmitError(null);
     setIsSubmitting(true);
     try {
-      const response = await fetch(`${getApiBase()}/admin/experiments`, {
+      const experimentId = crypto.randomUUID();
+      const response = await fetch(`${BASE_URL}/admin/experiments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          experiment_name: name.trim(),
-          experiment_description: description.trim() || null,
-          experiment_dataset_ids: Array.from(selectedIds),
+          _id: experimentId,
+          name: name.trim(),
+          type: "CC",
+          status: "draft",
+          design_type: "between",
+          between_factors: [],
+          within_factors: [],
+          stratification_fields: [],
+          between_balance_mode: "random",
+          within_sequence_mode: "fixed",
+          dataset_ids: Array.from(selectedIds),
+          task_configs: [],
+          created_by: "admin",
+          created_at: new Date().toISOString(),
         }),
       });
 
@@ -73,8 +85,7 @@ export default function NewExperimentPage() {
         throw new Error(err.detail || `Server error: ${response.status}`);
       }
 
-      const { experiment_id } = await response.json();
-      router.push(`/admin/experiments/${experiment_id}/design`);
+      router.push(`/admin/task-selection?experiment_id=${encodeURIComponent(experimentId)}`);
     } catch (e) {
       setSubmitError(e.message);
     } finally {

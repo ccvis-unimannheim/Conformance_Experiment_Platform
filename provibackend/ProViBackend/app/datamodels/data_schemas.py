@@ -195,3 +195,6 @@ class Idiom(BaseModel):
 class ExperimentUpdate(BaseModel):
     task_configs: List[TaskConfig]
     status: Optional[str] = None
+
+# Aliases for backward compatibility with older router code
+PreEliminaryAnswers = PreliminaryAnswers
