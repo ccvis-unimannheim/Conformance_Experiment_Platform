@@ -38,7 +38,7 @@ services:
     env_file:
       - .env
     volumes:
-      - /home/ccvis/data/provibackend:/code/ProViBackend/output/
+      - ./ProViBackend/output:/code/ProViBackend/output/
     networks:
         - provi
     depends_on:

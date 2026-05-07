@@ -3,6 +3,7 @@ import io
 import csv
 from fastapi import APIRouter, BackgroundTasks, UploadFile, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
+from bson import ObjectId
 try:
     from ProViBackend.scripts.create_all_visualizations import create_all_visualizations
 except ImportError:
@@ -70,7 +71,7 @@ async def upload_xes_file(file: UploadFile, background_tasks: BackgroundTasks):
 
 
 @router.post("/datasets/pair", tags=["admin"])
-async def upload_dataset_pair(log: UploadFile, guideline: UploadFile):
+async def upload_dataset_pair(log: UploadFile, guideline: UploadFile, background_tasks: BackgroundTasks):
     pair_id = str(uuid.uuid4())
     pair_dir = config.BASE_DIRECTORY / "output" / pair_id
     try:
@@ -103,6 +104,15 @@ async def upload_dataset_pair(log: UploadFile, guideline: UploadFile):
 
         db = dbc.connect_to_database()
         db["DatasetPair"].insert_one(dataset_pair.model_dump())
+
+        if create_all_visualizations:
+            background_tasks.add_task(
+                create_all_visualizations,
+                log_path,
+                pair_dir,
+                guideline_path,
+            )
+
         return {"dataset_id": pair_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to upload dataset pair: {str(e)}")
@@ -285,7 +295,57 @@ async def update_experiment_status(experiment_id: str, status: str):
     updated = dbc.update_document("Experiment", query={"_id": experiment_id}, update={"$set": {"status": status}})
     if not updated:
         raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
+
+    if status == "published":
+        _sync_participant_experiment(experiment_id, "active")
+    elif status == "finished":
+        dbc.update_document("ParticipantExperiment", query={"_id": experiment_id}, update={"$set": {"status": "inactive"}})
+
     return JSONResponse(content={"message": f"Experiment status updated to '{status}'."})
+
+
+def _sync_participant_experiment(experiment_id: str, participant_status: str):
+    """Build and upsert a ParticipantExperiment document for participant-facing queries."""
+    exp = dbc.get_document("Experiment", {"_id": experiment_id})
+    if not exp:
+        return
+    def _get_by_id(collection, id_str):
+        doc = dbc.get_document(collection, {"_id": id_str})
+        if doc:
+            return doc
+        try:
+            doc = dbc.get_document(collection, {"_id": ObjectId(id_str)})
+        except Exception:
+            pass
+        return doc
+
+    task_assignments = []
+    for tc in exp.get("task_configs", []):
+        task_doc = _get_by_id("Task", tc["task_id"])
+        idiom_doc = _get_by_id("Idiom", tc["idiom_id"])
+        task_key = task_doc["task_key"] if task_doc else None
+        idiom_key = idiom_doc["idiom_key"] if idiom_doc else None
+        svg_path = (
+            f"output/{tc['dataset_id']}/{task_key}/{idiom_key}.svg"
+            if task_key and idiom_key else None
+        )
+        task_assignments.append({
+            "dataset_id": tc["dataset_id"],
+            "task_id": tc["task_id"],
+            "idiom_id": tc["idiom_id"],
+            "svg_path": svg_path,
+        })
+    db = dbc.connect_to_database()
+    db["ParticipantExperiment"].replace_one(
+        {"_id": experiment_id},
+        {
+            "_id": experiment_id,
+            "experiment_id": experiment_id,
+            "status": participant_status,
+            "task_assignments": task_assignments,
+        },
+        upsert=True,
+    )
 
 
 @router.patch("/experiments/{experiment_id}", tags=["admin"])

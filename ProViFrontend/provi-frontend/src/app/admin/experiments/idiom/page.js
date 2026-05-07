@@ -45,6 +45,7 @@ function IdiomSelectionContent() {
   const [selectedTasks, setSelectedTasks] = useState([]);
   const [allIdioms, setAllIdioms] = useState([]);
   const [taskIdiomMap, setTaskIdiomMap] = useState({});
+  const [datasetIds, setDatasetIds] = useState([]);
   const [isSeeding, setIsSeeding] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [successDetail, setSuccessDetail] = useState("");
@@ -76,6 +77,7 @@ function IdiomSelectionContent() {
       const draft = exps.find((e) => getId(e) === experimentId);
       if (!draft) throw new Error("Draft experiment not found.");
       taskIds = draft.task_configs.map((tc) => tc.task_id);
+      setDatasetIds(draft.dataset_ids || []);
     } catch (e) {
       showToast(`Could not load draft experiment: ${e.message}`, true);
       return;
@@ -204,7 +206,7 @@ function IdiomSelectionContent() {
     for (const task of selectedTasks) {
       const tid = getId(task);
       for (const idiomId of taskIdiomMap[tid] || []) {
-        taskConfigs.push({ task_id: tid, idiom_id: idiomId, dataset_id: "", question_ids: [] });
+        taskConfigs.push({ task_id: tid, idiom_id: idiomId, dataset_id: datasetIds[0] || "", question_ids: [] });
       }
     }
 
