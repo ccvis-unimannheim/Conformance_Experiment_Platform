@@ -9,6 +9,10 @@ Public API:
         output_dir  – directory where SVGs are written
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -193,7 +197,7 @@ def task1_tile_metric(df, output_dir: str):
 def generate(df, output_dir: str):
     """Generate all Task 1 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
-    print("\n--- Generating Task 1 visualizations ---")
+    logger.info("\n--- Generating Task 1 visualizations ---")
     task1_bar_chart(df, output_dir)
     task1_box_plot(df, output_dir)
     task1_pie_chart(df, output_dir)

@@ -9,6 +9,10 @@ Public API:
         output_dir  – directory where SVGs are written
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 import os
 import numpy as np
 import pandas as pd
@@ -315,9 +319,9 @@ def task5_table(range_df: pd.DataFrame, output_dir: str):
 def generate(df, output_dir: str):
     """Generate all Task 5 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
-    print("\n--- Generating Task 5 visualizations ---")
+    logger.info("\n--- Generating Task 5 visualizations ---")
     range_df = _build_range_df(df)
-    print(f"      -> Range counts: {dict(zip(range_df['range'], range_df['count']))}")
+    logger.info(f"      -> Range counts: {dict(zip(range_df['range'], range_df['count']))}")
     task5_bar_chart(range_df, output_dir)
     task5_pie_chart(range_df, output_dir)
     task5_scatter_plot(range_df, output_dir)

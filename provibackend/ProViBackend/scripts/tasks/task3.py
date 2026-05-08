@@ -5,6 +5,10 @@ Public API:
     generate(alignments, output_dir)
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 import os
 import numpy as np
 import pandas as pd
@@ -58,7 +62,7 @@ def task3_violation_summary_dataframe(alignments):
     summary = summary.sort_values(["order", "violation_type"]).drop(columns=["order"]).reset_index(drop=True)
     total = int(summary["count"].sum()) if not summary.empty else 0
     summary["percentage"] = (summary["count"] / total * 100) if total else 0.0
-    print(f"      -> Violation moves: {total}")
+    logger.info(f"      -> Violation moves: {total}")
     return summary
 
 
@@ -219,10 +223,10 @@ def task3_table_and_bar_chart(df: pd.DataFrame, output_dir: str):
 def generate(alignments, output_dir: str):
     """Generate all Task 3 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
-    print("\n--- Generating Task 3 visualizations ---")
+    logger.info("\n--- Generating Task 3 visualizations ---")
     df = task3_violation_summary_dataframe(alignments)
     if df.empty:
-        print("      Skipped Task 3: no violation moves found.")
+        logger.warning("      Skipped Task 3: no violation moves found.")
         return
     task3_bar_chart(df, output_dir)
     task3_heatmap(df, output_dir)

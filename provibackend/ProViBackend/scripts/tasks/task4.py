@@ -8,6 +8,10 @@ Note: task6.py imports task4_trace_feature_dataframe, _task4_build_tree,
       _task4_gini from this module.
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 import os
 import numpy as np
 import pandas as pd
@@ -300,7 +304,7 @@ def task4_root_cause_analysis(log, alignments):
             ["score", "violation_rate", "nonconformant_cases"],
             ascending=False,
         ).reset_index(drop=True)
-    print(f"      -> Task 4 features: {len(features)} predictors, base non-conformance rate: {base_rate:.2%}")
+    logger.info(f"      -> Task 4 features: {len(features)} predictors, base non-conformance rate: {base_rate:.2%}")
     return df, tree, root_causes
 
 
@@ -777,10 +781,10 @@ def task4_decision_tree(tree: dict, output_dir: str):
 def generate(log, alignments, output_dir: str):
     """Generate all Task 4 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
-    print("\n--- Generating Task 4 visualizations ---")
+    logger.info("\n--- Generating Task 4 visualizations ---")
     df, tree, root_causes = task4_root_cause_analysis(log, alignments)
     if df.empty:
-        print("      Skipped Task 4: no trace-level features found.")
+        logger.warning("      Skipped Task 4: no trace-level features found.")
         return
     task4_tile_metric(root_causes, df, output_dir)
     task4_decision_tree(tree, output_dir)
