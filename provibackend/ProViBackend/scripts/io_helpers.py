@@ -10,10 +10,11 @@ import pandas as pd
 
 
 def load_event_log(log_path: str):
+    """Load XES or CSV event log and always return a PM4Py EventLog object."""
     print(f"[1/3] Loading event log: {log_path}")
     ext = os.path.splitext(log_path)[1].lower()
     if ext == ".xes":
-        log = pm4py.read_xes(log_path)
+        raw = pm4py.read_xes(log_path)
     elif ext == ".csv":
         df_csv = pd.read_csv(log_path)
         col_map = {}
@@ -34,16 +35,23 @@ def load_event_log(log_path: str):
             print(f"ERROR: Could not auto-detect columns for: {missing}", file=sys.stderr)
             print(f"       Available columns: {list(df_csv.columns)}", file=sys.stderr)
             sys.exit(1)
-        log = pm4py.format_dataframe(
+        raw = pm4py.format_dataframe(
             df_csv,
             case_id=col_map["case_id_key"],
             activity_key=col_map["activity_key"],
             timestamp_key=col_map["timestamp_key"],
         )
-        log = pm4py.convert_to_event_log(log)
     else:
         print(f"ERROR: Unsupported file format '{ext}'. Use .xes or .csv", file=sys.stderr)
         sys.exit(1)
+
+    # PM4Py ≥ 2.7 returns a DataFrame from read_xes; convert to EventLog so
+    # task4/task6 can iterate over traces and events directly.
+    if isinstance(raw, pd.DataFrame):
+        log = pm4py.convert_to_event_log(raw)
+    else:
+        log = raw
+
     print(f"      -> {len(log)} traces loaded.")
     return log
 

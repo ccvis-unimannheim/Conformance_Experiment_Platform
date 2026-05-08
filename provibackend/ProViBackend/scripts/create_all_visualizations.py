@@ -59,23 +59,35 @@ import tasks.task6 as task6
 # ---------------------------------------------------------------------------
 # Filename conventions inside a dataset directory
 #
-# Server-side dataset layout (root: data/<dataset_id>/):
+# Server-side dataset layout (root: data/<pair_id>/):
 #     input/
-#         EventLog.xes  (or EventLog.csv)
-#         Guideline.bpmn
+#         <any filename>.xes  (or .csv)  ← event log
+#         <any filename>.bpmn            ← process model
 #     output/
 #         task1/  task2/  ...  task6/
 # ---------------------------------------------------------------------------
 
-INPUT_SUBDIR    = "input"
-OUTPUT_SUBDIR   = "output"
-LOG_FILENAMES   = ["EventLog.xes", "EventLog.csv"]
-MODEL_FILENAME  = "Guideline.bpmn"
-TASK_DIRS       = ["task1", "task2", "task3", "task4", "task5", "task6"]
+INPUT_SUBDIR  = "input"
+OUTPUT_SUBDIR = "output"
+LOG_EXTENSIONS   = {".xes", ".csv"}
+MODEL_EXTENSIONS = {".bpmn"}
+TASK_DIRS     = ["task1", "task2", "task3", "task4", "task5", "task6"]
+
+# Aliases mapping task-script filename stems to canonical idiom_keys.
+# E.g. task1.py writes "task1_scatter_plot.svg"; we strip "task1_" then
+# rename "scatter_plot" -> "scatterplot" to match the Idiom collection.
+_FILE_RENAME = {
+    "scatter_plot":              "scatterplot",
+    "box_plot":                  "boxplot",
+    "table_and_bar_chart":       "table_bar_chart",
+    "flow_chart_and_table":      "flow_chart_table",
+    "flow_chart_elaborate_bpmn": "flow_chart_elaborate",
+    "alignment_table":           "table",
+}
 
 
 def _resolve_dataset_paths(dataset_dir: str):
-    """Locate EventLog and Guideline inside <dataset_dir>/input/; create output dir."""
+    """Locate log and model files inside <dataset_dir>/input/ by extension; create output dir."""
     if not os.path.isdir(dataset_dir):
         raise FileNotFoundError(f"Dataset directory not found: {dataset_dir}")
 
@@ -87,21 +99,24 @@ def _resolve_dataset_paths(dataset_dir: str):
         )
 
     log_path = None
-    for candidate in LOG_FILENAMES:
-        path = os.path.join(input_dir, candidate)
-        if os.path.isfile(path):
-            log_path = path
-            break
+    model_path = None
+    for fname in os.listdir(input_dir):
+        ext = os.path.splitext(fname)[1].lower()
+        full = os.path.join(input_dir, fname)
+        if ext in LOG_EXTENSIONS and log_path is None:
+            log_path = full
+        elif ext in MODEL_EXTENSIONS and model_path is None:
+            model_path = full
+
     if log_path is None:
         raise FileNotFoundError(
             f"No event log found in {input_dir}. "
-            f"Expected one of: {', '.join(LOG_FILENAMES)}"
+            f"Expected a file with extension: {', '.join(sorted(LOG_EXTENSIONS))}"
         )
-
-    model_path = os.path.join(input_dir, MODEL_FILENAME)
-    if not os.path.isfile(model_path):
+    if model_path is None:
         raise FileNotFoundError(
-            f"Process model not found: {model_path} (expected '{MODEL_FILENAME}')"
+            f"No process model found in {input_dir}. "
+            f"Expected a file with extension: {', '.join(sorted(MODEL_EXTENSIONS))}"
         )
 
     output_dir = os.path.join(dataset_dir, OUTPUT_SUBDIR)
@@ -120,15 +135,21 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED") -> str
     Parameters
     ----------
     dataset_dir : str
-        Path to the dataset folder (must contain EventLog.{xes|csv} and Model.bpmn).
+        Path to the dataset folder (must contain input/EventLog.{xes|csv}
+        and input/Guideline.bpmn).
+    output_dir : str, optional
+        Where to write task SVG subdirectories.  Defaults to
+        ``<dataset_dir>/output/`` when not supplied.
     outcome_activity : str
         Activity name that marks a positive process outcome (used by Task 6).
 
     Returns
     -------
     str
-        Absolute path to the generated `output/` directory.
+        Absolute path to the directory that received the SVGs.
     """
+    import pathlib
+
     log_path, model_path, output_dir = _resolve_dataset_paths(dataset_dir)
 
     logger.error(f"Dataset directory : {os.path.abspath(dataset_dir)}")
@@ -142,19 +163,41 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED") -> str
     fitness_df  = fitness_summary_dataframe(alignments)
 
     def out(task_name: str) -> str:
-        return os.path.join(output_dir, task_name)
+        d = os.path.join(output_dir, task_name)
+        os.makedirs(d, exist_ok=True)
+        return d
 
-    task1.generate(fitness_df,             out("task1"))
-    task2.generate(alignments, model_path, out("task2"))
-    task3.generate(alignments,             out("task3"))
-    task4.generate(log, alignments,        out("task4"))
-    task5.generate(fitness_df,             out("task5"))
-    task6.generate(log, alignments,        out("task6"),
-                   outcome_activity=outcome_activity)
+    generators = [
+        ("task1", lambda d: task1.generate(fitness_df,             d)),
+        ("task2", lambda d: task2.generate(alignments, model_path, d)),
+        ("task3", lambda d: task3.generate(alignments,             d)),
+        ("task4", lambda d: task4.generate(log, alignments,        d)),
+        ("task5", lambda d: task5.generate(fitness_df,             d)),
+        ("task6", lambda d: task6.generate(log, alignments,        d,
+                                           outcome_activity=outcome_activity)),
+    ]
+
+    for task_name, gen_fn in generators:
+        task_dir = out(task_name)
+        try:
+            gen_fn(task_dir)
+        except Exception as e:
+            logger.warning(f"{task_name} generation failed: {e}")
+
+        # Each task script writes "taskN_<idiom>.svg"; rename to canonical
+        # "<idiom_key>.svg" form, applying _FILE_RENAME aliases.
+        for f in pathlib.Path(task_dir).glob("*.svg"):
+            stem = f.stem
+            parts = stem.split("_", 1)
+            idiom_key = parts[1] if len(parts) == 2 else stem
+            idiom_key = _FILE_RENAME.get(idiom_key, idiom_key)
+            target = pathlib.Path(task_dir) / f"{idiom_key}.svg"
+            if f != target:
+                f.rename(target)
 
     logger.info("\nDone! SVGs written to:")
     for t in TASK_DIRS:
-        logger.info(f"  {out(t)}/")
+        logger.info(f"  {os.path.join(output_dir, t)}/")
     return os.path.abspath(output_dir)
 
 

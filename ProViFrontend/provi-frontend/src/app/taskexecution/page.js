@@ -10,16 +10,42 @@ import { UITrackingProvider } from "../../utils/usertracking";
 import ProjectLogo from "../../public/images/logo-no-background.png";
 import UniLogo from "../../public/images/Logo_UMA_EN_RGB.png";
 
-// Step counter is fully dynamic — derived from tasks loaded from DB
+// ---------------------------------------------------------------------------
+// Group flat trials array by task_key, preserving order
+// ---------------------------------------------------------------------------
+function groupTrialsByTask(trials) {
+  const groups = [];
+  const seen = new Map(); // task_key → group index
 
+  for (const trial of trials) {
+    if (!seen.has(trial.task_key)) {
+      seen.set(trial.task_key, groups.length);
+      groups.push({
+        task_key:    trial.task_key,
+        task_id:     trial.task_id,
+        task_label:  trial.task_label,
+        answer_type: trial.answer_type,
+        idioms: [],
+      });
+    }
+    const idx = seen.get(trial.task_key);
+    groups[idx].idioms.push({
+      idiom_id:    trial.idiom_id,
+      idiom_key:   trial.idiom_key,
+      idiom_label: trial.idiom_label,
+      dataset_id:  trial.dataset_id,
+      svg_available: trial.svg_available,
+    });
+  }
+  return groups;
+}
 
 // ---------------------------------------------------------------------------
-// Skeleton placeholder — shown while data is loading
+// Skeleton placeholder
 // ---------------------------------------------------------------------------
 function LoadingSkeleton() {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(12, minmax(0,1fr))", gap: "2rem", alignItems: "start" }}>
-      {/* Visualization skeleton */}
       <section style={{ gridColumn: "1 / span 8" }}>
         <div style={{ backgroundColor: "white", borderRadius: "0.75rem", padding: "2.5rem", boxShadow: "0 4px 16px rgba(45,52,53,0.06)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2.5rem" }}>
@@ -36,8 +62,6 @@ function LoadingSkeleton() {
           </div>
         </div>
       </section>
-
-      {/* Answer skeleton */}
       <aside style={{ gridColumn: "span 4", display: "flex", flexDirection: "column", gap: "1.5rem" }}>
         <div style={{ backgroundColor: "#f2f4f4", borderRadius: "0.75rem", padding: "2rem" }}>
           <div style={{ height: "0.75rem", width: "8rem", backgroundColor: "#d1d5db", borderRadius: "0.25rem", marginBottom: "2rem" }} />
@@ -49,10 +73,6 @@ function LoadingSkeleton() {
           ))}
           <div style={{ height: "3rem", backgroundColor: "#d1d5db", borderRadius: "0.5rem", marginTop: "2rem" }} />
         </div>
-        <div style={{ padding: "1.5rem", borderLeft: "2px solid #e5e7eb" }}>
-          <div style={{ height: "0.75rem", backgroundColor: "#e5e7eb", borderRadius: "0.25rem", marginBottom: "0.5rem" }} />
-          <div style={{ height: "0.75rem", backgroundColor: "#e5e7eb", borderRadius: "0.25rem", width: "83%" }} />
-        </div>
       </aside>
     </div>
   );
@@ -62,23 +82,24 @@ function LoadingSkeleton() {
 // TaskExecutionPage
 // ---------------------------------------------------------------------------
 export default function TaskExecutionPage() {
-  const [tasks, setTasks] = useState([]);
-  const [currentTaskIndex, setCurrentTaskIndex] = useState(0);
-  const [svgUrl, setSvgUrl] = useState(null);
-  const [loadingTasks, setLoadingTasks] = useState(true);
-  const [loadingSvg, setLoadingSvg] = useState(false);
+  const [taskGroups, setTaskGroups]           = useState([]);
+  const [currentGroupIndex, setCurrentGroupIndex] = useState(0);
+  const [currentIdiomIndex, setCurrentIdiomIndex] = useState(0);
+  const [svgUrl, setSvgUrl]                   = useState(null);
+  const [loadingTasks, setLoadingTasks]       = useState(true);
+  const [loadingSvg, setLoadingSvg]           = useState(false);
 
-  // ── Fetch task list on mount ──────────────────────────────────────
+  // ── Fetch & group trials on mount ────────────────────────────────
   useEffect(() => {
     const fetchTasks = async () => {
       try {
         const response = await fetch(
-          "https://pm-vis.uni-mannheim.de/api/survey/questionnaire",
+          `/api/participant/experiment/active`,
           { method: "GET", credentials: "include" }
         );
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
-        setTasks(data);
+        setTaskGroups(groupTrialsByTask(data.trials ?? []));
       } catch (error) {
         console.error("Error fetching tasks:", error.message);
       } finally {
@@ -88,9 +109,12 @@ export default function TaskExecutionPage() {
     fetchTasks();
   }, []);
 
-  // ── Fetch SVG for the current task ───────────────────────────────
+  // ── Fetch SVG when group or idiom index changes ───────────────────
   useEffect(() => {
-    if (!tasks[currentTaskIndex]) return;
+    const group = taskGroups[currentGroupIndex];
+    if (!group) return;
+    const idiom = group.idioms[currentIdiomIndex];
+    if (!idiom) return;
 
     let objectUrl = null;
     setLoadingSvg(true);
@@ -98,9 +122,8 @@ export default function TaskExecutionPage() {
 
     const fetchSvg = async () => {
       try {
-        const taskId = tasks[currentTaskIndex].id ?? currentTaskIndex + 1;
         const response = await fetch(
-          `https://pm-vis.uni-mannheim.de/api/vis/${taskId}`,
+          `/api/participant/vis/${idiom.dataset_id}/${group.task_id}/${idiom.idiom_id}`,
           { method: "GET", credentials: "include" }
         );
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -117,24 +140,35 @@ export default function TaskExecutionPage() {
 
     fetchSvg();
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [currentTaskIndex, tasks]);
+  }, [currentGroupIndex, currentIdiomIndex, taskGroups]);
 
-  const handleAnswerSubmit = () => setCurrentTaskIndex((prev) => prev + 1);
+  // ── Advance: idiom-first, then task ──────────────────────────────
+  const handleAnswerSubmit = () => {
+    const group = taskGroups[currentGroupIndex];
+    if (!group) return;
+    if (currentIdiomIndex < group.idioms.length - 1) {
+      setCurrentIdiomIndex((prev) => prev + 1);
+    } else {
+      setCurrentGroupIndex((prev) => prev + 1);
+      setCurrentIdiomIndex(0);
+    }
+  };
 
-  const currentTask = tasks[currentTaskIndex];
-  const taskOptions = currentTask?.options
-    ? currentTask.options.map((opt) => ({ label: opt, value: opt }))
-    : [];
+  // ── Derived display values ────────────────────────────────────────
+  const currentGroup = taskGroups[currentGroupIndex];
+  const currentIdiom = currentGroup?.idioms[currentIdiomIndex];
 
-  // Idiom name comes from the task data (set by admin) — e.g. "Bar Chart", "Flow Chart"
-  const idiom = currentTask?.idiom ?? currentTask?.chart_type ?? null;
-
-  // Dynamic step counter — based on actual number of tasks from DB
-  const totalTasks = tasks.length;
-  const currentStep = currentTaskIndex + 1;
+  // Navbar / title counts unique tasks
+  const totalTasks     = taskGroups.length;
+  const currentStep    = currentGroupIndex + 1;
   const progressPercent = totalTasks > 0 ? (currentStep / totalTasks) * 100 : 0;
 
-  // Show skeleton only during the initial load
+  // TaskAnswerPanel needs flat trial index to detect the very last trial
+  const flatTrialIndex = taskGroups
+    .slice(0, currentGroupIndex)
+    .reduce((sum, g) => sum + g.idioms.length, 0) + currentIdiomIndex;
+  const totalTrials = taskGroups.reduce((sum, g) => sum + g.idioms.length, 0);
+
   const showSkeleton = loadingTasks;
 
   // ── Render ───────────────────────────────────────────────────────
@@ -173,24 +207,22 @@ export default function TaskExecutionPage() {
         {/* ── Main Content ─────────────────────────────────────── */}
         <main style={{ flexGrow: 1, paddingTop: "6rem", paddingBottom: "3rem", paddingLeft: "2rem", paddingRight: "2rem", maxWidth: "1440px", margin: "0 auto", width: "100%" }}>
 
-          {/* Header — skeleton while loading, real data when available, placeholder label when no data */}
           <header style={{ marginBottom: "3rem" }}>
             {showSkeleton ? (
               <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                 <div style={{ height: "2.5rem", width: "50%", backgroundColor: "#e5e7eb", borderRadius: "0.5rem" }} />
                 <div style={{ height: "1.5rem", width: "70%", backgroundColor: "#e5e7eb", borderRadius: "0.5rem" }} />
               </div>
-            ) : currentTask ? (
+            ) : currentGroup ? (
               <>
                 <h1 style={{ fontSize: "2.25rem", fontWeight: 900, color: "#00305e", letterSpacing: "-0.025em", marginBottom: "0.75rem" }}>
-                  Task {currentTaskIndex + 1}: {currentTask.title}
+                  Task {currentStep}: {currentGroup.task_label}
                 </h1>
                 <p style={{ color: "#5a6061", maxWidth: "42rem", lineHeight: 1.6, fontSize: "1.25rem", fontWeight: 700 }}>
-                  {currentTask.question_text}
+                  {currentIdiom?.idiom_label ?? ""}
                 </p>
               </>
             ) : (
-              /* Placeholder header when backend not connected */
               <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                 <div style={{ height: "2.5rem", width: "50%", backgroundColor: "#e5e7eb", borderRadius: "0.5rem" }} />
                 <div style={{ height: "1.5rem", width: "70%", backgroundColor: "#e5e7eb", borderRadius: "0.5rem" }} />
@@ -198,22 +230,21 @@ export default function TaskExecutionPage() {
             )}
           </header>
 
-          {/* Two-column area — always rendered, panels handle their own placeholder state */}
           {showSkeleton ? (
             <LoadingSkeleton />
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(12, minmax(0,1fr))", gap: "2rem", alignItems: "start" }}>
               <TaskVisualizationPanel
-                idiom={idiom}
+                idiom={currentIdiom?.idiom_label ?? null}
                 svgUrl={svgUrl}
-                taskNumber={currentTaskIndex + 1}
+                taskNumber={currentStep}
                 loadingSvg={loadingSvg}
               />
               <TaskAnswerPanel
-                options={taskOptions}
-                taskId={currentTask?.id ?? currentTaskIndex + 1}
-                totalTasks={tasks.length}
-                currentTaskIndex={currentTaskIndex}
+                options={[]}
+                taskId={currentGroup?.task_id ?? currentStep}
+                totalTasks={totalTrials}
+                currentTaskIndex={flatTrialIndex}
                 onAnswerSubmit={handleAnswerSubmit}
               />
             </div>

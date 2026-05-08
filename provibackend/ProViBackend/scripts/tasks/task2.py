@@ -9,6 +9,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+IDIOMS = ["flow_chart_basic", "flow_chart_table", "flow_chart_elaborate", "table"]
+
 import html
 import math
 import os
@@ -355,7 +357,7 @@ def task2_alignment_table(ctx: dict, output_dir: str):
         font_size=10.5,
     )
     fig.subplots_adjust(left=0.025, right=0.985, top=0.94, bottom=0.05)
-    save_svg(fig, os.path.join(output_dir, "task2_alignment_table.svg"))
+    save_svg(fig, os.path.join(output_dir, "task2_table.svg"))
 
 
 def task2_flow_chart_basic(ctx: dict, output_dir: str):

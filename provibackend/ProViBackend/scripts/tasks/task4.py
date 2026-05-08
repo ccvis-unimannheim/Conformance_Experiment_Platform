@@ -12,6 +12,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+IDIOMS = ["tile_metric", "table", "decision_tree"]
+
 import os
 import numpy as np
 import pandas as pd
@@ -83,7 +85,7 @@ def task4_trace_feature_dataframe(log, alignments):
     trace_payloads = []
 
     for trace_idx, trace in enumerate(log):
-        events = [dict(event) for event in trace]
+        events = [{k: v for k, v in event.items()} for event in trace]
         activities = [str(event.get("concept:name", "")) for event in events if event.get("concept:name") is not None]
         for activity in activities:
             activity_counter[activity] = activity_counter.get(activity, 0) + 1

@@ -5,23 +5,22 @@ import Link from "next/link";
 import AdminNav from "../../components/Admin/AdminNav";
 import FileUploadCard from "../../components/Admin/FileUploadCard";
 import SaveResultModal from "../../components/Admin/SaveResultModal";
-import { getApiBase, setApiBase, normalizeApiBase } from "../../lib/apiConfig";
 
 const STATUS_STYLES = {
-  published: {
-    border: "border-blue-500",
-    dot: "bg-blue-500",
-    label: "Published",
-  },
   draft: {
     border: "border-amber-400",
     dot: "bg-amber-400",
     label: "Draft",
   },
-  closed: {
-    border: "border-on-surface-variant/30",
-    dot: "bg-on-surface-variant",
-    label: "Closed",
+  published: {
+    border: "border-blue-500",
+    dot: "bg-blue-500",
+    label: "Published",
+  },
+  finished: {
+    border: "border-slate-400",
+    dot: "bg-slate-400",
+    label: "Finished",
   },
 };
 
@@ -34,23 +33,31 @@ export default function AdminPage() {
   const [guidelineFile, setGuidelineFile] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [modal, setModal] = useState(null);
-  const [apiBaseInput, setApiBaseInput] = useState("");
 
   const [experiments, setExperiments] = useState([]);
   const [experimentsLoading, setExperimentsLoading] = useState(true);
 
-  useEffect(() => {
-    setApiBaseInput(getApiBase());
-  }, []);
-
   const fetchExperiments = useCallback(() => {
     setExperimentsLoading(true);
-    fetch(`${getApiBase()}/admin/experiments`)
+    fetch(`/api/admin/experiments`)
       .then((r) => (r.ok ? r.json() : []))
       .then((data) => setExperiments(data))
       .catch(() => setExperiments([]))
       .finally(() => setExperimentsLoading(false));
   }, []);
+
+  const markAsFinished = useCallback(async (expId) => {
+    try {
+      const res = await fetch(
+        `/api/admin/experiments/${encodeURIComponent(expId)}/status?status=finished`,
+        { method: "PATCH" }
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      fetchExperiments();
+    } catch (e) {
+      setModal({ success: false, errorMessage: `Failed to mark as finished: ${e.message}` });
+    }
+  }, [fetchExperiments]);
 
   useEffect(() => {
     fetchExperiments();
@@ -71,7 +78,7 @@ export default function AdminPage() {
       formData.append("log", logFile);
       formData.append("guideline", guidelineFile);
 
-      const response = await fetch(`${getApiBase()}/admin/datasets/pair`, {
+      const response = await fetch(`/api/admin/datasets/pair`, {
         method: "POST",
         body: formData,
       });
@@ -103,46 +110,6 @@ export default function AdminPage() {
                 <h2 className="text-h2 text-primary">Upload Dataset</h2>
               </header>
 
-              <div className="mt-4 p-3 rounded-md bg-surface-container border border-outline-variant/60 text-body-sm text-secondary mb-section-gap">
-                <label htmlFor="api-base" className="block text-on-surface font-medium mb-1">
-                  API base URL (public or SSH tunnel)
-                </label>
-                <p className="text-xs text-secondary mb-2">
-                  For example{" "}
-                  <code className="text-on-surface/80">https://your-host/…</code> or{" "}
-                  <code className="text-on-surface/80">127.0.0.1:8000</code> (a trailing{" "}
-                  <code className="text-on-surface/80">/api</code> is added if missing). Saved to
-                  this browser only (localStorage).
-                </p>
-                <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-                  <input
-                    id="api-base"
-                    type="text"
-                    className="flex-1 rounded border border-outline-variant bg-surface px-3 py-2 text-on-surface text-sm"
-                    value={apiBaseInput}
-                    onChange={(e) => setApiBaseInput(e.target.value)}
-                    placeholder="e.g. 127.0.0.1:8000 or https://…"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setApiBase(apiBaseInput);
-                      setApiBaseInput(getApiBase());
-                      fetchExperiments();
-                    }}
-                    className="shrink-0 text-button text-primary px-3 py-2 border border-primary rounded-md hover:bg-primary/5"
-                  >
-                    Use this base
-                  </button>
-                </div>
-                <p className="text-xs mt-2 text-secondary">
-                  Current request:{" "}
-                  <span className="text-on-surface/90 font-mono">
-                    {normalizeApiBase(apiBaseInput || getApiBase())}/admin/…
-                  </span>
-                </p>
-              </div>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-gutter mb-section-gap">
                 <FileUploadCard
                   label="Upload Log"
@@ -163,7 +130,7 @@ export default function AdminPage() {
                   disabled={isSaving}
                   className="flex items-center gap-2 text-button bg-primary text-on-primary px-12 py-3 rounded-lg hover:opacity-90 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isSaving ? "Saving..." : "Save"}
+                  {isSaving ? "Saving and generating..." : "Save and Generate Graphs"}
                   {!isSaving && (
                     <span className="material-symbols-outlined text-sm">chevron_right</span>
                   )}
@@ -188,7 +155,8 @@ export default function AdminPage() {
                 )}
                 {experiments.map((exp) => {
                   const expId = exp._id || exp.experiment_id;
-                  const s = statusStyle(exp.status || exp.experiment_status);
+                  const status = exp.status || exp.experiment_status || "draft";
+                  const s = statusStyle(status);
                   return (
                     <div
                       key={expId}
@@ -202,6 +170,35 @@ export default function AdminPage() {
                           <span className={`w-2 h-2 rounded-full ${s.dot}`} />
                           {s.label}
                         </p>
+                      </div>
+                      <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                        {status === "draft" && (() => {
+                          const hasTasks = exp.task_configs && exp.task_configs.length > 0;
+                          const continueHref = hasTasks
+                            ? `/admin/experiments/idiom?experiment_id=${encodeURIComponent(expId)}`
+                            : `/admin/experiments/task?experiment_id=${encodeURIComponent(expId)}`;
+                          return (
+                            <Link
+                              href={continueHref}
+                              className="text-xs border border-border-subtle text-on-surface-variant px-3 py-1.5 rounded hover:bg-surface-container transition-colors flex items-center gap-1"
+                            >
+                              <span className="material-symbols-outlined text-sm">edit</span>
+                              Continue Editing
+                            </Link>
+                          );
+                        })()}
+                        {status === "published" && (
+                          <button
+                            onClick={() => markAsFinished(expId)}
+                            className="text-xs border border-slate-300 text-slate-600 px-3 py-1.5 rounded hover:bg-slate-100 transition-colors flex items-center gap-1"
+                          >
+                            <span className="material-symbols-outlined text-sm">check_circle</span>
+                            Mark as Finished
+                          </button>
+                        )}
+                        {status === "finished" && (
+                          <span className="text-xs text-on-surface-variant italic">Read-only</span>
+                        )}
                       </div>
                     </div>
                   );

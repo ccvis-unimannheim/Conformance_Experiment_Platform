@@ -9,9 +9,9 @@ const SaveResultModal = ({ success, errorMessage, onClose }) => {
             <span className="material-symbols-outlined text-5xl text-primary">
               check_circle
             </span>
-            <h2 className="text-h2 text-on-surface">Save Successful</h2>
+            <h2 className="text-h2 text-on-surface">Upload Successful</h2>
             <p className="text-body-sm text-on-surface-variant text-center">
-              Your dataset has been uploaded and saved.
+              Dataset saved. Graph generation is running in the background — allow ~30 seconds before publishing an experiment using this dataset.
             </p>
           </>
         ) : (

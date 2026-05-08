@@ -3,35 +3,8 @@
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import ExperimentSetupHeader from "../../../components/Admin/ExperimentSetupHeader";
-import Toast from "../../../components/Admin/Toast";
-
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:1234";
-
-const ALL_IDIOMS = [
-  { idiom_key: "bar_chart",            label: "Bar Chart",                             granularity: "log",   renderer_type: "echarts", active: true },
-  { idiom_key: "donut_chart",          label: "Donut Chart",                           granularity: "log",   renderer_type: "echarts", active: true },
-  { idiom_key: "tile_metric",          label: "Tile Metric",                           granularity: "log",   renderer_type: "html",    active: true },
-  { idiom_key: "scatterplot",          label: "Scatterplot",                           granularity: "trace", renderer_type: "echarts", active: true },
-  { idiom_key: "table",                label: "Table",                                 granularity: "log",   renderer_type: "html",    active: true },
-  { idiom_key: "heatmap",              label: "Heatmap",                               granularity: "log",   renderer_type: "echarts", active: true },
-  { idiom_key: "boxplot",              label: "Boxplot",                               granularity: "log",   renderer_type: "echarts", active: true },
-  { idiom_key: "flow_chart_basic",     label: "Flow Chart basic (Chevron Diagram)",    granularity: "trace", renderer_type: "svg",     active: true },
-  { idiom_key: "flow_chart_elaborate", label: "Flow Chart elaborate (BPMN Diagram)",   granularity: "trace", renderer_type: "bpmn",    active: true },
-  { idiom_key: "pie_chart",            label: "Pie Chart",                             granularity: "log",   renderer_type: "echarts", active: true },
-  { idiom_key: "decision_tree",        label: "Tree (Decision Tree)",                  granularity: "log",   renderer_type: "d3",      active: true },
-  { idiom_key: "flow_chart_table",     label: "Flow Chart & Table",                    granularity: "trace", renderer_type: "html",    active: true },
-  { idiom_key: "table_bar_chart",      label: "Table & Bar Chart",                     granularity: "log",   renderer_type: "html",    active: true },
-];
-
-const TASK_IDIOM_KEYS = {
-  "T-01": ["bar_chart", "donut_chart", "tile_metric", "scatterplot", "table", "heatmap", "boxplot"],
-  "T-02": ["flow_chart_basic", "table", "flow_chart_table", "flow_chart_elaborate"],
-  "T-03": ["bar_chart", "heatmap", "pie_chart", "flow_chart_table", "table", "table_bar_chart"],
-  "T-04": ["tile_metric", "decision_tree", "table"],
-  "T-05": ["bar_chart", "pie_chart", "scatterplot", "heatmap", "table"],
-  "T-06": ["table", "decision_tree"],
-};
+import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
+import Toast from "../../../../components/Admin/Toast";
 
 function getId(obj) {
   return obj._id || obj.id;
@@ -44,25 +17,16 @@ function IdiomSelectionContent() {
 
   const [selectedTasks, setSelectedTasks] = useState([]);
   const [allIdioms, setAllIdioms] = useState([]);
-  // taskIdiomMap: { [taskId]: string[] }
+  const [taskIdiomKeys, setTaskIdiomKeys] = useState({});
   const [taskIdiomMap, setTaskIdiomMap] = useState({});
-  const [isSeeding, setIsSeeding] = useState(false);
+  const [datasetIds, setDatasetIds] = useState([]);
   const [showSuccess, setShowSuccess] = useState(false);
   const [successDetail, setSuccessDetail] = useState("");
 
-  // Create idiom modal
-  const [idiomModalOpen, setIdiomModalOpen] = useState(false);
-  const [newIdiomKey, setNewIdiomKey] = useState("");
-  const [newIdiomLabel, setNewIdiomLabel] = useState("");
-  const [newIdiomGranularity, setNewIdiomGranularity] = useState("log");
-  const [newIdiomRenderer, setNewIdiomRenderer] = useState("echarts");
-  const [idiomModalError, setIdiomModalError] = useState("");
 
-  // View experiments modal
   const [expModalOpen, setExpModalOpen] = useState(false);
   const [experiments, setExperiments] = useState([]);
 
-  // Toast
   const [toast, setToast] = useState({ visible: false, message: "", isError: false });
   const showToast = useCallback((message, isError = false) => {
     setToast({ visible: true, message, isError });
@@ -71,35 +35,34 @@ function IdiomSelectionContent() {
 
   useEffect(() => {
     if (!experimentId) {
-      router.replace("/admin/task-selection");
+      router.replace("/admin/experiments/task");
       return;
     }
     init();
   }, [experimentId]);
 
   async function init() {
-    // Load draft experiment to get task IDs
     let taskIds = [];
     try {
-      const res = await fetch(`${BASE_URL}/admin/experiments`);
+      const res = await fetch(`/api/admin/experiments`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const exps = await res.json();
       const draft = exps.find((e) => getId(e) === experimentId);
       if (!draft) throw new Error("Draft experiment not found.");
       taskIds = draft.task_configs.map((tc) => tc.task_id);
+      setDatasetIds(draft.dataset_ids || []);
     } catch (e) {
       showToast(`Could not load draft experiment: ${e.message}`, true);
       return;
     }
 
-    // Load full task objects
     try {
-      const res = await fetch(`${BASE_URL}/admin/tasks`);
+      const res = await fetch(`/api/admin/tasks`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const allTasks = await res.json();
       const tasks = allTasks.filter((t) => taskIds.includes(getId(t)));
       if (tasks.length === 0) {
-        router.replace("/admin/task-selection");
+        router.replace(`/admin/experiments/task?experiment_id=${encodeURIComponent(experimentId)}`);
         return;
       }
       setSelectedTasks(tasks);
@@ -111,21 +74,26 @@ function IdiomSelectionContent() {
       return;
     }
 
-    await fetchIdioms();
+    await fetchIdiomsAndMapping();
   }
 
-  async function fetchIdioms() {
+  async function fetchIdiomsAndMapping() {
     try {
-      const res = await fetch(`${BASE_URL}/admin/idioms`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setAllIdioms(await res.json());
+      const [idiomsRes, mappingRes] = await Promise.all([
+        fetch("/api/admin/idioms"),
+        fetch("/api/admin/task-idioms"),
+      ]);
+      if (!idiomsRes.ok) throw new Error(`idioms: HTTP ${idiomsRes.status}`);
+      if (!mappingRes.ok) throw new Error(`task-idioms: HTTP ${mappingRes.status}`);
+      setAllIdioms(await idiomsRes.json());
+      setTaskIdiomKeys(await mappingRes.json());
     } catch (e) {
       showToast(`Could not load idioms: ${e.message}`, true);
     }
   }
 
   function getIdiomsForTask(task) {
-    const allowed = TASK_IDIOM_KEYS[task.task_key];
+    const allowed = taskIdiomKeys[task.task_key];
     if (!allowed) return allIdioms;
     return allIdioms.filter((i) => allowed.includes(i.idiom_key));
   }
@@ -145,71 +113,7 @@ function IdiomSelectionContent() {
     0
   );
 
-  async function seedIdioms() {
-    setIsSeeding(true);
-    let existingKeys = new Set();
-    try {
-      const res = await fetch(`${BASE_URL}/admin/idioms`);
-      if (res.ok) {
-        const existing = await res.json();
-        existing.forEach((i) => existingKeys.add(i.idiom_key));
-      }
-    } catch {}
-
-    let created = 0, skipped = 0;
-    for (const idiom of ALL_IDIOMS) {
-      if (existingKeys.has(idiom.idiom_key)) { skipped++; continue; }
-      try {
-        const res = await fetch(`${BASE_URL}/admin/idioms`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ _id: crypto.randomUUID(), ...idiom }),
-        });
-        if (res.ok) created++;
-      } catch {}
-    }
-
-    showToast(
-      skipped === ALL_IDIOMS.length
-        ? "All idioms already exist."
-        : `Seeded ${created} idiom(s). ${skipped} already existed.`
-    );
-    await fetchIdioms();
-    setIsSeeding(false);
-  }
-
-  async function submitCreateIdiom() {
-    if (!newIdiomKey.trim() || !newIdiomLabel.trim()) {
-      setIdiomModalError("Idiom Key and Label are required.");
-      return;
-    }
-    setIdiomModalError("");
-    const payload = {
-      _id: crypto.randomUUID(),
-      idiom_key: newIdiomKey.trim(),
-      label: newIdiomLabel.trim(),
-      granularity: newIdiomGranularity,
-      renderer_type: newIdiomRenderer,
-      active: true,
-    };
-    try {
-      const res = await fetch(`${BASE_URL}/admin/idioms`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      setIdiomModalOpen(false);
-      setNewIdiomKey("");
-      setNewIdiomLabel("");
-      showToast("Idiom created successfully!");
-      await fetchIdioms();
-    } catch (e) {
-      setIdiomModalError(`Error: ${e.message}`);
-    }
-  }
-
-  async function saveExperiment() {
+  async function saveExperiment(publish = false) {
     const unassigned = selectedTasks.filter(
       (t) => (taskIdiomMap[getId(t)] || []).length === 0
     );
@@ -221,50 +125,64 @@ function IdiomSelectionContent() {
       return;
     }
 
+    if (publish) {
+      try {
+        const res = await fetch(`/api/admin/experiments`);
+        if (res.ok) {
+          const allExps = await res.json();
+          const activeOthers = allExps.filter(
+            (e) => ["active", "published"].includes(e.status) && getId(e) !== experimentId
+          );
+          for (const exp of activeOthers) {
+            await fetch(
+              `${BASE_URL}/admin/experiments/${getId(exp)}/status?status=finished`,
+              { method: "PATCH" }
+            );
+          }
+        }
+      } catch {
+        showToast("Could not deactivate previous experiments. Please try again.", true);
+        return;
+      }
+    }
+
     const taskConfigs = [];
     for (const task of selectedTasks) {
       const tid = getId(task);
       for (const idiomId of taskIdiomMap[tid] || []) {
-        taskConfigs.push({ task_id: tid, idiom_id: idiomId, dataset_id: "", question_ids: [] });
+        taskConfigs.push({ task_id: tid, idiom_id: idiomId, dataset_id: datasetIds[0] || "", question_ids: [] });
       }
     }
 
+    const newStatus = publish ? "published" : "draft";
+
     try {
-      const res = await fetch(`${BASE_URL}/admin/experiments/${experimentId}`, {
+      const res = await fetch(`/api/admin/experiments/${experimentId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ task_configs: taskConfigs, status: "draft" }),
+        body: JSON.stringify({ task_configs: taskConfigs, status: newStatus }),
       });
       if (!res.ok) throw new Error(await res.text());
-      setSuccessDetail(
-        `Experiment (ID: ${experimentId}) — ${taskConfigs.length} task-idiom assignments saved.`
-      );
-      setShowSuccess(true);
-      setTimeout(() => {
-        document.getElementById("success-banner")?.scrollIntoView({ behavior: "smooth" });
-      }, 50);
+
+      if (publish) {
+        setSuccessDetail(
+          `Experiment (ID: ${experimentId}) — ${taskConfigs.length} task-idiom assignment(s) confirmed. Now visible to participants.`
+        );
+        setShowSuccess(true);
+        setTimeout(() => {
+          document.getElementById("success-banner")?.scrollIntoView({ behavior: "smooth" });
+        }, 50);
+      } else {
+        showToast("Draft saved. You can continue editing later.");
+      }
     } catch (e) {
       showToast(`Failed to save experiment: ${e.message}`, true);
     }
   }
 
-  async function publishExperiment() {
-    try {
-      const res = await fetch(
-        `${BASE_URL}/admin/experiments/${experimentId}/status?status=published`,
-        { method: "PATCH" }
-      );
-      if (!res.ok) throw new Error(await res.text());
-      showToast("Experiment published!");
-      setSuccessDetail((prev) => prev.replace("saved", "published"));
-    } catch (e) {
-      showToast(`Failed to publish experiment: ${e.message}`, true);
-    }
-  }
-
   async function viewExperiments() {
     try {
-      const res = await fetch(`${BASE_URL}/admin/experiments`);
+      const res = await fetch(`/api/admin/experiments`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setExperiments(await res.json());
       setExpModalOpen(true);
@@ -297,16 +215,6 @@ function IdiomSelectionContent() {
               </span>
             )}
           </h2>
-          <button
-            onClick={seedIdioms}
-            disabled={isSeeding}
-            className="flex items-center gap-1.5 text-xs border border-border-subtle text-on-surface-variant px-3 py-1.5 rounded hover:bg-surface-container transition-colors disabled:opacity-50"
-          >
-            <span className="material-symbols-outlined text-sm">
-              {isSeeding ? "hourglass_empty" : "download"}
-            </span>
-            {isSeeding ? "Seeding…" : "Seed Idioms"}
-          </button>
         </div>
 
         {/* Task cards with idiom allocation */}
@@ -328,7 +236,6 @@ function IdiomSelectionContent() {
                   key={tid}
                   className="bg-white rounded-lg border border-border-subtle shadow-sm overflow-hidden"
                 >
-                  {/* Task header */}
                   <div className="border-l-4 border-primary p-5">
                     <div className="flex items-start gap-3">
                       <span className="text-xs font-bold bg-blue-100 text-primary px-2 py-0.5 rounded flex-shrink-0 mt-0.5">
@@ -338,16 +245,10 @@ function IdiomSelectionContent() {
                         <p className="text-sm font-semibold text-on-surface leading-snug">
                           {task.label}
                         </p>
-                        {task.description && (
-                          <p className="text-xs text-on-surface-variant mt-0.5">
-                            {task.description}
-                          </p>
-                        )}
                       </div>
                     </div>
                   </div>
 
-                  {/* Idiom options */}
                   <div className="p-5 pt-3 border-t border-border-subtle">
                     <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-3">
                       Select Idioms{" "}
@@ -392,9 +293,6 @@ function IdiomSelectionContent() {
                                 <p className="text-xs font-semibold text-on-surface truncate">
                                   {idiom.label}
                                 </p>
-                                <p className="text-[10px] text-on-surface-variant">
-                                  {idiom.granularity} · {idiom.renderer_type}
-                                </p>
                               </div>
                             </div>
                           );
@@ -408,7 +306,7 @@ function IdiomSelectionContent() {
           )}
         </div>
 
-        {/* Success banner */}
+        {/* Success banner — shown after Publish */}
         {showSuccess && (
           <div
             id="success-banner"
@@ -418,15 +316,9 @@ function IdiomSelectionContent() {
               check_circle
             </span>
             <div>
-              <p className="font-semibold text-green-800">Experiment saved successfully!</p>
+              <p className="font-semibold text-green-800">Experiment published successfully!</p>
               <p className="text-sm text-green-700 mt-0.5">{successDetail}</p>
               <div className="flex gap-3 mt-3">
-                <button
-                  onClick={publishExperiment}
-                  className="text-xs bg-green-600 text-white px-4 py-1.5 rounded font-semibold hover:bg-green-700 transition-colors"
-                >
-                  Publish Experiment
-                </button>
                 <Link
                   href="/admin/experiments/new"
                   className="text-xs bg-primary text-white px-4 py-1.5 rounded font-semibold hover:bg-primary-container transition-colors"
@@ -439,6 +331,12 @@ function IdiomSelectionContent() {
                 >
                   View All Experiments
                 </button>
+                <Link
+                  href="/admin"
+                  className="text-xs border border-border-subtle text-on-surface-variant px-4 py-1.5 rounded hover:bg-surface-container transition-colors"
+                >
+                  Back to Admin Home
+                </Link>
               </div>
             </div>
           </div>
@@ -449,121 +347,34 @@ function IdiomSelectionContent() {
       <div className="border-t border-border-subtle bg-white sticky bottom-0">
         <div className="max-w-[1140px] mx-auto px-8 py-4 flex justify-between items-center">
           <Link
-            href={`/admin/task-selection${experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""}`}
+            href={`/admin/experiments/task${experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""}`}
             className="text-sm text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors"
           >
             <span className="material-symbols-outlined text-sm">arrow_back</span> Previous Step
           </Link>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             {assignmentTotal > 0 && (
               <span className="text-xs text-on-surface-variant">
                 {assignmentTotal} idiom assignment{assignmentTotal !== 1 ? "s" : ""}
               </span>
             )}
             <button
-              onClick={saveExperiment}
-              className="flex items-center gap-2 font-button text-button bg-primary text-on-primary px-12 py-3 rounded-lg hover:opacity-90 transition-all active:scale-95"
+              onClick={() => saveExperiment(false)}
+              className="flex items-center gap-2 text-sm border border-border-subtle text-on-surface-variant px-6 py-3 rounded-lg hover:bg-surface-container transition-all active:scale-95"
             >
-              Next
-              <span className="material-symbols-outlined text-sm">chevron_right</span>
+              <span className="material-symbols-outlined text-sm">save</span>
+              Save as Draft
+            </button>
+            <button
+              onClick={() => saveExperiment(true)}
+              className="flex items-center gap-2 font-button text-button bg-primary text-on-primary px-8 py-3 rounded-lg hover:opacity-90 transition-all active:scale-95"
+            >
+              <span className="material-symbols-outlined text-sm">publish</span>
+              Publish Experiment
             </button>
           </div>
         </div>
       </div>
-
-      {/* Create Idiom Modal */}
-      {idiomModalOpen && (
-        <div
-          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
-          onClick={(e) => { if (e.target === e.currentTarget) setIdiomModalOpen(false); }}
-        >
-          <div className="bg-white rounded-xl p-6 w-full max-w-[480px] shadow-xl flex flex-col gap-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-bold text-on-surface">Create New Idiom</h3>
-              <button onClick={() => setIdiomModalOpen(false)} className="text-on-surface-variant hover:text-on-surface">
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-            <div className="flex flex-col gap-3">
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-on-surface-variant block mb-1">
-                  Idiom Key *
-                </label>
-                <input
-                  type="text"
-                  value={newIdiomKey}
-                  onChange={(e) => setNewIdiomKey(e.target.value)}
-                  placeholder="e.g. bar_chart"
-                  className="w-full border border-border-subtle rounded px-3 py-2 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-on-surface-variant block mb-1">
-                  Display Label *
-                </label>
-                <input
-                  type="text"
-                  value={newIdiomLabel}
-                  onChange={(e) => setNewIdiomLabel(e.target.value)}
-                  placeholder="e.g. Bar Chart"
-                  className="w-full border border-border-subtle rounded px-3 py-2 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold uppercase tracking-wider text-on-surface-variant block mb-1">
-                    Granularity
-                  </label>
-                  <select
-                    value={newIdiomGranularity}
-                    onChange={(e) => setNewIdiomGranularity(e.target.value)}
-                    className="w-full border border-border-subtle rounded px-3 py-2 text-sm focus:outline-none focus:border-primary"
-                  >
-                    <option value="log">Log</option>
-                    <option value="trace">Trace</option>
-                    <option value="event">Event</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-bold uppercase tracking-wider text-on-surface-variant block mb-1">
-                    Renderer
-                  </label>
-                  <select
-                    value={newIdiomRenderer}
-                    onChange={(e) => setNewIdiomRenderer(e.target.value)}
-                    className="w-full border border-border-subtle rounded px-3 py-2 text-sm focus:outline-none focus:border-primary"
-                  >
-                    <option value="echarts">ECharts</option>
-                    <option value="html">HTML / Table</option>
-                    <option value="svg">SVG</option>
-                    <option value="bpmn">BPMN</option>
-                    <option value="d3">D3</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-            {idiomModalError && (
-              <div className="text-error text-xs bg-error-container px-3 py-2 rounded">
-                {idiomModalError}
-              </div>
-            )}
-            <div className="flex gap-2 justify-end pt-1">
-              <button
-                onClick={() => setIdiomModalOpen(false)}
-                className="text-sm text-on-surface-variant border border-border-subtle px-4 py-2 rounded hover:bg-surface-container transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={submitCreateIdiom}
-                className="text-sm bg-primary text-white px-5 py-2 rounded font-semibold hover:bg-primary-container transition-colors"
-              >
-                Create Idiom
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* View Experiments Modal */}
       {expModalOpen && (

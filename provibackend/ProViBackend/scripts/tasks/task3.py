@@ -9,6 +9,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+IDIOMS = ["bar_chart", "heatmap", "pie_chart", "flow_chart_table", "table", "table_bar_chart"]
+
 import os
 import numpy as np
 import pandas as pd
@@ -16,9 +18,78 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+from matplotlib.patches import Polygon
 from matplotlib import gridspec
 
-from shared import save_svg, make_table, alignment_pairs_to_rows, BLUE, ORANGE, RED
+from shared import save_svg, make_table, alignment_pairs_to_rows, BLUE, ORANGE, GREEN, RED
+
+
+# ---------------------------------------------------------------------------
+# Chevron helpers (same visual style as task2)
+# ---------------------------------------------------------------------------
+_CHEVRON_HEIGHT     = 1.65
+_CHEVRON_DEPTH      = 0.92
+_CHEVRON_GAP        = 0.82
+_CHEVRON_MIN_WIDTH  = 6.15
+_CHEVRON_CHAR_WIDTH = 0.42
+
+
+def _chevron_layout(nodes):
+    widths = []
+    for node in nodes:
+        longest = max(len(line) for line in str(node["label"]).splitlines())
+        content_w = _CHEVRON_DEPTH * 2.0 + 2.65 + longest * _CHEVRON_CHAR_WIDTH
+        widths.append(max(_CHEVRON_MIN_WIDTH, content_w))
+    x_cursor = 0.0
+    layout = []
+    for width in widths:
+        layout.append({"x": x_cursor, "width": width})
+        x_cursor += width + _CHEVRON_GAP
+    span = max(0.0, x_cursor - _CHEVRON_GAP)
+    return layout, span
+
+
+def _chevron_font_size(label, width, base_fontsize):
+    longest = max(len(line) for line in str(label).splitlines())
+    available = max(width - _CHEVRON_DEPTH * 2.0 - 1.2, 1.0)
+    estimated = longest * 0.34
+    if estimated <= available:
+        return base_fontsize
+    return max(8.5, base_fontsize * available / estimated)
+
+
+def _draw_chevrons(ax, nodes, fontsize=11):
+    ax.set_aspect("auto")
+    ax.axis("off")
+    h = _CHEVRON_HEIGHT
+    layout, span = _chevron_layout(nodes)
+    for i, node in enumerate(nodes):
+        base_x = layout[i]["x"]
+        width  = layout[i]["width"]
+        mid_y  = h / 2.0
+        verts = [
+            (base_x,                     0.0),
+            (base_x + _CHEVRON_DEPTH,    mid_y),
+            (base_x,                     h),
+            (base_x + width - _CHEVRON_DEPTH, h),
+            (base_x + width,             mid_y),
+            (base_x + width - _CHEVRON_DEPTH, 0.0),
+        ]
+        ax.add_patch(Polygon(
+            verts, closed=True,
+            facecolor=node["color"], edgecolor="#4a4a4a",
+            linewidth=1.25, joinstyle="miter",
+        ))
+        ax.text(
+            base_x + width / 2.0, mid_y,
+            node["label"],
+            ha="center", va="center",
+            fontsize=_chevron_font_size(node["label"], width, fontsize),
+            fontweight="bold", color="#1f1f1f", clip_on=False,
+        )
+    ax.set_xlim(-0.45, span + 0.45)
+    ax.set_ylim(-0.08, h + 0.08)
+    return span
 
 
 # ---------------------------------------------------------------------------
@@ -215,6 +286,171 @@ def task3_table_and_bar_chart(df: pd.DataFrame, output_dir: str):
 
 
 
+def _task3_wrap_label(label: str, max_chars: int = 14) -> str:
+    """Wrap long activity label at underscore boundaries to fit inside chevron."""
+    if len(label) <= max_chars:
+        return label
+    parts = label.split("_")
+    lines, current = [], ""
+    for part in parts:
+        token = part if not current else f"_{part}"
+        if len(current) + len(token) <= max_chars:
+            current += token
+        else:
+            if current:
+                lines.append(current)
+            current = part
+    if current:
+        lines.append(current)
+    return "\n".join(lines) if lines else label
+
+
+def _task3_build_activity_violation_nodes(alignments, max_nodes: int = 16):
+    """Aggregate violations by activity across ALL traces.
+
+    Returns (nodes, items, truncated):
+      nodes     – list of {label, color} for _draw_chevrons
+      items     – list of {activity, dominant_type, total, avg_pos} sorted by process position
+      truncated – True when capped at max_nodes
+    """
+    from collections import defaultdict
+
+    # acc[activity] = {"counts": {move_type: int}, "positions": [step, ...]}
+    acc = defaultdict(lambda: {"counts": defaultdict(int), "positions": []})
+
+    for result in alignments:
+        rows = alignment_pairs_to_rows(result.get("alignment", []))
+        for row in rows:
+            mt = row["moveType"]
+            if mt == "Synchronous Move":
+                continue
+            # anchor each violation to its process activity name
+            if mt == "Model Move":
+                act = row["model_move"]
+            elif mt == "Log Move":
+                act = row["log_move"]
+            else:                          # Mismatch – expected position
+                act = row["model_move"]
+            if not act or act == "-":
+                continue
+            acc[act]["counts"][mt] += 1
+            acc[act]["positions"].append(row["step"])
+
+    if not acc:
+        return [], [], False
+
+    items = []
+    for act, s in acc.items():
+        dominant = max(s["counts"], key=s["counts"].get)
+        total    = sum(s["counts"].values())
+        avg_pos  = sum(s["positions"]) / len(s["positions"])
+        items.append({
+            "activity":     act,
+            "dominant_type": dominant,
+            "total":        total,
+            "avg_pos":      avg_pos,
+        })
+
+    # sort by process position first; cap to top-N by count if too many
+    items.sort(key=lambda x: x["avg_pos"])
+    truncated = len(items) > max_nodes
+    if truncated:
+        items = sorted(items, key=lambda x: x["total"], reverse=True)[:max_nodes]
+        items.sort(key=lambda x: x["avg_pos"])
+
+    nodes = []
+    for item in items:
+        color = (BLUE   if item["dominant_type"] == "Model Move"
+                 else RED    if item["dominant_type"] == "Log Move"
+                 else ORANGE)
+        label = _task3_wrap_label(item["activity"]) + f"\n×{item['total']}"
+        nodes.append({"label": label, "color": color})
+
+    return nodes, items, truncated
+
+
+def task3_flow_chart_and_table(df: pd.DataFrame, alignments, output_dir: str):
+    """Composite: violation summary table (top) + activity-level violation map (bottom).
+
+    Table  – violation-type counts & percentages aggregated across all traces.
+    Flow   – each violating activity as a chevron node, coloured by dominant
+             violation type and labelled with total violation count, ordered by
+             average process position so the flow reads left-to-right.
+    """
+    nodes, items, truncated = _task3_build_activity_violation_nodes(alignments)
+
+    # fall back to an empty axis message when no violations exist
+    has_flow = bool(nodes)
+
+    # ── Percentages from df for legend labels ──
+    pct = {row["move_type"]: row["percentage"] for _, row in df.iterrows()}
+
+    # ── Figure sizing ──
+    total = int(df["count"].sum())
+    n_data_rows = len(df)
+
+    _layout, span = _chevron_layout(nodes) if has_flow else ({}, 0)
+    fig_w    = min(max(16.0, span * 0.29 + 1.6), 40.0)
+    table_h  = max(2.4, 1.1 + n_data_rows * 0.52)
+    chevron_h = 1.8
+    fig_h    = table_h + chevron_h + 0.9
+
+    fig = plt.figure(figsize=(fig_w, fig_h))
+    gs  = gridspec.GridSpec(2, 1, height_ratios=[table_h, chevron_h], hspace=0.42)
+    ax_table   = fig.add_subplot(gs[0])
+    ax_chevron = fig.add_subplot(gs[1])
+
+    # ── Table ──
+    ax_table.axis("off")
+    cell_text = [
+        [row["violation_type"].replace("\n", " "),
+         f"{int(row['count'])}",
+         f"{row['percentage']:.2f}%"]
+        for _, row in df.iterrows()
+    ]
+    cell_text.append(["Total", f"{total}", "100.00%" if total else "0.00%"])
+    make_table(
+        ax_table,
+        cell_text=cell_text,
+        col_labels=["Violation Type", "Count", "Percentage"],
+        bbox=[0.05, 0.05, 0.90, 0.78],
+        font_size=10,
+        scale_xy=(1, 1.7),
+        highlight_last_row=True,
+    )
+    ax_table.set_title("Table", fontsize=13, fontweight="bold", pad=10)
+
+    # ── Chevron flow ──
+    if has_flow:
+        _draw_chevrons(ax_chevron, nodes, fontsize=10)
+        flow_title = "Flow Chart"
+        if truncated:
+            flow_title += f" (top {len(nodes)} activities by count)"
+        ax_chevron.set_title(flow_title, fontsize=13, fontweight="bold", pad=10)
+    else:
+        ax_chevron.axis("off")
+        ax_chevron.text(0.5, 0.5, "No violations found", ha="center", va="center",
+                        fontsize=12, color="#888888", transform=ax_chevron.transAxes)
+
+    # ── Legend ──
+    legend_handles = [
+        mpatches.Patch(facecolor=BLUE,   edgecolor="black", linewidth=0.75,
+                       label=f"Model Move ({pct.get('Model Move', 0):.1f}%)"),
+        mpatches.Patch(facecolor=RED,    edgecolor="black", linewidth=0.75,
+                       label=f"Log Move ({pct.get('Log Move', 0):.1f}%)"),
+        mpatches.Patch(facecolor=ORANGE, edgecolor="black", linewidth=0.75,
+                       label=f"Mismatch Move ({pct.get('Mismatch Move', 0):.1f}%)"),
+    ]
+    fig.legend(
+        handles=legend_handles,
+        loc="lower center", bbox_to_anchor=(0.5, 0.01),
+        ncol=3, fontsize=9.5, frameon=True, fancybox=False, edgecolor="#cccccc",
+    )
+
+    fig.suptitle("Violation Type Summary", fontsize=14, fontweight="bold", y=0.98)
+    fig.tight_layout(rect=[0, 0.07, 1, 0.93])
+    save_svg(fig, os.path.join(output_dir, "task3_flow_chart_and_table.svg"))
+
 
 # ---------------------------------------------------------------------------
 # Public entry point
@@ -233,3 +469,4 @@ def generate(alignments, output_dir: str):
     task3_pie_chart(df, output_dir)
     task3_table(df, output_dir)
     task3_table_and_bar_chart(df, output_dir)
+    task3_flow_chart_and_table(df, alignments, output_dir)
