@@ -6,6 +6,7 @@ import Image from "next/image";
 import TaskVisualizationPanel from "../../components/Task/TaskVisualizationPanel";
 import TaskAnswerPanel from "../../components/Task/TaskAnswerPanel";
 import { UITrackingProvider } from "../../utils/usertracking";
+import { getApiBase } from "../../lib/apiConfig";
 
 import ProjectLogo from "../../public/images/logo-no-background.png";
 import UniLogo from "../../public/images/Logo_UMA_EN_RGB.png";
@@ -73,12 +74,12 @@ export default function TaskExecutionPage() {
     const fetchTasks = async () => {
       try {
         const response = await fetch(
-          "https://pm-vis.uni-mannheim.de/api/survey/questionnaire",
+          `${getApiBase()}/participant/experiment/active`,
           { method: "GET", credentials: "include" }
         );
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
-        setTasks(data);
+        setTasks(data.trials ?? []);
       } catch (error) {
         console.error("Error fetching tasks:", error.message);
       } finally {
@@ -98,9 +99,10 @@ export default function TaskExecutionPage() {
 
     const fetchSvg = async () => {
       try {
-        const taskId = tasks[currentTaskIndex].id ?? currentTaskIndex + 1;
+        const { task_id, idiom_id, dataset_id } = tasks[currentTaskIndex];
+        const dsParam = dataset_id || "new_output";
         const response = await fetch(
-          `https://pm-vis.uni-mannheim.de/api/vis/${taskId}`,
+          `${getApiBase()}/participant/vis/${dsParam}/${task_id}/${idiom_id}`,
           { method: "GET", credentials: "include" }
         );
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -122,12 +124,9 @@ export default function TaskExecutionPage() {
   const handleAnswerSubmit = () => setCurrentTaskIndex((prev) => prev + 1);
 
   const currentTask = tasks[currentTaskIndex];
-  const taskOptions = currentTask?.options
-    ? currentTask.options.map((opt) => ({ label: opt, value: opt }))
-    : [];
+  const taskOptions = [];
 
-  // Idiom name comes from the task data (set by admin) — e.g. "Bar Chart", "Flow Chart"
-  const idiom = currentTask?.idiom ?? currentTask?.chart_type ?? null;
+  const idiom = currentTask?.idiom_label ?? null;
 
   // Dynamic step counter — based on actual number of tasks from DB
   const totalTasks = tasks.length;
@@ -183,10 +182,10 @@ export default function TaskExecutionPage() {
             ) : currentTask ? (
               <>
                 <h1 style={{ fontSize: "2.25rem", fontWeight: 900, color: "#00305e", letterSpacing: "-0.025em", marginBottom: "0.75rem" }}>
-                  Task {currentTaskIndex + 1}: {currentTask.title}
+                  Task {currentTaskIndex + 1}: {currentTask.task_label}
                 </h1>
                 <p style={{ color: "#5a6061", maxWidth: "42rem", lineHeight: 1.6, fontSize: "1.25rem", fontWeight: 700 }}>
-                  {currentTask.question_text}
+                  {currentTask.idiom_label}
                 </p>
               </>
             ) : (
@@ -211,7 +210,7 @@ export default function TaskExecutionPage() {
               />
               <TaskAnswerPanel
                 options={taskOptions}
-                taskId={currentTask?.id ?? currentTaskIndex + 1}
+                taskId={currentTask?.task_id ?? currentTaskIndex + 1}
                 totalTasks={tasks.length}
                 currentTaskIndex={currentTaskIndex}
                 onAnswerSubmit={handleAnswerSubmit}

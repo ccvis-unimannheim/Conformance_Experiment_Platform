@@ -6,7 +6,6 @@ from .routers import vis
 from .routers import admin
 from .routers import auth
 from .routers import ui_tracking
-from .routers import experiment
 from .routers import participant
 
 app = FastAPI(
@@ -26,7 +25,8 @@ origins = [
     "http://127.0.0.1:3000",  
     "http://127.0.0.1:8080",
     "http://provifrontend:3000",
-    "http://127.0.0.1:22222"
+    "http://127.0.0.1:22222",
+    "http://localhost:22222"
 ]
 
 app.add_middleware(
@@ -42,7 +42,6 @@ app.include_router(vis.router)
 app.include_router(admin.router)
 app.include_router(auth.router)
 app.include_router(ui_tracking.router)
-app.include_router(experiment.router)
 app.include_router(participant.router)
 
 

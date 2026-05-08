@@ -1,125 +1,107 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
-from bson import ObjectId
-import ProViBackend.utils.database.connection as dbc
+
 import ProViBackend.utils.config as config
-
-
-def _get_doc_by_id(collection: str, id_str: str) -> dict | None:
-    """Look up a document by _id, trying both string and ObjectId formats."""
-    doc = dbc.get_document(collection, {"_id": id_str})
-    if doc:
-        return doc
-    try:
-        doc = dbc.get_document(collection, {"_id": ObjectId(id_str)})
-    except Exception:
-        pass
-    return doc
+import ProViBackend.utils.database.connection as dbc
+from ProViBackend.app.routers.vis_mapping import TASK_KEY_TO_DIR, IDIOM_KEY_TO_SVG_SUFFIX
 
 router = APIRouter(prefix="/participant")
 
 
-def _get_or_sync_active() -> dict | None:
-    """Return active ParticipantExperiment, auto-syncing from Experiment if missing."""
-    exp = dbc.get_document("ParticipantExperiment", {"status": "active"})
-    if exp:
-        return exp
+def _resolve_svg_path(task_id: str, idiom_id: str, dataset_id: str):
+    """Resolve DB IDs to a filesystem SVG path.
 
-    # Fallback: sync from published Experiment directly
-    published = dbc.get_document("Experiment", {"status": "published"})
-    if not published:
-        return None
+    Returns (path, error_message). On success error_message is None.
+    Falls back to new_output/ when dataset_id is empty.
+    """
+    task  = dbc.get_document("Task",  {"_id": task_id})
+    idiom = dbc.get_document("Idiom", {"_id": idiom_id})
 
-    exp_id = published.get("_id")
-    if exp_id and not isinstance(exp_id, str):
-        exp_id = str(exp_id)
+    if not task:
+        return None, f"Task not found: {task_id}"
+    if not idiom:
+        return None, f"Idiom not found: {idiom_id}"
 
-    task_assignments = []
-    for tc in published.get("task_configs", []):
-        task_doc = _get_doc_by_id("Task", tc["task_id"])
-        idiom_doc = _get_doc_by_id("Idiom", tc["idiom_id"])
-        task_key = task_doc["task_key"] if task_doc else None
-        idiom_key = idiom_doc["idiom_key"] if idiom_doc else None
-        svg_path = (
-            f"output/{tc['dataset_id']}/{task_key}/{idiom_key}.svg"
-            if task_key and idiom_key else None
-        )
-        task_assignments.append({
-            "dataset_id": tc["dataset_id"],
-            "task_id": tc["task_id"],
-            "idiom_id": tc["idiom_id"],
-            "svg_path": svg_path,
-        })
+    task_dir   = TASK_KEY_TO_DIR.get(task["task_key"])
+    svg_suffix = IDIOM_KEY_TO_SVG_SUFFIX.get(idiom["idiom_key"])
 
-    db = dbc.connect_to_database()
-    db["ParticipantExperiment"].replace_one(
-        {"_id": exp_id},
-        {"_id": exp_id, "experiment_id": exp_id, "status": "active", "task_assignments": task_assignments},
-        upsert=True,
+    if not task_dir:
+        return None, f"No directory mapping for task_key: {task['task_key']}"
+    if not svg_suffix:
+        return None, f"No SVG mapping for idiom_key: {idiom['idiom_key']}"
+
+    dataset_loc = "new_output" if (not dataset_id or dataset_id == "new_output") else f"output/{dataset_id}"
+
+    svg_path = (
+        config.BASE_DIRECTORY
+        / dataset_loc
+        / task_dir
+        / f"{task_dir}_{svg_suffix}.svg"
     )
-    return dbc.get_document("ParticipantExperiment", {"status": "active"})
-
-
-@router.get("/debug", tags=["participant"])
-async def debug_sync():
-    step1 = dbc.get_document("ParticipantExperiment", {"status": "active"})
-    step2 = dbc.get_document("Experiment", {"status": "published"})
-    exp_id = None
-    write_result = None
-    if step2:
-        exp_id = step2.get("_id")
-        if exp_id and not isinstance(exp_id, str):
-            exp_id = str(exp_id)
-        try:
-            db = dbc.connect_to_database()
-            r = db["ParticipantExperiment"].replace_one(
-                {"_id": exp_id},
-                {"_id": exp_id, "experiment_id": exp_id, "status": "active", "task_assignments": []},
-                upsert=True,
-            )
-            write_result = {"matched": r.matched_count, "modified": r.modified_count, "upserted_id": str(r.upserted_id)}
-        except Exception as e:
-            write_result = {"error": str(e)}
-    step3 = dbc.get_document("ParticipantExperiment", {"status": "active"})
-    return {
-        "step1_participant_exp": str(step1) if step1 else None,
-        "step2_published_exp_id": exp_id,
-        "step2_found": step2 is not None,
-        "write_result": write_result,
-        "step3_after_write": str(step3) if step3 else None,
-    }
+    return svg_path, None
 
 
 @router.get("/experiment/active", tags=["participant"])
 async def get_active_experiment():
-    """Return the active participant experiment with UUID-based task assignments."""
-    exp = _get_or_sync_active()
-    if not exp:
+    """Return the trial list for the currently active experiment.
+
+    Each trial contains the task/idiom metadata and a precomputed svg_path
+    that the frontend can use to construct the /participant/vis/... URL.
+    """
+    experiments = dbc.get_query_db("Experiment", {"status": "active"})
+    if not experiments:
         raise HTTPException(status_code=404, detail="No active experiment found.")
-    if "_id" in exp and not isinstance(exp["_id"], str):
-        exp["_id"] = str(exp["_id"])
-    return JSONResponse(content=exp)
+
+    exp = sorted(experiments, key=lambda e: e.get("created_at", ""), reverse=True)[0]
+    trials = []
+
+    for tc in exp.get("task_configs", []):
+        task_id   = tc.get("task_id", "")
+        idiom_id  = tc.get("idiom_id", "")
+        dataset_id = tc.get("dataset_id", "")
+
+        if not task_id or not idiom_id:
+            continue
+
+        task  = dbc.get_document("Task",  {"_id": task_id})
+        idiom = dbc.get_document("Idiom", {"_id": idiom_id})
+        if not task or not idiom:
+            continue
+
+        task_dir   = TASK_KEY_TO_DIR.get(task["task_key"])
+        svg_suffix = IDIOM_KEY_TO_SVG_SUFFIX.get(idiom["idiom_key"])
+
+        trials.append({
+            "task_id":     task_id,
+            "idiom_id":    idiom_id,
+            "dataset_id":  dataset_id,
+            "task_key":    task["task_key"],
+            "task_label":  task["label"],
+            "idiom_key":   idiom["idiom_key"],
+            "idiom_label": idiom["label"],
+            "answer_type": task["answer_type"],
+            "svg_available": bool(task_dir and svg_suffix),
+        })
+
+    return JSONResponse({
+        "experiment_id":   str(exp.get("_id", "")),
+        "experiment_name": exp.get("name", ""),
+        "trials":          trials,
+    })
 
 
 @router.get("/vis/{dataset_id}/{task_id}/{idiom_id}", tags=["participant"])
 async def get_visualization(dataset_id: str, task_id: str, idiom_id: str):
-    """Serve SVG by dataset_id / task_id (UUID) / idiom_id (UUID)."""
-    exp = _get_or_sync_active()
-    if not exp:
-        raise HTTPException(status_code=404, detail="No active experiment found.")
+    """Return the SVG file for a specific task/idiom combination.
 
-    assignment = next(
-        (a for a in exp.get("task_assignments", [])
-         if a["dataset_id"] == dataset_id
-         and a["task_id"] == task_id
-         and a["idiom_id"] == idiom_id),
-        None,
-    )
-    if not assignment:
-        raise HTTPException(status_code=404, detail="No matching visualization found.")
-
-    svg_path = config.BASE_DIRECTORY / assignment["svg_path"]
+    Pass dataset_id as "new_output" to use the pre-generated static SVGs.
+    """
+    svg_path, err = _resolve_svg_path(task_id, idiom_id, dataset_id)
+    if err:
+        raise HTTPException(status_code=404, detail=err)
     if not svg_path.exists():
-        raise HTTPException(status_code=404, detail=f"SVG file not found: {assignment['svg_path']}")
-
-    return FileResponse(svg_path)
+        raise HTTPException(
+            status_code=404,
+            detail=f"SVG file not found on disk: {svg_path.name}",
+        )
+    return FileResponse(str(svg_path), media_type="image/svg+xml")
