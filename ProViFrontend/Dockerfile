@@ -4,11 +4,17 @@ ARG NO_PROXY
 
 FROM node:18-alpine
 
+ARG NEXT_PUBLIC_API_BASE
+
 WORKDIR /app
 COPY ./provi-frontend/package*.json ./provi-frontend/
-RUN npm install --prefix ./provi-frontend
+RUN npm install --prefix ./provi-frontend && \
+    npm install --prefix ./provi-frontend sharp
 COPY . .
 WORKDIR /app/provi-frontend
+
+ENV NEXT_PUBLIC_API_BASE=$NEXT_PUBLIC_API_BASE
+
 EXPOSE 3000
-RUN npm run build 
-CMD npm run start 
+RUN npm run build
+CMD ["npm", "run", "start"]

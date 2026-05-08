@@ -123,6 +123,9 @@ celerybeat.pid
 
 # Environments
 .env
+docker-compose.override.yml
+docker-compose.local.yml
+docker-data/
 .venv
 env/
 venv/
@@ -166,3 +169,4 @@ data/
 /tests/*.xes
 /tests/testdata/Road_Traffic_Fine_Management_Process.xes
 ProViBackend/output/*
+
