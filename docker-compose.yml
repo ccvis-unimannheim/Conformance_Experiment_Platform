@@ -50,12 +50,12 @@ services:
   provifrontend:
     build:
       context: ./ProViFrontend
-      args:
-        NEXT_PUBLIC_API_BASE: ${PUBLIC_API_BASE:-http://localhost:1234/api}
     container_name: provifrontend
     restart: unless-stopped
     ports:
       - "22222:3000"
+    environment:
+      BACKEND_INTERNAL_URL: http://provibackend:80
     depends_on:
       - provibackend
 

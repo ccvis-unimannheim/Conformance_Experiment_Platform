@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import AdminNav from "../../../../components/Admin/AdminNav";
 import ExperimentDetailsForm from "../../../../components/Admin/ExperimentDetailsForm";
 import DatasetSelectTable from "../../../../components/Admin/DatasetSelectTable";
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:1234";
 
 export default function NewExperimentPage() {
   const router = useRouter();
@@ -22,7 +21,7 @@ export default function NewExperimentPage() {
   const [submitError, setSubmitError] = useState(null);
 
   useEffect(() => {
-    fetch(`${BASE_URL}/admin/datasets`)
+    fetch(`/api/admin/datasets`)
       .then((r) => {
         if (!r.ok) throw new Error(`Server error: ${r.status}`);
         return r.json();
@@ -59,7 +58,7 @@ export default function NewExperimentPage() {
     setIsSubmitting(true);
     try {
       const experimentId = crypto.randomUUID();
-      const response = await fetch(`${BASE_URL}/admin/experiments`, {
+      const response = await fetch(`/api/admin/experiments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

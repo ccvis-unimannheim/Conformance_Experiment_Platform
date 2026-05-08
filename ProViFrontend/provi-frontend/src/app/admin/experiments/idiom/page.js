@@ -6,8 +6,6 @@ import Link from "next/link";
 import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../../components/Admin/Toast";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:1234";
-
 const ALL_IDIOMS = [
   { idiom_key: "bar_chart",            label: "Bar Chart",                             granularity: "log",   renderer_type: "echarts", active: true },
   { idiom_key: "donut_chart",          label: "Donut Chart",                           granularity: "log",   renderer_type: "echarts", active: true },
@@ -71,7 +69,7 @@ function IdiomSelectionContent() {
   async function init() {
     let taskIds = [];
     try {
-      const res = await fetch(`${BASE_URL}/admin/experiments`);
+      const res = await fetch(`/api/admin/experiments`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const exps = await res.json();
       const draft = exps.find((e) => getId(e) === experimentId);
@@ -84,7 +82,7 @@ function IdiomSelectionContent() {
     }
 
     try {
-      const res = await fetch(`${BASE_URL}/admin/tasks`);
+      const res = await fetch(`/api/admin/tasks`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const allTasks = await res.json();
       const tasks = allTasks.filter((t) => taskIds.includes(getId(t)));
@@ -106,7 +104,7 @@ function IdiomSelectionContent() {
 
   async function fetchIdioms() {
     try {
-      const res = await fetch(`${BASE_URL}/admin/idioms`);
+      const res = await fetch(`/api/admin/idioms`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setAllIdioms(await res.json());
     } catch (e) {
@@ -139,7 +137,7 @@ function IdiomSelectionContent() {
     setIsSeeding(true);
     let existingKeys = new Set();
     try {
-      const res = await fetch(`${BASE_URL}/admin/idioms`);
+      const res = await fetch(`/api/admin/idioms`);
       if (res.ok) {
         const existing = await res.json();
         existing.forEach((i) => existingKeys.add(i.idiom_key));
@@ -150,7 +148,7 @@ function IdiomSelectionContent() {
     for (const idiom of ALL_IDIOMS) {
       if (existingKeys.has(idiom.idiom_key)) { skipped++; continue; }
       try {
-        const res = await fetch(`${BASE_URL}/admin/idioms`, {
+        const res = await fetch(`/api/admin/idioms`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ _id: crypto.randomUUID(), ...idiom }),
@@ -182,7 +180,7 @@ function IdiomSelectionContent() {
 
     if (publish) {
       try {
-        const res = await fetch(`${BASE_URL}/admin/experiments`);
+        const res = await fetch(`/api/admin/experiments`);
         if (res.ok) {
           const allExps = await res.json();
           const activeOthers = allExps.filter(
@@ -212,7 +210,7 @@ function IdiomSelectionContent() {
     const newStatus = publish ? "published" : "draft";
 
     try {
-      const res = await fetch(`${BASE_URL}/admin/experiments/${experimentId}`, {
+      const res = await fetch(`/api/admin/experiments/${experimentId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ task_configs: taskConfigs, status: newStatus }),
@@ -237,7 +235,7 @@ function IdiomSelectionContent() {
 
   async function viewExperiments() {
     try {
-      const res = await fetch(`${BASE_URL}/admin/experiments`);
+      const res = await fetch(`/api/admin/experiments`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setExperiments(await res.json());
       setExpModalOpen(true);

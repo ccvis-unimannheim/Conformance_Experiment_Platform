@@ -5,7 +5,6 @@ import Link from "next/link";
 import AdminNav from "../../components/Admin/AdminNav";
 import FileUploadCard from "../../components/Admin/FileUploadCard";
 import SaveResultModal from "../../components/Admin/SaveResultModal";
-import { getApiBase, setApiBase, normalizeApiBase } from "../../lib/apiConfig";
 
 const STATUS_STYLES = {
   draft: {
@@ -34,18 +33,13 @@ export default function AdminPage() {
   const [guidelineFile, setGuidelineFile] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [modal, setModal] = useState(null);
-  const [apiBaseInput, setApiBaseInput] = useState("");
 
   const [experiments, setExperiments] = useState([]);
   const [experimentsLoading, setExperimentsLoading] = useState(true);
 
-  useEffect(() => {
-    setApiBaseInput(getApiBase());
-  }, []);
-
   const fetchExperiments = useCallback(() => {
     setExperimentsLoading(true);
-    fetch(`${getApiBase()}/admin/experiments`)
+    fetch(`/api/admin/experiments`)
       .then((r) => (r.ok ? r.json() : []))
       .then((data) => setExperiments(data))
       .catch(() => setExperiments([]))
@@ -55,7 +49,7 @@ export default function AdminPage() {
   const markAsFinished = useCallback(async (expId) => {
     try {
       const res = await fetch(
-        `${getApiBase()}/admin/experiments/${encodeURIComponent(expId)}/status?status=finished`,
+        `/api/admin/experiments/${encodeURIComponent(expId)}/status?status=finished`,
         { method: "PATCH" }
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -84,7 +78,7 @@ export default function AdminPage() {
       formData.append("log", logFile);
       formData.append("guideline", guidelineFile);
 
-      const response = await fetch(`${getApiBase()}/admin/datasets/pair`, {
+      const response = await fetch(`/api/admin/datasets/pair`, {
         method: "POST",
         body: formData,
       });
@@ -115,46 +109,6 @@ export default function AdminPage() {
               <header className="mb-section-gap border-b border-surface-variant pb-4">
                 <h2 className="text-h2 text-primary">Upload Dataset</h2>
               </header>
-
-              <div className="mt-4 p-3 rounded-md bg-surface-container border border-outline-variant/60 text-body-sm text-secondary mb-section-gap">
-                <label htmlFor="api-base" className="block text-on-surface font-medium mb-1">
-                  API base URL (public or SSH tunnel)
-                </label>
-                <p className="text-xs text-secondary mb-2">
-                  For example{" "}
-                  <code className="text-on-surface/80">https://your-host/…</code> or{" "}
-                  <code className="text-on-surface/80">127.0.0.1:8000</code> (a trailing{" "}
-                  <code className="text-on-surface/80">/api</code> is added if missing). Saved to
-                  this browser only (localStorage).
-                </p>
-                <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-                  <input
-                    id="api-base"
-                    type="text"
-                    className="flex-1 rounded border border-outline-variant bg-surface px-3 py-2 text-on-surface text-sm"
-                    value={apiBaseInput}
-                    onChange={(e) => setApiBaseInput(e.target.value)}
-                    placeholder="e.g. 127.0.0.1:8000 or https://…"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setApiBase(apiBaseInput);
-                      setApiBaseInput(getApiBase());
-                      fetchExperiments();
-                    }}
-                    className="shrink-0 text-button text-primary px-3 py-2 border border-primary rounded-md hover:bg-primary/5"
-                  >
-                    Use this base
-                  </button>
-                </div>
-                <p className="text-xs mt-2 text-secondary">
-                  Current request:{" "}
-                  <span className="text-on-surface/90 font-mono">
-                    {normalizeApiBase(apiBaseInput || getApiBase())}/admin/…
-                  </span>
-                </p>
-              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-gutter mb-section-gap">
                 <FileUploadCard

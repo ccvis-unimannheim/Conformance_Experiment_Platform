@@ -6,8 +6,6 @@ import Link from "next/link";
 import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../../components/Admin/Toast";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:1234";
-
 const ALL_TASKS = [
   {
     task_key: "T-01",
@@ -89,7 +87,7 @@ export default function TaskSelectionPage() {
   async function fetchTasks() {
     setLoadError(null);
     try {
-      const res = await fetch(`${BASE_URL}/admin/tasks`);
+      const res = await fetch(`/api/admin/tasks`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setAllTasks(await res.json());
     } catch (e) {
@@ -111,7 +109,7 @@ export default function TaskSelectionPage() {
     setIsSeeding(true);
     let existingKeys = new Set();
     try {
-      const res = await fetch(`${BASE_URL}/admin/tasks`);
+      const res = await fetch(`/api/admin/tasks`);
       if (res.ok) {
         const existing = await res.json();
         existing.forEach((t) => existingKeys.add(t.task_key));
@@ -123,7 +121,7 @@ export default function TaskSelectionPage() {
     for (const t of ALL_TASKS) {
       if (existingKeys.has(t.task_key)) { skipped++; continue; }
       try {
-        const res = await fetch(`${BASE_URL}/admin/tasks`, {
+        const res = await fetch(`/api/admin/tasks`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ _id: crypto.randomUUID(), ...t }),
@@ -155,7 +153,7 @@ export default function TaskSelectionPage() {
       answer_type: newTaskAnswerType,
     };
     try {
-      const res = await fetch(`${BASE_URL}/admin/tasks`, {
+      const res = await fetch(`/api/admin/tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -189,7 +187,7 @@ export default function TaskSelectionPage() {
       question_ids: [],
     }));
     try {
-      const res = await fetch(`${BASE_URL}/admin/experiments/${encodeURIComponent(experimentId)}`, {
+      const res = await fetch(`/api/admin/experiments/${encodeURIComponent(experimentId)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ task_configs: taskConfigs }),
@@ -253,8 +251,7 @@ export default function TaskSelectionPage() {
             <div className="flex flex-col gap-3">
               {loadError ? (
                 <div className="text-sm text-error bg-error-container px-4 py-3 rounded-lg">
-                  Could not load tasks from backend (<strong>{BASE_URL}</strong>). Make sure the
-                  backend is running and CORS is configured.
+                  Could not load tasks from backend. Make sure the backend is running.
                   <br />
                   <span className="text-xs opacity-70">{loadError}</span>
                 </div>
