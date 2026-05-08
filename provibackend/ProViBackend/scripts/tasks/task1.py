@@ -13,6 +13,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+IDIOMS = ["bar_chart", "boxplot", "donut_chart", "scatterplot", "heatmap", "table", "tile_metric"]
+
 import os
 import numpy as np
 import matplotlib.pyplot as plt

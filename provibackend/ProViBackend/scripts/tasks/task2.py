@@ -9,6 +9,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+IDIOMS = ["flow_chart_basic", "flow_chart_table", "flow_chart_elaborate", "table"]
+
 import html
 import math
 import os

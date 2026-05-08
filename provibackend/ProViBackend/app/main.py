@@ -1,12 +1,39 @@
+import uuid
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import ProViBackend.utils.config as config
+import ProViBackend.utils.database.connection as dbc
+from .seed_data import CANONICAL_TASKS, CANONICAL_IDIOMS
 from .routers import questionnaire
 from .routers import vis
 from .routers import admin
 from .routers import auth
 from .routers import ui_tracking
 from .routers import participant
+
+
+_SEED_NAMESPACE = uuid.UUID("00000000-0000-0000-0000-000000000001")
+
+
+def _seed_collection(collection_name: str, items: list, key_field: str):
+    """Insert canonical items if the collection is empty. Stable UUIDs derived from key_field."""
+    existing = dbc.get_query_db(collection_name, query={})
+    if existing:
+        return
+    for item in items:
+        doc = dict(item)
+        doc["_id"] = str(uuid.uuid5(_SEED_NAMESPACE, item[key_field]))
+        dbc.create_document(collection_name, doc)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    _seed_collection("Task", CANONICAL_TASKS, key_field="task_key")
+    _seed_collection("Idiom", CANONICAL_IDIOMS, key_field="idiom_key")
+    yield
+
 
 app = FastAPI(
     title="ProVi Backend",
@@ -15,7 +42,8 @@ app = FastAPI(
     openapi_url="/v1/openapi.json",
     docs_url="/v1/docs",
     redoc_url=None,
-    root_path="/api"
+    root_path="/api",
+    lifespan=lifespan,
 )
 
 origins = [

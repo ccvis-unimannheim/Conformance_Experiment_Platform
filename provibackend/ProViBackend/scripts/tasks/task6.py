@@ -11,6 +11,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+IDIOMS = ["table", "decision_tree"]
+
 import os
 import numpy as np
 import pandas as pd

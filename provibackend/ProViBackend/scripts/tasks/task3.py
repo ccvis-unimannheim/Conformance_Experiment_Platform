@@ -9,6 +9,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+IDIOMS = ["bar_chart", "heatmap", "pie_chart", "flow_chart_table", "table", "table_bar_chart"]
+
 import os
 import numpy as np
 import pandas as pd

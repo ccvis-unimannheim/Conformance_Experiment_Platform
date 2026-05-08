@@ -130,7 +130,7 @@ export default function AdminPage() {
                   disabled={isSaving}
                   className="flex items-center gap-2 text-button bg-primary text-on-primary px-12 py-3 rounded-lg hover:opacity-90 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isSaving ? "Saving..." : "Save"}
+                  {isSaving ? "Saving and generating..." : "Save and Generate Graphs"}
                   {!isSaving && (
                     <span className="material-symbols-outlined text-sm">chevron_right</span>
                   )}

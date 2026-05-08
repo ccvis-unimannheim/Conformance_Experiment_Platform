@@ -6,31 +6,6 @@ import Link from "next/link";
 import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../../components/Admin/Toast";
 
-const ALL_IDIOMS = [
-  { idiom_key: "bar_chart",            label: "Bar Chart",                             granularity: "log",   renderer_type: "echarts", active: true },
-  { idiom_key: "donut_chart",          label: "Donut Chart",                           granularity: "log",   renderer_type: "echarts", active: true },
-  { idiom_key: "tile_metric",          label: "Tile Metric",                           granularity: "log",   renderer_type: "html",    active: true },
-  { idiom_key: "scatterplot",          label: "Scatterplot",                           granularity: "trace", renderer_type: "echarts", active: true },
-  { idiom_key: "table",                label: "Table",                                 granularity: "log",   renderer_type: "html",    active: true },
-  { idiom_key: "heatmap",              label: "Heatmap",                               granularity: "log",   renderer_type: "echarts", active: true },
-  { idiom_key: "boxplot",              label: "Boxplot",                               granularity: "log",   renderer_type: "echarts", active: true },
-  { idiom_key: "flow_chart_basic",     label: "Flow Chart basic (Chevron Diagram)",    granularity: "trace", renderer_type: "svg",     active: true },
-  { idiom_key: "flow_chart_elaborate", label: "Flow Chart elaborate (BPMN Diagram)",   granularity: "trace", renderer_type: "bpmn",    active: true },
-  { idiom_key: "pie_chart",            label: "Pie Chart",                             granularity: "log",   renderer_type: "echarts", active: true },
-  { idiom_key: "decision_tree",        label: "Tree (Decision Tree)",                  granularity: "log",   renderer_type: "d3",      active: true },
-  { idiom_key: "flow_chart_table",     label: "Flow Chart & Table",                    granularity: "trace", renderer_type: "html",    active: true },
-  { idiom_key: "table_bar_chart",      label: "Table & Bar Chart",                     granularity: "log",   renderer_type: "html",    active: true },
-];
-
-const TASK_IDIOM_KEYS = {
-  "T-01": ["bar_chart", "donut_chart", "tile_metric", "scatterplot", "table", "heatmap", "boxplot"],
-  "T-02": ["flow_chart_basic", "table", "flow_chart_table", "flow_chart_elaborate"],
-  "T-03": ["bar_chart", "heatmap", "pie_chart", "flow_chart_table", "table", "table_bar_chart"],
-  "T-04": ["tile_metric", "decision_tree", "table"],
-  "T-05": ["bar_chart", "pie_chart", "scatterplot", "heatmap", "table"],
-  "T-06": ["table", "decision_tree"],
-};
-
 function getId(obj) {
   return obj._id || obj.id;
 }
@@ -42,9 +17,9 @@ function IdiomSelectionContent() {
 
   const [selectedTasks, setSelectedTasks] = useState([]);
   const [allIdioms, setAllIdioms] = useState([]);
+  const [taskIdiomKeys, setTaskIdiomKeys] = useState({});
   const [taskIdiomMap, setTaskIdiomMap] = useState({});
   const [datasetIds, setDatasetIds] = useState([]);
-  const [isSeeding, setIsSeeding] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [successDetail, setSuccessDetail] = useState("");
 
@@ -99,21 +74,26 @@ function IdiomSelectionContent() {
       return;
     }
 
-    await fetchIdioms();
+    await fetchIdiomsAndMapping();
   }
 
-  async function fetchIdioms() {
+  async function fetchIdiomsAndMapping() {
     try {
-      const res = await fetch(`/api/admin/idioms`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setAllIdioms(await res.json());
+      const [idiomsRes, mappingRes] = await Promise.all([
+        fetch("/api/admin/idioms"),
+        fetch("/api/admin/task-idioms"),
+      ]);
+      if (!idiomsRes.ok) throw new Error(`idioms: HTTP ${idiomsRes.status}`);
+      if (!mappingRes.ok) throw new Error(`task-idioms: HTTP ${mappingRes.status}`);
+      setAllIdioms(await idiomsRes.json());
+      setTaskIdiomKeys(await mappingRes.json());
     } catch (e) {
       showToast(`Could not load idioms: ${e.message}`, true);
     }
   }
 
   function getIdiomsForTask(task) {
-    const allowed = TASK_IDIOM_KEYS[task.task_key];
+    const allowed = taskIdiomKeys[task.task_key];
     if (!allowed) return allIdioms;
     return allIdioms.filter((i) => allowed.includes(i.idiom_key));
   }
@@ -132,39 +112,6 @@ function IdiomSelectionContent() {
     (sum, arr) => sum + arr.length,
     0
   );
-
-  async function seedIdioms() {
-    setIsSeeding(true);
-    let existingKeys = new Set();
-    try {
-      const res = await fetch(`/api/admin/idioms`);
-      if (res.ok) {
-        const existing = await res.json();
-        existing.forEach((i) => existingKeys.add(i.idiom_key));
-      }
-    } catch {}
-
-    let created = 0, skipped = 0;
-    for (const idiom of ALL_IDIOMS) {
-      if (existingKeys.has(idiom.idiom_key)) { skipped++; continue; }
-      try {
-        const res = await fetch(`/api/admin/idioms`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ _id: crypto.randomUUID(), ...idiom }),
-        });
-        if (res.ok) created++;
-      } catch {}
-    }
-
-    showToast(
-      skipped === ALL_IDIOMS.length
-        ? "All idioms already exist."
-        : `Seeded ${created} idiom(s). ${skipped} already existed.`
-    );
-    await fetchIdioms();
-    setIsSeeding(false);
-  }
 
   async function saveExperiment(publish = false) {
     const unassigned = selectedTasks.filter(
@@ -268,16 +215,6 @@ function IdiomSelectionContent() {
               </span>
             )}
           </h2>
-          <button
-            onClick={seedIdioms}
-            disabled={isSeeding}
-            className="flex items-center gap-1.5 text-xs border border-border-subtle text-on-surface-variant px-3 py-1.5 rounded hover:bg-surface-container transition-colors disabled:opacity-50"
-          >
-            <span className="material-symbols-outlined text-sm">
-              {isSeeding ? "hourglass_empty" : "download"}
-            </span>
-            {isSeeding ? "Seeding…" : "Seed Idioms"}
-          </button>
         </div>
 
         {/* Task cards with idiom allocation */}
