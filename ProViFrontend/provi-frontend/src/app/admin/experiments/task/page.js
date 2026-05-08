@@ -295,18 +295,10 @@ export default function TaskSelectionPage() {
                             <span className="text-xs font-bold uppercase tracking-wider bg-blue-100 text-primary px-1.5 py-0.5 rounded">
                               {task.task_key}
                             </span>
-                            <span className="text-xs text-on-surface-variant">
-                              {task.answer_type}
-                            </span>
                           </div>
                           <p className="text-sm font-semibold text-on-surface leading-snug">
                             {task.label}
                           </p>
-                          {task.description && (
-                            <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
-                              {task.description}
-                            </p>
-                          )}
                         </div>
                       </div>
                     </div>

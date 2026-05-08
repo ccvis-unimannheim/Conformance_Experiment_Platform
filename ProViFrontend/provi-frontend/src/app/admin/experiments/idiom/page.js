@@ -311,11 +311,6 @@ function IdiomSelectionContent() {
                         <p className="text-sm font-semibold text-on-surface leading-snug">
                           {task.label}
                         </p>
-                        {task.description && (
-                          <p className="text-xs text-on-surface-variant mt-0.5">
-                            {task.description}
-                          </p>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -363,9 +358,6 @@ function IdiomSelectionContent() {
                               <div className="min-w-0">
                                 <p className="text-xs font-semibold text-on-surface truncate">
                                   {idiom.label}
-                                </p>
-                                <p className="text-[10px] text-on-surface-variant">
-                                  {idiom.granularity} · {idiom.renderer_type}
                                 </p>
                               </div>
                             </div>
