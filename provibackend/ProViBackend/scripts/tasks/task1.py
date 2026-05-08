@@ -1,7 +1,7 @@
 """
 tasks/task1.py – Task 1: Overall degree of conformance.
 
-Visualizations: Bar Chart, Box Plot, Pie Chart, Scatter Plot, Heatmap, Table, Tile Metric.
+Visualizations: Bar Chart, Box Plot, Donut Chart, Scatter Plot, Heatmap, Table, Tile Metric.
 
 Public API:
     generate(df, output_dir)
@@ -73,7 +73,7 @@ def task1_box_plot(df, output_dir: str):
     save_svg(fig, os.path.join(output_dir, "task1_box_plot.svg"))
 
 
-def task1_pie_chart(df, output_dir: str):
+def task1_donut_chart(df, output_dir: str):
     conform     = int(df["is_fit"].sum())
     non_conform = len(df) - conform
     total       = len(df)
@@ -97,7 +97,7 @@ def task1_pie_chart(df, output_dir: str):
     )
     ax.set_title("Conform vs. Non-Conform Traces", fontsize=13, fontweight="bold")
     fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task1_pie_chart.svg"))
+    save_svg(fig, os.path.join(output_dir, "task1_donut_chart.svg"))
 
 
 def task1_scatter_plot(df, output_dir: str):
@@ -200,7 +200,7 @@ def generate(df, output_dir: str):
     logger.info("\n--- Generating Task 1 visualizations ---")
     task1_bar_chart(df, output_dir)
     task1_box_plot(df, output_dir)
-    task1_pie_chart(df, output_dir)
+    task1_donut_chart(df, output_dir)
     task1_scatter_plot(df, output_dir)
     task1_heatmap(df, output_dir)
     task1_table(df, output_dir)
