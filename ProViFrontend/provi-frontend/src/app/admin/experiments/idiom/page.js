@@ -359,9 +359,6 @@ function IdiomSelectionContent() {
                                 <p className="text-xs font-semibold text-on-surface truncate">
                                   {idiom.label}
                                 </p>
-                                <p className="text-[10px] text-on-surface-variant">
-                                  {idiom.granularity} · {idiom.renderer_type}
-                                </p>
                               </div>
                             </div>
                           );
