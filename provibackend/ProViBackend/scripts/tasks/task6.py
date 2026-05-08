@@ -7,6 +7,10 @@ Public API:
                             (default: "A_ACTIVATED" for BPIC12-A)
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 import os
 import numpy as np
 import pandas as pd
@@ -398,21 +402,20 @@ def generate(log, alignments, output_dir: str, outcome_activity: str = "A_ACTIVA
     outcome_activity: the activity name that marks a positive process outcome.
     """
     os.makedirs(output_dir, exist_ok=True)
-    print("\n--- Generating Task 6 visualizations ---")
-
+    logger.info("\n--- Generating Task 6 visualizations ---")
     # Patch the outcome detection to use the provided activity name
     import tasks.task6 as _self
     _self._OUTCOME_ACTIVITY = outcome_activity
 
     df = task6_outcome_dataframe(log, alignments)
     if df.empty:
-        print("      Skipped Task 6: no trace-level outcome features found.")
+        logger.warning("      Skipped Task 6: no trace-level outcome features found.")
         return
     tree = _task6_fit_tree(df)
     table = task6_summary_table_dataframe(df, tree)
     positive_rate = float(df["positive_outcome"].mean())
     excluded = df.attrs.get("excluded_non_definitive_cases", 0)
-    print(f"      -> Definitive outcomes: {len(df)} cases  |  Excluded non-definitive: {excluded}")
-    print(f"      -> Positive outcome ({outcome_activity}): {int(df['positive_outcome'].sum())}/{len(df)} ({positive_rate:.2%})")
+    logger.info(f"      -> Definitive outcomes: {len(df)} cases  |  Excluded non-definitive: {excluded}")
+    logger.info(f"      -> Positive outcome ({outcome_activity}): {int(df['positive_outcome'].sum())}/{len(df)} ({positive_rate:.2%})")
     task6_table(table, output_dir)
     task6_decision_tree(tree, output_dir)

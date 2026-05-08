@@ -5,6 +5,10 @@ Public API:
     generate(alignments, model_path, output_dir)
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 import html
 import math
 import os
@@ -933,7 +937,7 @@ def task2_flow_chart_elaborate_bpmn(ctx: dict, model_path: str, output_dir: str)
     path = os.path.join(output_dir, "task2_flow_chart_elaborate_bpmn.svg")
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(out))
-    print(f"      Saved: {path}")
+    logger.debug(f"      Saved: {path}")
 
 
 
@@ -945,12 +949,12 @@ def task2_flow_chart_elaborate_bpmn(ctx: dict, model_path: str, output_dir: str)
 def generate(alignments, model_path: str, output_dir: str):
     """Generate all Task 2 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
-    print("\n--- Generating Task 2 visualizations ---")
+    logger.info("\n--- Generating Task 2 visualizations ---")
     ctx = build_task2_context(alignments)
     if ctx is None:
-        print("      Skipped Task 2: no alignment steps in representative trace.")
+        logger.warning("      Skipped Task 2: no alignment steps in representative trace.")
         return
-    print(f"      Using {ctx['trace_label']} (log index {ctx['trace_index']}, fitness={ctx['fitness']:.4f})")
+    logger.info(f"      Using {ctx['trace_label']} (log index {ctx['trace_index']}, fitness={ctx['fitness']:.4f})")
     task2_alignment_table(ctx, output_dir)
     task2_flow_chart_basic(ctx, output_dir)
     task2_flow_chart_and_table(ctx, output_dir)

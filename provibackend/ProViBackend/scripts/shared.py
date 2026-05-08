@@ -8,6 +8,10 @@ draw_decision_tree, tree position layout, and alignment parsing helpers
 All task modules import from here; this file must NOT import from any task module.
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 import os
 import textwrap
 
@@ -35,7 +39,7 @@ RED    = "#E74C3C"
 def save_svg(fig, path: str):
     fig.savefig(path, format="svg", bbox_inches="tight")
     plt.close(fig)
-    print(f"      Saved: {path}")
+    logger.debug(f"      Saved: {path}")
 
 # ---------------------------------------------------------------------------
 # Text helpers
@@ -101,9 +105,13 @@ def make_table(
     header_color: str = "#1F3864",
     zebra: bool = True,
     highlight_last_row: bool = False,
-    cell_pad: float | None = None,
+    cell_pad: float = None,
 ):
-    """Create a styled Matplotlib table with consistent defaults."""
+    """Create a styled Matplotlib table with consistent defaults.
+
+    cell_pad: optional uniform padding (in axes-relative units) applied to every
+    cell. Useful when text would otherwise get clipped by the cell border.
+    """
     kwargs = dict(cellText=cell_text, colLabels=col_labels, cellLoc=cell_loc)
     if bbox is not None:
         kwargs["bbox"] = bbox
@@ -198,7 +206,7 @@ def format_threshold(threshold: float) -> str:
 # Decision-tree layout  (called by draw_decision_tree)
 # ---------------------------------------------------------------------------
 
-def assign_tree_positions(tree: dict, x_gap: float = None, y_gap: float = None):
+def assign_tree_positions(tree: dict, x_gap: float = 3.15, y_gap: float = 1.85):
     """Assign _x, _y layout coordinates to every node in a binary tree dict."""
     leaves = []
     max_depth = 0
@@ -213,8 +221,6 @@ def assign_tree_positions(tree: dict, x_gap: float = None, y_gap: float = None):
         collect(node["right"])
 
     collect(tree)
-    x_gap = 3.15 if x_gap is None else x_gap
-    y_gap = 1.85 if y_gap is None else y_gap
     leaf_positions = {node["id"]: idx * x_gap for idx, node in enumerate(leaves)}
 
     def assign(node):
@@ -257,15 +263,25 @@ def draw_decision_tree(
     edge_arrowprops=None,
     edge_label_fontsize: float = 9,
     edge_label_offset_y: float = 0.16,
-    edge_label_clearance: float = 0.12,
-    edge_label_perp_offset: float = 0.14,
+    edge_label_clearance: float = 0.0,
+    edge_label_perp_offset: float = 0.0,
     x_pad_factor: float = 0.70,
     y_pad_base: float = 0.80,
     y_top_pad: float = 0.95,
-    x_gap: float = None,
-    y_gap: float = None,
+    x_gap: float = 3.15,
+    y_gap: float = 1.85,
 ):
-    """Render a shallow decision tree with adaptive node height and wrapped text."""
+    """Render a shallow decision tree with adaptive node height and wrapped text.
+
+    edge_label_clearance:
+        If > 0, push True/False edge labels at least this far away from any
+        sibling edge endpoint to prevent overlapping labels in dense trees.
+    edge_label_perp_offset:
+        If > 0, shift each edge label perpendicular to its arrow by this amount,
+        so the label sits beside (not on top of) the arrow line.
+    x_gap, y_gap:
+        Override the default leaf-spacing / level-spacing of the tree layout.
+    """
     ax.axis("off")
     if title:
         ax.set_title(title, fontsize=title_fontsize, fontweight="bold", loc="left", pad=title_pad)
@@ -276,23 +292,22 @@ def draw_decision_tree(
         ax.text(0.5, 0.5, "No decision tree could be fitted.", ha="center", va="center", fontsize=11)
         return
 
+    assign_tree_positions(tree, x_gap=x_gap, y_gap=y_gap)
+    leaf_count = max(tree.get("_leaf_count", 1), 1)
+    x_gap = tree.get("_x_gap", x_gap)
+    max_depth = tree.get("_max_depth", 0)
+
     def node_text_lines(node):
         a, b = value_pair_fn(node)
         first = first_line_fn(node)
         first = wrap_text(first, width_chars=wrap_width_fn(first))
-        raw_lines = [
+        return [
+            first,
             f"gini = {node['gini']:.3f}",
             f"samples = {node['samples']}",
             f"value = [{a}, {b}]",
             f"class = {node['class']}",
         ]
-        if first:
-            raw_lines.insert(0, first)
-        lines = []
-        for line in raw_lines:
-            wrap_width = min(wrap_width_fn(line), 18) if line.startswith(("value =", "class =")) else wrap_width_fn(line)
-            lines.extend(wrap_text(line, width_chars=wrap_width).splitlines())
-        return lines
 
     def node_text(node):
         return "\n".join(node_text_lines(node))
@@ -323,27 +338,6 @@ def draw_decision_tree(
         return h
 
     max_lines, max_line_len = max_text_complexity(tree)
-    effective_box_w = max(box_w, 1.15 + max_line_len * 0.125)
-
-    assign_tree_positions(tree, x_gap=x_gap, y_gap=y_gap)
-    current_x_gap = tree.get("_x_gap", 3.15)
-    target_x_gap = max(current_x_gap, effective_box_w * 1.18)
-    if target_x_gap > current_x_gap:
-        scale = target_x_gap / current_x_gap
-
-        def scale_tree_x(node):
-            node["_x"] *= scale
-            if node.get("left") is not None:
-                scale_tree_x(node["left"])
-            if node.get("right") is not None:
-                scale_tree_x(node["right"])
-
-        scale_tree_x(tree)
-        tree["_x_gap"] = target_x_gap
-
-    leaf_count = max(tree.get("_leaf_count", 1), 1)
-    x_gap = tree.get("_x_gap", 3.15)
-    max_depth = tree.get("_max_depth", 0)
     font_size = max(
         min_font,
         base_font
@@ -354,7 +348,7 @@ def draw_decision_tree(
     )
 
     max_h = max_box_h(tree)
-    ax.set_xlim(-effective_box_w * x_pad_factor, (leaf_count - 1) * x_gap + effective_box_w * x_pad_factor)
+    ax.set_xlim(-box_w * x_pad_factor, (leaf_count - 1) * x_gap + box_w * x_pad_factor)
     ax.set_ylim(-y_pad_base - max_h * 0.15, max_depth * tree.get("_y_gap", 1.85) + y_top_pad + max_h * 0.20)
 
     if edge_arrowprops is None:
@@ -367,45 +361,37 @@ def draw_decision_tree(
             if child is None:
                 continue
             child_h = node_box_h(child)
-            parent_bottom = node["_y"] - this_h / 2
-            child_top = child["_y"] + child_h / 2
-            label_x = (node["_x"] + child["_x"]) / 2
-            label_y = (node["_y"] + child["_y"]) / 2 + edge_label_offset_y
-            dx = child["_x"] - node["_x"]
-            dy = child["_y"] - node["_y"]
-            norm = max((dx * dx + dy * dy) ** 0.5, 1e-9)
-            perp_x = -dy / norm
-            perp_y = dx / norm
-            if perp_y < 0:
-                perp_x *= -1
-                perp_y *= -1
-            label_x += perp_x * edge_label_perp_offset
-            label_y += perp_y * edge_label_perp_offset
-            label_min_y = child_top + edge_label_clearance
-            label_max_y = parent_bottom - edge_label_clearance
-            if label_max_y > label_min_y:
-                label_y = min(max(label_y, label_min_y), label_max_y)
+            arrow_start = (node["_x"], node["_y"] - this_h / 2)
+            arrow_end   = (child["_x"], child["_y"] + child_h / 2)
             ax.annotate(
                 "",
-                xy=(child["_x"], child["_y"] + child_h / 2),
-                xytext=(node["_x"], node["_y"] - this_h / 2),
+                xy=arrow_end,
+                xytext=arrow_start,
                 arrowprops=edge_arrowprops,
             )
+            # Midpoint with optional vertical and clearance offsets
+            mid_x = (arrow_start[0] + arrow_end[0]) / 2
+            mid_y = (arrow_start[1] + arrow_end[1]) / 2 + edge_label_offset_y
+            if edge_label_clearance > 0:
+                # Push label vertically toward the parent so it sits well clear
+                # of the child's box (helps in dense trees where labels collide)
+                mid_y = mid_y + edge_label_clearance
+            if edge_label_perp_offset > 0:
+                # Shift label perpendicular to the edge: left edges shift left,
+                # right edges shift right, keeping labels off the arrow line
+                mid_x = mid_x + (-edge_label_perp_offset if side == "left" else edge_label_perp_offset)
             ax.text(
-                label_x,
-                label_y,
-                label,
+                mid_x, mid_y, label,
                 ha="center", va="center",
                 fontsize=edge_label_fontsize, color="#333333",
-                bbox=dict(facecolor="white", edgecolor="none", alpha=0.92, pad=0.7),
             )
             draw_edges(child)
 
     def draw_nodes(node):
         box_h = node_box_h(node)
         patch = FancyBboxPatch(
-            (node["_x"] - effective_box_w / 2, node["_y"] - box_h / 2),
-            effective_box_w, box_h,
+            (node["_x"] - box_w / 2, node["_y"] - box_h / 2),
+            box_w, box_h,
             boxstyle="round,pad=0.04,rounding_size=0.12",
             facecolor=node_facecolor_fn(node),
             edgecolor="#555555",
