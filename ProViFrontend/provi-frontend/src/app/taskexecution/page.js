@@ -6,7 +6,6 @@ import Image from "next/image";
 import TaskVisualizationPanel from "../../components/Task/TaskVisualizationPanel";
 import TaskAnswerPanel from "../../components/Task/TaskAnswerPanel";
 import { UITrackingProvider } from "../../utils/usertracking";
-import { getApiBase } from "../../lib/apiConfig";
 
 import ProjectLogo from "../../public/images/logo-no-background.png";
 import UniLogo from "../../public/images/Logo_UMA_EN_RGB.png";
@@ -95,7 +94,7 @@ export default function TaskExecutionPage() {
     const fetchTasks = async () => {
       try {
         const response = await fetch(
-          `${getApiBase()}/participant/experiment/active`,
+          `/api/participant/experiment/active`,
           { method: "GET", credentials: "include" }
         );
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -123,9 +122,8 @@ export default function TaskExecutionPage() {
 
     const fetchSvg = async () => {
       try {
-        const dsParam = idiom.dataset_id || "new_output";
         const response = await fetch(
-          `${getApiBase()}/participant/vis/${dsParam}/${group.task_id}/${idiom.idiom_id}`,
+          `/api/participant/vis/${idiom.dataset_id}/${group.task_id}/${idiom.idiom_id}`,
           { method: "GET", credentials: "include" }
         );
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
