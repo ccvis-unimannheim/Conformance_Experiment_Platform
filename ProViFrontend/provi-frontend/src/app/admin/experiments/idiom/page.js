@@ -311,11 +311,6 @@ function IdiomSelectionContent() {
                         <p className="text-sm font-semibold text-on-surface leading-snug">
                           {task.label}
                         </p>
-                        {task.description && (
-                          <p className="text-xs text-on-surface-variant mt-0.5">
-                            {task.description}
-                          </p>
-                        )}
                       </div>
                     </div>
                   </div>
