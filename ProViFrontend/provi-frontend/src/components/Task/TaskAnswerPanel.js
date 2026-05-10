@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 /**
@@ -11,18 +11,26 @@ import { useRouter } from "next/navigation";
  *  - If options are provided  → show each as a selectable answer box
  *  - If no options            → show a free-text box (default)
  *
- * On submit: saves answer + timestamp to backend, then advances to next task.
+ * On submit: saves answer + response_time_ms to backend, then advances to next task.
  *
  * Props:
- *  - options          : [{ label, value }]  — if empty, free-text is shown
- *  - taskId           : number/string
- *  - totalTasks       : total number of tasks
- *  - currentTaskIndex : 0-based index
- *  - onAnswerSubmit   : callback fired after submit to advance to next task
+ *  - options            : [{ label, value }]  — if empty, free-text is shown
+ *  - taskId             : number/string
+ *  - idiomId            : string
+ *  - datasetId          : string
+ *  - trialIndex         : number
+ *  - presentationOrder  : number
+ *  - totalTasks         : total number of tasks
+ *  - currentTaskIndex   : 0-based index
+ *  - onAnswerSubmit     : callback fired after submit to advance to next task
  */
 const TaskAnswerPanel = ({
   options = [],
   taskId,
+  idiomId = "",
+  datasetId = "",
+  trialIndex = 0,
+  presentationOrder = 0,
   totalTasks = 1,
   currentTaskIndex = 0,
   onAnswerSubmit,
@@ -31,13 +39,17 @@ const TaskAnswerPanel = ({
   const [selectedAnswer, setSelectedAnswer] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Track when the current task started
+  const startTimeRef = useRef(Date.now());
+
   const hasOptions = options.length > 0;
   const isLastTask = currentTaskIndex >= totalTasks - 1;
 
-  // Reset answer when moving to a new task
-  useEffect(() => { setSelectedAnswer(""); }, [currentTaskIndex]);
+  useEffect(() => {
+    setSelectedAnswer("");
+    startTimeRef.current = Date.now();
+  }, [currentTaskIndex]);
 
-  // ── Submit: save answer + timestamp, then advance ─────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!selectedAnswer.trim()) {
@@ -47,9 +59,17 @@ const TaskAnswerPanel = ({
 
     setSubmitting(true);
 
+    const response_time_ms = Date.now() - startTimeRef.current;
+
     const payload = {
       question_id: taskId?.toString(),
+      task_id: taskId?.toString(),
+      idiom_id: idiomId,
+      dataset_id: datasetId,
+      trial_index: trialIndex,
+      presentation_order: presentationOrder,
       answer: selectedAnswer.toString(),
+      response_time_ms: response_time_ms,
       insert_datetime: new Date().toISOString(),
     };
 
@@ -61,7 +81,7 @@ const TaskAnswerPanel = ({
         body: JSON.stringify(payload),
       });
       if (!response.ok) console.error(`Submit failed: ${response.status}`);
-      else console.log(`Answer saved for task ${taskId} at ${payload.insert_datetime}`);
+      else console.log(`Answer saved for task ${taskId}, response_time_ms: ${response_time_ms}`);
     } catch (error) {
       console.warn("Backend unreachable — continuing:", error.message);
     } finally {
@@ -72,7 +92,6 @@ const TaskAnswerPanel = ({
     }
   };
 
-  // ── Shared styles ─────────────────────────────────────────────────
   const cardStyle = {
     backgroundColor: "white",
     borderRadius: "0.75rem",
@@ -111,7 +130,6 @@ const TaskAnswerPanel = ({
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
 
           {hasOptions ? (
-            /* ── Option boxes ─────────────────────────────────────── */
             options.map((option, index) => {
               const isSelected = selectedAnswer === option.value;
               return (
@@ -159,7 +177,6 @@ const TaskAnswerPanel = ({
               );
             })
           ) : (
-            /* ── Free-text box (default) ──────────────────────────── */
             <textarea
               value={selectedAnswer}
               onChange={(e) => setSelectedAnswer(e.target.value)}
@@ -191,8 +208,6 @@ const TaskAnswerPanel = ({
           </button>
         </form>
       </div>
-
-      
     </aside>
   );
 };
