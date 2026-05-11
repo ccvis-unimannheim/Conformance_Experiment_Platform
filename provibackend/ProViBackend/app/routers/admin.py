@@ -27,22 +27,7 @@ router = APIRouter(
     prefix="/admin"
 )
 
-# ---------------------------------------------------------------------------
-# Dataset storage convention
-#
-# Datasets live OUTSIDE the application code, on the host volume mounted into
-# the container at /data (see docker-compose.yml). Each dataset gets its own
-# UUID folder with a fixed layout the visualization pipeline expects:
-#
-#     /data/<dataset_id>/
-#         input/
-#             EventLog.{xes|csv}     ← log file is renamed on upload
-#             Guideline.bpmn         ← model file is renamed on upload
-#         output/
-#             task1/  task2/  ...    ← created by run_pipeline()
-# ---------------------------------------------------------------------------
-
-DATA_DIRECTORY = pl.Path("/data")
+DATA_DIRECTORY = config.BASE_DIRECTORY / "data"
 
 ALLOWED_LOG_EXTENSIONS   = {".xes", ".csv"}
 ALLOWED_MODEL_EXTENSIONS = {".bpmn"}

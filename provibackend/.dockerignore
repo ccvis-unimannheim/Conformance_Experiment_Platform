@@ -2,4 +2,5 @@
 .github/
 
 ProViBackend/output/
+ProViBackend/data/
 ProViBackend/app/static/questionnaire.csv
