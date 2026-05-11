@@ -10,12 +10,11 @@ import { UITrackingProvider } from "../../utils/usertracking";
 import ProjectLogo from "../../public/images/logo-no-background.png";
 import UniLogo from "../../public/images/Logo_UMA_EN_RGB.png";
 
-// ---------------------------------------------------------------------------
+
 // Group flat trials array by task_key, preserving order
-// ---------------------------------------------------------------------------
 function groupTrialsByTask(trials) {
   const groups = [];
-  const seen = new Map(); // task_key → group index
+  const seen = new Map();
 
   for (const trial of trials) {
     if (!seen.has(trial.task_key)) {
@@ -30,19 +29,17 @@ function groupTrialsByTask(trials) {
     }
     const idx = seen.get(trial.task_key);
     groups[idx].idioms.push({
-      idiom_id:    trial.idiom_id,
-      idiom_key:   trial.idiom_key,
-      idiom_label: trial.idiom_label,
-      dataset_id:  trial.dataset_id,
+      idiom_id:      trial.idiom_id,
+      idiom_key:     trial.idiom_key,
+      idiom_label:   trial.idiom_label,
+      dataset_id:    trial.dataset_id,
       svg_available: trial.svg_available,
     });
   }
   return groups;
 }
 
-// ---------------------------------------------------------------------------
 // Skeleton placeholder
-// ---------------------------------------------------------------------------
 function LoadingSkeleton() {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(12, minmax(0,1fr))", gap: "2rem", alignItems: "start" }}>
@@ -78,18 +75,16 @@ function LoadingSkeleton() {
   );
 }
 
-// ---------------------------------------------------------------------------
 // TaskExecutionPage
-// ---------------------------------------------------------------------------
 export default function TaskExecutionPage() {
-  const [taskGroups, setTaskGroups]           = useState([]);
+  const [taskGroups, setTaskGroups]               = useState([]);
   const [currentGroupIndex, setCurrentGroupIndex] = useState(0);
   const [currentIdiomIndex, setCurrentIdiomIndex] = useState(0);
-  const [svgUrl, setSvgUrl]                   = useState(null);
-  const [loadingTasks, setLoadingTasks]       = useState(true);
-  const [loadingSvg, setLoadingSvg]           = useState(false);
+  const [svgUrl, setSvgUrl]                       = useState(null);
+  const [loadingTasks, setLoadingTasks]           = useState(true);
+  const [loadingSvg, setLoadingSvg]               = useState(false);
 
-  // ── Fetch & group trials on mount ────────────────────────────────
+  // ── Fetch & group trials on mount 
   useEffect(() => {
     const fetchTasks = async () => {
       try {
@@ -109,7 +104,7 @@ export default function TaskExecutionPage() {
     fetchTasks();
   }, []);
 
-  // ── Fetch SVG when group or idiom index changes ───────────────────
+  // ── Fetch SVG when group or idiom index changes
   useEffect(() => {
     const group = taskGroups[currentGroupIndex];
     if (!group) return;
@@ -142,7 +137,7 @@ export default function TaskExecutionPage() {
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [currentGroupIndex, currentIdiomIndex, taskGroups]);
 
-  // ── Advance: idiom-first, then task ──────────────────────────────
+  // ── Advance: idiom-first, then task 
   const handleAnswerSubmit = () => {
     const group = taskGroups[currentGroupIndex];
     if (!group) return;
@@ -154,16 +149,14 @@ export default function TaskExecutionPage() {
     }
   };
 
-  // ── Derived display values ────────────────────────────────────────
+  // ── Derived display values 
   const currentGroup = taskGroups[currentGroupIndex];
   const currentIdiom = currentGroup?.idioms[currentIdiomIndex];
 
-  // Navbar / title counts unique tasks
-  const totalTasks     = taskGroups.length;
-  const currentStep    = currentGroupIndex + 1;
+  const totalTasks      = taskGroups.length;
+  const currentStep     = currentGroupIndex + 1;
   const progressPercent = totalTasks > 0 ? (currentStep / totalTasks) * 100 : 0;
 
-  // TaskAnswerPanel needs flat trial index to detect the very last trial
   const flatTrialIndex = taskGroups
     .slice(0, currentGroupIndex)
     .reduce((sum, g) => sum + g.idioms.length, 0) + currentIdiomIndex;
@@ -171,12 +164,11 @@ export default function TaskExecutionPage() {
 
   const showSkeleton = loadingTasks;
 
-  // ── Render ───────────────────────────────────────────────────────
   return (
     <UITrackingProvider>
       <div style={{ backgroundColor: "#f9f9f9", color: "#2d3435", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
 
-        {/* ── Nav Bar ────────────────────────────────────────────── */}
+        {/* ── Nav Bar */}
         <nav style={{
           backgroundColor: "rgba(249,249,249,0.85)",
           backdropFilter: "blur(16px)",
@@ -204,7 +196,7 @@ export default function TaskExecutionPage() {
           </div>
         </nav>
 
-        {/* ── Main Content ─────────────────────────────────────── */}
+        {/* ── Main Content */}
         <main style={{ flexGrow: 1, paddingTop: "6rem", paddingBottom: "3rem", paddingLeft: "2rem", paddingRight: "2rem", maxWidth: "1440px", margin: "0 auto", width: "100%" }}>
 
           <header style={{ marginBottom: "3rem" }}>
@@ -243,6 +235,10 @@ export default function TaskExecutionPage() {
               <TaskAnswerPanel
                 options={[]}
                 taskId={currentGroup?.task_id ?? currentStep}
+                idiomId={currentIdiom?.idiom_id ?? ""}
+                datasetId={currentIdiom?.dataset_id ?? ""}
+                trialIndex={flatTrialIndex}
+                presentationOrder={flatTrialIndex}
                 totalTasks={totalTrials}
                 currentTaskIndex={flatTrialIndex}
                 onAnswerSubmit={handleAnswerSubmit}

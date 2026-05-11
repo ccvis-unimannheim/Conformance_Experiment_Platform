@@ -66,7 +66,7 @@ class AnswerFromFrontend(BaseModel):
     task_id: str
     idiom_id: str
     dataset_id: str
-    ground_truth_id: str
+    ground_truth_id: Optional[str] = None
     trial_index: int
     presentation_order: int
     answer: str
@@ -74,17 +74,17 @@ class AnswerFromFrontend(BaseModel):
 
 class AnswerForDatabase(BaseModel):
     user_id: str
-    group_id: str
-    experiment_id: str
+    group_id: Optional[str] = None
+    experiment_id: Optional[str] = None
     question_id: str
     task_id: str
     idiom_id: str
     dataset_id: str
-    ground_truth_id: str
+    ground_truth_id: Optional[str] = None
     trial_index: int
     presentation_order: int
-    answer: str              
-    is_correct: bool
+    answer: str
+    is_correct: Optional[bool] = None
     response_time_ms: int
     insert_datetime: str
 
