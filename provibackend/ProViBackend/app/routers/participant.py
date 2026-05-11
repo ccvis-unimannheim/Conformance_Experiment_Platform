@@ -1,10 +1,21 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel
 
 import ProViBackend.utils.config as config
 import ProViBackend.utils.database.connection as dbc
+from ProViBackend.utils.database.assignment import (
+    assign_participant_to_experiment,
+    get_assignment,
+    parse_trial_token,
+)
 
 router = APIRouter(prefix="/participant")
+
+
+class AssignmentRequest(BaseModel):
+    user_id: str
+    experiment_id: str
 
 
 def _resolve_svg_path(task_id: str, idiom_id: str, dataset_id: str):
@@ -91,3 +102,82 @@ async def get_visualization(dataset_id: str, task_id: str, idiom_id: str):
             detail=f"SVG not found on disk: {svg_path.relative_to(config.BASE_DIRECTORY)}",
         )
     return FileResponse(str(svg_path), media_type="image/svg+xml")
+
+
+# ---------------------------------------------------------------------------
+# Assignment endpoints
+# ---------------------------------------------------------------------------
+
+@router.post("/assignment", tags=["participant"])
+async def create_or_get_assignment(body: AssignmentRequest):
+    """
+    Assign a participant to an experiment (idempotent).
+
+    On first call: selects one idiom per task using balanced random allocation
+    and persists a UserAssignment document.
+    On subsequent calls: returns the existing assignment unchanged.
+
+    Returns the full assignment including the ordered trial_sequence.
+    """
+    try:
+        assignment = assign_participant_to_experiment(body.user_id, body.experiment_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+    # Convert ObjectId to str if present (defensive)
+    if "_id" in assignment and not isinstance(assignment["_id"], str):
+        assignment["_id"] = str(assignment["_id"])
+    return JSONResponse(content=assignment)
+
+
+@router.get("/assignment/{user_id}/{experiment_id}/trials", tags=["participant"])
+async def get_assigned_trials(user_id: str, experiment_id: str):
+    """
+    Return the participant's personalised trial list with full task/idiom metadata.
+
+    Each element in `trials` corresponds to one entry in trial_sequence and
+    contains the same fields as the active-experiment endpoint, plus
+    `trial_index` for ordered display.
+    """
+    assignment = get_assignment(user_id, experiment_id)
+    if not assignment:
+        raise HTTPException(
+            status_code=404,
+            detail="No assignment found. Call POST /participant/assignment first.",
+        )
+
+    trials = []
+    for idx, token in enumerate(assignment.get("trial_sequence", [])):
+        try:
+            task_id, idiom_id, dataset_id = parse_trial_token(token)
+        except ValueError:
+            continue
+
+        task  = dbc.get_document("Task",  {"_id": task_id})
+        idiom = dbc.get_document("Idiom", {"_id": idiom_id})
+        if not task or not idiom:
+            continue
+
+        svg_path, _ = _resolve_svg_path(task_id, idiom_id, dataset_id)
+        svg_available = bool(svg_path and svg_path.exists())
+
+        trials.append({
+            "trial_index":   idx,
+            "task_id":       task_id,
+            "idiom_id":      idiom_id,
+            "dataset_id":    dataset_id,
+            "task_key":      task["task_key"],
+            "task_label":    task["label"],
+            "idiom_key":     idiom["idiom_key"],
+            "idiom_label":   idiom["label"],
+            "answer_type":   task["answer_type"],
+            "svg_available": svg_available,
+        })
+
+    return JSONResponse({
+        "assignment_id":       assignment["_id"],
+        "experiment_id":       experiment_id,
+        "user_id":             user_id,
+        "current_trial_index": assignment.get("current_trial_index", 0),
+        "trials":              trials,
+    })
