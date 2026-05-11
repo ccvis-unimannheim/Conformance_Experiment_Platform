@@ -4,6 +4,33 @@ Tracks files modified or created during development sessions.
 
 ---
 
+## Session: Rebase conflict resolution + participant page fixes (2026-05-08)
+
+### Context
+
+Rebasing `d371848` (path adjustments commit) onto `origin/admin-connect` produced conflicts in three files. The `origin/admin-connect` branch had also been substantially rewritten by a team member — `participant.py` was given a new architecture using a `vis_mapping.py` lookup table and old `new_output/` paths, and `create_all_visualizations.py` gained an optional `output_dir` parameter. These additions were incompatible with our agreed new structure.
+
+### Conflict resolutions
+
+| File | Resolution |
+|------|--------|
+| `provibackend/ProViBackend/scripts/create_all_visualizations.py` | Kept d371848: no `output_dir` parameter on `run_pipeline` (output dir is always `{dataset_dir}/output/`); dropped the optional override that HEAD added. Added `import pathlib` inside the function. |
+| `provibackend/ProViBackend/app/routers/admin.py` | Four conflicts: (1) import — kept d371848's `run_pipeline as run_visualization_pipeline`; (2) upload endpoint — kept d371848's `data/{pair_id}` path and original filename preservation, discarded HEAD's `_run_pair_pipeline` wrapper with wrong `output/` prefix; (3) background task call — kept d371848's `run_visualization_pipeline(str(pair_dir))`; (4) `_sync_participant_experiment` — kept d371848's full function (HEAD had nothing). |
+| `provibackend/ProViBackend/app/routers/participant.py` | HEAD had been rewritten to use `vis_mapping.py` lookup tables and old `new_output/` paths — incompatible with new naming. Rewrote the file entirely: kept HEAD's clean direct-from-`Experiment` API structure (`get_active_experiment` returns a `trials` list; `get_visualization` serves SVG by file), but replaced all path logic with `data/{pair_id}/output/{task_key}/{idiom_key}.svg`. Removed `vis_mapping.py` import. No more `ParticipantExperiment` intermediary. |
+
+### Additional changes
+
+| File | Change |
+|------|--------|
+| `provibackend/ProViBackend/app/routers/vis_mapping.py` | Now dead code — no longer imported anywhere. Can be deleted. |
+| `ProViFrontend/provi-frontend/src/app/taskexecution/page.js` | Removed `import { getApiBase } from "../../lib/apiConfig"` (apiConfig.js was deleted in the URL unification session). Switched both fetches to relative `/api/...` paths. Removed `"new_output"` fallback from SVG fetch (`const dsParam = idiom.dataset_id || "new_output"` → uses `idiom.dataset_id` directly). |
+
+### Known open item
+
+The **"Publish Experiment"** button in `admin/experiments/idiom/page.js` calls `PATCH /api/admin/experiments/{id}` (general update) which does **not** trigger `_sync_participant_experiment`. Participants read from `Experiment` directly (via `get_active_experiment`) so the experiment is visible, but `_sync_participant_experiment` is never called and `ParticipantExperiment` is never populated. The `/status?status=published` endpoint (which does call `_sync_participant_experiment`) is never reached from the frontend. Fix: split publish into two calls — save `task_configs` first, then call `/status?status=published`. Not yet implemented.
+
+---
+
 ## Session: Docker One-Command Deploy (2026-05-07)
 
 ### GitHub repository configuration (done via GitHub web UI)
