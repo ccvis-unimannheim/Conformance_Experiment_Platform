@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException
+from typing import Annotated
+from fastapi import APIRouter, Cookie, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
@@ -14,7 +15,6 @@ router = APIRouter(prefix="/participant")
 
 
 class AssignmentRequest(BaseModel):
-    user_id: str
     experiment_id: str
 
 
@@ -109,29 +109,37 @@ async def get_visualization(dataset_id: str, task_id: str, idiom_id: str):
 # ---------------------------------------------------------------------------
 
 @router.post("/assignment", tags=["participant"])
-async def create_or_get_assignment(body: AssignmentRequest):
+async def create_or_get_assignment(
+    body: AssignmentRequest,
+    provi_user_id: Annotated[str | None, Cookie()] = None,
+):
     """
     Assign a participant to an experiment (idempotent).
 
+    Reads user_id from the provi_user_id cookie (set by POST /auth/).
     On first call: selects one idiom per task using balanced random allocation
     and persists a UserAssignment document.
     On subsequent calls: returns the existing assignment unchanged.
 
     Returns the full assignment including the ordered trial_sequence.
     """
+    if provi_user_id is None:
+        raise HTTPException(status_code=401, detail="No user cookie found. Call POST /auth/ first.")
     try:
-        assignment = assign_participant_to_experiment(body.user_id, body.experiment_id)
+        assignment = assign_participant_to_experiment(provi_user_id, body.experiment_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 
-    # Convert ObjectId to str if present (defensive)
     if "_id" in assignment and not isinstance(assignment["_id"], str):
         assignment["_id"] = str(assignment["_id"])
     return JSONResponse(content=assignment)
 
 
-@router.get("/assignment/{user_id}/{experiment_id}/trials", tags=["participant"])
-async def get_assigned_trials(user_id: str, experiment_id: str):
+@router.get("/assignment/{experiment_id}/trials", tags=["participant"])
+async def get_assigned_trials(
+    experiment_id: str,
+    provi_user_id: Annotated[str | None, Cookie()] = None,
+):
     """
     Return the participant's personalised trial list with full task/idiom metadata.
 
@@ -139,7 +147,9 @@ async def get_assigned_trials(user_id: str, experiment_id: str):
     contains the same fields as the active-experiment endpoint, plus
     `trial_index` for ordered display.
     """
-    assignment = get_assignment(user_id, experiment_id)
+    if provi_user_id is None:
+        raise HTTPException(status_code=401, detail="No user cookie found. Call POST /auth/ first.")
+    assignment = get_assignment(provi_user_id, experiment_id)
     if not assignment:
         raise HTTPException(
             status_code=404,
@@ -177,7 +187,7 @@ async def get_assigned_trials(user_id: str, experiment_id: str):
     return JSONResponse({
         "assignment_id":       assignment["_id"],
         "experiment_id":       experiment_id,
-        "user_id":             user_id,
+        "user_id":             provi_user_id,
         "current_trial_index": assignment.get("current_trial_index", 0),
         "trials":              trials,
     })
