@@ -3,7 +3,19 @@ import io
 import csv
 from fastapi import APIRouter, BackgroundTasks, UploadFile, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
-from ProViBackend.scripts.create_all_visualizations import create_all_visualizations
+try:
+    from ProViBackend.scripts.create_all_visualizations import run_pipeline as run_visualization_pipeline
+except ImportError:
+    run_visualization_pipeline = None
+
+try:
+    from ProViBackend.scripts.tasks import task1, task2, task3, task4, task5, task6
+    _TASK_MODULES = {
+        "task1": task1, "task2": task2, "task3": task3,
+        "task4": task4, "task5": task5, "task6": task6,
+    }
+except ImportError:
+    _TASK_MODULES = {}
 from ProViBackend.utils import config, utils
 from ProViBackend.app.datamodels import data_schemas as ds
 import pathlib as pl
@@ -15,41 +27,95 @@ router = APIRouter(
     prefix="/admin"
 )
 
-def process_xes_file(file_path: pl.Path):
-    create_all_visualizations(file_path, config.BASE_DIRECTORY / "output")
-    upload_meta_xes_data_to_db(file_path)
+# ---------------------------------------------------------------------------
+# Dataset storage convention
+#
+# Datasets live OUTSIDE the application code, on the host volume mounted into
+# the container at /data (see docker-compose.yml). Each dataset gets its own
+# UUID folder with a fixed layout the visualization pipeline expects:
+#
+#     /data/<dataset_id>/
+#         input/
+#             EventLog.{xes|csv}     ← log file is renamed on upload
+#             Guideline.bpmn         ← model file is renamed on upload
+#         output/
+#             task1/  task2/  ...    ← created by run_pipeline()
+# ---------------------------------------------------------------------------
+
+DATA_DIRECTORY = pl.Path("/data")
+
+ALLOWED_LOG_EXTENSIONS   = {".xes", ".csv"}
+ALLOWED_MODEL_EXTENSIONS = {".bpmn"}
+EVENTLOG_BASENAME = "EventLog"
+GUIDELINE_FILENAME = "Guideline.bpmn"
 
 
-def upload_meta_xes_data_to_db(file_path: pl.Path):
-    dataset_id = str(uuid.uuid1())
-    dataset_title = file_path.stem
-    checksum = utils.get_file_checksum(file_path)
-    location = f"output/{dataset_title}"
-
-    dataset = ds.Dataset(
-        dataset_id=dataset_id,
-        dataset_title=dataset_title,
-        checksum=checksum,
-        is_active=False,
-        location=location,
-    )
-    dbc.create_dataset(dataset)
-    redis_handler.write_key_to_redis(dataset_id, location)
+def _validate_extension(filename: str, allowed: set, label: str) -> str:
+    """Return the lower-cased extension if allowed, else raise HTTP 400."""
+    ext = pl.Path(filename).suffix.lower()
+    if ext not in allowed:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{label} must have one of {sorted(allowed)} extensions, got '{ext}'.",
+        )
+    return ext
 
 
-@router.post("/upload", tags=["admin"])
-async def upload_xes_file(file: UploadFile, background_tasks: BackgroundTasks):
+@router.post("/datasets/pair", tags=["admin"])
+async def upload_dataset_pair(log: UploadFile, guideline: UploadFile, background_tasks: BackgroundTasks):
+    """Upload an event log + BPMN guideline; triggers the visualization pipeline asynchronously."""
+    # Validate file extensions BEFORE creating any directories on disk
+    log_ext = _validate_extension(log.filename, ALLOWED_LOG_EXTENSIONS, "Event log")
+    _validate_extension(guideline.filename, ALLOWED_MODEL_EXTENSIONS, "Guideline")
+
+    pair_id    = str(uuid.uuid4())
+    pair_dir   = DATA_DIRECTORY / pair_id
+    input_dir  = pair_dir / "input"
+    output_dir = pair_dir / "output"
+
     try:
-        contents = file.file.read()
-        file_path = config.BASE_DIRECTORY / "output" / file.filename
-        with open(utils.convert_path_to_str(file_path), 'wb') as f:
-            f.write(contents)
-        background_tasks.add_task(process_xes_file, file_path)
-        return {"message": f"Successfully uploaded {file.filename}. File is being processed."}
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to upload file")
+        input_dir.mkdir(parents=True, exist_ok=True)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Normalize filenames to the pipeline's expected convention,
+        # so the pipeline can find them regardless of the original upload name.
+        log_path       = input_dir / f"{EVENTLOG_BASENAME}{log_ext}"
+        guideline_path = input_dir / GUIDELINE_FILENAME
+
+        log_path.write_bytes(await log.read())
+        guideline_path.write_bytes(await guideline.read())
+
+        dataset_pair = ds.DatasetPair(
+            dataset_id=pair_id,
+            dataset_title=pl.Path(log.filename).stem,   # keep original log name as title
+            dataset_is_active=False,
+            insert_datetime=utils.get_current_datetime(),
+            log=ds.DatasetFile(
+                filename=log_path.name,                 # normalized name on disk
+                location=str(log_path),                 # absolute path inside container
+                checksum=utils.get_file_checksum(log_path),
+            ),
+            guideline=ds.DatasetFile(
+                filename=guideline_path.name,
+                location=str(guideline_path),
+                checksum=utils.get_file_checksum(guideline_path),
+            ),
+        )
+
+        db = dbc.connect_to_database()
+        db["DatasetPair"].insert_one(dataset_pair.model_dump())
+
+        if run_visualization_pipeline is not None:
+            background_tasks.add_task(run_visualization_pipeline, str(pair_dir))
+
+        return {"dataset_id": pair_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to upload dataset pair: {str(e)}")
     finally:
-        file.file.close()
+        await log.close()
+        await guideline.close()
 
 
 # Todo: Add validation for csv file and verify content after df structure.
@@ -109,15 +175,17 @@ async def get_ui_tracking_from_db():
 
 @router.get("/datasets", tags=["admin"])
 async def get_datasets_from_db():
-    datasets = dbc.get_query_db("Dataset",
-                                query={},
-                                projection={"_id": 0,
-                                            "dataset_id": 1,
-                                            "dataset_title": 1,
-                                            "is_active": 1,
-                                            "location": 1,
-                                            })
-    return JSONResponse(content=datasets)
+    pairs = dbc.get_query_db("DatasetPair",
+                             query={},
+                             projection={"_id": 0,
+                                         "dataset_id": 1,
+                                         "dataset_title": 1,
+                                         "dataset_is_active": 1,
+                                         "insert_datetime": 1,
+                                         "log.filename": 1,
+                                         "guideline.filename": 1,
+                                         })
+    return JSONResponse(content=pairs)
 
 
 # Todo: Add validation for dataset_id and dataset_is_active that always two datasets are selected as active
@@ -127,6 +195,10 @@ async def select_active_datasets(selected_datasets_from_frontend: ds.ListDataset
     for dataset in selected_datasets_from_frontend.datasets:
         dbc.update_dataset_is_active_status(dataset.dataset_id, dataset.is_active)
     return {"message": "Successfully updated dataset_is_active in database"}
+
+
+
+
 
 
 @router.get("/usagedataset", tags=["admin"])
@@ -147,7 +219,7 @@ async def get_users_usage_of_datasets():
 
 @router.post("/idioms", tags=["admin"])
 async def create_idiom(idiom: ds.Idiom):
-    dbc.create_document("Idiom", idiom.model_dump())
+    dbc.create_document("Idiom", idiom.model_dump(by_alias=True))
     return JSONResponse(content={"message": f"Idiom '{idiom.label}' created.", "idiom_id": idiom.id}, status_code=201)
 
 
@@ -177,6 +249,15 @@ async def get_tasks():
         if "_id" in doc and not isinstance(doc["_id"], str):
             doc["_id"] = str(doc["_id"])
     return JSONResponse(content=tasks)
+
+
+@router.get("/task-idioms", tags=["admin"])
+async def get_task_idioms():
+    """Returns {task_key: [idiom_key, ...]} from the IDIOMS constant of each task script."""
+    return JSONResponse(content={
+        task_key: list(getattr(mod, "IDIOMS", []))
+        for task_key, mod in _TASK_MODULES.items()
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -221,6 +302,52 @@ async def update_experiment_status(experiment_id: str, status: str):
     if not updated:
         raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
     return JSONResponse(content={"message": f"Experiment status updated to '{status}'."})
+
+
+def _sync_participant_experiment(experiment_id: str, participant_status: str):
+    """Build and upsert a ParticipantExperiment document for participant-facing queries."""
+    exp = dbc.get_document("Experiment", {"_id": experiment_id})
+    if not exp:
+        return
+    def _get_by_id(collection, id_str):
+        doc = dbc.get_document(collection, {"_id": id_str})
+        if doc:
+            return doc
+        try:
+            doc = dbc.get_document(collection, {"_id": ObjectId(id_str)})
+        except Exception:
+            pass
+        return doc
+
+    task_assignments = []
+    for tc in exp.get("task_configs", []):
+        task_doc = _get_by_id("Task", tc["task_id"])
+        idiom_doc = _get_by_id("Idiom", tc["idiom_id"])
+        task_key = task_doc["task_key"] if task_doc else None
+        idiom_key = idiom_doc["idiom_key"] if idiom_doc else None
+        pair_id = tc["dataset_id"]
+        svg_path = (
+            f"data/{pair_id}/output/{task_key}/{idiom_key}.svg"
+            if task_key and idiom_key else None
+        )
+        task_assignments.append({
+            "dataset_id": tc["dataset_id"],
+            "task_id": tc["task_id"],
+            "idiom_id": tc["idiom_id"],
+            "svg_path": svg_path,
+        })
+    db = dbc.connect_to_database()
+    db["ParticipantExperiment"].replace_one(
+        {"_id": experiment_id},
+        {
+            "_id": experiment_id,
+            "experiment_id": experiment_id,
+            "status": participant_status,
+            "task_assignments": task_assignments,
+        },
+        upsert=True,
+    )
+
 
 
 @router.patch("/experiments/{experiment_id}", tags=["admin"])

@@ -1,2 +1,9 @@
 support.ipynb
 docs/**
+/2604/
+.env
+
+provibackend/ProVibackend/new_input/
+provibackend/ProVibackend/new_output/
+provibackend/ProVibackend/output/
+provibackend/ProVibackend/data/

@@ -4,9 +4,7 @@ import { usePathname } from "next/navigation";
 import Footer from "./Footer";
 
 const HIDDEN_FOOTER_PATHS = [
-  "/admin/experiment-setup",
-  "/admin/task-selection",
-  "/admin/idiom-selection",
+  "/admin",
 ];
 
 export default function ConditionalFooter() {

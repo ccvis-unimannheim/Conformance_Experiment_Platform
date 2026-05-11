@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ExperimentSetupHeader from "../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../components/Admin/Toast";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:1234/api";
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:1234";
 
 const ALL_TASKS = [
   {
@@ -53,6 +53,8 @@ function getTaskId(task) {
 
 export default function TaskSelectionPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const experimentId = searchParams.get("experiment_id");
 
   const [allTasks, setAllTasks] = useState([]);
   const [loadError, setLoadError] = useState(null);
@@ -170,39 +172,25 @@ export default function TaskSelectionPage() {
       showToast("Please select at least one task before continuing.", true);
       return;
     }
-    const experimentId = crypto.randomUUID();
-    const name = `CC Experiment ${new Date().toLocaleDateString("en-GB")}`;
+    if (!experimentId) {
+      showToast("No experiment found. Please go back and create an experiment first.", true);
+      return;
+    }
     const taskConfigs = selectedIds.map((taskId) => ({
       task_id: taskId,
       idiom_id: "",
       dataset_id: "",
       question_ids: [],
     }));
-    const draft = {
-      _id: experimentId,
-      name,
-      type: "CC",
-      status: "draft",
-      design_type: "between",
-      between_factors: [],
-      within_factors: [],
-      stratification_fields: [],
-      between_balance_mode: "random",
-      within_sequence_mode: "fixed",
-      dataset_ids: [],
-      task_configs: taskConfigs,
-      created_by: "admin",
-      created_at: new Date().toISOString(),
-    };
     try {
-      const res = await fetch(`${BASE_URL}/admin/experiments`, {
-        method: "POST",
+      const res = await fetch(`${BASE_URL}/admin/experiments/${encodeURIComponent(experimentId)}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(draft),
+        body: JSON.stringify({ task_configs: taskConfigs }),
       });
       if (!res.ok) throw new Error(await res.text());
     } catch (e) {
-      showToast(`Failed to save draft: ${e.message}`, true);
+      showToast(`Failed to save tasks: ${e.message}`, true);
       return;
     }
     router.push(`/admin/idiom-selection?experiment_id=${encodeURIComponent(experimentId)}`);
@@ -370,7 +358,7 @@ export default function TaskSelectionPage() {
       <div className="border-t border-border-subtle bg-white sticky bottom-0">
         <div className="max-w-[1140px] mx-auto px-8 py-4 flex justify-between items-center">
           <Link
-            href="/admin/task-selection"
+            href="/admin/experiments/new"
             className="text-sm text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors"
           >
             <span className="material-symbols-outlined text-sm">arrow_back</span> Previous Step

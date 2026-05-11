@@ -1,0 +1,80 @@
+services:
+  mongo:
+    image: mongo
+    container_name: mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USERNAME:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-example}
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    build:
+      context: ./provibackend/redis
+    container_name: redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  provibackend:
+    build:
+      context: ./provibackend
+    container_name: provibackend
+    restart: unless-stopped
+    ports:
+      - "1234:80"
+    environment:
+      LOCAL_DATABASE_USERNAME: ${MONGO_USERNAME:-root}
+      LOCAL_DATABASE_PASSWORD: ${MONGO_PASSWORD:-example}
+    volumes:
+      - provibackend_data:/code/ProViBackend/data/
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  provifrontend:
+    build:
+      context: ./ProViFrontend
+    container_name: provifrontend
+    restart: unless-stopped
+    ports:
+      - "22222:3000"
+    environment:
+      BACKEND_INTERNAL_URL: http://provibackend:80
+    depends_on:
+      - provibackend
+
+  nginx:
+    profiles: ["prod"]
+    build:
+      context: ./provibackend/nginx
+    container_name: nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt
+    depends_on:
+      - provibackend
+      - provifrontend
+
+volumes:
+  mongo_data:
+  redis_data:
+  provibackend_data:
