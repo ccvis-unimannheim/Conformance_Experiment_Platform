@@ -27,90 +27,77 @@ router = APIRouter(
     prefix="/admin"
 )
 
-def process_xes_file(file_path: pl.Path):
-    if run_visualization_pipeline:
-        run_visualization_pipeline(str(file_path.parent.parent))
-    upload_meta_xes_data_to_db(file_path)
+# ---------------------------------------------------------------------------
+# Dataset storage convention
+#
+# Datasets live OUTSIDE the application code, on the host volume mounted into
+# the container at /data (see docker-compose.yml). Each dataset gets its own
+# UUID folder with a fixed layout the visualization pipeline expects:
+#
+#     /data/<dataset_id>/
+#         input/
+#             EventLog.{xes|csv}     ← log file is renamed on upload
+#             Guideline.bpmn         ← model file is renamed on upload
+#         output/
+#             task1/  task2/  ...    ← created by run_pipeline()
+# ---------------------------------------------------------------------------
+
+DATA_DIRECTORY = pl.Path("/data")
+
+ALLOWED_LOG_EXTENSIONS   = {".xes", ".csv"}
+ALLOWED_MODEL_EXTENSIONS = {".bpmn"}
+EVENTLOG_BASENAME = "EventLog"
+GUIDELINE_FILENAME = "Guideline.bpmn"
 
 
-def upload_meta_xes_data_to_db(file_path: pl.Path):
-    dataset_id = str(uuid.uuid1())
-    dataset_title = file_path.stem
-    checksum = utils.get_file_checksum(file_path)
-    location = f"data/{dataset_title}"
-
-    dataset = ds.Dataset(
-        dataset_id=dataset_id,
-        dataset_title=dataset_title,
-        checksum=checksum,
-        is_active=False,
-        location=location,
-    )
-    dbc.create_dataset(dataset)
-    redis_handler.write_key_to_redis(dataset_id, location)
-
-
-# @router.post("/upload", tags=["admin"])
-# async def upload_xes_file(file: UploadFile, background_tasks: BackgroundTasks):
-#     try:
-#         contents = file.file.read()
-#         file_path = config.BASE_DIRECTORY / "output" / file.filename
-#         with open(utils.convert_path_to_str(file_path), 'wb') as f:
-#             f.write(contents)
-#         background_tasks.add_task(process_xes_file, file_path)
-#         return {"message": f"Successfully uploaded {file.filename}. File is being processed."}
-#     except Exception:
-#         raise HTTPException(status_code=500, detail="Failed to upload file")
-#     finally:
-#         file.file.close()
-
-@router.post("/upload", tags=["admin"])
-async def upload_xes_file(file: UploadFile, background_tasks: BackgroundTasks):
-    try:
-        contents = file.file.read()
-        file_path = config.BASE_DIRECTORY / "data" / file.filename
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(utils.convert_path_to_str(file_path), 'wb') as f:
-            f.write(contents)
-        background_tasks.add_task(process_xes_file, file_path)
-        return {"message": f"Successfully uploaded {file.filename}. File is being processed."}
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to upload file")
-    finally:
-        file.file.close()
+def _validate_extension(filename: str, allowed: set, label: str) -> str:
+    """Return the lower-cased extension if allowed, else raise HTTP 400."""
+    ext = pl.Path(filename).suffix.lower()
+    if ext not in allowed:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{label} must have one of {sorted(allowed)} extensions, got '{ext}'.",
+        )
+    return ext
 
 
 @router.post("/datasets/pair", tags=["admin"])
 async def upload_dataset_pair(log: UploadFile, guideline: UploadFile, background_tasks: BackgroundTasks):
-    pair_id = str(uuid.uuid4())
-    pair_dir = config.BASE_DIRECTORY / "data" / pair_id
-    input_dir = pair_dir / "input"
+    """Upload an event log + BPMN guideline; triggers the visualization pipeline asynchronously."""
+    # Validate file extensions BEFORE creating any directories on disk
+    log_ext = _validate_extension(log.filename, ALLOWED_LOG_EXTENSIONS, "Event log")
+    _validate_extension(guideline.filename, ALLOWED_MODEL_EXTENSIONS, "Guideline")
+
+    pair_id    = str(uuid.uuid4())
+    pair_dir   = DATA_DIRECTORY / pair_id
+    input_dir  = pair_dir / "input"
     output_dir = pair_dir / "output"
+
     try:
         input_dir.mkdir(parents=True, exist_ok=True)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        log_contents = await log.read()
-        log_path = input_dir / log.filename
-        log_path.write_bytes(log_contents)
+        # Normalize filenames to the pipeline's expected convention,
+        # so the pipeline can find them regardless of the original upload name.
+        log_path       = input_dir / f"{EVENTLOG_BASENAME}{log_ext}"
+        guideline_path = input_dir / GUIDELINE_FILENAME
 
-        guideline_contents = await guideline.read()
-        guideline_path = input_dir / guideline.filename
-        guideline_path.write_bytes(guideline_contents)
+        log_path.write_bytes(await log.read())
+        guideline_path.write_bytes(await guideline.read())
 
         dataset_pair = ds.DatasetPair(
             dataset_id=pair_id,
-            dataset_title=pl.Path(log.filename).stem,
+            dataset_title=pl.Path(log.filename).stem,   # keep original log name as title
             dataset_is_active=False,
             insert_datetime=utils.get_current_datetime(),
             log=ds.DatasetFile(
-                filename=log.filename,
-                location=str(log_path.relative_to(config.BASE_DIRECTORY)),
+                filename=log_path.name,                 # normalized name on disk
+                location=str(log_path),                 # absolute path inside container
                 checksum=utils.get_file_checksum(log_path),
             ),
             guideline=ds.DatasetFile(
-                filename=guideline.filename,
-                location=str(guideline_path.relative_to(config.BASE_DIRECTORY)),
+                filename=guideline_path.name,
+                location=str(guideline_path),
                 checksum=utils.get_file_checksum(guideline_path),
             ),
         )
@@ -118,11 +105,12 @@ async def upload_dataset_pair(log: UploadFile, guideline: UploadFile, background
         db = dbc.connect_to_database()
         db["DatasetPair"].insert_one(dataset_pair.model_dump())
 
-        if run_visualization_pipeline:
+        if run_visualization_pipeline is not None:
             background_tasks.add_task(run_visualization_pipeline, str(pair_dir))
 
-
         return {"dataset_id": pair_id}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to upload dataset pair: {str(e)}")
     finally:
