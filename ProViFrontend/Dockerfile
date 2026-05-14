@@ -2,7 +2,7 @@ ARG HTTP_PROXY
 ARG HTTPS_PROXY
 ARG NO_PROXY
 
-FROM node:18-alpine
+FROM node:22-alpine
 
 WORKDIR /app
 COPY ./provi-frontend/package*.json ./provi-frontend/
