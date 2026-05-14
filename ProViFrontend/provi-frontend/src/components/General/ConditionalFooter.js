@@ -7,6 +7,7 @@ const HIDDEN_FOOTER_PATHS = [
   "/admin",
   "/prequestionnaire",
   "/knowledgequestion",
+  "/endpage",
 ];
 
 export default function ConditionalFooter() {

@@ -35,6 +35,9 @@ class KnowledgeAnswersRequest(BaseModel):
     score: int   # 0–10
     level: int   # 1 = Novice, 2 = Intermediate, 3 = Expert
 
+class FeedbackAnswersRequest(BaseModel):
+    difficulty: str  # "Very Easy" | "Easy" | "Neutral" | "Difficult" | "Very Difficult"
+
 class User(BaseModel):
     user_id: str
     preliminary_id: str

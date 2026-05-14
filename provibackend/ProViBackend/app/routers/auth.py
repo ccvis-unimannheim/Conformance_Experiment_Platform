@@ -82,3 +82,14 @@ async def knowledge_answers(body: ds.KnowledgeAnswersRequest, provi_user_id: Ann
     dbc.create_document("KnowledgeAnswers", doc)
     dbc.update_document("User", {"user_id": provi_user_id}, {"$set": {"knowledge_id": knowledge_id}})
     return JSONResponse(content={"message": "Knowledge answers added to database."})
+
+
+@router.post("/feedback", tags=["auth"])
+async def feedback_answers(body: ds.FeedbackAnswersRequest, provi_user_id: Annotated[str | None, Cookie()] = None):
+    if provi_user_id is None:
+        return JSONResponse(content={"message": "No cookie detected!"}, status_code=401)
+    feedback_id = str(uuid.uuid4())
+    doc = {"_id": feedback_id, **body.model_dump(), "insert_datetime": utils.get_current_datetime()}
+    dbc.create_document("FeedbackAnswers", doc)
+    dbc.update_document("User", {"user_id": provi_user_id}, {"$set": {"feedback_id": feedback_id}})
+    return JSONResponse(content={"message": "Feedback saved."})
