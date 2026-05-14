@@ -40,7 +40,7 @@ services:
       LOCAL_DATABASE_USERNAME: ${MONGO_USERNAME:-root}
       LOCAL_DATABASE_PASSWORD: ${MONGO_PASSWORD:-example}
     volumes:
-      - provibackend_data:/code/ProViBackend/data/
+      - /home/ccvis/data:/data
     depends_on:
       mongo:
         condition: service_healthy
@@ -77,4 +77,3 @@ services:
 volumes:
   mongo_data:
   redis_data:
-  provibackend_data:
