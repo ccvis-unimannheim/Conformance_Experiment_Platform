@@ -26,9 +26,14 @@ class PreliminaryAnswers(BaseModel):
 class KnowledgeAnswers(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     id: str = Field(alias="_id")
-    notes: str          
+    notes: str
     score: int
     level: int
+
+class KnowledgeAnswersRequest(BaseModel):
+    notes: str   # JSON string of individual answers
+    score: int   # 0–10
+    level: int   # 1 = Novice, 2 = Intermediate, 3 = Expert
 
 class User(BaseModel):
     user_id: str

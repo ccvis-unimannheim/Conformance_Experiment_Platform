@@ -6,6 +6,7 @@ import Footer from "./Footer";
 const HIDDEN_FOOTER_PATHS = [
   "/admin",
   "/prequestionnaire",
+  "/knowledgequestion",
 ];
 
 export default function ConditionalFooter() {

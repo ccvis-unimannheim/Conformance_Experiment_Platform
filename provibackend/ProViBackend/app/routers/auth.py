@@ -74,9 +74,11 @@ async def check_for_cookie(provi_user_id: Annotated[str | None, Cookie()] = None
     return response
 
 @router.post("/knowledge", tags=["auth"])
-async def knowledge_answers(knowledge_answers: ds.KnowledgeAnswers, provi_user_id: Annotated[str | None, Cookie()] = None):
+async def knowledge_answers(body: ds.KnowledgeAnswersRequest, provi_user_id: Annotated[str | None, Cookie()] = None):
     if provi_user_id is None:
-        return JSONResponse(content={"message": "No cookie detected! Please call GET /auth to receive a cookie"})
-    user_id = provi_user_id
-    dbc.update_user_knowledge_answers(user_id, knowledge_answers)
+        return JSONResponse(content={"message": "No cookie detected! Please call GET /auth to receive a cookie"}, status_code=401)
+    knowledge_id = str(uuid.uuid4())
+    doc = {"_id": knowledge_id, **body.model_dump()}
+    dbc.create_document("KnowledgeAnswers", doc)
+    dbc.update_document("User", {"user_id": provi_user_id}, {"$set": {"knowledge_id": knowledge_id}})
     return JSONResponse(content={"message": "Knowledge answers added to database."})
