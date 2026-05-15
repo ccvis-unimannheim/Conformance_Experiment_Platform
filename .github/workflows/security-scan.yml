@@ -6,11 +6,11 @@ on:
   schedule:
     # Mondays at 06:00 UTC
     - cron: '0 6 * * 1'
-  workflow_dispatch:  # allow manual triggers
+  workflow_dispatch:
 
 permissions:
   contents: read
-  security-events: write  # for SARIF upload
+  security-events: write
 
 jobs:
   trivy-scan:
@@ -29,30 +29,34 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build image
+      - name: Install Trivy
         run: |
-          docker build -t ${{ matrix.target.name }}:scan ${{ matrix.target.context }}
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+            | sudo sh -s -- -b /usr/local/bin v0.70.0
+          trivy --version
 
-      - name: Trivy scan (table output, for humans)
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          image-ref: ${{ matrix.target.name }}:scan
-          format: table
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          exit-code: '0'  # don't fail here, we want the SARIF step to run too
-          trivyignores: .trivyignore
+      - name: Build image
+        run: docker build -t ${{ matrix.target.name }}:scan ${{ matrix.target.context }}
 
-      - name: Trivy scan (SARIF, for GitHub Security tab)
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          image-ref: ${{ matrix.target.name }}:scan
-          format: sarif
-          output: trivy-${{ matrix.target.name }}.sarif
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          exit-code: '0'
-          trivyignores: .trivyignore
+      - name: Trivy scan (table, for humans)
+        run: |
+          trivy image \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --ignorefile .trivyignore \
+            --exit-code 0 \
+            ${{ matrix.target.name }}:scan
+
+      - name: Trivy scan (SARIF for Security tab)
+        run: |
+          trivy image \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --ignorefile .trivyignore \
+            --format sarif \
+            --output trivy-${{ matrix.target.name }}.sarif \
+            --exit-code 0 \
+            ${{ matrix.target.name }}:scan
 
       - name: Upload SARIF to GitHub Security
         if: always()
@@ -63,11 +67,10 @@ jobs:
 
       - name: Fail on HIGH/CRITICAL (push only, not schedule)
         if: github.event_name == 'push'
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          image-ref: ${{ matrix.target.name }}:scan
-          format: table
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          exit-code: '1'
-          trivyignores: .trivyignore
+        run: |
+          trivy image \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --ignorefile .trivyignore \
+            --exit-code 1 \
+            ${{ matrix.target.name }}:scan
