@@ -3,4 +3,6 @@
 
 ProViBackend/output/
 ProViBackend/data/
-ProViBackend/app/static/questionnaire.csv
+ProViBackend/app/static/questionnaire.csvProViBackend/new_output/
+ProViBackend/new_output/
+ProViBackend/new_input/

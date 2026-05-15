@@ -196,8 +196,15 @@ export default function AdminPage() {
                             Mark as Finished
                           </button>
                         )}
+                        {/* Download button for finished experiments */}
                         {status === "finished" && (
-                          <span className="text-xs text-on-surface-variant italic">Read-only</span>
+                          <a
+                            href={`/api/admin/experiments/${encodeURIComponent(expId)}/answers/download`}
+                            className="text-xs border border-primary text-primary px-3 py-1.5 rounded hover:bg-primary hover:text-on-primary transition-colors flex items-center gap-1"
+                          >
+                            <span className="material-symbols-outlined text-sm">download</span>
+                            Download Data
+                          </a>
                         )}
                       </div>
                     </div>

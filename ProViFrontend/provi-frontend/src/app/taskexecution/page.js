@@ -10,7 +10,6 @@ import { UITrackingProvider } from "../../utils/usertracking";
 import ProjectLogo from "../../public/images/logo-no-background.png";
 import UniLogo from "../../public/images/Logo_UMA_EN_RGB.png";
 
-
 // Group flat trials array by task_key, preserving order
 function groupTrialsByTask(trials) {
   const groups = [];
@@ -33,6 +32,7 @@ function groupTrialsByTask(trials) {
       idiom_key:     trial.idiom_key,
       idiom_label:   trial.idiom_label,
       dataset_id:    trial.dataset_id,
+      trial_index:   trial.trial_index,  // comes directly from backend now
       svg_available: trial.svg_available,
     });
   }
@@ -78,23 +78,48 @@ function LoadingSkeleton() {
 // TaskExecutionPage
 export default function TaskExecutionPage() {
   const [taskGroups, setTaskGroups]               = useState([]);
+  const [experimentId, setExperimentId]           = useState(null);
   const [currentGroupIndex, setCurrentGroupIndex] = useState(0);
   const [currentIdiomIndex, setCurrentIdiomIndex] = useState(0);
   const [svgUrl, setSvgUrl]                       = useState(null);
   const [loadingTasks, setLoadingTasks]           = useState(true);
   const [loadingSvg, setLoadingSvg]               = useState(false);
 
-  // ── Fetch & group trials on mount 
+  // ── 3-step fetch on mount 
+  // Step 1: GET /participant/experiment/active → get experiment_id
+  // Step 2: POST /participant/assignment → create assignment for this participant
+  // Step 3: GET /participant/assignment/{experiment_id}/trials → get personalized trials
   useEffect(() => {
     const fetchTasks = async () => {
       try {
-        const response = await fetch(
-          `/api/participant/experiment/active`,
-          { method: "GET", credentials: "include" }
-        );
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-        setTaskGroups(groupTrialsByTask(data.trials ?? []));
+        // Step 1 — get active experiment
+        const expRes = await fetch("/api/participant/experiment/active", {
+          method: "GET",
+          credentials: "include",
+        });
+        if (!expRes.ok) throw new Error(`HTTP ${expRes.status}`);
+        const expData = await expRes.json();
+        const expId = expData.experiment_id;
+        setExperimentId(expId);
+
+        // Step 2 — create/get assignment for this participant
+        const assignRes = await fetch("/api/participant/assignment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ experiment_id: expId }),
+        });
+        if (!assignRes.ok) throw new Error(`Assignment failed: HTTP ${assignRes.status}`);
+
+        // Step 3 — fetch personalized trial list
+        const trialsRes = await fetch(`/api/participant/assignment/${expId}/trials`, {
+          method: "GET",
+          credentials: "include",
+        });
+        if (!trialsRes.ok) throw new Error(`Trials fetch failed: HTTP ${trialsRes.status}`);
+        const trialsData = await trialsRes.json();
+        setTaskGroups(groupTrialsByTask(trialsData.trials ?? []));
+
       } catch (error) {
         console.error("Error fetching tasks:", error.message);
       } finally {
@@ -157,18 +182,18 @@ export default function TaskExecutionPage() {
   const currentStep     = currentGroupIndex + 1;
   const progressPercent = totalTasks > 0 ? (currentStep / totalTasks) * 100 : 0;
 
-  const flatTrialIndex = taskGroups
-    .slice(0, currentGroupIndex)
-    .reduce((sum, g) => sum + g.idioms.length, 0) + currentIdiomIndex;
+  // Use trial_index from backend directly
+  const currentTrialIndex = currentIdiom?.trial_index ?? 0;
   const totalTrials = taskGroups.reduce((sum, g) => sum + g.idioms.length, 0);
 
   const showSkeleton = loadingTasks;
 
+  // ── Render 
   return (
     <UITrackingProvider>
       <div style={{ backgroundColor: "#f9f9f9", color: "#2d3435", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
 
-        {/* ── Nav Bar */}
+        {/* ── Nav Bar  */}
         <nav style={{
           backgroundColor: "rgba(249,249,249,0.85)",
           backdropFilter: "blur(16px)",
@@ -196,7 +221,7 @@ export default function TaskExecutionPage() {
           </div>
         </nav>
 
-        {/* ── Main Content */}
+        {/* Main Content */}
         <main style={{ flexGrow: 1, paddingTop: "6rem", paddingBottom: "3rem", paddingLeft: "2rem", paddingRight: "2rem", maxWidth: "1440px", margin: "0 auto", width: "100%" }}>
 
           <header style={{ marginBottom: "3rem" }}>
@@ -237,10 +262,10 @@ export default function TaskExecutionPage() {
                 taskId={currentGroup?.task_id ?? currentStep}
                 idiomId={currentIdiom?.idiom_id ?? ""}
                 datasetId={currentIdiom?.dataset_id ?? ""}
-                trialIndex={flatTrialIndex}
-                presentationOrder={flatTrialIndex}
+                trialIndex={currentTrialIndex}
+                presentationOrder={currentTrialIndex}
                 totalTasks={totalTrials}
-                currentTaskIndex={flatTrialIndex}
+                currentTaskIndex={currentTrialIndex}
                 onAnswerSubmit={handleAnswerSubmit}
               />
             </div>

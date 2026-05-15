@@ -150,6 +150,22 @@ async def get_answers_from_db():
     return response
 
 
+@router.get("/experiments/{experiment_id}/answers/download", tags=["admin"])
+async def download_experiment_answers(experiment_id: str):
+    """Download all answers for a specific experiment as a CSV file."""
+    data = dbc.get_query_db("Answer", query={"experiment_id": experiment_id})
+    output = io.StringIO()
+    writer = csv.writer(output)
+    if data:
+        writer.writerow(data[0].keys())
+    for item in data:
+        writer.writerow(item.values())
+    output.seek(0)
+    response = StreamingResponse(output, media_type="text/csv")
+    response.headers["Content-Disposition"] = f"attachment; filename=experiment_{experiment_id}_answers.csv"
+    return response
+
+
 @router.get("/uitracking", tags=["admin"])
 async def get_ui_tracking_from_db():
     data = generate_csv_for_download("UILogging")
@@ -180,10 +196,6 @@ async def select_active_datasets(selected_datasets_from_frontend: ds.ListDataset
     for dataset in selected_datasets_from_frontend.datasets:
         dbc.update_dataset_is_active_status(dataset.dataset_id, dataset.is_active)
     return {"message": "Successfully updated dataset_is_active in database"}
-
-
-
-
 
 
 @router.get("/usagedataset", tags=["admin"])
@@ -332,7 +344,6 @@ def _sync_participant_experiment(experiment_id: str, participant_status: str):
         },
         upsert=True,
     )
-
 
 
 @router.patch("/experiments/{experiment_id}", tags=["admin"])

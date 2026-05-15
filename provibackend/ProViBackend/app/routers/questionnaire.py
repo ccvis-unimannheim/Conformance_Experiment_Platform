@@ -21,7 +21,22 @@ async def get_questionnaire():
 async def post_answer(answer_from_frontend: ds.AnswerFromFrontend, provi_user_id: Annotated[str | None, Cookie()] = None):
     if provi_user_id is None:
         return JSONResponse(content={"message": "Authentication cookie is missing."}, status_code=401)
+    
     user_id = provi_user_id
-    answer = ds.AnswerForDatabase(user_id=user_id, answer=answer_from_frontend, insert_datetime=utils.get_current_datetime())
+
+    answer = ds.AnswerForDatabase(
+        user_id=user_id,
+        question_id=answer_from_frontend.question_id,
+        task_id=answer_from_frontend.task_id,
+        idiom_id=answer_from_frontend.idiom_id,
+        dataset_id=answer_from_frontend.dataset_id,
+        ground_truth_id=answer_from_frontend.ground_truth_id,
+        trial_index=answer_from_frontend.trial_index,
+        presentation_order=answer_from_frontend.presentation_order,
+        answer=answer_from_frontend.answer,
+        response_time_ms=answer_from_frontend.response_time_ms,
+        insert_datetime=utils.get_current_datetime(),
+    )
+
     dbc.create_answer(answer)
     return JSONResponse(content={"message": "Answer received.", "answer": answer_from_frontend.model_dump()}, status_code=200)
