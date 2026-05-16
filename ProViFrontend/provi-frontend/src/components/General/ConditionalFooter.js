@@ -8,6 +8,9 @@ const HIDDEN_FOOTER_PATHS = [
   "/prequestionnaire",
   "/knowledgequestion",
   "/endpage",
+  "/dataprotection",
+  "/imprint",
+  "/about",
 ];
 
 export default function ConditionalFooter() {
