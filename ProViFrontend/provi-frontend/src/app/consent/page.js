@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import UniLogo from "../../public/images/Logo_UMA_EN_RGB.png";
 import ProjectLogo from "../../public/images/logo-no-background.png";
 
