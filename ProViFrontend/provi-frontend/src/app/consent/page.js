@@ -6,11 +6,6 @@ import Image from "next/image";
 import UniLogo from "../../public/images/Logo_UMA_EN_RGB.png";
 import ProjectLogo from "../../public/images/logo-no-background.png";
 
-function logoSrc(imp) {
-  if (imp && typeof imp === "object" && "src" in imp) return imp.src;
-  return imp;
-}
-
 export default function ConsentPage() {
   const router = useRouter();
   const [consentGiven, setConsentGiven] = useState(false);
@@ -27,17 +22,23 @@ export default function ConsentPage() {
     <div className="bg-surface text-on-surface font-body min-h-screen">
 
       {/* Header */}
-      <header className="bg-white border-b border-outline-variant sticky top-0 z-50">
-        <div className="flex justify-between items-center w-full px-8 py-4 max-w-screen-2xl mx-auto">
-          <div className="flex items-center gap-8">
-            <img src={logoSrc(ProjectLogo)} alt="ProVi Logo" className="h-8 w-auto" />
-            <img src={logoSrc(UniLogo)} alt="University of Mannheim Logo" className="h-8 w-auto ml-4 pl-4 border-l border-outline-variant" />
+      <nav style={{
+        backgroundColor: "#ffffff",
+        position: "fixed", top: 0, zIndex: 50, width: "100%",
+        borderBottom: "1px solid #e4e9ea",
+        height: "4rem", display: "flex", alignItems: "center",
+        boxSizing: "border-box",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", padding: "0 2rem", maxWidth: "56rem", margin: "0 auto" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <Image priority src={ProjectLogo} width={90} height={36} alt="ProVi Logo" style={{ objectFit: "contain" }} />
+            <Image priority src={UniLogo} width={140} height={36} alt="University of Mannheim Logo" style={{ objectFit: "contain" }} />
           </div>
         </div>
-      </header>
+      </nav>
 
       {/* Main */}
-      <main className="pt-12 pb-32 min-h-screen">
+      <main className="pb-32 min-h-screen" style={{ paddingTop: "6rem" }}>
         <div className="max-w-3xl mx-auto px-6">
 
           {/* Title */}
@@ -158,19 +159,6 @@ export default function ConsentPage() {
           </div>
         </div>
       </main>
-
-      {/* Footer */}
-      <footer className="fixed bottom-0 left-0 w-full py-4 px-8 bg-surface border-t border-surface-container-high z-40">
-        <div className="max-w-4xl mx-auto flex justify-between items-center">
-          <span className="text-[10px] text-on-surface-variant font-medium tracking-widest uppercase">
-            © University of Mannheim
-          </span>
-          <div className="flex gap-6 items-center">
-            <a href="/imprint" className="text-[10px] text-on-surface-variant hover:text-primary font-medium tracking-widest uppercase">Imprint</a>
-            <a href="/dataprotection" className="text-[10px] text-on-surface-variant hover:text-primary font-medium tracking-widest uppercase">Data Protection</a>
-          </div>
-        </div>
-      </footer>
 
     </div>
   );
