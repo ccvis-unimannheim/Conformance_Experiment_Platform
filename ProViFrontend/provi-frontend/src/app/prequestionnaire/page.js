@@ -85,7 +85,7 @@ export default function PrequestionComponent() {
     };
 
     try {
-      const response = await fetch("https://pm-vis.uni-mannheim.de/api/auth/", {
+      const response = await fetch("/api/auth/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

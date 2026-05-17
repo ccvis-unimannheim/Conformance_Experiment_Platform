@@ -1,161 +1,186 @@
 "use client";
 
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
-import AlertPopup from "../components/Questionnaire/AlertPopup";
-import ScrollProgressBar from "../components/WelcomePage/ScrollProgressBar";
-import Timeline from "../public/images/Timeline_Experiment.png";
-import Image from "next/image";
-import ExpNavigation from "../components/General/ExpNavigation";
+import Link from "next/link";
+import UniLogo from "../public/images/Logo_UMA_EN_RGB.png";
+import ProjectLogo from "../public/images/logo-no-background.png";
 
-import "@coreui/coreui/dist/css/coreui.min.css";
+function logoSrc(imp) {
+  if (imp && typeof imp === "object" && "src" in imp) return imp.src;
+  return imp;
+}
 
-export default function WelcomeComponent() {
-  const router = useRouter();
-  const [consentGiven, setConsentGiven] = useState(false);
-  const [showModal, setShowModal] = useState(false); // Modal visibility
-  const [alertMessage, setAlertMessage] = useState(""); // sets alertMessage
-  const [authMessage, setAuthMessage] = useState("");
-  
-
-  const handleConsentChange = (e) => {
-    setConsentGiven(e.target.checked);
-  };
-
-  const handleSubmit = async (e) => {
-    if (!consentGiven) {
-      setAlertMessage("Please give your consent to proceed.");
-      setShowModal(true);
-      return;
-    }
-
-    router.push("/prequestionnaire");
-  };
-
+export default function LandingPage() {
   return (
-    <div className="">
-      <ExpNavigation />
-    
-      <div className="flex flex-col items-center justify-center w-3/5 h-auto gap-10 p-10 mx-auto rounded-lg shadow-xl bg-gray-50 my-10">
-        <ScrollProgressBar />
-        <h1 className="text-3xl font-bold">Process Visualization Experiment</h1>
-        
+    <div className="bg-surface text-on-surface font-body min-h-screen flex flex-col">
 
-        <AlertPopup
-          visible={showModal}
-          message={alertMessage}
-          onClose={() => setShowModal(false)}
-        />
-
-        <p className="text-xl text-left">
-          Dear Participant,
-          <br />
-          <br />
-          My name is Marie-Christin Häge, and I am conducting this experiment as
-          part of my PhD. The purpose of this study is to investigate Process
-          Mining Visualizations. Your participation is greatly appreciated and 
-          will take around 20-30 minutes to complete. Please use a computer or 
-          laptop to conduct this experiment, as a larger display is helpful for a proper execution.
-          <br />
-          <br />
-          The survey is structured in 4 parts: 
-          </p>
-
-        <div className="my-6 flex justify-center">
-          <Image
-                      priority
-                      src={Timeline}
-                      width={1000}
-                      height={600}
-                      alt="Project Logo"
-                    />
-        </div>
-
-        <p className="text-xl text-left">
-          <br />
-          1) <strong>Consent:</strong> If you approve of the described procedure, you consent to 
-          participate in this experiment for the Process Mining Visualizations (ProVi) research project.
-          <br />
-          <br />
-          2) <strong>Pre-Experiment Questions:</strong> You will be presented with general questions and questions on Process
-          Mining.
-          <br />
-          <br />
-          3) <strong>Experiment:</strong> You will then see an interactive process model visualization where
-          you will have to answer some questions about the process shown. You can
-          interact with the visualization to get the information you need.
-          <br />
-          <br />
-          4) <strong>Post-Experiment Questions:</strong> Finally, there is a post-experiment question.
-          <br />
-          <br />
-          <br />
-          Please always read the questions and tasks carefully and take the time
-          for exploration with the visualization that you need to answer the
-          questions.
-          <br />
-          Please be sure that the data collected from you will only be stored and
-          analyzed for the purpose of conducting this experiment and the
-          presentation of the results. Only data that is necessary and relevant
-          for the evaluation of the study will be asked for.
-          <br />
-          <br />
-          Thank you in advance for your participation and contribution to
-          research! <br />
-          <br />
-          Best, <br />
-          Marie-Christin Häge
-          <br />
-          <br />
-        </p>
-        <div>
-          <h2 className="mb-4 text-3xl font-bold color-red">Consent</h2>
-          <div className="flex items-start gap-4">
-            <input
-              type="checkbox"
-              id="consent"
-              onChange={handleConsentChange}
-              className="w-6 h-6 accent-blue-500"
+      {/* Navbar — matches AdminNav exactly, without nav links */}
+      <header className="bg-white border-b border-outline-variant sticky top-0 z-50">
+        <div className="flex justify-between items-center w-full px-8 py-4 max-w-screen-2xl mx-auto">
+          <div className="flex items-center gap-8">
+            <img
+              src={logoSrc(ProjectLogo)}
+              alt="ProVi Logo"
+              className="h-8 w-auto"
+              width={32}
+              height={32}
             />
-            <label htmlFor="consent" className="text-2xl font-semibold leading-6">
-              I have read the general information and the data protection
-              information on the ProVi research project and consent to
-              participation in the research project and to my data being processed
-              within this scope.
-            </label>
+            <img
+              src={logoSrc(UniLogo)}
+              alt="University of Mannheim Logo"
+              className="h-8 w-auto ml-4 pl-4 border-l border-outline-variant"
+              width={32}
+              height={32}
+            />
           </div>
-          <br />
-          <p className="mt-6 text-xl">
-            I am aware that I give my consent voluntarily and that I can withdraw
-            my consent (completely or for individual cases of processing) at any
-            time without having to state any reasons, and that withdrawing my
-            consent does not have any negative consequences. Withdrawing consent
-            does not affect the lawfulness of processing based on consent before
-            its withdrawal. I have understood that in order to withdraw my
-            consent, I can turn to the person listed as contact in the information
-            above and that refusing to give consent or withdrawing consent does
-            not have any negative consequences. I was provided with the
-            information on the collection of personal data in the research project
-            ProVi. The text of this declaration of consent was made available to
-            me at{" "}
-            <span
-              className="text-blue-500 underline cursor-pointer"
-              onClick={() => router.push("dataprotection")}
-            >
-              https://pm-vis.uni-mannheim.de/dataprotection
-            </span>{" "}
-            where also all the detailed information can be found.
-          </p>
+          <span className="bg-surface-container text-on-surface-variant text-xs font-bold px-3 py-1.5 rounded-lg border border-outline-variant uppercase tracking-wider">
+            Admin
+          </span>
         </div>
-        <button
-          type="submit"
-          onClick={handleSubmit}
-          className="self-center px-10 py-3 mt-4 text-white bg-blue-500 rounded-lg hover:bg-blue-600"
-        >
-          Enter Pre-Questions
-        </button>
-        <br />
-      </div>
+      </header>
+
+      {/* Main */}
+      <main style={{
+        flexGrow: 1,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "4rem 1.5rem 3rem"
+      }}>
+        <div style={{ width: "100%", maxWidth: "64rem" }}>
+
+          {/* Hero Card */}
+          <div style={{
+            backgroundColor: "white",
+            padding: "4rem",
+            borderRadius: "0.75rem",
+            boxShadow: "0 12px 32px rgba(45,52,53,0.06)",
+            border: "1px solid rgba(173,179,180,0.15)",
+            textAlign: "center",
+            position: "relative",
+            overflow: "hidden"
+          }}>
+            {/* Accent bar */}
+            <div style={{
+              position: "absolute", top: 0, left: 0,
+              width: "0.5rem", height: "100%",
+              backgroundColor: "rgba(60,95,144,0.2)"
+            }} />
+
+            {/* Label */}
+            <p style={{
+              fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.2em",
+              color: "#3c5f90", textTransform: "uppercase", marginBottom: "1rem"
+            }}>
+              Research Portal
+            </p>
+
+            {/* Title */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "1rem", marginBottom: "0.75rem" }}>
+              <span className="material-symbols-outlined" style={{ color: "#3c5f90", fontSize: "2.5rem" }}>search</span>
+              <h1 style={{ fontSize: "2.5rem", fontWeight: 900, letterSpacing: "-0.025em", color: "#2d3435", margin: 0 }}>
+                Process Mining Experiment Platform
+              </h1>
+            </div>
+
+            <p style={{ color: "#5a6061", fontSize: "1.1rem", maxWidth: "42rem", margin: "0 auto 4rem" }}>
+              Interactive study on process mining visualizations.
+            </p>
+
+            {/* Cards */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2rem", textAlign: "left" }}>
+
+              {/* CC Card */}
+              <div style={{
+                backgroundColor: "#00305e",
+                borderRadius: "0.75rem",
+                padding: "2rem",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                boxShadow: "0 8px 24px rgba(0,48,94,0.25)"
+              }}>
+                <div>
+                  <h3 style={{ color: "white", fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.75rem" }}>
+                    Conformance Checking
+                  </h3>
+                  <p style={{ color: "rgba(255,255,255,0.85)", fontSize: "0.875rem", lineHeight: 1.6, marginBottom: "2rem" }}>
+                    Participate in the study on Conformance Checking visualizations
+                  </p>
+                </div>
+                <Link href="/admin" style={{
+                  backgroundColor: "white",
+                  color: "#00305e",
+                  padding: "0.75rem 1.5rem",
+                  borderRadius: "0.5rem",
+                  fontWeight: 600,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  textDecoration: "none"
+                }}>
+                  <span>Start Experiment</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: "1rem" }}>play_arrow</span>
+                </Link>
+              </div>
+
+              {/* DFG Card */}
+              <div style={{
+                backgroundColor: "#00305e",
+                borderRadius: "0.75rem",
+                padding: "2rem",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                boxShadow: "0 8px 24px rgba(0,48,94,0.25)"
+              }}>
+                <div>
+                  <h3 style={{ color: "white", fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.75rem" }}>
+                    Directly-Follows-Graph
+                  </h3>
+                  <p style={{ color: "rgba(255,255,255,0.85)", fontSize: "0.875rem", lineHeight: 1.6, marginBottom: "2rem" }}>
+                    Participate in the study on Directly-Follows-graph visualizations
+                  </p>
+                </div>
+                <Link href="/home" style={{
+                  backgroundColor: "white",
+                  color: "#00305e",
+                  padding: "0.75rem 1.5rem",
+                  borderRadius: "0.5rem",
+                  fontWeight: 600,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  textDecoration: "none"
+                }}>
+                  <span>Start Experiment</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: "1rem" }}>play_arrow</span>
+                </Link>
+              </div>
+
+            </div>
+
+            {/* Footer context */}
+            <div style={{
+              marginTop: "4rem",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "1.5rem",
+              opacity: 0.6
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <span className="material-symbols-outlined" style={{ fontSize: "1rem" }}>verified_user</span>
+                <span style={{ fontSize: "0.75rem" }}>IRB Approved</span>
+              </div>
+              <div style={{ width: "1px", height: "1rem", backgroundColor: "#adb3b4" }} />
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <span className="material-symbols-outlined" style={{ fontSize: "1rem" }}>database</span>
+                <span style={{ fontSize: "0.75rem" }}>Anonymized Data Processing</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
     </div>
   );
 }
