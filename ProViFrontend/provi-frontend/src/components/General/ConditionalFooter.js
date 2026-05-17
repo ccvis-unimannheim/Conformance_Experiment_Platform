@@ -4,13 +4,9 @@ import { usePathname } from "next/navigation";
 import Footer from "./Footer";
 
 const HIDDEN_FOOTER_PATHS = [
-  "/admin",
   "/prequestionnaire",
   "/knowledgequestion",
   "/endpage",
-  "/dataprotection",
-  "/imprint",
-  "/about",
 ];
 
 export default function ConditionalFooter() {

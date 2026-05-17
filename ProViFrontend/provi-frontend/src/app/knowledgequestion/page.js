@@ -442,7 +442,7 @@ export default function KnowledgeQuestionPage() {
           <div style={{ display: "flex", gap: "1.5rem" }}>
             {[
               { label: "Imprint",                    href: "/imprint" },
-              { label: "Legal",                       href: "/imprint" },
+              { label: "About",                       href: "/about" },
               { label: "Data Protection Declaration", href: "/dataprotection" },
             ].map(({ label, href }) => (
               <Link key={label} href={href} style={{
