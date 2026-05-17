@@ -2,24 +2,48 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import UniLogo from "../../public/images/Logo_UMA_EN_RGB.png";
 import ProjectLogo from "../../public/images/logo-no-background.png";
 
 export default function ConsentPage() {
   const router = useRouter();
   const [consentGiven, setConsentGiven] = useState(false);
+  const [declined, setDeclined] = useState(false);
 
   const handleContinue = () => {
     if (consentGiven) router.push("/prequestionnaire");
   };
 
   const handleDecline = () => {
-    router.push("/");
+    setDeclined(true);
   };
 
   return (
     <div className="bg-surface text-on-surface font-body min-h-screen">
+
+      {/* Decline Popup */}
+      {declined && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
+          backgroundColor: "rgba(0,0,0,0.5)", display: "flex",
+          alignItems: "center", justifyContent: "center", zIndex: 100
+        }}>
+          <div style={{
+            backgroundColor: "white", padding: "3rem", borderRadius: "0.75rem",
+            maxWidth: "28rem", textAlign: "center", boxShadow: "0 12px 32px rgba(0,0,0,0.2)"
+          }}>
+            <span className="material-symbols-outlined" style={{ color: "#00305e", fontSize: "3rem", marginBottom: "1rem", display: "block" }}>
+              sentiment_neutral
+            </span>
+            <h2 style={{ color: "#00305e", fontWeight: 700, fontSize: "1.25rem", marginBottom: "1rem" }}>
+              Thank you for your time
+            </h2>
+            <p style={{ color: "#5a6061", lineHeight: 1.6 }}>
+              You have chosen not to participate. You can close this page now.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <nav style={{
