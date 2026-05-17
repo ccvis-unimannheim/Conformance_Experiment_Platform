@@ -10,7 +10,7 @@ const QuestionnaireUploadBox = ({ title }) => {
   useEffect(() => {
     const fetchCurrentQuestionnaire = async () => {
       try {
-        const response = await fetch("https://pm-vis.uni-mannheim.de/api/survey/questionnaire");
+        const response = await fetch("/api/survey/questionnaire");
         if (!response.ok) {
           console.warn("No questionnaire found or an error occurred.");
           setCurrentQuestionnaire(""); // Set to empty if no file is returned
@@ -92,7 +92,7 @@ const QuestionnaireUploadBox = ({ title }) => {
   // handles the download of the questionnaire when clicking
   const handleDownloadQuestionnaire = async () => {
     try {
-      const response = await fetch("https://pm-vis.uni-mannheim.de/api/survey/questionnaire");
+      const response = await fetch("/api/survey/questionnaire");
       if (!response.ok) {
         alert("Failed to download the questionnaire.");
         return;

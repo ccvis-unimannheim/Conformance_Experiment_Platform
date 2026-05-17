@@ -26,6 +26,7 @@ async def post_answer(answer_from_frontend: ds.AnswerFromFrontend, provi_user_id
 
     answer = ds.AnswerForDatabase(
         user_id=user_id,
+        experiment_id=answer_from_frontend.experiment_id,
         question_id=answer_from_frontend.question_id,
         task_id=answer_from_frontend.task_id,
         idiom_id=answer_from_frontend.idiom_id,

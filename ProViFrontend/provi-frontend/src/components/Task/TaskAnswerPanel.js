@@ -26,6 +26,7 @@ import { useRouter } from "next/navigation";
  */
 const TaskAnswerPanel = ({
   options = [],
+  experimentId = "",
   taskId,
   idiomId = "",
   datasetId = "",
@@ -62,6 +63,7 @@ const TaskAnswerPanel = ({
     const response_time_ms = Date.now() - startTimeRef.current;
 
     const payload = {
+      experiment_id: experimentId,
       question_id: taskId?.toString(),
       task_id: taskId?.toString(),
       idiom_id: idiomId,
@@ -74,7 +76,7 @@ const TaskAnswerPanel = ({
     };
 
     try {
-      const response = await fetch("https://pm-vis.uni-mannheim.de/api/survey/answer", {
+      const response = await fetch("/api/survey/answer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

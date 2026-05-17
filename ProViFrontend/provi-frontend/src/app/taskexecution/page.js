@@ -260,6 +260,7 @@ export default function TaskExecutionPage() {
               />
               <TaskAnswerPanel
                 options={[]}
+                experimentId={experimentId}
                 taskId={currentGroup?.task_id ?? currentStep}
                 idiomId={currentIdiom?.idiom_id ?? ""}
                 datasetId={currentIdiom?.dataset_id ?? ""}

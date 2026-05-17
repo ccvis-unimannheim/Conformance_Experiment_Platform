@@ -2,6 +2,8 @@ support.ipynb
 docs/**
 /2604/
 .env
+docker-compose.override.yml
+data/
 
 provibackend/ProVibackend/new_input/
 provibackend/ProVibackend/new_output/
