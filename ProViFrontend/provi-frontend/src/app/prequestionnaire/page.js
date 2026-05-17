@@ -1,172 +1,527 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import Papa from "papaparse";
-import AlertPopup from '../../components/Questionnaire/AlertPopup';
-import ScrollProgressBar from "../../components/WelcomePage/ScrollProgressBar";
-import ExpNavigation from "../../components/General/ExpNavigation";
 
-import "@coreui/coreui/dist/css/coreui.min.css";
+import ProjectLogo from "../../public/images/logo-no-background.png";
+import UniLogo from "../../public/images/Logo_UMA_EN_RGB.png";
 
-export default function PrequestionComponent() {
-  const [questions, setQuestions] = useState([]);
-  const [answers, setAnswers] = useState({});
-  const [showModal, setShowModal] = useState(false);
-  const [alertMessage, setAlertMessage] = useState("");
+// ── Design tokens (from test.html color palette)
+const C = {
+  primary:       "#00305e",
+  primaryDim:    "#002345",
+  surface:       "#f9f9f9",
+  containerLow:  "#f2f4f4",
+  container:     "#ebeeef",
+  containerHigh: "#e4e9ea",
+  onSurface:     "#2d3435",
+  onVariant:     "#5a6061",
+  outline:       "#757c7d",
+  outlineVar:    "#adb3b4",
+  white:         "#ffffff",
+};
+
+const GENDER_OPTIONS = [
+  "Female",
+  "Male",
+  "Non-binary",
+  "Prefer not to say",
+];
+
+const AGE_OPTIONS = [
+  "Under 18",
+  "18–24",
+  "25–34",
+  "35–44",
+  "45–54",
+  "55+",
+];
+
+const EDUCATION_OPTIONS = [
+  "Undergraduate / Bachelor",
+  "Master",
+  "Doctorate / PhD",
+  "Other",
+];
+
+const ROLE_OPTIONS = [
+  "Student",
+  "Researcher / Academic",
+  "Industry Professional",
+  "Other",
+];
+
+const RATING_FIELDS = [
+  { key: "processMining",       label: "Process Mining" },
+  { key: "conformanceChecking", label: "Conformance Checking" },
+  { key: "dataVisualization",   label: "Data Visualization" },
+];
+
+// ── n-column grid option button (education / role / gender / age)
+function OptionGrid({ options, value, onChange, columns = 4 }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: "0.75rem" }}>
+      {options.map((opt) => {
+        const active = value === opt;
+        return (
+          <button
+            key={opt}
+            type="button"
+            onClick={() => onChange(opt)}
+            style={{
+              padding: "0.75rem 0.5rem",
+              borderRadius: "0.5rem",
+              border: active
+                ? `1px solid ${C.primary}`
+                : `1px solid ${C.containerHigh}`,
+              backgroundColor: active ? "rgba(0,48,94,0.05)" : C.white,
+              color: active ? C.primary : C.onSurface,
+              boxShadow: active ? `inset 0 0 0 1px ${C.primary}` : "none",
+              fontSize: "0.75rem",
+              fontWeight: 600,
+              cursor: "pointer",
+              textAlign: "center",
+              lineHeight: 1.4,
+              transition: "all 0.15s ease",
+            }}
+          >
+            {opt}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Rating row: label left, 1-5 buttons right
+function RatingRow({ label, value, onChange }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center",
+      justifyContent: "space-between", gap: "1rem",
+    }}>
+      <span style={{ fontSize: "0.875rem", fontWeight: 600, color: C.onSurface, minWidth: "12rem" }}>
+        {label}
+      </span>
+      <div style={{ display: "flex", gap: "0.5rem" }}>
+        {[1, 2, 3, 4, 5].map((n) => {
+          const active = value === n;
+          return (
+            <button
+              key={n}
+              type="button"
+              onClick={() => onChange(n)}
+              style={{
+                width: "2.5rem", height: "2.5rem",
+                borderRadius: "0.25rem",
+                border: active ? `1px solid ${C.primary}` : `1px solid ${C.containerHigh}`,
+                backgroundColor: active ? C.primary : C.white,
+                color: active ? C.white : C.onSurface,
+                fontWeight: 700,
+                fontSize: "0.875rem",
+                cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                transition: "all 0.15s ease",
+                flexShrink: 0,
+              }}
+            >
+              {n}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+const fieldLabelStyle = {
+  fontSize: "0.75rem", fontWeight: 700,
+  textTransform: "uppercase", letterSpacing: "0.1em",
+  color: C.onVariant, display: "block", marginBottom: "1rem",
+};
+
+const sectionHeadStyle = {
+  fontSize: "1.25rem", fontWeight: 700,
+  color: C.onSurface, margin: 0,
+};
+
+export default function PrequestionnaireComponent() {
   const router = useRouter();
 
-  const csvData = `
-      id,type,question,options
-      1,multiple,What gender do you identify yourself with?,"Female;Male;None of the above;Prefer not to answer"
-      2,open,How old are you?,
-      3,multiple,What is your professional background?,"Researcher;Student (Bachelor/Master);Practitioner"
-      4,multiple,How long have you been involved with Process Mining?,"Less than a month;Less than a year;Less than 3 years;3 years or longer"
-      5,multiple,How often do you work on Process Mining tasks or with Process Mining tools?,"Daily;Monthly;Less frequent than monthly;Never"
-      6,multiple,How would you rate your Process Mining expertise level?,"Basic;Advanced;Expert"
-  `;
+  const [gender,       setGender]       = useState("");
+  const [ageRange,     setAgeRange]     = useState("");
+  const [education,    setEducation]    = useState("");
+  const [role,         setRole]         = useState("");
+  const [fieldOfStudy, setFieldOfStudy] = useState("");
+  const [ratings, setRatings] = useState({
+    processMining:       0,
+    conformanceChecking: 0,
+    dataVisualization:   0,
+  });
+  const [yearsExp,    setYearsExp]    = useState(0);
+  const [error,       setError]       = useState(null);
+  const [submitting,  setSubmitting]  = useState(false);
 
-  useEffect(() => {
-    const parsedData = Papa.parse(csvData.trim(), { header: true }).data;
-    const formattedQuestions = parsedData.map((question) => ({
-      ...question,
-      id: String(question.id), // Ensure IDs are strings for consistent comparison
-      options: question.options
-        ? question.options.split(";").map((opt) => opt.trim())
-        : [],
-    }));
-    setQuestions(formattedQuestions);
-  }, []);
+  const isValid =
+    gender !== "" &&
+    ageRange !== "" &&
+    education !== "" &&
+    role !== "" &&
+    fieldOfStudy.trim() !== "" &&
+    ratings.processMining > 0 &&
+    ratings.conformanceChecking > 0 &&
+    ratings.dataVisualization > 0;
 
-  const handleAnswerChange = (questionId, value) => {
-    setAnswers((prevAnswers) => ({
-      ...prevAnswers,
-      [questionId]: value,
-    }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    const unansweredQuestions = questions.filter((q) => {
-      const answer = answers[q.id];
-      if (q.type === "open") {
-        return !answer || answer.trim() === "";
-      }
-      return !answer;
-    });
-
-    if (unansweredQuestions.length > 0) {
-      const missingQuestions = unansweredQuestions
-        .map((q, index) => `${questions.indexOf(q) + 1}. ${q.question}`)
-        .join("\n");
-
-      setAlertMessage(
-        `Please answer the following questions before starting the experiment:\n\n${missingQuestions}`
-      );
-      setShowModal(true);
+  const handleContinue = async () => {
+    if (!isValid) {
+      setError("Please complete all fields before continuing.");
       return;
     }
-
-    // Create ordered answers using the questions array order
-    const orderedAnswers = questions.map(question => ({
-      questionId: question.id,
-      answer: answers[question.id]
-    }));
-
-    // Map answers to the required backend keys in the correct order
-    const sendData = {
-      gender: orderedAnswers[0].answer,
-      age: parseInt(orderedAnswers[1].answer),
-      professional_background: orderedAnswers[2].answer,
-      experience_time_process_mining: orderedAnswers[3].answer,
-      frequency_process_mining: orderedAnswers[4].answer,
-      expertise_level_process_mining: orderedAnswers[5].answer,
-    };
-
+    setError(null);
+    setSubmitting(true);
     try {
-      const response = await fetch("/api/auth/", {
+      const payload = {
+        gender,
+        age_range: ageRange,
+        education,
+        role,
+        field_of_study: fieldOfStudy,
+        rating_process_mining:       ratings.processMining,
+        rating_conformance_checking: ratings.conformanceChecking,
+        rating_data_visualization:   ratings.dataVisualization,
+        years_experience: yearsExp,
+      };
+      const res = await fetch("/api/auth/", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(sendData),
+        body: JSON.stringify(payload),
       });
-
-      if (!response.ok) {
-        setAlertMessage(`Error submitting your answers: ${response.statusText}`);
-        setShowModal(true);
+      if (!res.ok) {
+        setError("Submission failed. Please try again.");
         return;
       }
-
-      console.log("Data successfully submitted:", sendData);
       router.push("/knowledgequestion");
-    } catch (error) {
-      setAlertMessage(`An unexpected error occurred: ${error.message}`);
-      setShowModal(true);
+    } catch {
+      setError("Network error. Please check your connection and try again.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  return (
-    <div>
-      <ExpNavigation />
-      <div className="bg-gray-50 p-10 shadow-xl rounded-lg h-auto w-3/5 mx-auto flex flex-col gap-10 items-center justify-center my-10">
-        <ScrollProgressBar />
-        <h1 className="text-3xl font-bold">Process Visualization Experiment</h1>
-        
-        <AlertPopup
-          visible={showModal}
-          message={alertMessage}
-          onClose={() => setShowModal(false)}
-        />
-        <p className="text-xl mt-6">
-        In the following part I kindly ask you to answer the 6 Pre-Experiment Questions. This is followed by 7 Knowledge Questions.
-        </p>
-        <div className="flex flex-col gap-6 mt-6">
-          <h2 className="text-3xl font-semibold">Pre-Experiment Questions</h2>
-          {questions.map((q, index) => (
-            <div key={q.id} className="mb-6">
-              <h3 className="font-semibold mb-2 text-2xl">
-                {index + 1}. {q.question}
-              </h3>
-              {q.type === "multiple" || q.type === "knowledge" ? (
-                <div>
-                  {q.options.map((option, idx) => (
-                    <label key={idx} className="block text-xl">
-                      <input
-                        type="radio"
-                        name={`question-${q.id}`}
-                        value={option}
-                        onChange={(e) => handleAnswerChange(q.id, option)}
-                        className="mr-2"
-                      />
-                      {option}
-                    </label>
-                  ))}
-                </div>
-              ) : (
-                <input
-                  type="text"
-                  name={`question-${q.id}`}
-                  placeholder="Your answer"
-                  onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-                  className="border p-2 rounded w-full text-m"
-                />
-              )}
-            </div>
-          ))}
-        </div>
+  const setRating = (key, val) =>
+    setRatings((prev) => ({ ...prev, [key]: val }));
 
-        <button
-          type="submit"
-          onClick={(e) => handleSubmit(e)}
-          className="px-10 py-3 rounded-lg mt-4 self-center bg-blue-500 text-white hover:bg-blue-600"
-        >
-          Enter Knowledge Questions
-        </button>
-        <br/>
-      </div>
+  return (
+    <div style={{ backgroundColor: C.surface, color: C.onSurface, minHeight: "100vh", fontFamily: "'Inter', Arial, sans-serif" }}>
+
+      {/* ── Top Nav */}
+      <header style={{
+        position: "fixed", top: 0, left: 0, width: "100%", zIndex: 50,
+        backgroundColor: C.white,
+        borderBottom: `1px solid ${C.containerHigh}`,
+        height: "4rem",
+        display: "flex", alignItems: "center", padding: "0 2rem",
+        boxSizing: "border-box",
+      }}>
+        <div style={{
+          maxWidth: "56rem", margin: "0 auto", width: "100%",
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <Image priority src={ProjectLogo} width={90} height={36} alt="ProVi Logo" style={{ objectFit: "contain" }} />
+            <Image priority src={UniLogo} width={140} height={36} alt="University of Mannheim Logo" style={{ objectFit: "contain" }} />
+          </div>
+          <div />
+        </div>
+      </header>
+
+      {/* ── Main */}
+      <main style={{ paddingTop: "6rem", paddingBottom: "6rem", minHeight: "100vh" }}>
+        <div style={{ maxWidth: "48rem", margin: "0 auto", padding: "0 1.5rem" }}>
+
+          {/* Centered page header */}
+          <header style={{ marginBottom: "2.5rem", textAlign: "center" }}>
+            <h1 style={{
+              fontFamily: "'Work Sans', 'Inter', sans-serif",
+              fontSize: "1.875rem", fontWeight: 700,
+              color: C.primary, letterSpacing: "-0.02em", marginBottom: "0.5rem",
+            }}>
+              Participant Background
+            </h1>
+            <p style={{ fontSize: "0.875rem", color: C.onVariant }}>
+              Please provide your details to help us contextualize the results.
+            </p>
+          </header>
+
+          {/* ── Card */}
+          <div style={{
+            backgroundColor: C.white,
+            border: `1px solid ${C.containerHigh}`,
+            borderRadius: "0.75rem",
+            boxShadow: "0 1px 4px rgba(45,52,53,0.06)",
+            overflow: "hidden",
+          }}>
+            <div style={{ padding: "3rem", display: "flex", flexDirection: "column", gap: "3rem" }}>
+
+              {/* ── Personal Information */}
+              <section>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "2rem" }}>
+                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>person</span>
+                  <h2 style={sectionHeadStyle}>Personal Information</h2>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
+                  {/* Gender */}
+                  <div>
+                    <label style={fieldLabelStyle}>Gender</label>
+                    <OptionGrid options={GENDER_OPTIONS} value={gender} onChange={setGender} columns={4} />
+                  </div>
+
+                  {/* Age range */}
+                  <div>
+                    <label style={fieldLabelStyle}>Age</label>
+                    <OptionGrid options={AGE_OPTIONS} value={ageRange} onChange={setAgeRange} columns={3} />
+                  </div>
+                </div>
+              </section>
+
+              {/* ── Divider */}
+              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+
+              {/* ── Academic Profile */}
+              <section>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "2rem" }}>
+                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>school</span>
+                  <h2 style={sectionHeadStyle}>Academic Profile</h2>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
+                  {/* Education */}
+                  <div>
+                    <label style={fieldLabelStyle}>Highest Education Level</label>
+                    <OptionGrid options={EDUCATION_OPTIONS} value={education} onChange={setEducation} />
+                  </div>
+
+                  {/* Role */}
+                  <div>
+                    <label style={fieldLabelStyle}>Current Role</label>
+                    <OptionGrid options={ROLE_OPTIONS} value={role} onChange={setRole} />
+                  </div>
+
+                  {/* Field of study */}
+                  <div>
+                    <label style={fieldLabelStyle} htmlFor="field-study">
+                      Primary Field of Study / Work
+                    </label>
+                    <input
+                      id="field-study"
+                      type="text"
+                      value={fieldOfStudy}
+                      onChange={(e) => setFieldOfStudy(e.target.value)}
+                      placeholder="e.g. Information Systems, Computer Science, Business Administration"
+                      style={{
+                        width: "100%",
+                        padding: "0.75rem 1rem",
+                        border: `1px solid ${C.containerHigh}`,
+                        borderRadius: "0.5rem",
+                        fontSize: "0.875rem",
+                        color: C.onSurface,
+                        backgroundColor: C.white,
+                        outline: "none",
+                        fontFamily: "inherit",
+                        boxSizing: "border-box",
+                        transition: "border-color 0.15s ease",
+                      }}
+                      onFocus={(e) => { e.target.style.borderColor = C.primary; e.target.style.boxShadow = `0 0 0 1px ${C.primary}`; }}
+                      onBlur={(e)  => { e.target.style.borderColor = C.containerHigh; e.target.style.boxShadow = "none"; }}
+                    />
+                    <p style={{ fontSize: "10px", color: C.onVariant, fontStyle: "italic", marginTop: "0.5rem" }}>
+                      Please specify your main research or professional domain.
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              {/* ── Divider */}
+              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+
+              {/* ── Technical Expertise */}
+              <section>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "2rem" }}>
+                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>analytics</span>
+                  <h2 style={sectionHeadStyle}>Technical Expertise</h2>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "2.5rem" }}>
+                  {/* Ratings */}
+                  <div>
+                    <p style={{ ...fieldLabelStyle, marginBottom: "1.5rem" }}>
+                      Rate your familiarity with the following (1 = Novice, 5 = Expert)
+                    </p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
+                      {RATING_FIELDS.map(({ key, label }) => (
+                        <RatingRow
+                          key={key}
+                          label={label}
+                          value={ratings[key]}
+                          onChange={(val) => setRating(key, val)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Slider */}
+                  <div>
+                    <label style={fieldLabelStyle}>Years of Relevant Experience</label>
+                    <div style={{ display: "flex", alignItems: "center", gap: "1.5rem" }}>
+                      <input
+                        type="range"
+                        min={0}
+                        max={15}
+                        value={yearsExp}
+                        onChange={(e) => setYearsExp(Number(e.target.value))}
+                        style={{
+                          flex: 1,
+                          height: "4px",
+                          accentColor: C.primary,
+                          cursor: "pointer",
+                          appearance: "none",
+                          backgroundColor: C.container,
+                          borderRadius: "9999px",
+                        }}
+                      />
+                      <div style={{
+                        width: "4rem", height: "2.5rem",
+                        borderRadius: "0.5rem",
+                        backgroundColor: C.containerLow,
+                        border: `1px solid ${C.containerHigh}`,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontWeight: 700, fontSize: "0.875rem", color: C.primary,
+                        flexShrink: 0,
+                      }}>
+                        {yearsExp}
+                      </div>
+                    </div>
+                    <p style={{ fontSize: "10px", color: C.onVariant, fontStyle: "italic", marginTop: "0.75rem" }}>
+                      Including internships, research projects, and professional work.
+                    </p>
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            {/* ── CTA area (inside card, separate bg) */}
+            <div style={{
+              backgroundColor: C.containerLow,
+              borderTop: `1px solid ${C.containerHigh}`,
+              padding: "2rem 3rem",
+              display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem",
+            }}>
+              <button
+                type="button"
+                onClick={() => router.push("/dataprotection")}
+                style={{
+                  padding: "0.75rem 2rem",
+                  borderRadius: "0.5rem",
+                  border: "none",
+                  backgroundColor: "transparent",
+                  color: C.onVariant,
+                  fontWeight: 600,
+                  fontSize: "0.875rem",
+                  cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: "0.5rem",
+                  transition: "background-color 0.15s ease",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = C.container; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: "1.1rem" }}>arrow_back</span>
+                Previous Step
+              </button>
+
+              <button
+                type="button"
+                onClick={handleContinue}
+                disabled={submitting}
+                style={{
+                  padding: "0.75rem 2.5rem",
+                  borderRadius: "0.5rem",
+                  border: "none",
+                  backgroundColor: isValid && !submitting ? C.primary : C.outlineVar,
+                  color: C.white,
+                  fontWeight: 700,
+                  fontSize: "0.875rem",
+                  cursor: isValid && !submitting ? "pointer" : "not-allowed",
+                  boxShadow: isValid && !submitting ? "0 2px 8px rgba(0,48,94,0.25)" : "none",
+                  display: "flex", alignItems: "center", gap: "0.5rem",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                {submitting ? "Submitting…" : "Continue to Knowledge Questions"}
+                <span className="material-symbols-outlined" style={{ fontSize: "1.1rem" }}>arrow_forward</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Error banner (below card) */}
+          {error && (
+            <div style={{
+              marginTop: "1rem",
+              padding: "0.875rem 1.25rem",
+              backgroundColor: "#fef2f2",
+              border: "1px solid #fecaca",
+              borderRadius: "0.5rem",
+              color: "#dc2626",
+              fontSize: "0.875rem",
+              fontWeight: 500,
+            }}>
+              {error}
+            </div>
+          )}
+
+        </div>
+      </main>
+
+      {/* ── Sticky Footer */}
+      <footer style={{
+        position: "fixed", bottom: 0, left: 0, width: "100%",
+        padding: "0.75rem 2rem",
+        backgroundColor: "rgba(255,255,255,0.85)",
+        backdropFilter: "blur(8px)",
+        borderTop: `1px solid ${C.containerHigh}`,
+        zIndex: 40,
+        boxSizing: "border-box",
+      }}>
+        <div style={{
+          maxWidth: "56rem", margin: "0 auto",
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+        }}>
+          <span style={{ fontSize: "10px", color: C.onVariant, textTransform: "uppercase", letterSpacing: "0.15em", fontWeight: 500 }}>
+            © University of Mannheim
+          </span>
+          <div style={{ display: "flex", gap: "1.5rem" }}>
+            {[
+              { label: "Imprint",                     href: "/imprint" },
+              { label: "Legal",                        href: "/imprint" },
+              { label: "Data Protection Declaration",  href: "/dataprotection" },
+            ].map(({ label, href }) => (
+              <Link key={label} href={href} style={{
+                fontSize: "10px", color: C.onVariant,
+                textTransform: "uppercase", letterSpacing: "0.15em", fontWeight: 500,
+                textDecoration: "none", transition: "color 0.15s ease",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = C.primary; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = C.onVariant; }}
+              >
+                {label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

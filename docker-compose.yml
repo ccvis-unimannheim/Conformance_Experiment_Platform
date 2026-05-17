@@ -9,7 +9,7 @@ services:
     volumes:
       - mongo_data:/data/db
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
       interval: 10s
@@ -21,10 +21,11 @@ services:
       context: ./provibackend/redis
     container_name: redis
     restart: unless-stopped
+    command: redis-server /usr/local/etc/redis/redis.conf --requirepass ${REDIS_PASSWORD}
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 3s
       retries: 10
@@ -39,8 +40,9 @@ services:
     environment:
       LOCAL_DATABASE_USERNAME: ${MONGO_USERNAME:-root}
       LOCAL_DATABASE_PASSWORD: ${MONGO_PASSWORD:-example}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     volumes:
-      - provibackend_data:/code/ProViBackend/data/
+      - /home/ccvis/data:/data
     depends_on:
       mongo:
         condition: service_healthy
@@ -77,4 +79,3 @@ services:
 volumes:
   mongo_data:
   redis_data:
-  provibackend_data:

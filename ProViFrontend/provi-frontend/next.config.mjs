@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   devIndicators: false,
+  skipTrailingSlashRedirect: true,
   async rewrites() {
     const backend = process.env.BACKEND_INTERNAL_URL || "http://provibackend:80";
     return [

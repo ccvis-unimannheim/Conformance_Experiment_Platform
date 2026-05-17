@@ -1,0 +1,76 @@
+name: Security Scan (Trivy)
+
+on:
+  push:
+    branches: [develop]
+  schedule:
+    # Mondays at 06:00 UTC
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  trivy-scan:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - name: provibackend
+            context: ./provibackend
+          - name: provifrontend
+            context: ./ProViFrontend
+          - name: redis
+            context: ./provibackend/redis
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+            | sudo sh -s -- -b /usr/local/bin v0.70.0
+          trivy --version
+
+      - name: Build image
+        run: docker build -t ${{ matrix.target.name }}:scan ${{ matrix.target.context }}
+
+      - name: Trivy scan (table, for humans)
+        run: |
+          trivy image \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --ignorefile .trivyignore \
+            --exit-code 0 \
+            ${{ matrix.target.name }}:scan
+
+      - name: Trivy scan (SARIF for Security tab)
+        run: |
+          trivy image \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --ignorefile .trivyignore \
+            --format sarif \
+            --output trivy-${{ matrix.target.name }}.sarif \
+            --exit-code 0 \
+            ${{ matrix.target.name }}:scan
+
+      - name: Upload SARIF to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-${{ matrix.target.name }}.sarif
+          category: trivy-${{ matrix.target.name }}
+
+      - name: Fail on HIGH/CRITICAL (push only, not schedule)
+        if: github.event_name == 'push'
+        run: |
+          trivy image \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --ignorefile .trivyignore \
+            --exit-code 1 \
+            ${{ matrix.target.name }}:scan

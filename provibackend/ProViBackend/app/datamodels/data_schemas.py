@@ -4,11 +4,14 @@ from typing import List, Optional, Dict
 class PreliminaryAnswersRequest(BaseModel):
     """Request body from frontend — no _id, generated server-side."""
     gender: str
-    age: int
-    professional_background: str
-    experience_time_pm: str
-    frequency_pm: str
-    expertise_level_pm: str
+    age_range: str                   # e.g. "18–24"
+    education: str
+    role: str
+    field_of_study: str
+    rating_process_mining: int       # 1–5
+    rating_conformance_checking: int # 1–5
+    rating_data_visualization: int   # 1–5
+    years_experience: int            # 0–15
 
 class PreliminaryAnswers(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -23,9 +26,17 @@ class PreliminaryAnswers(BaseModel):
 class KnowledgeAnswers(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     id: str = Field(alias="_id")
-    notes: str          
+    notes: str
     score: int
     level: int
+
+class KnowledgeAnswersRequest(BaseModel):
+    notes: str   # JSON string of individual answers
+    score: int   # 0–10
+    level: int   # 1 = Novice, 2 = Intermediate, 3 = Expert
+
+class FeedbackAnswersRequest(BaseModel):
+    difficulty: str  # "Very Easy" | "Easy" | "Neutral" | "Difficult" | "Very Difficult"
 
 class User(BaseModel):
     user_id: str

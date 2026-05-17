@@ -1,0 +1,12 @@
+# Trivy ignore list — CVEs that are acknowledged but not actionable.
+#
+# Format: one CVE ID per line, optionally with comment.
+# Reference: https://aquasecurity.github.io/trivy/latest/docs/configuration/filtering/#by-finding-ids
+
+# CVE-2026-33671 — Picomatch ReDoS via crafted extglob patterns
+# Affected: next/dist/compiled/picomatch (vendored into Next.js 16.2.6)
+# Why ignored: vendored copy compiled into Next.js, not steerable via
+# package-lock or npm overrides. Used internally by Next.js for file-path
+# matching at build time, never receives user-controlled input.
+# Re-evaluate when Next.js bumps the vendored version.
+CVE-2026-33671
