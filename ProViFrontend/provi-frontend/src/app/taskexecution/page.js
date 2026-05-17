@@ -170,15 +170,16 @@ export default function TaskExecutionPage() {
 
         {/* ── Nav Bar */}
         <nav style={{
-          backgroundColor: "rgba(249,249,249,0.85)",
-          backdropFilter: "blur(16px)",
+          backgroundColor: "#ffffff",
           position: "fixed", top: 0, zIndex: 50, width: "100%",
-          borderBottom: "1px solid rgba(173,179,180,0.15)"
+          borderBottom: "1px solid #e4e9ea",
+          height: "4rem", display: "flex", alignItems: "center",
+          boxSizing: "border-box",
         }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", padding: "1rem 2rem", maxWidth: "1440px", margin: "0 auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", padding: "0 2rem", maxWidth: "56rem", margin: "0 auto" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <Image priority src={ProjectLogo} width={100} height={40} alt="ProVi Logo" style={{ objectFit: "contain" }} />
-              <Image priority src={UniLogo} width={160} height={40} alt="University of Mannheim Logo" style={{ objectFit: "contain" }} />
+              <Image priority src={ProjectLogo} width={90} height={36} alt="ProVi Logo" style={{ objectFit: "contain" }} />
+              <Image priority src={UniLogo} width={140} height={36} alt="University of Mannheim Logo" style={{ objectFit: "contain" }} />
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
               {totalTasks > 0 && (
