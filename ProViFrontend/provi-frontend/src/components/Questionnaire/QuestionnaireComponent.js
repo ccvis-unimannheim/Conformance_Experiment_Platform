@@ -30,7 +30,7 @@ const QuestionnaireComponent = ({ onQuestionSubmit }) => {
     const fetchQuestions = async () => {
       try {
         const response = await fetch(
-          "https://pm-vis.uni-mannheim.de/api/survey/questionnaire",
+          "/api/survey/questionnaire",
           {
             method: "GET",
             credentials: "include",
@@ -85,7 +85,7 @@ const QuestionnaireComponent = ({ onQuestionSubmit }) => {
 
     try {
       const response = await fetch(
-        `https://pm-vis.uni-mannheim.de/api/survey/answer`,
+        `/api/survey/answer`,
         {
           method: "POST",
           headers: {

@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ProVi Platform</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <script src="https://unpkg.com/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.23.10/babel.min.js"></script>
+</head>
+<body>
+  <div id="root">
+    <div style="padding: 50px; text-align: center; font-family: sans-serif; color: #64748b;">
+      <h2 style="color: #334155; margin-bottom: 16px;">平台组件加载中...</h2>
+      <p>如果长时间停留在此页面：</p>
+      <ul style="text-align: left; display: inline-block; margin-top: 10px; font-size: 14px; background: #f1f5f9; padding: 20px; border-radius: 8px;">
+        <li>1. 可能是网络原因导致组件库下载失败（请检查网络）。</li>
+        <li>2. 请按键盘 <b>F12</b> 打开开发者工具，点击 <b>Console(控制台)</b> 查看是否有红色的报错信息。</li>
+      </ul>
+    </div>
+  </div>
+
+  <script type="text/babel" data-presets="react">
+    const { useState, useEffect } = React;
+
+    // --- Lucide 图标的内联替代方案 ---
+    const Icon = ({ children, size = 24, className = "" }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        {children}
+      </svg>
+    );
+
+    const HelpCircle = (props) => <Icon {...props}><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></Icon>;
+    const Clock = (props) => <Icon {...props}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></Icon>;
+    const ChevronRight = (props) => <Icon {...props}><polyline points="9 18 15 12 9 6"/></Icon>;
+    const BarChart2 = (props) => <Icon {...props}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></Icon>;
+    const TableIcon = (props) => <Icon {...props}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></Icon>;
+    const GitMerge = (props) => <Icon {...props}><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></Icon>;
+    const CheckCircle = (props) => <Icon {...props}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></Icon>;
+    const XCircle = (props) => <Icon {...props}><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></Icon>;
+    const Search = (props) => <Icon {...props}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></Icon>;
+    const Filter = (props) => <Icon {...props}><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></Icon>;
+    const AlertTriangle = (props) => <Icon {...props}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></Icon>;
+
+    // --- 主应用组件 ---
+    function App() {
+      const [selectedAnswer, setSelectedAnswer] = useState(null);
+      const [activeIdiom, setActiveIdiom] = useState('bar');
+      const [timeElapsed, setTimeElapsed] = useState(0);
+      const [isSubmitted, setIsSubmitted] = useState(false);
+      const [feedback, setFeedback] = useState(null);
+
+      // 用于计算 Efficiency 
+      useEffect(() => {
+        let timer;
+        if (!isSubmitted) {
+          timer = setInterval(() => {
+            setTimeElapsed((prev) => prev + 1);
+          }, 1000);
+        }
+        return () => clearInterval(timer);
+      }, [isSubmitted]);
+
+      const options = ['15%', '50%', '85%', '100%'];
+      const groundTruth = '85%';
+
+      const handleSubmit = () => {
+        if (!selectedAnswer) return;
+        
+        setIsSubmitted(true);
+        const isCorrect = selectedAnswer === groundTruth;
+        
+        const payload = {
+          task_id: "task_degree_01",
+          idiom_id: `idiom_${activeIdiom}`,
+          dataset_id: "dataset_log_A",
+          user_answer: selectedAnswer,
+          is_correct: isCorrect,
+          time_taken_ms: timeElapsed * 1000,
+        };
+
+        setFeedback(payload);
+      };
+
+      const formatTime = (seconds) => {
+        const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+        const s = (seconds % 60).toString().padStart(2, '0');
+        return `${m}:${s}`;
+      };
+
+      const renderVisualization = () => {
+        switch (activeIdiom) {
+          case 'bar':
+            return (
+              <div className="flex flex-col h-full p-8 bg-white">
+                <div className="flex justify-between items-center mb-8">
+                  <h3 className="text-lg font-bold text-slate-800">Conformance Distribution</h3>
+                  <span className="text-sm font-medium px-3 py-1 bg-slate-100 text-slate-600 rounded-full">Total Traces: 1,000</span>
+                </div>
+                
+                <div className="relative flex-grow flex items-end pl-12 pb-8 mt-4">
+                  <div className="absolute left-0 top-0 bottom-8 w-full flex flex-col justify-between text-xs text-slate-400">
+                    <div className="flex items-center w-full"><span className="w-10 text-right pr-2">1000</span><div className="flex-grow border-t border-dashed border-slate-200"></div></div>
+                    <div className="flex items-center w-full"><span className="w-10 text-right pr-2">750</span><div className="flex-grow border-t border-dashed border-slate-200"></div></div>
+                    <div className="flex items-center w-full"><span className="w-10 text-right pr-2">500</span><div className="flex-grow border-t border-dashed border-slate-200"></div></div>
+                    <div className="flex items-center w-full"><span className="w-10 text-right pr-2">250</span><div className="flex-grow border-t border-dashed border-slate-200"></div></div>
+                    <div className="flex items-center w-full"><span className="w-10 text-right pr-2">0</span><div className="flex-grow border-t border-slate-400"></div></div>
+                  </div>
+
+                  <div className="relative z-10 flex justify-around w-full max-w-md mx-auto items-end h-full">
+                    <div className="group relative flex flex-col items-center w-28 h-[85%]">
+                      <div className="absolute -top-10 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-800 text-white text-xs py-1 px-3 rounded shadow-lg">
+                        850 Traces
+                      </div>
+                      <div className="w-full h-full bg-gradient-to-t from-emerald-600 to-emerald-400 rounded-t-md shadow-md cursor-pointer hover:brightness-110 transition-all"></div>
+                      <span className="absolute -bottom-7 font-semibold text-slate-700 text-sm">Conformant</span>
+                    </div>
+                    
+                    <div className="group relative flex flex-col items-center w-28 h-[15%]">
+                      <div className="absolute -top-10 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-800 text-white text-xs py-1 px-3 rounded shadow-lg">
+                        150 Traces
+                      </div>
+                      <div className="w-full h-full bg-gradient-to-t from-rose-500 to-rose-400 rounded-t-md shadow-md cursor-pointer hover:brightness-110 transition-all"></div>
+                      <span className="absolute -bottom-7 font-semibold text-slate-700 text-sm">Deviating</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          
+          case 'table':
+            return (
+              <div className="flex flex-col h-full bg-white p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-lg font-bold text-slate-800">Trace Log Explorer</h3>
+                  <div className="flex space-x-3">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={16} />
+                      <input type="text" placeholder="Search Trace ID..." className="pl-9 pr-4 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" disabled />
+                    </div>
+                    <button className="flex items-center space-x-1 px-3 py-1.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+                      <Filter size={16} /> <span>Filter</span>
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="flex-grow border border-slate-200 rounded-xl overflow-hidden flex flex-col">
+                  <table className="min-w-full divide-y divide-slate-200 flex-grow">
+                    <thead className="bg-slate-50">
+                      <tr>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Trace ID</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Conformance Status</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Identified Deviations</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-slate-100">
+                      {[1, 2, 3, 4, 5].map((i) => (
+                        <tr key={i} className={`hover:bg-slate-50 transition-colors ${i === 4 ? "bg-rose-50/30" : ""}`}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">Trace_100{i}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            {i === 4 ? 
+                              <span className="px-2.5 py-1 inline-flex items-center space-x-1 text-xs font-semibold rounded-full bg-rose-100 text-rose-700">
+                                <XCircle size={12} /> <span>Deviating</span>
+                              </span> : 
+                              <span className="px-2.5 py-1 inline-flex items-center space-x-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-700">
+                                <CheckCircle size={12} /> <span>Conformant</span>
+                              </span>
+                            }
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                            {i === 4 ? 
+                              <span className="flex items-center text-rose-600"><AlertTriangle size={14} className="mr-1.5"/> Skipped: 'Payment'</span> 
+                              : <span className="text-slate-400">-</span>
+                            }
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div className="bg-slate-50 px-6 py-3 border-t border-slate-200 flex justify-between items-center">
+                    <span className="text-xs text-slate-500">Showing 1 to 5 of 1,000 entries (850 conformant)</span>
+                    <div className="flex space-x-1">
+                      <button className="px-2 py-1 border rounded text-xs text-slate-400 bg-white" disabled>Prev</button>
+                      <button className="px-2 py-1 border rounded text-xs text-white bg-blue-600">1</button>
+                      <button className="px-2 py-1 border rounded text-xs text-slate-600 bg-white hover:bg-slate-50">2</button>
+                      <button className="px-2 py-1 border rounded text-xs text-slate-600 bg-white hover:bg-slate-50">Next</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+
+          case 'flow':
+            return (
+              <div className="flex flex-col h-full bg-slate-50 p-6">
+                 <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-bold text-slate-800">Process Control-Flow Graph</h3>
+                  <div className="flex space-x-4 text-xs bg-white px-4 py-2 rounded-lg shadow-sm border border-slate-200">
+                    <div className="flex items-center"><div className="w-3 h-1 bg-emerald-500 mr-2"></div> Conformant Path</div>
+                    <div className="flex items-center"><div className="w-3 h-1 bg-rose-500 mr-2"></div> Deviation Path</div>
+                  </div>
+                </div>
+
+                <div className="flex-grow bg-white rounded-xl border border-slate-200 shadow-inner flex items-center justify-center p-4 relative overflow-hidden">
+                  <svg viewBox="0 0 800 400" className="w-full h-full max-w-3xl drop-shadow-sm">
+                    <defs>
+                      <marker id="arrow-emerald" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+                        <path d="M0,0 L10,5 L0,10" fill="none" stroke="#10b981" strokeWidth="2" />
+                      </marker>
+                      <marker id="arrow-rose" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+                        <path d="M0,0 L10,5 L0,10" fill="none" stroke="#f43f5e" strokeWidth="2" />
+                      </marker>
+                      <marker id="arrow-slate" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+                        <path d="M0,0 L10,5 L0,10" fill="none" stroke="#94a3b8" strokeWidth="2" />
+                      </marker>
+                      <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+                        <feDropShadow dx="0" dy="4" stdDeviation="4" floodOpacity="0.1" />
+                      </filter>
+                    </defs>
+
+                    <path d="M 170 200 L 290 200" fill="none" stroke="#94a3b8" strokeWidth="3" markerEnd="url(#arrow-slate)" />
+                    <text x="230" y="190" textAnchor="middle" fill="#64748b" fontSize="12" fontWeight="bold">1000</text>
+
+                    <path d="M 430 200 L 550 200" fill="none" stroke="#10b981" strokeWidth="4" markerEnd="url(#arrow-emerald)" />
+                    <text x="490" y="190" textAnchor="middle" fill="#059669" fontSize="12" fontWeight="bold">850</text>
+
+                    <path d="M 360 175 C 360 100, 620 100, 620 175" fill="none" stroke="#f43f5e" strokeWidth="3" markerEnd="url(#arrow-rose)" strokeDasharray="6,4" />
+                    <text x="490" y="90" textAnchor="middle" fill="#e11d48" fontSize="12" fontWeight="bold">150 (Skip)</text>
+
+                    <path d="M 690 200 L 750 200" fill="none" stroke="#10b981" strokeWidth="4" markerEnd="url(#arrow-emerald)" />
+                    <text x="720" y="190" textAnchor="middle" fill="#059669" fontSize="12" fontWeight="bold">850</text>
+
+                    <rect x="50" y="175" width="120" height="50" rx="8" fill="#ffffff" stroke="#cbd5e1" strokeWidth="2" filter="url(#shadow)" />
+                    <text x="110" y="205" textAnchor="middle" fill="#334155" fontSize="14" fontWeight="600" fontFamily="sans-serif">Receive Order</text>
+
+                    <rect x="310" y="175" width="120" height="50" rx="8" fill="#ffffff" stroke="#cbd5e1" strokeWidth="2" filter="url(#shadow)" />
+                    <text x="370" y="205" textAnchor="middle" fill="#334155" fontSize="14" fontWeight="600" fontFamily="sans-serif">Check Inventory</text>
+
+                    <rect x="570" y="175" width="120" height="50" rx="8" fill="#ffffff" stroke="#cbd5e1" strokeWidth="2" filter="url(#shadow)" />
+                    <text x="630" y="205" textAnchor="middle" fill="#334155" fontSize="14" fontWeight="600" fontFamily="sans-serif">Process Payment</text>
+
+                    <rect x="760" y="175" width="40" height="50" rx="8" fill="#ffffff" stroke="#cbd5e1" strokeWidth="2" filter="url(#shadow)" />
+                    <text x="780" y="205" textAnchor="middle" fill="#334155" fontSize="14" fontWeight="600" fontFamily="sans-serif">End</text>
+                  </svg>
+                </div>
+              </div>
+            );
+          default:
+            return null;
+        }
+      };
+
+      return (
+        <div className="min-h-screen bg-slate-100 flex flex-col font-sans text-slate-800">
+          <header className="bg-white shadow-sm border-b border-slate-200 px-6 py-4 flex justify-between items-center z-20">
+            <div className="flex items-center space-x-3">
+              <div className="w-9 h-9 bg-blue-600 rounded-lg shadow-inner text-white flex items-center justify-center font-bold text-lg">Pr</div>
+              <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-blue-500">
+                ProVi Platform
+              </span>
+            </div>
+            <div className="flex items-center space-x-8">
+              <div className="flex flex-col items-end">
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Experiment Progress</span>
+                <div className="w-56 h-2 bg-slate-100 rounded-full mt-1.5 overflow-hidden border border-slate-200">
+                  <div className="h-full bg-blue-500 w-1/4 rounded-full transition-all duration-500"></div>
+                </div>
+                <span className="text-xs text-slate-500 mt-1 font-medium">Trial 1 of 4</span>
+              </div>
+              <div className="flex items-center space-x-2 bg-slate-50 border border-slate-200 px-4 py-1.5 rounded-full text-slate-600 shadow-sm">
+                <Clock size={16} className="text-blue-500" />
+                <span className="font-mono text-sm font-medium">{formatTime(timeElapsed)}</span>
+              </div>
+            </div>
+          </header>
+
+          <main className="flex-grow p-6 flex space-x-6 max-w-[1400px] mx-auto w-full h-[calc(100vh-80px)]">
+            <section className="flex-grow bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
+              <div className="bg-amber-50 border-b border-amber-200 p-2.5 flex justify-center items-center space-x-3 text-sm">
+                <span className="text-amber-800 font-bold flex items-center text-xs uppercase tracking-wide">
+                  <AlertTriangle size={14} className="mr-1.5"/> Debug Mode:
+                </span>
+                <span className="text-amber-700/70 text-xs italic mr-2">Force assign idiom</span>
+                <div className="flex space-x-1">
+                  <button onClick={() => setActiveIdiom('bar')} className={`px-3 py-1.5 rounded-md flex items-center font-medium transition-colors ${activeIdiom === 'bar' ? 'bg-amber-200 text-amber-900 shadow-sm' : 'text-amber-700 hover:bg-amber-100'}`}><BarChart2 size={14} className="mr-1.5"/> Bar Chart</button>
+                  <button onClick={() => setActiveIdiom('table')} className={`px-3 py-1.5 rounded-md flex items-center font-medium transition-colors ${activeIdiom === 'table' ? 'bg-amber-200 text-amber-900 shadow-sm' : 'text-amber-700 hover:bg-amber-100'}`}><TableIcon size={14} className="mr-1.5"/> Table</button>
+                  <button onClick={() => setActiveIdiom('flow')} className={`px-3 py-1.5 rounded-md flex items-center font-medium transition-colors ${activeIdiom === 'flow' ? 'bg-amber-200 text-amber-900 shadow-sm' : 'text-amber-700 hover:bg-amber-100'}`}><GitMerge size={14} className="mr-1.5"/> Flow Chart</button>
+                </div>
+              </div>
+              
+              <div className="flex-grow relative overflow-hidden">
+                 {renderVisualization()}
+              </div>
+            </section>
+
+            <aside className="w-[400px] bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col flex-shrink-0">
+              <div className="p-8 flex-grow flex flex-col h-full overflow-y-auto">
+                <div className="inline-block px-3 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-bold uppercase tracking-widest mb-6 w-max border border-blue-100">
+                  Task Assessment
+                </div>
+                <h2 className="text-2xl font-bold text-slate-800 mb-4">Degree of Conformance</h2>
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 mb-8">
+                  <p className="text-slate-600 text-sm leading-relaxed">
+                    Based on the visualization provided on the left, what is the <span className="font-bold text-slate-800">overall degree of conformance</span> for this event log? 
+                    <br/><br/>
+                    <span className="italic text-slate-500 text-xs">(Note: This is defined as the percentage of traces that perfectly conform to the reference model without any deviations.)</span>
+                  </p>
+                </div>
+
+                <div className="space-y-3 mb-8">
+                  {options.map((option) => (
+                    <label 
+                      key={option} 
+                      className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 ${
+                        selectedAnswer === option 
+                          ? 'border-blue-500 bg-blue-50/50 shadow-md transform scale-[1.02]' 
+                          : 'border-slate-100 hover:border-blue-200 hover:bg-slate-50'
+                      } ${isSubmitted ? 'opacity-60 cursor-not-allowed pointer-events-none' : ''}`}
+                    >
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mr-4 ${selectedAnswer === option ? 'border-blue-600' : 'border-slate-300'}`}>
+                        {selectedAnswer === option && <div className="w-2.5 h-2.5 bg-blue-600 rounded-full"></div>}
+                      </div>
+                      <span className={`font-semibold text-lg ${selectedAnswer === option ? 'text-blue-900' : 'text-slate-700'}`}>{option}</span>
+                    </label>
+                  ))}
+                </div>
+
+                <div className="mt-auto pt-6 border-t border-slate-100">
+                  <button
+                    onClick={handleSubmit}
+                    disabled={!selectedAnswer || isSubmitted}
+                    className={`w-full py-4 px-6 rounded-xl flex items-center justify-center font-bold text-lg text-white transition-all duration-300 ${
+                      !selectedAnswer || isSubmitted
+                        ? 'bg-slate-300 cursor-not-allowed'
+                        : 'bg-blue-600 hover:bg-blue-700 shadow-lg hover:shadow-blue-500/30 transform hover:-translate-y-0.5'
+                    }`}
+                  >
+                    {isSubmitted ? 'Response Recorded' : 'Submit Answer'}
+                    {!isSubmitted && <ChevronRight size={20} className="ml-2" />}
+                  </button>
+                </div>
+              </div>
+            </aside>
+
+          </main>
+
+          {feedback && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-lg w-full transform transition-all">
+                <div className="flex items-center justify-center mb-6">
+                  {feedback.is_correct ? (
+                    <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-500 shadow-inner"><CheckCircle size={40} /></div>
+                  ) : (
+                    <div className="w-20 h-20 bg-rose-100 rounded-full flex items-center justify-center text-rose-500 shadow-inner"><XCircle size={40} /></div>
+                  )}
+                </div>
+                <h3 className="text-3xl font-bold text-center text-slate-800 mb-3">
+                  {feedback.is_correct ? "Correct Answer!" : "Incorrect Answer"}
+                </h3>
+                <p className="text-center text-slate-500 mb-8 text-sm">
+                  The user response logic has successfully captured the required metrics. Below is the exact payload ready to be dispatched to your FastAPI <code className="bg-slate-100 text-pink-600 px-1.5 py-0.5 rounded font-mono">POST /tracking/log</code> endpoint.
+                </p>
+                
+                <div className="bg-slate-800 rounded-xl p-5 mb-8 shadow-inner overflow-hidden border border-slate-700">
+                  <div className="flex justify-between items-center mb-3 border-b border-slate-700 pb-2">
+                    <span className="text-xs font-bold tracking-wider text-slate-400 uppercase">Payload Data</span>
+                    <span className="text-xs font-bold tracking-wider text-blue-400 bg-blue-400/10 px-2 py-0.5 rounded">application/json</span>
+                  </div>
+                  <pre className="text-emerald-400 font-mono text-sm overflow-x-auto whitespace-pre-wrap">
+{JSON.stringify(feedback, null, 2)}
+                  </pre>
+                </div>
+
+                <button 
+                  onClick={() => window.location.reload()}
+                  className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-4 px-6 rounded-xl transition-all duration-200 flex items-center justify-center"
+                >
+                  Reset Example & Next Trial
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

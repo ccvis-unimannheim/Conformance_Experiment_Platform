@@ -152,17 +152,57 @@ async def get_answers_from_db():
 
 @router.get("/experiments/{experiment_id}/answers/download", tags=["admin"])
 async def download_experiment_answers(experiment_id: str):
-    """Download all answers for a specific experiment as a CSV file."""
-    data = dbc.get_query_db("Answer", query={"experiment_id": experiment_id})
-    output = io.StringIO()
-    writer = csv.writer(output)
-    if data:
-        writer.writerow(data[0].keys())
-    for item in data:
-        writer.writerow(item.values())
+    """Download experiment data as an Excel file with two sheets:
+    Sheet 1 - Participant background (prequestionnaire + knowledge survey)
+    Sheet 2 - Task answers
+    """
+    import pandas as pd
+
+    # ── Sheet 2: task answers ──────────────────────────────────────────────
+    answers = dbc.get_query_db("Answer", query={"experiment_id": experiment_id})
+    df_answers = pd.DataFrame(answers) if answers else pd.DataFrame()
+
+    # ── Sheet 1: participant background ───────────────────────────────────
+    user_ids = list({a["user_id"] for a in answers}) if answers else []
+    rows = []
+    for uid in user_ids:
+        user = dbc.get_document("User", {"user_id": uid})
+        if not user:
+            continue
+        pre = dbc.get_document("PreliminaryAnswers", {"_id": user.get("preliminary_id", "")}) or {}
+        know = dbc.get_document("KnowledgeAnswers",  {"_id": user.get("knowledge_id", "")})  or {}
+        level_map = {1: "Beginner", 2: "Intermediate", 3: "Advanced"}
+        rows.append({
+            "user_id":        uid,
+            **{k: v for k, v in pre.items()  if k != "_id"},
+            "knowledge_notes": know.get("notes"),
+            "knowledge_score": know.get("score"),
+            "knowledge_level": level_map.get(know.get("level"), know.get("level")),
+        })
+    df_background = pd.DataFrame(rows) if rows else pd.DataFrame()
+
+    # ── Clean up Task Answers columns ─────────────────────────────────────
+    if not df_answers.empty:
+        if "response_time_ms" in df_answers.columns:
+            df_answers["response_time_s"] = (df_answers["response_time_ms"] / 1000).round(2)
+            df_answers = df_answers.drop(columns=["response_time_ms"])
+        if "insert_datetime" in df_answers.columns:
+            df_answers = df_answers.rename(columns={"insert_datetime": "completion_time"})
+
+    # ── Write to Excel ─────────────────────────────────────────────────────
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df_background.to_excel(writer, sheet_name="Participant Background", index=False)
+        df_answers.to_excel(writer, sheet_name="Task Answers", index=False)
     output.seek(0)
-    response = StreamingResponse(output, media_type="text/csv")
-    response.headers["Content-Disposition"] = f"attachment; filename=experiment_{experiment_id}_answers.csv"
+
+    response = StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response.headers["Content-Disposition"] = (
+        f"attachment; filename=experiment_{experiment_id}_data.xlsx"
+    )
     return response
 
 

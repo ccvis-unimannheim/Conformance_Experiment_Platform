@@ -73,6 +73,7 @@ class ListDatasetsFromFrontend(BaseModel):
     datasets: List[DatasetFromFrontend]
 
 class AnswerFromFrontend(BaseModel):
+    experiment_id: Optional[str] = None
     question_id: str
     task_id: str
     idiom_id: str
