@@ -1,3 +1,4 @@
+import os
 import uuid
 from typing import Annotated
 import datetime
@@ -12,6 +13,10 @@ import ProViBackend.utils.utils as utils
 router = APIRouter(
     prefix="/auth"
 )
+
+# COOKIE_SECURE=false for local HTTP dev; true in production (HTTPS).
+_COOKIE_SECURE = os.getenv("COOKIE_SECURE", "true").lower() != "false"
+_COOKIE_SAMESITE = "none" if _COOKIE_SECURE else "lax"
 
 def get_expiry():
     expiry = datetime.datetime.now(datetime.UTC)
@@ -36,7 +41,7 @@ async def auth(body: ds.PreliminaryAnswersRequest):
     dbc.create_document("User", user_doc)
 
     response = JSONResponse(content={"message": "User created."})
-    response.set_cookie(key="provi_user_id", value=user_id, expires=get_expiry(), secure=True, samesite="none")
+    response.set_cookie(key="provi_user_id", value=user_id, expires=get_expiry(), secure=_COOKIE_SECURE, samesite=_COOKIE_SAMESITE)
     return response
 
 
