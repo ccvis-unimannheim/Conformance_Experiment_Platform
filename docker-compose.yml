@@ -42,7 +42,7 @@ services:
       LOCAL_DATABASE_PASSWORD: ${MONGO_PASSWORD:-example}
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     volumes:
-      - /home/ccvis/data:/data
+      - /home/ccvis/data:/code/ProViBackend/data
     depends_on:
       mongo:
         condition: service_healthy

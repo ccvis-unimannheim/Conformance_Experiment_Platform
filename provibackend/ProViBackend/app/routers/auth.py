@@ -41,7 +41,11 @@ async def auth(body: ds.PreliminaryAnswersRequest):
     dbc.create_document("User", user_doc)
 
     response = JSONResponse(content={"message": "User created."})
+<<<<<<< Updated upstream
     response.set_cookie(key="provi_user_id", value=user_id, expires=get_expiry(), secure=_COOKIE_SECURE, samesite=_COOKIE_SAMESITE)
+=======
+    response.set_cookie(key="provi_user_id", value=user_id, expires=get_expiry(), secure=False, samesite="lax")
+>>>>>>> Stashed changes
     return response
 
 
