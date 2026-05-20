@@ -36,7 +36,7 @@ services:
     container_name: provibackend
     restart: unless-stopped
     ports:
-      - "1234:80"
+      - "127.0.0.1:1234:80"
     environment:
       LOCAL_DATABASE_USERNAME: ${MONGO_USERNAME:-root}
       LOCAL_DATABASE_PASSWORD: ${MONGO_PASSWORD:-example}
@@ -52,26 +52,27 @@ services:
   provifrontend:
     build:
       context: ./ProViFrontend
+      args:
+        NEXT_PUBLIC_API_BASE: https://cc-vis.rz.uni-mannheim.de/api
+        NEXT_PUBLIC_API_URL: https://cc-vis.rz.uni-mannheim.de/api
     container_name: provifrontend
     restart: unless-stopped
     ports:
-      - "22222:3000"
+      - "127.0.0.1:22222:3000"
     environment:
       BACKEND_INTERNAL_URL: http://provibackend:80
     depends_on:
       - provibackend
 
   nginx:
-    profiles: ["prod"]
     build:
       context: ./provibackend/nginx
     container_name: nginx
     restart: unless-stopped
     ports:
-      - "80:80"
       - "443:443"
     volumes:
-      - /etc/letsencrypt:/etc/letsencrypt
+      - /etc/ssl/cc-vis:/etc/ssl/cc-vis:ro
     depends_on:
       - provibackend
       - provifrontend
