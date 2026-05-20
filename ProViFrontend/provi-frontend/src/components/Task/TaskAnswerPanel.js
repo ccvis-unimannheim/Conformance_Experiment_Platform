@@ -26,10 +26,10 @@ import { useRouter } from "next/navigation";
  */
 const TaskAnswerPanel = ({
   options = [],
-  experimentId = "",
   taskId,
   idiomId = "",
   datasetId = "",
+  experimentId = "",
   trialIndex = 0,
   presentationOrder = 0,
   totalTasks = 1,
@@ -68,6 +68,7 @@ const TaskAnswerPanel = ({
       task_id: taskId?.toString(),
       idiom_id: idiomId,
       dataset_id: datasetId,
+      experiment_id: experimentId,
       trial_index: trialIndex,
       presentation_order: presentationOrder,
       answer: selectedAnswer.toString(),
