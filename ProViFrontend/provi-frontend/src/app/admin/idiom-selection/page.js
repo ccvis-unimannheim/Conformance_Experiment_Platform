@@ -47,8 +47,6 @@ function IdiomSelectionContent() {
   // taskIdiomMap: { [taskId]: string[] }
   const [taskIdiomMap, setTaskIdiomMap] = useState({});
   const [isSeeding, setIsSeeding] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [successDetail, setSuccessDetail] = useState("");
 
   // Create idiom modal
   const [idiomModalOpen, setIdiomModalOpen] = useState(false);
@@ -57,10 +55,6 @@ function IdiomSelectionContent() {
   const [newIdiomGranularity, setNewIdiomGranularity] = useState("log");
   const [newIdiomRenderer, setNewIdiomRenderer] = useState("echarts");
   const [idiomModalError, setIdiomModalError] = useState("");
-
-  // View experiments modal
-  const [expModalOpen, setExpModalOpen] = useState(false);
-  const [experiments, setExperiments] = useState([]);
 
   // Toast
   const [toast, setToast] = useState({ visible: false, message: "", isError: false });
@@ -209,7 +203,7 @@ function IdiomSelectionContent() {
     }
   }
 
-  async function saveExperiment() {
+  async function handleNext() {
     const unassigned = selectedTasks.filter(
       (t) => (taskIdiomMap[getId(t)] || []).length === 0
     );
@@ -233,43 +227,12 @@ function IdiomSelectionContent() {
       const res = await fetch(`${BASE_URL}/admin/experiments/${experimentId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ task_configs: taskConfigs, status: "draft" }),
+        body: JSON.stringify({ task_configs: taskConfigs }),
       });
       if (!res.ok) throw new Error(await res.text());
-      setSuccessDetail(
-        `Experiment (ID: ${experimentId}) — ${taskConfigs.length} task-idiom assignments saved.`
-      );
-      setShowSuccess(true);
-      setTimeout(() => {
-        document.getElementById("success-banner")?.scrollIntoView({ behavior: "smooth" });
-      }, 50);
+      router.push(`/admin/experiment-overview?experiment_id=${encodeURIComponent(experimentId)}`);
     } catch (e) {
       showToast(`Failed to save experiment: ${e.message}`, true);
-    }
-  }
-
-  async function publishExperiment() {
-    try {
-      const res = await fetch(
-        `${BASE_URL}/admin/experiments/${experimentId}/status?status=published`,
-        { method: "PATCH" }
-      );
-      if (!res.ok) throw new Error(await res.text());
-      showToast("Experiment published!");
-      setSuccessDetail((prev) => prev.replace("saved", "published"));
-    } catch (e) {
-      showToast(`Failed to publish experiment: ${e.message}`, true);
-    }
-  }
-
-  async function viewExperiments() {
-    try {
-      const res = await fetch(`${BASE_URL}/admin/experiments`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setExperiments(await res.json());
-      setExpModalOpen(true);
-    } catch (e) {
-      showToast(`Could not load experiments: ${e.message}`, true);
     }
   }
 
@@ -407,42 +370,6 @@ function IdiomSelectionContent() {
             })
           )}
         </div>
-
-        {/* Success banner */}
-        {showSuccess && (
-          <div
-            id="success-banner"
-            className="bg-green-50 border border-green-200 rounded-lg p-5 flex items-start gap-3"
-          >
-            <span className="material-symbols-outlined text-green-600 text-2xl flex-shrink-0 icon-filled">
-              check_circle
-            </span>
-            <div>
-              <p className="font-semibold text-green-800">Experiment saved successfully!</p>
-              <p className="text-sm text-green-700 mt-0.5">{successDetail}</p>
-              <div className="flex gap-3 mt-3">
-                <button
-                  onClick={publishExperiment}
-                  className="text-xs bg-green-600 text-white px-4 py-1.5 rounded font-semibold hover:bg-green-700 transition-colors"
-                >
-                  Publish Experiment
-                </button>
-                <Link
-                  href="/admin/experiments/new"
-                  className="text-xs bg-primary text-white px-4 py-1.5 rounded font-semibold hover:bg-primary-container transition-colors"
-                >
-                  Create Another Experiment
-                </Link>
-                <button
-                  onClick={viewExperiments}
-                  className="text-xs border border-border-subtle text-on-surface-variant px-4 py-1.5 rounded hover:bg-surface-container transition-colors"
-                >
-                  View All Experiments
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </main>
 
       {/* Footer action bar */}
@@ -461,7 +388,7 @@ function IdiomSelectionContent() {
               </span>
             )}
             <button
-              onClick={saveExperiment}
+              onClick={handleNext}
               className="flex items-center gap-2 font-button text-button bg-primary text-on-primary px-12 py-3 rounded-lg hover:opacity-90 transition-all active:scale-95"
             >
               Next
@@ -560,54 +487,6 @@ function IdiomSelectionContent() {
               >
                 Create Idiom
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* View Experiments Modal */}
-      {expModalOpen && (
-        <div
-          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
-          onClick={(e) => { if (e.target === e.currentTarget) setExpModalOpen(false); }}
-        >
-          <div className="bg-white rounded-xl p-6 w-full max-w-[680px] shadow-xl flex flex-col gap-4 max-h-[80vh]">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-bold text-on-surface">All Experiments</h3>
-              <button onClick={() => setExpModalOpen(false)} className="text-on-surface-variant hover:text-on-surface">
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-            <div className="overflow-y-auto flex flex-col gap-3 text-sm">
-              {experiments.length === 0 ? (
-                <p className="text-on-surface-variant text-sm">No experiments found.</p>
-              ) : (
-                experiments.map((exp) => (
-                  <div key={getId(exp)} className="border border-border-subtle rounded-lg p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-on-surface">{exp.name || "(unnamed)"}</p>
-                        <p className="text-xs text-on-surface-variant mt-0.5">
-                          ID: {getId(exp)} &nbsp;·&nbsp; Status: {exp.status} &nbsp;·&nbsp; Type:{" "}
-                          {exp.type}
-                        </p>
-                        <p className="text-xs text-on-surface-variant">
-                          {exp.task_configs?.length ?? 0} task-idiom assignments
-                        </p>
-                      </div>
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0
-                          ${exp.status === "draft"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-green-100 text-green-800"
-                          }`}
-                      >
-                        {exp.status}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              )}
             </div>
           </div>
         </div>

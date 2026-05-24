@@ -1,0 +1,375 @@
+"use client";
+
+import { useState, useEffect, useCallback, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import ExperimentSetupHeader from "../../../components/Admin/ExperimentSetupHeader";
+import Toast from "../../../components/Admin/Toast";
+
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:1234";
+
+function getId(obj) {
+  return obj._id || obj.id;
+}
+
+function ExperimentOverviewContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const experimentId = searchParams.get("experiment_id");
+
+  const [experiment, setExperiment] = useState(null);
+  const [idiomMap, setIdiomMap] = useState({});
+  const [groupedTasks, setGroupedTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState("draft");
+
+  const [toast, setToast] = useState({ visible: false, message: "", isError: false });
+  const showToast = useCallback((message, isError = false) => {
+    setToast({ visible: true, message, isError });
+  }, []);
+  const hideToast = useCallback(() => setToast((t) => ({ ...t, visible: false })), []);
+
+  useEffect(() => {
+    if (!experimentId) {
+      router.replace("/admin/task-selection");
+      return;
+    }
+    init();
+  }, [experimentId]);
+
+  async function init() {
+    setLoading(true);
+    try {
+      const [expRes, tasksRes, idiomsRes] = await Promise.all([
+        fetch(`${BASE_URL}/admin/experiments`),
+        fetch(`${BASE_URL}/admin/tasks`),
+        fetch(`${BASE_URL}/admin/idioms`),
+      ]);
+      if (!expRes.ok) throw new Error(`Experiments HTTP ${expRes.status}`);
+      if (!tasksRes.ok) throw new Error(`Tasks HTTP ${tasksRes.status}`);
+      if (!idiomsRes.ok) throw new Error(`Idioms HTTP ${idiomsRes.status}`);
+
+      const [exps, tasks, idioms] = await Promise.all([
+        expRes.json(),
+        tasksRes.json(),
+        idiomsRes.json(),
+      ]);
+
+      const exp = exps.find((e) => getId(e) === experimentId);
+      if (!exp) throw new Error("Experiment not found.");
+      setExperiment(exp);
+      setStatus(exp.status || "draft");
+
+      const tMap = {};
+      tasks.forEach((t) => { tMap[getId(t)] = t; });
+
+      const iMap = {};
+      idioms.forEach((i) => { iMap[getId(i)] = i; });
+      setIdiomMap(iMap);
+
+      // Group task_configs: one entry per unique task_id, collecting all idiom_ids
+      const idiomsByTask = {};
+      const taskOrder = [];
+      const seen = new Set();
+      (exp.task_configs || []).forEach((tc) => {
+        if (!seen.has(tc.task_id)) {
+          seen.add(tc.task_id);
+          taskOrder.push(tc.task_id);
+          idiomsByTask[tc.task_id] = [];
+        }
+        if (tc.idiom_id) idiomsByTask[tc.task_id].push(tc.idiom_id);
+      });
+
+      setGroupedTasks(
+        taskOrder.map((tid) => ({
+          task: tMap[tid] || { _id: tid, task_key: tid, label: "(unknown task)", description: "" },
+          idiomIds: idiomsByTask[tid] || [],
+        }))
+      );
+    } catch (e) {
+      showToast(`Could not load experiment: ${e.message}`, true);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function saveAsDraft() {
+    try {
+      const res = await fetch(`${BASE_URL}/admin/experiments/${experimentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "draft" }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setStatus("draft");
+      showToast("Experiment saved as draft.");
+    } catch (e) {
+      showToast(`Failed to save: ${e.message}`, true);
+    }
+  }
+
+  async function publishExperiment() {
+    try {
+      const res = await fetch(
+        `${BASE_URL}/admin/experiments/${experimentId}/status?status=published`,
+        { method: "PATCH" }
+      );
+      if (!res.ok) throw new Error(await res.text());
+      setStatus("published");
+      showToast("Experiment published successfully!");
+    } catch (e) {
+      showToast(`Failed to publish: ${e.message}`, true);
+    }
+  }
+
+  return (
+    <div className="bg-surface text-on-surface min-h-screen flex flex-col">
+      <ExperimentSetupHeader />
+
+      <main className="flex-grow max-w-[1140px] mx-auto w-full px-8 py-10 flex flex-col gap-8">
+        {/* Page heading */}
+        <div className="flex flex-col gap-1">
+          <h1 className="font-h1 text-h1 text-primary mb-2">Experiment Overview</h1>
+          <p className="font-body-lg text-body-lg text-secondary max-w-2xl">
+            Review the tasks and idioms selected for this experiment. Use the buttons below to save
+            as a draft or publish when ready.
+          </p>
+        </div>
+
+        {/* Metadata strip */}
+        {experiment && (
+          <div className="bg-white border border-border-subtle rounded-lg p-5 flex flex-wrap items-center gap-6">
+            <div className="flex-1 min-w-[160px]">
+              <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-0.5">
+                Experiment Name
+              </p>
+              <p className="text-sm font-semibold text-on-surface">
+                {experiment.name || "(unnamed)"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-0.5">
+                ID
+              </p>
+              <p className="text-xs text-on-surface-variant font-mono">{experimentId}</p>
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-0.5">
+                Tasks
+              </p>
+              <p className="text-sm font-semibold text-on-surface">{groupedTasks.length}</p>
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-0.5">
+                Status
+              </p>
+              <span
+                className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                  status === "published"
+                    ? "bg-green-100 text-green-800"
+                    : "bg-yellow-100 text-yellow-800"
+                }`}
+              >
+                {status}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Task cards */}
+        {loading ? (
+          <div className="text-center text-on-surface-variant text-sm py-10 border-2 border-dashed border-outline-variant rounded-lg">
+            <span className="material-symbols-outlined text-3xl block mb-2 text-outline-variant">
+              hourglass_empty
+            </span>
+            Loading…
+          </div>
+        ) : groupedTasks.length === 0 ? (
+          <div className="text-center text-on-surface-variant text-sm py-10 border-2 border-dashed border-outline-variant rounded-lg">
+            <span className="material-symbols-outlined text-3xl block mb-2 text-outline-variant">
+              inbox
+            </span>
+            No task-idiom assignments found.
+            <br />
+            <Link
+              href={`/admin/idiom-selection?experiment_id=${encodeURIComponent(experimentId)}`}
+              className="text-xs text-primary mt-1 inline-block hover:underline"
+            >
+              ← Go back to assign idioms
+            </Link>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-6">
+            {groupedTasks.map(({ task, idiomIds }) => {
+              const tid = getId(task);
+              return (
+                <div
+                  key={tid}
+                  className="bg-white rounded-lg border border-border-subtle shadow-sm overflow-hidden"
+                >
+                  {/* Task header */}
+                  <div className="border-l-4 border-primary p-5">
+                    <div className="flex items-start gap-3">
+                      <span className="text-xs font-bold bg-blue-100 text-primary px-2 py-0.5 rounded flex-shrink-0 mt-0.5">
+                        {task.task_key}
+                      </span>
+                      <div>
+                        <p className="text-sm font-semibold text-on-surface leading-snug">
+                          {task.label}
+                        </p>
+                        {task.description && (
+                          <p className="text-xs text-on-surface-variant mt-0.5">
+                            {task.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="divide-y divide-border-subtle">
+                    {/* Selected Idioms */}
+                    <div className="p-5">
+                      <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-3">
+                        Selected Idioms
+                        <span className="ml-2 font-normal normal-case tracking-normal text-primary">
+                          ({idiomIds.length})
+                        </span>
+                      </p>
+                      {idiomIds.length === 0 ? (
+                        <p className="text-xs text-on-surface-variant italic">No idioms assigned.</p>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {idiomIds.map((iid) => {
+                            const idiom = idiomMap[iid];
+                            return (
+                              <div
+                                key={iid}
+                                className="flex items-center gap-2 bg-blue-50 border border-primary/20 rounded-lg px-3 py-2"
+                              >
+                                <span className="material-symbols-outlined text-sm text-primary icon-filled">
+                                  check_circle
+                                </span>
+                                <div>
+                                  <p className="text-xs font-semibold text-on-surface">
+                                    {idiom?.label || iid}
+                                  </p>
+                                  {idiom && (
+                                    <p className="text-[10px] text-on-surface-variant">
+                                      {idiom.granularity} · {idiom.renderer_type}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Answer Type placeholder */}
+                    <div className="p-5">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
+                          Answer Type
+                        </p>
+                        <span className="text-[10px] bg-surface-container text-on-surface-variant font-semibold px-2 py-0.5 rounded-full border border-border-subtle uppercase tracking-wider">
+                          Coming Soon
+                        </span>
+                      </div>
+                      <div className="border-2 border-dashed border-outline-variant rounded-lg p-4 flex items-center justify-between gap-4">
+                        <p className="text-xs text-on-surface-variant">
+                          Configure how participants will answer this task (e.g. single choice,
+                          numeric, free text).
+                        </p>
+                        <button
+                          disabled
+                          className="text-xs text-on-surface-variant border border-border-subtle px-3 py-1.5 rounded opacity-40 cursor-not-allowed flex-shrink-0"
+                        >
+                          Configure
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Ground Truth placeholder */}
+                    <div className="p-5">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
+                          Ground Truth
+                        </p>
+                        <span className="text-[10px] bg-surface-container text-on-surface-variant font-semibold px-2 py-0.5 rounded-full border border-border-subtle uppercase tracking-wider">
+                          Coming Soon
+                        </span>
+                      </div>
+                      <div className="border-2 border-dashed border-outline-variant rounded-lg p-4 flex items-center justify-between gap-4">
+                        <p className="text-xs text-on-surface-variant">
+                          Generate or upload a reference answer used to evaluate participant
+                          responses automatically.
+                        </p>
+                        <button
+                          disabled
+                          className="text-xs text-on-surface-variant border border-border-subtle px-3 py-1.5 rounded opacity-40 cursor-not-allowed flex-shrink-0"
+                        >
+                          Generate
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </main>
+
+      {/* Footer action bar */}
+      <div className="border-t border-border-subtle bg-white sticky bottom-0">
+        <div className="max-w-[1140px] mx-auto px-8 py-4 flex justify-between items-center">
+          <Link
+            href={`/admin/idiom-selection${experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""}`}
+            className="text-sm text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors"
+          >
+            <span className="material-symbols-outlined text-sm">arrow_back</span> Previous Step
+          </Link>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={saveAsDraft}
+              className="flex items-center gap-2 text-sm font-semibold border border-border-subtle text-on-surface-variant px-6 py-2.5 rounded-lg hover:bg-surface-container transition-colors"
+            >
+              <span className="material-symbols-outlined text-sm">save</span>
+              Save as Draft
+            </button>
+            <button
+              onClick={publishExperiment}
+              disabled={status === "published"}
+              className="flex items-center gap-2 font-button text-button bg-primary text-on-primary px-8 py-2.5 rounded-lg hover:opacity-90 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <span className="material-symbols-outlined text-sm">publish</span>
+              {status === "published" ? "Published" : "Publish Experiment"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <Toast
+        message={toast.message}
+        isError={toast.isError}
+        visible={toast.visible}
+        onHide={hideToast}
+      />
+    </div>
+  );
+}
+
+export default function ExperimentOverviewPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-surface">
+          <span className="text-on-surface-variant text-sm">Loading…</span>
+        </div>
+      }
+    >
+      <ExperimentOverviewContent />
+    </Suspense>
+  );
+}
