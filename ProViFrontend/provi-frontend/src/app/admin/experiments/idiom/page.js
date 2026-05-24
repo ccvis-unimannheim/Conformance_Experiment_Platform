@@ -20,12 +20,6 @@ function IdiomSelectionContent() {
   const [taskIdiomKeys, setTaskIdiomKeys] = useState({});
   const [taskIdiomMap, setTaskIdiomMap] = useState({});
   const [datasetIds, setDatasetIds] = useState([]);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [successDetail, setSuccessDetail] = useState("");
-
-
-  const [expModalOpen, setExpModalOpen] = useState(false);
-  const [experiments, setExperiments] = useState([]);
 
   const [toast, setToast] = useState({ visible: false, message: "", isError: false });
   const showToast = useCallback((message, isError = false) => {
@@ -113,7 +107,7 @@ function IdiomSelectionContent() {
     0
   );
 
-  async function saveExperiment(publish = false) {
+  async function handleNext() {
     const unassigned = selectedTasks.filter(
       (t) => (taskIdiomMap[getId(t)] || []).length === 0
     );
@@ -125,27 +119,6 @@ function IdiomSelectionContent() {
       return;
     }
 
-    if (publish) {
-      try {
-        const res = await fetch(`/api/admin/experiments`);
-        if (res.ok) {
-          const allExps = await res.json();
-          const activeOthers = allExps.filter(
-            (e) => ["active", "published"].includes(e.status) && getId(e) !== experimentId
-          );
-          for (const exp of activeOthers) {
-            await fetch(
-              `${BASE_URL}/admin/experiments/${getId(exp)}/status?status=finished`,
-              { method: "PATCH" }
-            );
-          }
-        }
-      } catch {
-        showToast("Could not deactivate previous experiments. Please try again.", true);
-        return;
-      }
-    }
-
     const taskConfigs = [];
     for (const task of selectedTasks) {
       const tid = getId(task);
@@ -154,40 +127,16 @@ function IdiomSelectionContent() {
       }
     }
 
-    const newStatus = publish ? "published" : "draft";
-
     try {
       const res = await fetch(`/api/admin/experiments/${experimentId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ task_configs: taskConfigs, status: newStatus }),
+        body: JSON.stringify({ task_configs: taskConfigs }),
       });
       if (!res.ok) throw new Error(await res.text());
-
-      if (publish) {
-        setSuccessDetail(
-          `Experiment (ID: ${experimentId}) — ${taskConfigs.length} task-idiom assignment(s) confirmed. Now visible to participants.`
-        );
-        setShowSuccess(true);
-        setTimeout(() => {
-          document.getElementById("success-banner")?.scrollIntoView({ behavior: "smooth" });
-        }, 50);
-      } else {
-        showToast("Draft saved. You can continue editing later.");
-      }
+      router.push(`/admin/experiments/overview?experiment_id=${encodeURIComponent(experimentId)}`);
     } catch (e) {
       showToast(`Failed to save experiment: ${e.message}`, true);
-    }
-  }
-
-  async function viewExperiments() {
-    try {
-      const res = await fetch(`/api/admin/experiments`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setExperiments(await res.json());
-      setExpModalOpen(true);
-    } catch (e) {
-      showToast(`Could not load experiments: ${e.message}`, true);
     }
   }
 
@@ -306,41 +255,6 @@ function IdiomSelectionContent() {
           )}
         </div>
 
-        {/* Success banner — shown after Publish */}
-        {showSuccess && (
-          <div
-            id="success-banner"
-            className="bg-green-50 border border-green-200 rounded-lg p-5 flex items-start gap-3"
-          >
-            <span className="material-symbols-outlined text-green-600 text-2xl flex-shrink-0 icon-filled">
-              check_circle
-            </span>
-            <div>
-              <p className="font-semibold text-green-800">Experiment published successfully!</p>
-              <p className="text-sm text-green-700 mt-0.5">{successDetail}</p>
-              <div className="flex gap-3 mt-3">
-                <Link
-                  href="/admin/experiments/new"
-                  className="text-xs bg-primary text-white px-4 py-1.5 rounded font-semibold hover:bg-primary-container transition-colors"
-                >
-                  Create Another Experiment
-                </Link>
-                <button
-                  onClick={viewExperiments}
-                  className="text-xs border border-border-subtle text-on-surface-variant px-4 py-1.5 rounded hover:bg-surface-container transition-colors"
-                >
-                  View All Experiments
-                </button>
-                <Link
-                  href="/admin"
-                  className="text-xs border border-border-subtle text-on-surface-variant px-4 py-1.5 rounded hover:bg-surface-container transition-colors"
-                >
-                  Back to Admin Home
-                </Link>
-              </div>
-            </div>
-          </div>
-        )}
       </main>
 
       {/* Footer action bar */}
@@ -352,77 +266,22 @@ function IdiomSelectionContent() {
           >
             <span className="material-symbols-outlined text-sm">arrow_back</span> Previous Step
           </Link>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             {assignmentTotal > 0 && (
               <span className="text-xs text-on-surface-variant">
                 {assignmentTotal} idiom assignment{assignmentTotal !== 1 ? "s" : ""}
               </span>
             )}
             <button
-              onClick={() => saveExperiment(false)}
-              className="flex items-center gap-2 text-sm border border-border-subtle text-on-surface-variant px-6 py-3 rounded-lg hover:bg-surface-container transition-all active:scale-95"
+              onClick={handleNext}
+              className="flex items-center gap-2 font-button text-button bg-primary text-on-primary px-12 py-3 rounded-lg hover:opacity-90 transition-all active:scale-95"
             >
-              <span className="material-symbols-outlined text-sm">save</span>
-              Save as Draft
-            </button>
-            <button
-              onClick={() => saveExperiment(true)}
-              className="flex items-center gap-2 font-button text-button bg-primary text-on-primary px-8 py-3 rounded-lg hover:opacity-90 transition-all active:scale-95"
-            >
-              <span className="material-symbols-outlined text-sm">publish</span>
-              Publish Experiment
+              Next
+              <span className="material-symbols-outlined text-sm">chevron_right</span>
             </button>
           </div>
         </div>
       </div>
-
-      {/* View Experiments Modal */}
-      {expModalOpen && (
-        <div
-          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
-          onClick={(e) => { if (e.target === e.currentTarget) setExpModalOpen(false); }}
-        >
-          <div className="bg-white rounded-xl p-6 w-full max-w-[680px] shadow-xl flex flex-col gap-4 max-h-[80vh]">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-bold text-on-surface">All Experiments</h3>
-              <button onClick={() => setExpModalOpen(false)} className="text-on-surface-variant hover:text-on-surface">
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-            <div className="overflow-y-auto flex flex-col gap-3 text-sm">
-              {experiments.length === 0 ? (
-                <p className="text-on-surface-variant text-sm">No experiments found.</p>
-              ) : (
-                experiments.map((exp) => (
-                  <div key={getId(exp)} className="border border-border-subtle rounded-lg p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-on-surface">{exp.name || "(unnamed)"}</p>
-                        <p className="text-xs text-on-surface-variant mt-0.5">
-                          ID: {getId(exp)} &nbsp;·&nbsp; Status: {exp.status} &nbsp;·&nbsp; Type:{" "}
-                          {exp.type}
-                        </p>
-                        <p className="text-xs text-on-surface-variant">
-                          {exp.task_configs?.length ?? 0} task-idiom assignments
-                        </p>
-                      </div>
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0
-                          ${exp.status === "draft"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-green-100 text-green-800"
-                          }`}
-                      >
-                        {exp.status}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       <Toast
         message={toast.message}

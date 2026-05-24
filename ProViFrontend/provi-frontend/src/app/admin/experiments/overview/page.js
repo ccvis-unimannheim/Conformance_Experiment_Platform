@@ -2,11 +2,8 @@
 
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
-import ExperimentSetupHeader from "../../../components/Admin/ExperimentSetupHeader";
-import Toast from "../../../components/Admin/Toast";
-
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:1234";
+import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
+import Toast from "../../../../components/Admin/Toast";
 
 function getId(obj) {
   return obj._id || obj.id;
@@ -41,9 +38,9 @@ function ExperimentOverviewContent() {
     setLoading(true);
     try {
       const [expRes, tasksRes, idiomsRes] = await Promise.all([
-        fetch(`${BASE_URL}/admin/experiments`),
-        fetch(`${BASE_URL}/admin/tasks`),
-        fetch(`${BASE_URL}/admin/idioms`),
+        fetch(`/api/admin/experiments`),
+        fetch(`/api/admin/tasks`),
+        fetch(`/api/admin/idioms`),
       ]);
       if (!expRes.ok) throw new Error(`Experiments HTTP ${expRes.status}`);
       if (!tasksRes.ok) throw new Error(`Tasks HTTP ${tasksRes.status}`);
@@ -95,7 +92,7 @@ function ExperimentOverviewContent() {
 
   async function saveAsDraft() {
     try {
-      const res = await fetch(`${BASE_URL}/admin/experiments/${experimentId}`, {
+      const res = await fetch(`/api/admin/experiments/${experimentId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "draft" }),
@@ -111,7 +108,7 @@ function ExperimentOverviewContent() {
   async function publishExperiment() {
     try {
       const res = await fetch(
-        `${BASE_URL}/admin/experiments/${experimentId}/status?status=published`,
+        `/api/admin/experiments/${experimentId}/status?status=published`,
         { method: "PATCH" }
       );
       if (!res.ok) throw new Error(await res.text());
@@ -191,12 +188,12 @@ function ExperimentOverviewContent() {
             </span>
             No task-idiom assignments found.
             <br />
-            <Link
-              href={`/admin/idiom-selection?experiment_id=${encodeURIComponent(experimentId)}`}
+            <button
+              onClick={() => router.back()}
               className="text-xs text-primary mt-1 inline-block hover:underline"
             >
               ← Go back to assign idioms
-            </Link>
+            </button>
           </div>
         ) : (
           <div className="flex flex-col gap-6">
@@ -324,12 +321,12 @@ function ExperimentOverviewContent() {
       {/* Footer action bar */}
       <div className="border-t border-border-subtle bg-white sticky bottom-0">
         <div className="max-w-[1140px] mx-auto px-8 py-4 flex justify-between items-center">
-          <Link
-            href={`/admin/idiom-selection${experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""}`}
+          <button
+            onClick={() => router.back()}
             className="text-sm text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors"
           >
             <span className="material-symbols-outlined text-sm">arrow_back</span> Previous Step
-          </Link>
+          </button>
           <div className="flex items-center gap-3">
             <button
               onClick={saveAsDraft}
