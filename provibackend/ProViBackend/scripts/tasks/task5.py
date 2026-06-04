@@ -20,10 +20,9 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-import matplotlib.patheffects as pe
 from matplotlib.colors import LinearSegmentedColormap
 
-from shared import save_svg, make_table
+from shared import save_svg, make_table, FONT_TITLE, FONT_LABEL, FONT_ANNOT, contrasting_text_color
 
 # ---------------------------------------------------------------------------
 # Range definitions
@@ -34,15 +33,15 @@ DEFAULT_LABELS = ["0.0 – 0.2", "0.2 – 0.4", "0.4 – 0.6", "0.6 – 0.8", "0
 HIGH_FITNESS_BINS = [0.80, 0.85, 0.90, 0.95, 1.0]
 HIGH_FITNESS_LABELS = ["0.80 – 0.85", "0.85 – 0.90", "0.90 – 0.95", "0.95 – <1.00", "1.00"]
 
-# Light-blue → dark-blue palette (extended for adaptive ranges)
-RANGE_COLORS = ["#C6DBEF", "#9ECAE1", "#6BAED6", "#3182BD", "#08519C", "#08306B"]
+# Light → dark greyscale palette (extended for adaptive ranges)
+RANGE_COLORS = ["#F0F0F0", "#D4D4D4", "#B8B8B8", "#9C9C9C", "#777777", "#555555"]
 
 
 def _task5_color_list(n: int):
-    """Return a stable blue palette with enough colors for adaptive bins."""
+    """Return a stable greyscale palette with enough colors for adaptive bins."""
     if n <= len(RANGE_COLORS):
         return RANGE_COLORS[:n]
-    cmap = LinearSegmentedColormap.from_list("task5_blues", ["#C6DBEF", "#08306B"])
+    cmap = LinearSegmentedColormap.from_list("task5_greys", ["#F0F0F0", "#555555"])
     return [cmap(i / max(n - 1, 1)) for i in range(n)]
 
 
@@ -154,11 +153,11 @@ def task5_bar_chart(range_df: pd.DataFrame, output_dir: str):
                 bar.get_x() + bar.get_width() / 2,
                 bar.get_height() + 0.5,
                 f"{pct:.1f}%",
-                ha="center", va="bottom", fontsize=10, fontweight="bold",
+                ha="center", va="bottom", fontsize=FONT_ANNOT,
             )
-    ax.set_xlabel("Conformance Rate divided into Ranges", fontsize=11)
-    ax.set_ylabel("Percentage of Traces (%)", fontsize=11)
-    ax.set_title("Distribution of Traces across Conformance Ranges", fontsize=13, fontweight="bold")
+    ax.set_xlabel("Conformance Rate divided into Ranges", fontsize=FONT_LABEL)
+    ax.set_ylabel("Percentage of Traces (%)", fontsize=FONT_LABEL)
+    ax.set_title("Traces per Conformance Range", fontsize=FONT_TITLE)
     ax.set_ylim(0, max(range_df["percentage"].max() * 1.15, 5))
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.5)
@@ -175,20 +174,21 @@ def task5_pie_chart(range_df: pd.DataFrame, output_dir: str):
     if active.empty:
         active = range_df
 
+    active_colors = [_task5_color_list(len(range_df))[i] for i in active.index]
     fig, ax = plt.subplots(figsize=(7, 5.5))
     wedges, texts, autotexts = ax.pie(
         active["count"],
         labels=active["range"],
-        colors=[_task5_color_list(len(range_df))[i] for i in active.index],
+        colors=active_colors,
         startangle=90,
         autopct=lambda pct: f"{pct:.1f}%" if pct >= 1 else "",
         pctdistance=0.75,
         wedgeprops=dict(edgecolor="white", linewidth=2),
-        textprops=dict(fontsize=9),
+        textprops=dict(fontsize=FONT_ANNOT),
     )
-    for t in autotexts:
-        t.set_fontweight("bold")
-    ax.set_title("Conformance Range Distribution", fontsize=13, fontweight="bold")
+    for color, autotext in zip(active_colors, autotexts):
+        autotext.set_color(contrasting_text_color(color))
+    ax.set_title("Conformance Range Proportions", fontsize=FONT_TITLE)
     fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task5_pie_chart.svg"))
 
@@ -196,62 +196,64 @@ def task5_pie_chart(range_df: pd.DataFrame, output_dir: str):
 def task5_scatter_plot(range_df: pd.DataFrame, output_dir: str):
     """
     Bubble scatter plot: x = conformance range, y = percentage of traces,
-    marker area proportional to trace count; count shown inside each bubble.
+    marker area proportional to trace count; count shown inside or above bubble.
     """
     n = len(range_df)
     x = np.arange(n, dtype=float)
     counts = range_df["count"].values.astype(float)
     pcts   = range_df["percentage"].values.astype(float)
 
-    fig, ax = plt.subplots(figsize=(10, 5.5))
-    fig.text(0.5, 0.93, "Scatter Plot", ha="center", fontsize=13, fontweight="bold")
+    fig, ax = plt.subplots(figsize=(12, 6))
+    fig.text(0.5, 0.94, "Conformance Range Overview", ha="center", fontsize=FONT_TITLE)
     fig.text(
-        0.5, 0.885,
+        0.5, 0.895,
         "Bubble size proportional to trace count per conformance range",
-        ha="center", fontsize=9, color="#555555",
+        ha="center", fontsize=FONT_ANNOT, color="#555555",
     )
 
     max_c = float(counts.max()) if len(counts) else 0.0
     if max_c <= 0:
         max_c = 1.0
-    # Matplotlib scatter `s` is marker area in points^2
     s_min, s_max = 120.0, 3200.0
     areas = (counts / max_c) * (s_max - s_min) + s_min
     mask = counts > 0
 
     if mask.any():
         ax.scatter(
-            x[mask],
-            pcts[mask],
+            x[mask], pcts[mask],
             s=areas[mask],
-            c="#E74C3C",
-            alpha=0.72,
-            edgecolors="#B03A2E",
-            linewidths=0.8,
+            c="#666666", alpha=0.72,
+            edgecolors="#444444", linewidths=0.8,
             zorder=3,
         )
-        for xi, pct, c in zip(x[mask], pcts[mask], counts[mask]):
-            fs = max(8, min(13, 10 + 2.0 * (c / max_c)))
-            txt = ax.text(
-                xi, pct, f"{int(c):,}",
-                ha="center", va="center",
-                fontsize=fs, fontweight="bold", color="#1A1A1A",
-                zorder=4,
-            )
-            txt.set_path_effects(
-                [pe.withStroke(linewidth=2.8, foreground="white")]
-            )
+        for xi, pct, c, area in zip(x[mask], pcts[mask], counts[mask], areas[mask]):
+            radius_pts = np.sqrt(area / np.pi)
+            text = f"{int(c):,}"
+            fs = max(FONT_ANNOT, min(FONT_TITLE, FONT_ANNOT + 2 * (c / max_c)))
+            # Estimated text width (chars × fontsize × 0.58 pt/char)
+            text_w_pts = len(text) * fs * 0.58
+            if text_w_pts <= radius_pts * 2 * 0.85:
+                # Text fits inside the bubble
+                ax.text(xi, pct, text, ha="center", va="center",
+                        fontsize=fs, color="#F5F5F5", zorder=4)
+            else:
+                # Bubble too small: place label above it (fixed +9 % offset)
+                ax.text(xi, pct + 9, text, ha="center", va="bottom",
+                        fontsize=fs, color="#333333", zorder=4)
 
+    # Y-axis: add headroom above 100 % so large bubbles are never clipped.
+    # Ticks stay at 0–100; the axis simply extends further.
+    y_top = max(108, float(pcts[mask].max()) + 28) if mask.any() else 108
     ax.set_xticks(x)
-    ax.set_xticklabels(range_df["range"], rotation=45, ha="right", fontsize=9)
-    ax.set_xlabel("Conformance Rate divided into ranges", fontsize=11)
-    ax.set_ylabel("Percentage of Traces (%)", fontsize=11)
-    ax.set_ylim(0, 100)
+    ax.set_xticklabels(range_df["range"], rotation=45, ha="right", fontsize=FONT_ANNOT)
+    ax.set_xlabel("Conformance Rate divided into ranges", fontsize=FONT_LABEL)
+    ax.set_ylabel("Percentage of Traces (%)", fontsize=FONT_LABEL)
+    ax.set_ylim(0, y_top)
     ax.set_yticks(np.arange(0, 101, 20))
     ax.spines[["top", "right"]].set_visible(False)
     ax.grid(True, which="major", axis="both", linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout(rect=[0, 0, 1, 0.82])
+    fig.tight_layout(rect=[0, 0, 1, 0.85])
     save_svg(fig, os.path.join(output_dir, "task5_scatter_plot.svg"))
 
 
@@ -261,28 +263,27 @@ def task5_heatmap(range_df: pd.DataFrame, output_dir: str):
     light blue (low) → dark blue (high).
     """
     pcts   = range_df["percentage"].values.reshape(1, -1)
-    cmap   = LinearSegmentedColormap.from_list("lb_db", ["#C6DBEF", "#08519C"])
+    cmap   = LinearSegmentedColormap.from_list("task5_hm", ["#F0F0F0", "#555555"])
     vmax   = max(pcts.max(), 1.0)
 
     fig, ax = plt.subplots(figsize=(10, 2.4))
     im = ax.imshow(pcts, cmap=cmap, vmin=0, vmax=vmax, aspect="auto")
 
     ax.set_xticks(np.arange(len(range_df)))
-    ax.set_xticklabels(range_df["range"], fontsize=10)
+    ax.set_xticklabels(range_df["range"], fontsize=FONT_ANNOT)
     ax.set_yticks([])
-    ax.set_xlabel("Conformance Rate Range", fontsize=11)
-    ax.set_title("Percentage of Traces per Conformance Range", fontsize=13, fontweight="bold")
+    ax.set_xlabel("Conformance Rate Range", fontsize=FONT_LABEL)
+    ax.set_title("Conformance Range Density", fontsize=FONT_TITLE)
 
-    # Value labels inside each cell
     midpoint = vmax * 0.55
     for col_idx, pct in enumerate(range_df["percentage"]):
         text_color = "white" if pct > midpoint else "#222222"
         ax.text(col_idx, 0, f"{pct:.1f}%",
                 ha="center", va="center",
-                fontsize=12, fontweight="bold", color=text_color)
+                fontsize=FONT_ANNOT, color=text_color)
 
     cbar = fig.colorbar(im, ax=ax, orientation="vertical", fraction=0.04, pad=0.02)
-    cbar.set_label("Percentage (%)", fontsize=9)
+    cbar.set_label("Percentage (%)", fontsize=FONT_ANNOT)
     fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task5_heatmap.svg"))
 
@@ -309,7 +310,7 @@ def task5_table(range_df: pd.DataFrame, output_dir: str):
         scale_xy=(1, 1.7),
         highlight_last_row=True,
     )
-    ax.set_title("Conformance Range Summary", fontsize=13, fontweight="bold", pad=12)
+    ax.set_title("Conformance Range Summary", fontsize=FONT_TITLE, pad=12)
     fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task5_table.svg"))
 

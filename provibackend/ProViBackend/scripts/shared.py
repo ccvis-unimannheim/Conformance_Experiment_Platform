@@ -24,20 +24,41 @@ from matplotlib.patches import FancyBboxPatch
 import numpy as np
 
 # ---------------------------------------------------------------------------
-# Color palette
+# Color palette  – greyscale throughout all visualizations
 # ---------------------------------------------------------------------------
-BLUE   = "#4472C4"
-ORANGE = "#ED7D31"
-TEAL   = "#2DA8A8"
-GREEN  = "#2ECC71"
-RED    = "#E74C3C"
+BLUE   = "#666666"   # medium-dark grey  (model moves, primary category)
+ORANGE = "#999999"   # medium grey       (mismatch / secondary category)
+TEAL   = "#666666"   # same as BLUE      (single-category neutral)
+GREEN  = "#CCCCCC"   # light grey        (synchronous / conformant)
+RED    = "#333333"   # dark grey         (log moves / strongest deviation)
+
+# ---------------------------------------------------------------------------
+# Color utilities
+# ---------------------------------------------------------------------------
+
+def contrasting_text_color(hex_color: str) -> str:
+    """Return '#ffffff' or '#1a1a1a' depending on the background luminance."""
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    # Perceived luminance (ITU-R BT.709)
+    luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+    return "#ffffff" if luminance < 140 else "#1a1a1a"
+
+
+# ---------------------------------------------------------------------------
+# Typography constants – used across all task modules
+# ---------------------------------------------------------------------------
+FONT_TITLE = 13   # chart / section titles
+FONT_LABEL = 10   # axis labels
+FONT_ANNOT = 9    # data annotations, tick labels, legend text
+FONT_TABLE = 9    # table cell content
 
 # ---------------------------------------------------------------------------
 # I/O
 # ---------------------------------------------------------------------------
 
 def save_svg(fig, path: str):
-    fig.savefig(path, format="svg", bbox_inches="tight")
+    fig.savefig(path, format="svg", bbox_inches="tight", pad_inches=0.15)
     plt.close(fig)
     logger.debug(f"      Saved: {path}")
 
@@ -64,18 +85,18 @@ def style_table(
     ncols: int,
     nrows: int,
     header_rows: int = 1,
-    header_color: str = "#1F3864",
+    header_color: str = "#555555",
     zebra: bool = True,
     odd_color: str = "#FFFFFF",
-    even_color: str = "#F2F2F2",
+    even_color: str = "#F0F0F0",
     highlight_last_row: bool = False,
-    highlight_color: str = "#E8EEF7",
+    highlight_color: str = "#E4E4E4",
 ):
     """Apply consistent styling to Matplotlib tables."""
     for c in range(ncols):
         for r in range(header_rows):
             table[r, c].set_facecolor(header_color)
-            table[r, c].set_text_props(color="white", fontweight="bold")
+            table[r, c].set_text_props(color="white")
 
     start_r = header_rows
     for r in range(start_r, nrows):
@@ -89,7 +110,6 @@ def style_table(
         last = nrows - 1
         for c in range(ncols):
             table[last, c].set_facecolor(highlight_color)
-            table[last, c].set_text_props(fontweight="bold")
 
 
 def make_table(
@@ -99,10 +119,10 @@ def make_table(
     bbox=None,
     col_widths=None,
     cell_loc: str = "center",
-    font_size: float = 10,
+    font_size: float = FONT_TABLE,
     scale_xy=(1.0, 1.7),
     header_rows: int = 1,
-    header_color: str = "#1F3864",
+    header_color: str = "#555555",
     zebra: bool = True,
     highlight_last_row: bool = False,
     cell_pad: float = None,
@@ -284,7 +304,7 @@ def draw_decision_tree(
     """
     ax.axis("off")
     if title:
-        ax.set_title(title, fontsize=title_fontsize, fontweight="bold", loc="left", pad=title_pad)
+        ax.set_title(title, fontsize=title_fontsize, loc="left", pad=title_pad)
 
     if tree is None:
         ax.set_xlim(0, 1)
@@ -389,11 +409,12 @@ def draw_decision_tree(
 
     def draw_nodes(node):
         box_h = node_box_h(node)
+        facecolor = node_facecolor_fn(node)
         patch = FancyBboxPatch(
             (node["_x"] - box_w / 2, node["_y"] - box_h / 2),
             box_w, box_h,
             boxstyle="round,pad=0.04,rounding_size=0.12",
-            facecolor=node_facecolor_fn(node),
+            facecolor=facecolor,
             edgecolor="#555555",
             linewidth=1.15,
             alpha=0.96,
@@ -403,7 +424,8 @@ def draw_decision_tree(
             node["_x"], node["_y"],
             node_text(node),
             ha="center", va="center",
-            fontsize=font_size, fontweight="bold", wrap=True,
+            fontsize=font_size, wrap=True,
+            color=contrasting_text_color(facecolor),
         )
         if node.get("left") is not None:
             draw_nodes(node["left"])

@@ -23,7 +23,7 @@ import matplotlib.patches as mpatches
 
 from shared import (
     save_svg, make_table, draw_decision_tree, wrap_text,
-    format_threshold, BLUE, ORANGE, GREEN, RED,
+    format_threshold, BLUE, ORANGE, GREEN, RED, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 from tasks.task4 import (
     task4_trace_feature_dataframe,
@@ -315,17 +315,18 @@ def task6_table(df_table: pd.DataFrame, output_dir: str):
         col_widths=[0.50, 0.16, 0.22, 0.16],
         font_size=10.5,
         scale_xy=(1, 1.85),
-        header_color="#1F3864",
+        header_color="#555555",
         zebra=True,
     )
-    row_colors = ["#FBE5E8", "#E2F0E6"] + ["#FBE5E8"] * max(0, len(cell_text) - 2)
+    row_colors = ["#F2F2F2", "#E4E4E4"] + ["#F2F2F2"] * max(0, len(cell_text) - 2)
     for r, color in enumerate(row_colors, start=1):
         for c in range(4):
             tbl[r, c].set_facecolor(color)
             tbl[r, c].set_edgecolor("#DDDDDD")
+    ax.set_title("Conformance and Approval Rates", fontsize=FONT_TITLE, pad=12)
     ax.text(0.04, 0.84, "Approved = A_ACTIVATED present | Definitive outcomes only",
-            transform=ax.transAxes, fontsize=8.8, color="#666666")
-    fig.tight_layout(rect=[0, 0.02, 1, 0.98])
+            transform=ax.transAxes, fontsize=FONT_ANNOT, color="#666666")
+    fig.tight_layout(rect=[0, 0.02, 1, 0.96])
     save_svg(fig, os.path.join(output_dir, "task6_table.svg"))
 
 
@@ -341,8 +342,8 @@ def _task6_draw_decision_tree(ax, tree: dict, title=True):
     draw_decision_tree(
         ax,
         tree,
-        title="Tree (Decision Tree)" if title else "",
-        title_fontsize=16,
+        title="Conformance and Outcome Predictors" if title else "",
+        title_fontsize=FONT_TITLE,
         title_pad=8,
         box_w=2.42,
         base_font=7.8,
@@ -363,14 +364,14 @@ def _task6_draw_decision_tree(ax, tree: dict, title=True):
         ),
         value_pair_fn=lambda node: (node["value"][0], node["value"][1]),
         node_facecolor_fn=lambda node: (
-            "#5DADE2"
+            "#888888"
             if node["value"][1] > node["value"][0]
-            else "#FFFFFF"
+            else "#F4F4F4"
             if node["value"][1] == node["value"][0]
-            else "#F4C7A1"
+            else "#E0E0E0"
         ),
         edge_arrowprops=dict(arrowstyle="-|>", color="#555555", linewidth=1.35, shrinkA=5, shrinkB=5),
-        edge_label_fontsize=8.3,
+        edge_label_fontsize=FONT_ANNOT,
         edge_label_offset_y=0.14,
         x_pad_factor=0.70,
         y_pad_base=0.80,
@@ -383,10 +384,10 @@ def task6_decision_tree(tree: dict, output_dir: str):
     fig, ax = plt.subplots(figsize=(11.0, 6.6))
     _task6_draw_decision_tree(ax, tree)
     legend = [
-        mpatches.Patch(facecolor="#F4C7A1", edgecolor="#555555", label="Mostly not paid"),
-        mpatches.Patch(facecolor="#5DADE2", edgecolor="#555555", label="Mostly paid"),
+        mpatches.Patch(facecolor="#E0E0E0", edgecolor="#555555", label="Mostly not paid"),
+        mpatches.Patch(facecolor="#888888", edgecolor="#555555", label="Mostly paid"),
     ]
-    ax.legend(handles=legend, loc="lower center", bbox_to_anchor=(0.5, -0.03), ncol=2, frameon=False, fontsize=8.5)
+    ax.legend(handles=legend, loc="lower center", bbox_to_anchor=(0.5, -0.03), ncol=2, frameon=False, fontsize=FONT_ANNOT)
     fig.tight_layout(rect=[0, 0.04, 1, 1])
     save_svg(fig, os.path.join(output_dir, "task6_decision_tree.svg"))
 
