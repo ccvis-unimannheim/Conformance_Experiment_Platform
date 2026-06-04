@@ -21,7 +21,7 @@ import matplotlib.patches as mpatches
 from matplotlib.patches import Polygon
 from matplotlib import gridspec
 
-from shared import save_svg, make_table, alignment_pairs_to_rows, BLUE, ORANGE, GREEN, RED
+from shared import save_svg, make_table, alignment_pairs_to_rows, BLUE, ORANGE, GREEN, RED, FONT_TITLE, FONT_LABEL, FONT_ANNOT, contrasting_text_color
 
 
 # ---------------------------------------------------------------------------
@@ -58,7 +58,7 @@ def _chevron_font_size(label, width, base_fontsize):
     return max(8.5, base_fontsize * available / estimated)
 
 
-def _draw_chevrons(ax, nodes, fontsize=11):
+def _draw_chevrons(ax, nodes, fontsize=10):
     ax.set_aspect("auto")
     ax.axis("off")
     h = _CHEVRON_HEIGHT
@@ -85,7 +85,7 @@ def _draw_chevrons(ax, nodes, fontsize=11):
             node["label"],
             ha="center", va="center",
             fontsize=_chevron_font_size(node["label"], width, fontsize),
-            fontweight="bold", color="#1f1f1f", clip_on=False,
+            color=contrasting_text_color(node["color"]), clip_on=False,
         )
     ax.set_xlim(-0.45, span + 0.45)
     ax.set_ylim(-0.08, h + 0.08)
@@ -151,12 +151,11 @@ def task3_bar_chart(df: pd.DataFrame, output_dir: str):
             f"{int(val)}",
             ha="center",
             va="bottom",
-            fontsize=11,
-            fontweight="bold",
+            fontsize=FONT_ANNOT,
         )
-    ax.set_xlabel("Violation Type", fontsize=11)
-    ax.set_ylabel("Number of Violations", fontsize=11)
-    ax.set_title("Violation Type Counts", fontsize=13, fontweight="bold")
+    ax.set_xlabel("Violation Type", fontsize=FONT_LABEL)
+    ax.set_ylabel("Number of Violations", fontsize=FONT_LABEL)
+    ax.set_title("Violations by Type", fontsize=FONT_TITLE)
     ax.set_ylim(0, ymax * 1.16)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
@@ -173,21 +172,21 @@ def task3_heatmap(df: pd.DataFrame, output_dir: str):
 
     fig_h = max(3.2, 1.1 + len(labels) * 0.85)
     fig, ax = plt.subplots(figsize=(6.5, fig_h))
-    im = ax.imshow(values, cmap="YlGnBu", aspect="auto")
+    im = ax.imshow(values, cmap="Greys", aspect="auto")
     ax.set_xticks([0])
-    ax.set_xticklabels(["Count"], fontsize=11)
+    ax.set_xticklabels(["Count"], fontsize=FONT_ANNOT)
     ax.set_yticks(np.arange(len(labels)))
-    ax.set_yticklabels(labels, fontsize=10)
-    ax.set_ylabel("Violation Type", fontsize=11)
-    ax.set_title("Violation Type Heatmap", fontsize=13, fontweight="bold")
+    ax.set_yticklabels(labels, fontsize=FONT_ANNOT)
+    ax.set_ylabel("Violation Type", fontsize=FONT_LABEL)
+    ax.set_title("Violation Frequency", fontsize=FONT_TITLE)
     max_val = max(df["count"].max(), 1)
     min_val = df["count"].min() if not df.empty else 0
     midpoint = min_val + (max_val - min_val) * 0.50
     for i, val in enumerate(df["count"]):
         color = "white" if val > midpoint else "#222222"
-        ax.text(0, i, f"{int(val)}", ha="center", va="center", fontsize=12, fontweight="bold", color=color)
+        ax.text(0, i, f"{int(val)}", ha="center", va="center", fontsize=FONT_ANNOT, color=color)
     cbar = fig.colorbar(im, ax=ax, fraction=0.08, pad=0.04)
-    cbar.set_label("Number of Violations", fontsize=10)
+    cbar.set_label("Number of Violations", fontsize=FONT_ANNOT)
     fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task3_heatmap.svg"))
 
@@ -205,12 +204,12 @@ def task3_pie_chart(df: pd.DataFrame, output_dir: str):
         autopct=lambda pct: f"{pct:.1f}%" if pct >= 1 else "",
         pctdistance=0.72,
         wedgeprops=dict(edgecolor="white", linewidth=2),
-        textprops=dict(fontsize=9, color="#222222"),
+        textprops=dict(fontsize=FONT_ANNOT),
     )
-    for t in autotexts:
-        t.set_fontweight("bold")
-    ax.legend(wedges, labels, loc="lower center", bbox_to_anchor=(0.5, -0.10), ncol=1, frameon=False, fontsize=9)
-    ax.set_title("Violation Types", fontsize=13, fontweight="bold")
+    for color, autotext in zip(colors, autotexts):
+        autotext.set_color(contrasting_text_color(color))
+    ax.legend(wedges, labels, loc="lower center", bbox_to_anchor=(0.5, -0.10), ncol=1, frameon=False, fontsize=FONT_ANNOT)
+    ax.set_title("Violation Type Proportions", fontsize=FONT_TITLE)
     fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task3_pie_chart.svg"))
 
@@ -237,7 +236,7 @@ def task3_table(df: pd.DataFrame, output_dir: str):
         scale_xy=(1, 1.7),
         highlight_last_row=True,
     )
-    ax.set_title("Violation Type Summary", fontsize=13, fontweight="bold", pad=12)
+    ax.set_title("Violation Type Summary", fontsize=FONT_TITLE, pad=12)
     fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task3_table.svg"))
 
@@ -266,21 +265,21 @@ def task3_table_and_bar_chart(df: pd.DataFrame, output_dir: str):
         scale_xy=(1, 1.0),
         highlight_last_row=True,
     )
-    ax_table.set_title("Table", fontsize=13, fontweight="bold", pad=10)
+    ax_table.set_title("Table", fontsize=FONT_TITLE, pad=10)
 
     plot_df = df.sort_values("count", ascending=True)
     colors = [BLUE if mt == "Model Move" else RED if mt == "Log Move" else ORANGE for mt in plot_df["move_type"]]
     ax_bar.barh(plot_df["violation_type"], plot_df["count"], color=colors, alpha=0.9)
     xmax = max(plot_df["count"].max(), 1)
     for y, val in enumerate(plot_df["count"]):
-        ax_bar.text(val + xmax * 0.015, y, f"{int(val)}", va="center", fontsize=10, fontweight="bold")
-    ax_bar.set_xlabel("Number of Violations", fontsize=10)
-    ax_bar.set_title("Bar Chart", fontsize=13, fontweight="bold", pad=10)
+        ax_bar.text(val + xmax * 0.015, y, f"{int(val)}", va="center", fontsize=FONT_ANNOT)
+    ax_bar.set_xlabel("Number of Violations", fontsize=FONT_LABEL)
+    ax_bar.set_title("Bar Chart", fontsize=FONT_TITLE, pad=10)
     ax_bar.tick_params(axis="y", pad=8)
     ax_bar.spines[["top", "right"]].set_visible(False)
     ax_bar.xaxis.grid(True, linestyle="--", alpha=0.4)
     ax_bar.set_axisbelow(True)
-    fig.suptitle("Task 3 Violation Type Summary", fontsize=14, fontweight="bold", y=0.98)
+    fig.suptitle("Violation Type Summary", fontsize=FONT_TITLE, y=0.98)
     fig.tight_layout(rect=[0, 0, 1, 0.93])
     save_svg(fig, os.path.join(output_dir, "task3_table_and_bar_chart.svg"))
 
@@ -418,19 +417,19 @@ def task3_flow_chart_and_table(df: pd.DataFrame, alignments, output_dir: str):
         scale_xy=(1, 1.7),
         highlight_last_row=True,
     )
-    ax_table.set_title("Table", fontsize=13, fontweight="bold", pad=10)
+    ax_table.set_title("Table", fontsize=FONT_TITLE, pad=10)
 
     # ── Chevron flow ──
     if has_flow:
         _draw_chevrons(ax_chevron, nodes, fontsize=10)
-        flow_title = "Flow Chart"
+        flow_title = "Violations by Activity"
         if truncated:
-            flow_title += f" (top {len(nodes)} activities by count)"
-        ax_chevron.set_title(flow_title, fontsize=13, fontweight="bold", pad=10)
+            flow_title += f" (top {len(nodes)} by count)"
+        ax_chevron.set_title(flow_title, fontsize=FONT_TITLE, pad=10)
     else:
         ax_chevron.axis("off")
         ax_chevron.text(0.5, 0.5, "No violations found", ha="center", va="center",
-                        fontsize=12, color="#888888", transform=ax_chevron.transAxes)
+                        fontsize=FONT_ANNOT, color="#888888", transform=ax_chevron.transAxes)
 
     # ── Legend ──
     legend_handles = [
@@ -444,10 +443,10 @@ def task3_flow_chart_and_table(df: pd.DataFrame, alignments, output_dir: str):
     fig.legend(
         handles=legend_handles,
         loc="lower center", bbox_to_anchor=(0.5, 0.01),
-        ncol=3, fontsize=9.5, frameon=True, fancybox=False, edgecolor="#cccccc",
+        ncol=3, fontsize=FONT_ANNOT, frameon=True, fancybox=False, edgecolor="#cccccc",
     )
 
-    fig.suptitle("Violation Type Summary", fontsize=14, fontweight="bold", y=0.98)
+    fig.suptitle("Violation Type Summary", fontsize=FONT_TITLE, y=0.98)
     fig.tight_layout(rect=[0, 0.07, 1, 0.93])
     save_svg(fig, os.path.join(output_dir, "task3_flow_chart_and_table.svg"))
 

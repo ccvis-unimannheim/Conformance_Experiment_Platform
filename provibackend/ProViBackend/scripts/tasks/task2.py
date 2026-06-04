@@ -24,7 +24,8 @@ from matplotlib.patches import Polygon
 from matplotlib import gridspec
 
 from shared import (
-    save_svg, BLUE, ORANGE, GREEN, RED,
+    save_svg, BLUE, ORANGE, GREEN, RED, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    contrasting_text_color,
 )
 
 
@@ -33,11 +34,11 @@ from shared import (
 
 # Task 2 helpers
 SKIP_ALIGNMENT_TOKENS = {">>", None}
-TASK2_HEADER_COLOR = "#203A70"
-TASK2_SYNC_ROW_COLOR = "#E8F3E8"
-TASK2_MODEL_ROW_COLOR = "#DDECF7"
-TASK2_LOG_ROW_COLOR = "#FCE8E8"
-TASK2_MISMATCH_ROW_COLOR = "#FFF0DE"
+TASK2_HEADER_COLOR = "#555555"
+TASK2_SYNC_ROW_COLOR = "#F2F2F2"
+TASK2_MODEL_ROW_COLOR = "#E0E0E0"
+TASK2_LOG_ROW_COLOR = "#C8C8C8"
+TASK2_MISMATCH_ROW_COLOR = "#D8D8D8"
 TASK2_TABLE_EDGE_COLOR = "#FFFFFF"
 TASK2_TABLE_COL_LABELS = ["Step", "Log Move", "Model Move", "Status"]
 TASK2_TABLE_COL_WIDTHS = [0.065, 0.375, 0.375, 0.185]
@@ -196,14 +197,12 @@ def _draw_task2_alignment_table(ax, rows, *, bbox, font_size=10.5):
         cell.set_linewidth(1.0)
         if r_idx == 0:
             cell.set_facecolor(TASK2_HEADER_COLOR)
-            cell.set_text_props(color="white", fontweight="bold")
+            cell.set_text_props(color="white")
             continue
 
         row = rows[r_idx - 1]
         cell.set_facecolor(_task2_status_color(row["moveType"]))
-        cell.set_text_props(color="#2B2B2B", fontweight="normal")
-        if c_idx == 3:
-            cell.set_text_props(color="#2B2B2B", fontweight="bold")
+        cell.set_text_props(color="#2B2B2B")
     return table
 
 
@@ -215,8 +214,7 @@ def _add_task2_table_heading(fig, ctx, *, x=0.055, y=0.86, compact=False):
         ctx["trace_label"],
         ha="left",
         va="top",
-        fontsize=13 if compact else 16,
-        fontweight="bold",
+        fontsize=FONT_TITLE,
         color="#111111",
     )
 
@@ -230,8 +228,7 @@ def _add_task2_table_heading(fig, ctx, *, x=0.055, y=0.86, compact=False):
         "   |   ".join(meta_parts),
         ha="left",
         va="top",
-        fontsize=9.5 if compact else 11,
-        fontweight="bold",
+        fontsize=FONT_ANNOT,
         color="#6C6C6C",
     )
 
@@ -286,7 +283,7 @@ def _task2_chevron_font_size(label, width, base_fontsize):
     return max(8.5, base_fontsize * available / estimated)
 
 
-def _draw_task2_basic_chevrons(ax, nodes, fontsize=11):
+def _draw_task2_basic_chevrons(ax, nodes, fontsize=10):
     """Draw the shared chevron style with boxes sized to their labels."""
     ax.set_aspect("auto")
     ax.axis("off")
@@ -323,8 +320,7 @@ def _draw_task2_basic_chevrons(ax, nodes, fontsize=11):
             ha="center",
             va="center",
             fontsize=_task2_chevron_font_size(node["label"], width, fontsize),
-            fontweight="bold",
-            color="#1f1f1f",
+            color=contrasting_text_color(node["color"]),
             clip_on=False,
         )
 
@@ -367,16 +363,15 @@ def task2_flow_chart_basic(ctx: dict, output_dir: str):
     fig_w = _task2_chevron_figure_width(nodes)
     fig_h = 4.15
     fig, ax = plt.subplots(figsize=(fig_w, fig_h))
-    _draw_task2_basic_chevrons(ax, nodes, fontsize=11)
+    _draw_task2_basic_chevrons(ax, nodes, fontsize=10)
     fig.subplots_adjust(left=0.045, right=0.985, top=0.55, bottom=0.28)
     fig.text(
         0.045,
         0.90,
-        "Flow Chart basic\n(Chevron Diagram)",
+        "Trace Alignment",
         ha="left",
         va="top",
-        fontsize=22,
-        fontweight="normal",
+        fontsize=FONT_TITLE,
         color="black",
     )
     fig.text(
@@ -385,8 +380,7 @@ def task2_flow_chart_basic(ctx: dict, output_dir: str):
         ctx["trace_label"],
         ha="left",
         va="center",
-        fontsize=13,
-        fontweight="bold",
+        fontsize=FONT_TITLE,
         color="#222222",
     )
     fig.legend(
@@ -394,7 +388,7 @@ def task2_flow_chart_basic(ctx: dict, output_dir: str):
         loc="lower center",
         bbox_to_anchor=(0.5, 0.075),
         ncol=3,
-        fontsize=9,
+        fontsize=FONT_ANNOT,
         frameon=True,
         fancybox=False,
         edgecolor="#cccccc",
@@ -430,7 +424,7 @@ def task2_flow_chart_and_table(ctx: dict, output_dir: str):
     )
 
     _draw_task2_basic_chevrons(ax_bot, nodes, fontsize=11)
-    ax_bot.set_title("Flow Chart basic (Chevron Diagram)", fontsize=11, fontweight="bold", pad=7)
+    ax_bot.set_title("Trace Alignment", fontsize=FONT_TITLE, pad=7)
 
     fig.tight_layout(rect=[0, 0.105, 1, 0.98])
     fig.legend(
@@ -438,7 +432,7 @@ def task2_flow_chart_and_table(ctx: dict, output_dir: str):
         loc="lower center",
         bbox_to_anchor=(0.5, 0.025),
         ncol=3,
-        fontsize=10,
+        fontsize=FONT_ANNOT,
         frameon=True,
         fancybox=False,
         edgecolor="#cccccc",
@@ -822,7 +816,7 @@ def task2_flow_chart_elaborate_bpmn(ctx: dict, model_path: str, output_dir: str)
     min_x, max_x = min(xs), max(xs)
     min_y, max_y = min(ys), max(ys)
     left_pad, right_pad = 80.0, 80.0
-    top_pad, bottom_pad = 125.0, 80.0
+    top_pad, bottom_pad = 82.0, 80.0
     width = max_x - min_x + left_pad + right_pad
     height = max_y - min_y + top_pad + bottom_pad
 
@@ -834,8 +828,8 @@ def task2_flow_chart_elaborate_bpmn(ctx: dict, model_path: str, output_dir: str)
     )
     out.append("<defs>")
     _amw, _amh = 5.0, 5.0
-    _tri = '<path d="M0,0 L10,5 L0,10 Z" fill="#6f7780"/>'
-    _tri_r = '<path d="M0,0 L10,5 L0,10 Z" fill="#E74C3C"/>'
+    _tri = '<path d="M0,0 L10,5 L0,10 Z" fill="#888888"/>'
+    _tri_r = '<path d="M0,0 L10,5 L0,10 Z" fill="#444444"/>'
     out.append(
         f'<marker id="arrow-grey" viewBox="0 0 10 10" refX="9" refY="5" '
         f'markerWidth="{_amw}" markerHeight="{_amh}" orient="auto" markerUnits="userSpaceOnUse">{_tri}</marker>'
@@ -846,14 +840,13 @@ def task2_flow_chart_elaborate_bpmn(ctx: dict, model_path: str, output_dir: str)
     )
     out.append("</defs>")
     out.append('<rect x="0" y="0" width="100%" height="100%" fill="white"/>')
-    out.append('<text x="24" y="38" font-family="Arial, sans-serif" font-size="30" fill="black">Flow Chart elaborate</text>')
-    out.append('<text x="24" y="74" font-family="Arial, sans-serif" font-size="30" fill="black">(BPMN Diagram)</text>')
-    out.append(f'<text x="24" y="105" font-family="Arial, sans-serif" font-size="18" fill="#222">{esc(ctx["trace_label"])}</text>')
+    out.append('<text x="24" y="44" font-family="Arial, sans-serif" font-size="13" fill="black">Process Model Alignment</text>')
+    out.append(f'<text x="24" y="67" font-family="Arial, sans-serif" font-size="10" fill="#555">{esc(ctx["trace_label"])}</text>')
 
     for flow_id, pts in edges.items():
         points = " ".join(f"{tx(x):.1f},{ty(y):.1f}" for x, y in pts)
         out.append(
-            f'<polyline points="{points}" fill="none" stroke="#808890" stroke-width="2" '
+            f'<polyline points="{points}" fill="none" stroke="#888888" stroke-width="2" '
             f'stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>'
         )
 
@@ -863,24 +856,24 @@ def task2_flow_chart_elaborate_bpmn(ctx: dict, model_path: str, output_dir: str)
         x, y, w, h = tx(b["x"]), ty(b["y"]), b["width"], b["height"]
         name = elem["name"]
         fill = "white"
-        stroke = "#6f7780"
+        stroke = "#888888"
         stroke_width = 2
         text_color = "#333333"
         if elem_id in sync_ids:
-            fill = "#EAF8EF"
-            stroke = GREEN
+            fill = "#F2F2F2"
+            stroke = "#AAAAAA"
             stroke_width = 3
-            text_color = "#188046"
+            text_color = "#444444"
         if elem_id in model_ids:
-            fill = "#EAF1FF"
-            stroke = BLUE
+            fill = "#E0E0E0"
+            stroke = "#555555"
             stroke_width = 4
-            text_color = "#1F4E96"
+            text_color = "#222222"
         if elem_id in mismatch_ids:
-            fill = "#FFF4E8"
-            stroke = ORANGE
+            fill = "#E8E8E8"
+            stroke = "#777777"
             stroke_width = 4
-            text_color = "#A64E00"
+            text_color = "#333333"
 
         if kind == "task":
             out.append(f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" rx="7" ry="7" fill="{fill}" stroke="{stroke}" stroke-width="{stroke_width}"/>')
@@ -888,14 +881,14 @@ def task2_flow_chart_elaborate_bpmn(ctx: dict, model_path: str, output_dir: str)
             line_gap = 10.5
             start_y = y + h / 2.0 - (len(lines) - 1) * line_gap / 2.0
             for line_idx, line in enumerate(lines):
-                out.append(f'<text x="{x + w / 2.0:.1f}" y="{start_y + line_idx * line_gap:.1f}" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="{text_color}">{esc(line)}</text>')
+                out.append(f'<text x="{x + w / 2.0:.1f}" y="{start_y + line_idx * line_gap:.1f}" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="{text_color}">{esc(line)}</text>')
         elif kind in {"exclusiveGateway", "parallelGateway"}:
             cx, cy = x + w / 2.0, y + h / 2.0
             points = f"{cx:.1f},{y:.1f} {x + w:.1f},{cy:.1f} {cx:.1f},{y + h:.1f} {x:.1f},{cy:.1f}"
             out.append(f'<polygon points="{points}" fill="{fill}" stroke="{stroke}" stroke-width="{stroke_width}"/>')
             marker = "+" if kind == "parallelGateway" else "X"
             g_fs = max(13.0, min(w, h) * 0.34)
-            out.append(f'<text x="{cx:.1f}" y="{cy + 0.5:.1f}" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="{g_fs:.1f}" font-weight="bold" fill="{stroke}">{marker}</text>')
+            out.append(f'<text x="{cx:.1f}" y="{cy + 0.5:.1f}" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="{g_fs:.1f}" fill="{stroke}">{marker}</text>')
         elif kind in {"startEvent", "endEvent"}:
             cx, cy = x + w / 2.0, y + h / 2.0
             r = min(w, h) / 2.0
@@ -904,13 +897,13 @@ def task2_flow_chart_elaborate_bpmn(ctx: dict, model_path: str, output_dir: str)
             if kind == "startEvent":
                 out.append(
                     f'<text x="{cx:.1f}" y="{cy + h / 2.0 + 18.0:.1f}" text-anchor="middle" '
-                    f'font-family="Arial, sans-serif" font-size="10" fill="{stroke}">START</text>'
+                    f'font-family="Arial, sans-serif" font-size="9" fill="{stroke}">START</text>'
                 )
             else:
                 lbl_x = cx + r + 10.0
                 out.append(
                     f'<text x="{lbl_x:.1f}" y="{cy:.1f}" text-anchor="start" dominant-baseline="middle" '
-                    f'font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="{stroke}">END EVENT</text>'
+                    f'font-family="Arial, sans-serif" font-size="9" fill="{stroke}">END EVENT</text>'
                 )
 
     for callout in callouts:
@@ -918,22 +911,22 @@ def task2_flow_chart_elaborate_bpmn(ctx: dict, model_path: str, output_dir: str)
         cx = x + callout_w / 2.0
         route_points = " ".join(f"{tx(px):.1f},{ty(py):.1f}" for px, py in callout["route"])
         out.append(
-            f'<polyline points="{route_points}" fill="none" stroke="{RED}" stroke-width="2.5" '
+            f'<polyline points="{route_points}" fill="none" stroke="#444444" stroke-width="2.5" '
             f'stroke-dasharray="7 5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-red)"/>'
         )
-        out.append(f'<rect x="{x:.1f}" y="{y:.1f}" width="{callout_w:.1f}" height="{callout_h:.1f}" rx="7" ry="7" fill="#FFF1F0" stroke="{RED}" stroke-width="3" stroke-dasharray="8 5"/>')
+        out.append(f'<rect x="{x:.1f}" y="{y:.1f}" width="{callout_w:.1f}" height="{callout_h:.1f}" rx="7" ry="7" fill="#D8D8D8" stroke="#444444" stroke-width="3" stroke-dasharray="8 5"/>')
         lines = label_lines_for_box(callout["label"], callout_w, font_size=10)
         start_y = y + callout_h / 2.0 - (len(lines) - 1) * 6.0
         for line_idx, line in enumerate(lines):
-            out.append(f'<text x="{cx:.1f}" y="{start_y + line_idx * 12:.1f}" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="{RED}">{esc(line)}</text>')
+            out.append(f'<text x="{cx:.1f}" y="{start_y + line_idx * 12:.1f}" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#222222">{esc(line)}</text>')
 
     legend_y = height - 32
     legend_x = width / 2.0 - 280
-    legend_items = [(GREEN, "Synchronous move (Conform)"), (BLUE, "Model move only"), (RED, "Log move only")]
+    legend_items = [(GREEN, "Synchronous move (Conform)"), (BLUE, "Model move only"), ("#444444", "Log move only")]
     for i, (color, label) in enumerate(legend_items):
         x = legend_x + i * 205
-        out.append(f'<rect x="{x:.1f}" y="{legend_y - 11:.1f}" width="22" height="12" fill="{color}" stroke="black" stroke-width="0.8"/>')
-        out.append(f'<text x="{x + 32:.1f}" y="{legend_y:.1f}" font-family="Arial, sans-serif" font-size="12" fill="#222">{esc(label)}</text>')
+        out.append(f'<rect x="{x:.1f}" y="{legend_y - 11:.1f}" width="22" height="12" fill="{color}" stroke="#888888" stroke-width="0.8"/>')
+        out.append(f'<text x="{x + 32:.1f}" y="{legend_y:.1f}" font-family="Arial, sans-serif" font-size="9" fill="#222">{esc(label)}</text>')
     out.append("</svg>")
 
     path = os.path.join(output_dir, "task2_flow_chart_elaborate_bpmn.svg")

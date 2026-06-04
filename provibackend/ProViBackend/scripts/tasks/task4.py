@@ -26,7 +26,7 @@ from scipy import stats
 
 from shared import (
     save_svg, make_table, draw_decision_tree, alignment_pairs_to_rows,
-    format_threshold, wrap_text, BLUE, ORANGE, GREEN, RED,
+    format_threshold, wrap_text, BLUE, ORANGE, GREEN, RED, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 # Alias so that existing internal references still work
@@ -438,10 +438,10 @@ def task4_tile_metric(root_causes: pd.DataFrame, df_features: pd.DataFrame, outp
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     ax.axis("off")
-    ax.set_title("Tile Metric: Key Insights", fontsize=14, fontweight="bold", loc="left", pad=12)
+    ax.set_title("Key Non-Conformance Indicators", fontsize=FONT_TITLE, loc="left", pad=12)
 
     if tile_df.empty:
-        ax.text(0.05, 0.55, "No discriminating attribute threshold found.", fontsize=11, color="#333333")
+        ax.text(0.05, 0.55, "No discriminating attribute threshold found.", fontsize=FONT_ANNOT, color="#333333")
         fig.tight_layout()
         save_svg(fig, os.path.join(output_dir, "task4_tile_metric.svg"))
         return
@@ -456,24 +456,24 @@ def task4_tile_metric(root_causes: pd.DataFrame, df_features: pd.DataFrame, outp
             (x0, y0), tile_w, tile_h,
             boxstyle="round,pad=0.014",
             linewidth=1.2,
-            edgecolor="#B7C3D0",
-            facecolor="#F7FAFD",
+            edgecolor="#AAAAAA",
+            facecolor="#F8F8F8",
             transform=ax.transAxes,
             clip_on=False,
         ))
         ax.text(x0 + 0.025, y0 + tile_h - 0.095, row["label"], transform=ax.transAxes,
-                fontsize=12, fontweight="bold", color="#17324D")
+                fontsize=FONT_TITLE, color="#333333")
         ax.text(x0 + 0.025, y0 + tile_h - 0.205, row["condition"], transform=ax.transAxes,
-                fontsize=10, fontweight="bold", color="#17324D")
+                fontsize=FONT_LABEL, color="#333333")
         ax.text(x0 + 0.025, y0 + tile_h - 0.330,
                 f"Violations captured: {row['coverage']:.1%}", transform=ax.transAxes,
-                fontsize=9.5, color="#333333")
+                fontsize=FONT_ANNOT, color="#555555")
         ax.text(x0 + 0.025, y0 + tile_h - 0.435,
                 f"Above vs below: {row['above_rate']:.1%} vs {row['below_rate']:.1%}", transform=ax.transAxes,
-                fontsize=9.5, color="#333333")
+                fontsize=FONT_ANNOT, color="#555555")
         ax.text(x0 + 0.025, y0 + tile_h - 0.540,
                 f"Likelihood ratio: {_task4_format_ratio(row['likelihood_ratio'])}", transform=ax.transAxes,
-                fontsize=9.5, fontweight="bold", color=BLUE)
+                fontsize=FONT_ANNOT, color="#333333")
     fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task4_tile_metric.svg"))
 
@@ -593,19 +593,17 @@ def task4_table(df_features: pd.DataFrame, output_dir: str):
         cell.set_edgecolor("#FFFFFF")
         cell.set_linewidth(1.0)
         if r_idx == 0:
-            cell.set_facecolor("#1F3864")
-            cell.set_text_props(color="white", fontweight="bold")
+            cell.set_facecolor("#555555")
+            cell.set_text_props(color="white")
             continue
         if summary.empty:
-            cell.set_facecolor("#F2F2F2")
+            cell.set_facecolor("#F0F0F0")
             continue
         corr = float(summary.iloc[r_idx - 1]["correlation"])
-        cell.set_facecolor("#FCE4D6" if corr >= 0 else "#DDEBF7")
-        cell.set_text_props(color="#222222", fontweight="normal")
-        if c_idx in {0, 5}:
-            cell.set_text_props(color="#222222", fontweight="bold")
+        cell.set_facecolor("#E8E8E8" if corr >= 0 else "#F2F2F2")
+        cell.set_text_props(color="#222222")
 
-    ax.set_title("Attribute Correlation Summary", fontsize=13, fontweight="bold", pad=12)
+    ax.set_title("Attribute Correlation Summary", fontsize=FONT_TITLE, pad=12)
     fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task4_table.svg"))
 
@@ -705,22 +703,22 @@ def _task4_tree_feature_importance(tree: dict) -> pd.DataFrame:
 def _task4_draw_feature_importance(ax, tree: dict):
     """Draw a compact feature-importance bar chart for tree splits."""
     importance = _task4_tree_feature_importance(tree)
-    ax.set_title("Feature Importance", fontsize=13, fontweight="bold", loc="left", pad=10)
+    ax.set_title("Feature Importance", fontsize=FONT_TITLE, loc="left", pad=10)
     if importance.empty:
         ax.axis("off")
         ax.text(0.5, 0.5, "No split features", ha="center", va="center", fontsize=10)
         return
     colors = [BLUE if val < 0.34 else ORANGE for val in importance["importance"]]
     ax.barh(importance["label"], importance["importance"], color=colors, alpha=0.88)
-    ax.set_xlabel("Normalized split gain", fontsize=9)
+    ax.set_xlabel("Normalized split gain", fontsize=FONT_ANNOT)
     ax.set_xlim(0, max(importance["importance"].max() * 1.18, 0.05))
-    ax.tick_params(axis="y", labelsize=8)
-    ax.tick_params(axis="x", labelsize=8)
+    ax.tick_params(axis="y", labelsize=FONT_ANNOT)
+    ax.tick_params(axis="x", labelsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
     ax.xaxis.grid(True, linestyle="--", alpha=0.35)
     ax.set_axisbelow(True)
     for y, val in enumerate(importance["importance"]):
-        ax.text(val + max(importance["importance"].max(), 0.01) * 0.02, y, f"{val:.2f}", va="center", fontsize=8)
+        ax.text(val + max(importance["importance"].max(), 0.01) * 0.02, y, f"{val:.2f}", va="center", fontsize=FONT_ANNOT)
 
 
 def task4_decision_tree(tree: dict, output_dir: str):
@@ -732,8 +730,8 @@ def task4_decision_tree(tree: dict, output_dir: str):
     draw_decision_tree(
         ax_tree,
         tree,
-        title="Tree (Decision Tree)",
-        title_fontsize=16,
+        title="Root Cause Analysis",
+        title_fontsize=FONT_TITLE,
         title_pad=8,
         box_w=2.55,
         base_font=7.0,
@@ -748,17 +746,17 @@ def task4_decision_tree(tree: dict, output_dir: str):
         ),
         value_pair_fn=lambda node: (node["value"][0], node["value"][1]),
         node_facecolor_fn=lambda node: (
-            "#5DADE2"
+            "#888888"
             if node["value"][1] > node["value"][0]
-            else "#F4C7A1"
+            else "#E0E0E0"
         ),
         legend_items=[
-            mpatches.Patch(facecolor="#F4C7A1", edgecolor="#555555", label="Mostly conformant"),
-            mpatches.Patch(facecolor="#5DADE2", edgecolor="#555555", label="Mostly non-conformant"),
+            mpatches.Patch(facecolor="#E0E0E0", edgecolor="#555555", label="Mostly conformant"),
+            mpatches.Patch(facecolor="#888888", edgecolor="#555555", label="Mostly non-conformant"),
         ],
-        legend_kwargs=dict(loc="lower center", bbox_to_anchor=(0.5, -0.02), ncol=2, frameon=False, fontsize=8.5),
+        legend_kwargs=dict(loc="lower center", bbox_to_anchor=(0.5, -0.02), ncol=2, frameon=False, fontsize=FONT_ANNOT),
         edge_arrowprops=dict(arrowstyle="-|>", color="#555555", linewidth=1.35, shrinkA=5, shrinkB=5),
-        edge_label_fontsize=8.4,
+        edge_label_fontsize=FONT_ANNOT,
         edge_label_offset_y=0.02,
         edge_label_clearance=0.16,
         edge_label_perp_offset=0.23,
