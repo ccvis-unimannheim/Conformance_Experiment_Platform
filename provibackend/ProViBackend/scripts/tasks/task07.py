@@ -151,11 +151,11 @@ def task07_line_graph(df: pd.DataFrame, output_dir: str):
 # ---------------------------------------------------------------------------
 
 def task07_horizon_chart(df: pd.DataFrame, output_dir: str):
-    """Horizon chart: shows conformance deviation from the overall mean over time.
+    """Horizon chart: continuous area chart showing conformance relative to overall mean.
 
-    Above-mean periods → dark grey; below-mean periods → light grey.
-    The vertical axis is compressed by folding negative deviations upward,
-    giving a compact time-series overview that fits many periods in one view.
+    Area above mean → dark grey (higher conformance).
+    Area below mean → light grey (lower conformance).
+    Y-axis shows actual conformance rate; mean line is the visual baseline.
     """
     if df is None or df.empty:
         _save_empty(output_dir, "task07_horizon_chart.svg", "No timestamp data available")
@@ -167,48 +167,47 @@ def task07_horizon_chart(df: pd.DataFrame, output_dir: str):
                     "Insufficient time range for horizon chart (fewer than 2 time bins)")
         return
 
-    overall_mean = df["fitness"].mean()
-    binned["deviation"] = binned["avg_fitness"] - overall_mean
-
+    mean_val = df["fitness"].mean()
     x = binned["time_bin"]
-    dev = binned["deviation"]
-    zero = np.zeros(len(x))
+    y = binned["avg_fitness"]
 
-    fig, ax = plt.subplots(figsize=(14, 4))
+    fig, ax = plt.subplots(figsize=(14, 5))
 
-    # Below-mean: light grey fill (deviation < 0, folded positive)
-    ax.fill_between(x, zero, dev.clip(upper=0) * -1,
-                    where=dev < 0, step="mid",
-                    color=GREEN, alpha=0.85, label="Below mean (lower conformance)")
+    # Continuous filled areas relative to mean baseline
+    ax.fill_between(x, mean_val, y,
+                    where=(y >= mean_val), interpolate=True,
+                    color=RED, alpha=0.75, label="Above mean (higher conformance)")
+    ax.fill_between(x, mean_val, y,
+                    where=(y <= mean_val), interpolate=True,
+                    color=GREEN, alpha=0.75, label="Below mean (lower conformance)")
 
-    # Above-mean: dark grey fill
-    ax.fill_between(x, zero, dev.clip(lower=0),
-                    where=dev > 0, step="mid",
-                    color=RED, alpha=0.85, label="Above mean (higher conformance)")
+    # Thin line connecting data points for readability
+    ax.plot(x, y, color="#444444", linewidth=0.9, alpha=0.5)
 
-    # Baseline and mean annotation
-    ax.axhline(0, color="#555555", linewidth=1.0, linestyle="-")
-    ax.text(x.iloc[-1], 0.005,
-            f"Mean: {overall_mean:.0%}",
-            ha="right", va="bottom", fontsize=FONT_ANNOT, color="#555555")
+    # Mean reference line
+    ax.axhline(mean_val, color="#555555", linewidth=1.2, linestyle="--")
 
-    # Magnitude bands (guidance lines)
-    max_dev = dev.abs().max()
-    if max_dev > 0:
-        for level in [max_dev * 0.5, max_dev]:
-            ax.axhline(level, color="#cccccc", linewidth=0.6, linestyle=":")
-
-    ax.set_ylabel("Deviation from mean", fontsize=FONT_LABEL)
-    ax.set_xlabel("Time", fontsize=FONT_LABEL)
-    ax.set_title(
-        f"Conformance Deviation from Overall Mean ({overall_mean:.0%}) Over Time",
-        fontsize=FONT_TITLE,
+    # Mean annotation — placed outside plot area to avoid overlapping data
+    ax.annotate(
+        f"Mean: {mean_val:.0%}",
+        xy=(1.01, mean_val),
+        xycoords=("axes fraction", "data"),
+        fontsize=FONT_ANNOT, color="#555555", va="center",
     )
-    ax.tick_params(axis="x", labelrotation=30, labelsize=FONT_ANNOT)
+
+    # Y-axis: show actual conformance range with small padding
+    y_pad = max((y.max() - y.min()) * 0.15, 0.01)
+    ax.set_ylim(max(0.0, y.min() - y_pad), min(1.0, y.max() + y_pad))
     ax.yaxis.set_major_formatter(matplotlib.ticker.PercentFormatter(xmax=1.0))
+
+    ax.set_ylabel("Conformance Rate", fontsize=FONT_LABEL)
+    ax.set_xlabel("Time", fontsize=FONT_LABEL)
+    ax.set_title("Process Conformance Over Time", fontsize=FONT_TITLE)
+    ax.tick_params(axis="x", labelrotation=30, labelsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.3)
     ax.set_axisbelow(True)
-    ax.legend(frameon=False, fontsize=FONT_ANNOT, loc="upper right")
+    ax.legend(frameon=False, fontsize=FONT_ANNOT, loc="lower left")
 
     fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task07_horizon_chart.svg"))
