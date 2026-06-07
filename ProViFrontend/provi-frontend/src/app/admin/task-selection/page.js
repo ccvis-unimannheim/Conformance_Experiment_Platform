@@ -10,39 +10,45 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:1234";
 
 const ALL_TASKS = [
   {
-    task_key: "T-01",
+    task_key: "task06",
     label: "What is the overall degree of conformance between an event log and a set of guidelines?",
     description: "Assess the overall conformance rate of the entire event log against the process model.",
     answer_type: "numeric",
   },
   {
-    task_key: "T-02",
+    task_key: "task28",
     label: "Where exactly does the process execution differ from the guideline? What does the violating behavior look like?",
     description: "Pinpoint specific violations in traces against the expected model.",
     answer_type: "single_choice",
   },
   {
-    task_key: "T-03",
+    task_key: "task29",
     label: "What type of guideline violations happen in different traces? How often do they happen?",
     description: "Classify violation types and quantify their occurrences across traces.",
     answer_type: "multiple_choice",
   },
   {
-    task_key: "T-04",
+    task_key: "task20",
     label: "What control-flow, data, resource, or time attributes of events, traces, or event logs lead to guideline violations?",
     description: "Identify potential root causes of non-conformance.",
     answer_type: "single_choice",
   },
   {
-    task_key: "T-05",
+    task_key: "task10",
     label: "Which percentage of traces in the event log fall into which conformance category?",
     description: "Group traces by conformance ranges and determine their distribution.",
     answer_type: "single_choice",
   },
   {
-    task_key: "T-06",
+    task_key: "task31",
     label: "Do cases with a higher degree of conformance lead to a higher probability of a positive process outcome?",
     description: "Explore the relationship between conformance and process outcomes.",
+    answer_type: "single_choice",
+  },
+  {
+    task_key: "task07",
+    label: "How does the degree of process conformance change over time?",
+    description: "Derive and visualize conformance trends over time using trace timestamps.",
     answer_type: "single_choice",
   },
 ];

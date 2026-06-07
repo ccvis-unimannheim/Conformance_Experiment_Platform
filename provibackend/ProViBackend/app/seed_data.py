@@ -42,6 +42,12 @@ CANONICAL_TASKS = [
         "description": "Explore the relationship between conformance and process outcomes.",
         "answer_type": "single_choice",
     },
+    {
+        "task_key": "task07",
+        "label": "How does the degree of process conformance change over time?",
+        "description": "Derive and visualize conformance trends over time using trace timestamps.",
+        "answer_type": "single_choice",
+    },
 ]
 
 CANONICAL_IDIOMS = [
@@ -58,4 +64,7 @@ CANONICAL_IDIOMS = [
     {"idiom_key": "decision_tree",        "label": "Tree (Decision Tree)",                 "granularity": "log",   "renderer_type": "d3",      "active": True},
     {"idiom_key": "flow_chart_table",     "label": "Flow Chart & Table",                   "granularity": "trace", "renderer_type": "html",    "active": True},
     {"idiom_key": "table_bar_chart",      "label": "Table & Bar Chart",                    "granularity": "log",   "renderer_type": "html",    "active": True},
+    {"idiom_key": "line_graph",           "label": "Line Graph",                           "granularity": "log",   "renderer_type": "svg",     "active": True},
+    {"idiom_key": "horizon_chart",        "label": "Horizon Chart",                        "granularity": "log",   "renderer_type": "svg",     "active": True},
+    {"idiom_key": "gantt_chart",          "label": "Gantt Chart",                          "granularity": "log",   "renderer_type": "svg",     "active": True},
 ]

@@ -49,6 +49,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from io_helpers import load_event_log, load_model, run_alignments, fitness_summary_dataframe
 import tasks.task06 as task06
+import tasks.task07 as task07
 import tasks.task28 as task28
 import tasks.task29 as task29
 import tasks.task20 as task20
@@ -71,7 +72,7 @@ INPUT_SUBDIR  = "input"
 OUTPUT_SUBDIR = "output"
 LOG_EXTENSIONS   = {".xes", ".csv"}
 MODEL_EXTENSIONS = {".bpmn"}
-TASK_DIRS     = ["task06", "task28", "task29", "task20", "task10", "task31"]
+TASK_DIRS     = ["task06", "task07", "task28", "task29", "task20", "task10", "task31"]
 
 # Aliases mapping task-script filename stems to canonical idiom_keys.
 # E.g. task06.py writes "task06_scatter_plot.svg"; we strip "task06_" then
@@ -169,6 +170,7 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED") -> str
 
     generators = [
         ("task06", lambda d: task06.generate(fitness_df,             d)),
+        ("task07", lambda d: task07.generate(log, fitness_df,        d)),
         ("task28", lambda d: task28.generate(alignments, model_path, d)),
         ("task29", lambda d: task29.generate(alignments,             d)),
         ("task20", lambda d: task20.generate(log, alignments,        d)),
