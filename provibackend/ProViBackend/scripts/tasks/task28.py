@@ -1,5 +1,5 @@
 """
-tasks/task2.py – Task 2: Location/alignment visualizations for a representative trace.
+tasks/task28.py – Task 2: Location/alignment visualizations for a representative trace.
 
 Public API:
     generate(alignments, model_path, output_dir)
@@ -34,19 +34,19 @@ from shared import (
 
 # Task 2 helpers
 SKIP_ALIGNMENT_TOKENS = {">>", None}
-TASK2_HEADER_COLOR = "#555555"
-TASK2_SYNC_ROW_COLOR = "#F2F2F2"
-TASK2_MODEL_ROW_COLOR = "#E0E0E0"
-TASK2_LOG_ROW_COLOR = "#C8C8C8"
-TASK2_MISMATCH_ROW_COLOR = "#D8D8D8"
-TASK2_TABLE_EDGE_COLOR = "#FFFFFF"
-TASK2_TABLE_COL_LABELS = ["Step", "Log Move", "Model Move", "Status"]
-TASK2_TABLE_COL_WIDTHS = [0.065, 0.375, 0.375, 0.185]
-TASK2_CHEVRON_HEIGHT = 1.65
-TASK2_CHEVRON_DEPTH = 0.92
-TASK2_CHEVRON_GAP = 0.82
-TASK2_CHEVRON_MIN_WIDTH = 6.15
-TASK2_CHEVRON_CHAR_WIDTH = 0.42
+TASK28_HEADER_COLOR = "#555555"
+TASK28_SYNC_ROW_COLOR = "#F2F2F2"
+TASK28_MODEL_ROW_COLOR = "#E0E0E0"
+TASK28_LOG_ROW_COLOR = "#C8C8C8"
+TASK28_MISMATCH_ROW_COLOR = "#D8D8D8"
+TASK28_TABLE_EDGE_COLOR = "#FFFFFF"
+TASK28_TABLE_COL_LABELS = ["Step", "Log Move", "Model Move", "Status"]
+TASK28_TABLE_COL_WIDTHS = [0.065, 0.375, 0.375, 0.185]
+TASK28_CHEVRON_HEIGHT = 1.65
+TASK28_CHEVRON_DEPTH = 0.92
+TASK28_CHEVRON_GAP = 0.82
+TASK28_CHEVRON_MIN_WIDTH = 6.15
+TASK28_CHEVRON_CHAR_WIDTH = 0.42
 
 
 def _extract_alignment_label(value):
@@ -120,7 +120,7 @@ def pick_representative_trace_index(alignments):
     return 0
 
 
-def build_task2_context(alignments):
+def build_task28_context(alignments):
     """Pick representative trace and build row list; returns None if no usable alignment."""
     if not alignments:
         return None
@@ -141,7 +141,7 @@ def build_task2_context(alignments):
     }
 
 
-def _task2_format_cost(cost):
+def _task28_format_cost(cost):
     """Format PM4Py alignment cost for the table subtitle."""
     if cost is None:
         return None
@@ -154,18 +154,18 @@ def _task2_format_cost(cost):
     return f"{cost_num:.4f}".rstrip("0").rstrip(".")
 
 
-def _task2_status_color(move_type: str) -> str:
+def _task28_status_color(move_type: str) -> str:
     """Map alignment move type to the reference table row color."""
     if move_type == "Model Move":
-        return TASK2_MODEL_ROW_COLOR
+        return TASK28_MODEL_ROW_COLOR
     if move_type == "Log Move":
-        return TASK2_LOG_ROW_COLOR
+        return TASK28_LOG_ROW_COLOR
     if move_type == "Mismatch Move":
-        return TASK2_MISMATCH_ROW_COLOR
-    return TASK2_SYNC_ROW_COLOR
+        return TASK28_MISMATCH_ROW_COLOR
+    return TASK28_SYNC_ROW_COLOR
 
 
-def _task2_table_cell_text(rows):
+def _task28_table_cell_text(rows):
     """Return table cells in the reference Step | Log | Model | Status order."""
     return [
         [str(row["step"]), str(row["log_move"]), str(row["model_move"]), str(row["status"])]
@@ -173,19 +173,19 @@ def _task2_table_cell_text(rows):
     ]
 
 
-def _task2_alignment_table_height(row_count: int, *, compact: bool = False) -> float:
+def _task28_alignment_table_height(row_count: int, *, compact: bool = False) -> float:
     """Figure height that keeps table rows close to the reference density."""
     base = 3.8 if compact else 4.7
     row_h = 0.27 if compact else 0.31
     return max(base, base + row_count * row_h)
 
 
-def _draw_task2_alignment_table(ax, rows, *, bbox, font_size=10.5):
+def _draw_task28_alignment_table(ax, rows, *, bbox, font_size=10.5):
     """Draw the shared Task 2 table style used by standalone and composite views."""
     table = ax.table(
-        cellText=_task2_table_cell_text(rows),
-        colLabels=TASK2_TABLE_COL_LABELS,
-        colWidths=TASK2_TABLE_COL_WIDTHS,
+        cellText=_task28_table_cell_text(rows),
+        colLabels=TASK28_TABLE_COL_LABELS,
+        colWidths=TASK28_TABLE_COL_WIDTHS,
         cellLoc="center",
         bbox=bbox,
     )
@@ -193,20 +193,20 @@ def _draw_task2_alignment_table(ax, rows, *, bbox, font_size=10.5):
     table.set_fontsize(font_size)
 
     for (r_idx, c_idx), cell in table.get_celld().items():
-        cell.set_edgecolor(TASK2_TABLE_EDGE_COLOR)
+        cell.set_edgecolor(TASK28_TABLE_EDGE_COLOR)
         cell.set_linewidth(1.0)
         if r_idx == 0:
-            cell.set_facecolor(TASK2_HEADER_COLOR)
+            cell.set_facecolor(TASK28_HEADER_COLOR)
             cell.set_text_props(color="white")
             continue
 
         row = rows[r_idx - 1]
-        cell.set_facecolor(_task2_status_color(row["moveType"]))
+        cell.set_facecolor(_task28_status_color(row["moveType"]))
         cell.set_text_props(color="#2B2B2B")
     return table
 
 
-def _add_task2_table_heading(fig, ctx, *, x=0.055, y=0.86, compact=False):
+def _add_task28_table_heading(fig, ctx, *, x=0.055, y=0.86, compact=False):
     """Add the trace title and alignment summary above the table."""
     fig.text(
         x,
@@ -218,7 +218,7 @@ def _add_task2_table_heading(fig, ctx, *, x=0.055, y=0.86, compact=False):
         color="#111111",
     )
 
-    cost_text = _task2_format_cost(ctx.get("cost"))
+    cost_text = _task28_format_cost(ctx.get("cost"))
     meta_parts = [f"Fitness: {ctx['fitness']:.4f}"]
     if cost_text is not None:
         meta_parts.append(f"Cost: {cost_text}")
@@ -233,7 +233,7 @@ def _add_task2_table_heading(fig, ctx, *, x=0.055, y=0.86, compact=False):
     )
 
 
-def _task2_nodes_from_rows(rows):
+def _task28_nodes_from_rows(rows):
     """Shared Task 2 move-to-chevron mapping."""
     nodes = []
     for row in rows:
@@ -249,49 +249,49 @@ def _task2_nodes_from_rows(rows):
     return nodes
 
 
-def _task2_chevron_layout(nodes):
+def _task28_chevron_layout(nodes):
     """Return chevron x positions and widths sized from label content."""
     widths = []
     for node in nodes:
         label = node["label"]
         longest = max(len(line) for line in str(label).splitlines())
-        content_w = TASK2_CHEVRON_DEPTH * 2.0 + 2.65 + longest * TASK2_CHEVRON_CHAR_WIDTH
-        widths.append(max(TASK2_CHEVRON_MIN_WIDTH, content_w))
+        content_w = TASK28_CHEVRON_DEPTH * 2.0 + 2.65 + longest * TASK28_CHEVRON_CHAR_WIDTH
+        widths.append(max(TASK28_CHEVRON_MIN_WIDTH, content_w))
 
     x_cursor = 0.0
     layout = []
     for width in widths:
         layout.append({"x": x_cursor, "width": width})
-        x_cursor += width + TASK2_CHEVRON_GAP
-    span = max(0.0, x_cursor - TASK2_CHEVRON_GAP)
+        x_cursor += width + TASK28_CHEVRON_GAP
+    span = max(0.0, x_cursor - TASK28_CHEVRON_GAP)
     return layout, span
 
 
-def _task2_chevron_figure_width(nodes):
+def _task28_chevron_figure_width(nodes):
     """Choose a figure width that keeps chevron text from being compressed."""
-    _layout, span = _task2_chevron_layout(nodes)
+    _layout, span = _task28_chevron_layout(nodes)
     return min(max(13.0, span * 0.29 + 1.6), 34.0)
 
 
-def _task2_chevron_font_size(label, width, base_fontsize):
+def _task28_chevron_font_size(label, width, base_fontsize):
     """Shrink only when a very long label would otherwise touch chevron edges."""
     longest = max(len(line) for line in str(label).splitlines())
-    available = max(width - TASK2_CHEVRON_DEPTH * 2.0 - 1.2, 1.0)
+    available = max(width - TASK28_CHEVRON_DEPTH * 2.0 - 1.2, 1.0)
     estimated = longest * 0.34
     if estimated <= available:
         return base_fontsize
     return max(8.5, base_fontsize * available / estimated)
 
 
-def _draw_task2_basic_chevrons(ax, nodes, fontsize=10):
+def _draw_task28_basic_chevrons(ax, nodes, fontsize=10):
     """Draw the shared chevron style with boxes sized to their labels."""
     ax.set_aspect("auto")
     ax.axis("off")
 
-    h = TASK2_CHEVRON_HEIGHT
-    notch_x = TASK2_CHEVRON_DEPTH
-    shoulder = TASK2_CHEVRON_DEPTH
-    layout, span = _task2_chevron_layout(nodes)
+    h = TASK28_CHEVRON_HEIGHT
+    notch_x = TASK28_CHEVRON_DEPTH
+    shoulder = TASK28_CHEVRON_DEPTH
+    layout, span = _task28_chevron_layout(nodes)
 
     for i, node in enumerate(nodes):
         base_x = layout[i]["x"]
@@ -319,7 +319,7 @@ def _draw_task2_basic_chevrons(ax, nodes, fontsize=10):
             node["label"],
             ha="center",
             va="center",
-            fontsize=_task2_chevron_font_size(node["label"], width, fontsize),
+            fontsize=_task28_chevron_font_size(node["label"], width, fontsize),
             color=contrasting_text_color(node["color"]),
             clip_on=False,
         )
@@ -329,7 +329,7 @@ def _draw_task2_basic_chevrons(ax, nodes, fontsize=10):
     return span
 
 
-def _task2_move_legend_elements():
+def _task28_move_legend_elements():
     return [
         mpatches.Patch(facecolor=GREEN, edgecolor="black", linewidth=0.75, label="Synchronous move (Conform)"),
         mpatches.Patch(facecolor=BLUE, edgecolor="black", linewidth=0.75, label="Model move only"),
@@ -338,32 +338,32 @@ def _task2_move_legend_elements():
 
 
 # Task 2 visualizations
-def task2_alignment_table(ctx: dict, output_dir: str):
+def task28_alignment_table(ctx: dict, output_dir: str):
     """Alignment detail table for representative trace."""
     rows = ctx["rows"]
 
-    fig_h = _task2_alignment_table_height(len(rows))
+    fig_h = _task28_alignment_table_height(len(rows))
     fig, ax = plt.subplots(figsize=(15.8, fig_h))
     ax.axis("off")
-    _add_task2_table_heading(fig, ctx, x=0.06, y=0.86)
-    _draw_task2_alignment_table(
+    _add_task28_table_heading(fig, ctx, x=0.06, y=0.86)
+    _draw_task28_alignment_table(
         ax,
         rows,
         bbox=[0.045, 0.08, 0.91, 0.58],
         font_size=10.5,
     )
     fig.subplots_adjust(left=0.025, right=0.985, top=0.94, bottom=0.05)
-    save_svg(fig, os.path.join(output_dir, "task2_table.svg"))
+    save_svg(fig, os.path.join(output_dir, "task28_table.svg"))
 
 
-def task2_flow_chart_basic(ctx: dict, output_dir: str):
+def task28_flow_chart_basic(ctx: dict, output_dir: str):
     """Chevron diagram (reference layout): titled flow strip + bottom move-type legend."""
-    nodes = _task2_nodes_from_rows(ctx["rows"])
+    nodes = _task28_nodes_from_rows(ctx["rows"])
 
-    fig_w = _task2_chevron_figure_width(nodes)
+    fig_w = _task28_chevron_figure_width(nodes)
     fig_h = 4.15
     fig, ax = plt.subplots(figsize=(fig_w, fig_h))
-    _draw_task2_basic_chevrons(ax, nodes, fontsize=10)
+    _draw_task28_basic_chevrons(ax, nodes, fontsize=10)
     fig.subplots_adjust(left=0.045, right=0.985, top=0.55, bottom=0.28)
     fig.text(
         0.045,
@@ -384,7 +384,7 @@ def task2_flow_chart_basic(ctx: dict, output_dir: str):
         color="#222222",
     )
     fig.legend(
-        handles=_task2_move_legend_elements(),
+        handles=_task28_move_legend_elements(),
         loc="lower center",
         bbox_to_anchor=(0.5, 0.075),
         ncol=3,
@@ -393,15 +393,15 @@ def task2_flow_chart_basic(ctx: dict, output_dir: str):
         fancybox=False,
         edgecolor="#cccccc",
     )
-    save_svg(fig, os.path.join(output_dir, "task2_flow_chart_basic.svg"))
+    save_svg(fig, os.path.join(output_dir, "task28_flow_chart_basic.svg"))
 
 
-def task2_flow_chart_and_table(ctx: dict, output_dir: str):
+def task28_flow_chart_and_table(ctx: dict, output_dir: str):
     """Composite: table above, chevron row below."""
     rows = ctx["rows"]
-    nodes = _task2_nodes_from_rows(rows)
+    nodes = _task28_nodes_from_rows(rows)
 
-    fig_w = max(16.0, _task2_chevron_figure_width(nodes))
+    fig_w = max(16.0, _task28_chevron_figure_width(nodes))
     fig_h = max(7.0, 4.0 + len(rows) * 0.22 + 2.0)
 
     fig = plt.figure(figsize=(fig_w, fig_h))
@@ -415,20 +415,20 @@ def task2_flow_chart_and_table(ctx: dict, output_dir: str):
     ax_bot = fig.add_subplot(gs[1])
 
     ax_top.axis("off")
-    _add_task2_table_heading(fig, ctx, x=0.055, y=0.92, compact=True)
-    _draw_task2_alignment_table(
+    _add_task28_table_heading(fig, ctx, x=0.055, y=0.92, compact=True)
+    _draw_task28_alignment_table(
         ax_top,
         rows,
         bbox=[0.055, 0.04, 0.89, 0.66],
         font_size=9.4,
     )
 
-    _draw_task2_basic_chevrons(ax_bot, nodes, fontsize=11)
+    _draw_task28_basic_chevrons(ax_bot, nodes, fontsize=11)
     ax_bot.set_title("Trace Alignment", fontsize=FONT_TITLE, pad=7)
 
     fig.tight_layout(rect=[0, 0.105, 1, 0.98])
     fig.legend(
-        handles=_task2_move_legend_elements(),
+        handles=_task28_move_legend_elements(),
         loc="lower center",
         bbox_to_anchor=(0.5, 0.025),
         ncol=3,
@@ -437,10 +437,10 @@ def task2_flow_chart_and_table(ctx: dict, output_dir: str):
         fancybox=False,
         edgecolor="#cccccc",
     )
-    save_svg(fig, os.path.join(output_dir, "task2_flow_chart_and_table.svg"))
+    save_svg(fig, os.path.join(output_dir, "task28_flow_chart_and_table.svg"))
 
 
-def task2_flow_chart_elaborate_bpmn(ctx: dict, model_path: str, output_dir: str):
+def task28_flow_chart_elaborate_bpmn(ctx: dict, model_path: str, output_dir: str):
     """Render native BPMN DI geometry as SVG and overlay alignment deviations."""
     ns = {
         "bpmn": "http://www.omg.org/spec/BPMN/20100524/MODEL",
@@ -929,7 +929,7 @@ def task2_flow_chart_elaborate_bpmn(ctx: dict, model_path: str, output_dir: str)
         out.append(f'<text x="{x + 32:.1f}" y="{legend_y:.1f}" font-family="Arial, sans-serif" font-size="9" fill="#222">{esc(label)}</text>')
     out.append("</svg>")
 
-    path = os.path.join(output_dir, "task2_flow_chart_elaborate_bpmn.svg")
+    path = os.path.join(output_dir, "task28_flow_chart_elaborate_bpmn.svg")
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(out))
     logger.debug(f"      Saved: {path}")
@@ -945,12 +945,12 @@ def generate(alignments, model_path: str, output_dir: str):
     """Generate all Task 2 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 2 visualizations ---")
-    ctx = build_task2_context(alignments)
+    ctx = build_task28_context(alignments)
     if ctx is None:
         logger.warning("      Skipped Task 2: no alignment steps in representative trace.")
         return
     logger.info(f"      Using {ctx['trace_label']} (log index {ctx['trace_index']}, fitness={ctx['fitness']:.4f})")
-    task2_alignment_table(ctx, output_dir)
-    task2_flow_chart_basic(ctx, output_dir)
-    task2_flow_chart_and_table(ctx, output_dir)
-    task2_flow_chart_elaborate_bpmn(ctx, model_path, output_dir)
+    task28_alignment_table(ctx, output_dir)
+    task28_flow_chart_basic(ctx, output_dir)
+    task28_flow_chart_and_table(ctx, output_dir)
+    task28_flow_chart_elaborate_bpmn(ctx, model_path, output_dir)

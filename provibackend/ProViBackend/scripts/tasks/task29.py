@@ -1,5 +1,5 @@
 """
-tasks/task3.py – Task 3: Violation type summaries across all traces.
+tasks/task29.py – Task 3: Violation type summaries across all traces.
 
 Public API:
     generate(alignments, output_dir)
@@ -25,7 +25,7 @@ from shared import save_svg, make_table, alignment_pairs_to_rows, BLUE, ORANGE, 
 
 
 # ---------------------------------------------------------------------------
-# Chevron helpers (same visual style as task2)
+# Chevron helpers (same visual style as task28)
 # ---------------------------------------------------------------------------
 _CHEVRON_HEIGHT     = 1.65
 _CHEVRON_DEPTH      = 0.92
@@ -97,14 +97,14 @@ def _draw_chevrons(ax, nodes, fontsize=10):
 # ---------------------------------------------------------------------------
 
 # Task 3 helpers
-TASK3_TYPE_LABELS = {
+TASK29_TYPE_LABELS = {
     "Model Move": "Model Move\n(Missing in Log)",
     "Log Move": "Log Move\n(Unexpected in Log)",
     "Mismatch Move": "Mismatch Move\n(Log/Model differ)",
 }
 
 
-def task3_violation_summary_dataframe(alignments):
+def task29_violation_summary_dataframe(alignments):
     """Count violation move types across all trace alignments."""
     rows = []
     for trace_idx, result in enumerate(alignments):
@@ -115,7 +115,7 @@ def task3_violation_summary_dataframe(alignments):
             rows.append({
                 "trace_index": trace_idx,
                 "move_type": move_type,
-                "violation_type": TASK3_TYPE_LABELS.get(move_type, move_type),
+                "violation_type": TASK29_TYPE_LABELS.get(move_type, move_type),
                 "activity": step["model_move"] if move_type == "Model Move" else step["log_move"],
             })
 
@@ -138,7 +138,7 @@ def task3_violation_summary_dataframe(alignments):
 
 
 # Task 3 visualizations
-def task3_bar_chart(df: pd.DataFrame, output_dir: str):
+def task29_bar_chart(df: pd.DataFrame, output_dir: str):
     """Bar chart: occurrence count by violation type."""
     fig, ax = plt.subplots(figsize=(8.5, 5.2))
     colors = [BLUE if mt == "Model Move" else RED if mt == "Log Move" else ORANGE for mt in df["move_type"]]
@@ -162,10 +162,10 @@ def task3_bar_chart(df: pd.DataFrame, output_dir: str):
     ax.set_axisbelow(True)
     ax.tick_params(axis="x", labelrotation=15)
     fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task3_bar_chart.svg"))
+    save_svg(fig, os.path.join(output_dir, "task29_bar_chart.svg"))
 
 
-def task3_heatmap(df: pd.DataFrame, output_dir: str):
+def task29_heatmap(df: pd.DataFrame, output_dir: str):
     """Heatmap: one count cell per violation type."""
     labels = df["violation_type"].tolist()
     values = df["count"].to_numpy(dtype=float).reshape(-1, 1)
@@ -188,10 +188,10 @@ def task3_heatmap(df: pd.DataFrame, output_dir: str):
     cbar = fig.colorbar(im, ax=ax, fraction=0.08, pad=0.04)
     cbar.set_label("Number of Violations", fontsize=FONT_ANNOT)
     fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task3_heatmap.svg"))
+    save_svg(fig, os.path.join(output_dir, "task29_heatmap.svg"))
 
 
-def task3_pie_chart(df: pd.DataFrame, output_dir: str):
+def task29_pie_chart(df: pd.DataFrame, output_dir: str):
     """Pie chart: proportion of violation move types."""
     colors = [BLUE if mt == "Model Move" else RED if mt == "Log Move" else ORANGE for mt in df["move_type"]]
     labels = [label.replace("\n", " ") for label in df["violation_type"]]
@@ -211,10 +211,10 @@ def task3_pie_chart(df: pd.DataFrame, output_dir: str):
     ax.legend(wedges, labels, loc="lower center", bbox_to_anchor=(0.5, -0.10), ncol=1, frameon=False, fontsize=FONT_ANNOT)
     ax.set_title("Violation Type Proportions", fontsize=FONT_TITLE)
     fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task3_pie_chart.svg"))
+    save_svg(fig, os.path.join(output_dir, "task29_pie_chart.svg"))
 
 
-def task3_table(df: pd.DataFrame, output_dir: str):
+def task29_table(df: pd.DataFrame, output_dir: str):
     """Table: violation type, count and percentage."""
     total = int(df["count"].sum())
     cell_text = [
@@ -238,10 +238,10 @@ def task3_table(df: pd.DataFrame, output_dir: str):
     )
     ax.set_title("Violation Type Summary", fontsize=FONT_TITLE, pad=12)
     fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task3_table.svg"))
+    save_svg(fig, os.path.join(output_dir, "task29_table.svg"))
 
 
-def task3_table_and_bar_chart(df: pd.DataFrame, output_dir: str):
+def task29_table_and_bar_chart(df: pd.DataFrame, output_dir: str):
     """Composite: compact summary table and horizontal bar chart."""
     total = int(df["count"].sum())
     fig = plt.figure(figsize=(13.5, 4.8))
@@ -281,11 +281,11 @@ def task3_table_and_bar_chart(df: pd.DataFrame, output_dir: str):
     ax_bar.set_axisbelow(True)
     fig.suptitle("Violation Type Summary", fontsize=FONT_TITLE, y=0.98)
     fig.tight_layout(rect=[0, 0, 1, 0.93])
-    save_svg(fig, os.path.join(output_dir, "task3_table_and_bar_chart.svg"))
+    save_svg(fig, os.path.join(output_dir, "task29_table_and_bar_chart.svg"))
 
 
 
-def _task3_wrap_label(label: str, max_chars: int = 14) -> str:
+def _task29_wrap_label(label: str, max_chars: int = 14) -> str:
     """Wrap long activity label at underscore boundaries to fit inside chevron."""
     if len(label) <= max_chars:
         return label
@@ -304,7 +304,7 @@ def _task3_wrap_label(label: str, max_chars: int = 14) -> str:
     return "\n".join(lines) if lines else label
 
 
-def _task3_build_activity_violation_nodes(alignments, max_nodes: int = 16):
+def _task29_build_activity_violation_nodes(alignments, max_nodes: int = 16):
     """Aggregate violations by activity across ALL traces.
 
     Returns (nodes, items, truncated):
@@ -362,13 +362,13 @@ def _task3_build_activity_violation_nodes(alignments, max_nodes: int = 16):
         color = (BLUE   if item["dominant_type"] == "Model Move"
                  else RED    if item["dominant_type"] == "Log Move"
                  else ORANGE)
-        label = _task3_wrap_label(item["activity"]) + f"\n×{item['total']}"
+        label = _task29_wrap_label(item["activity"]) + f"\n×{item['total']}"
         nodes.append({"label": label, "color": color})
 
     return nodes, items, truncated
 
 
-def task3_flow_chart_and_table(df: pd.DataFrame, alignments, output_dir: str):
+def task29_flow_chart_and_table(df: pd.DataFrame, alignments, output_dir: str):
     """Composite: violation summary table (top) + activity-level violation map (bottom).
 
     Table  – violation-type counts & percentages aggregated across all traces.
@@ -376,7 +376,7 @@ def task3_flow_chart_and_table(df: pd.DataFrame, alignments, output_dir: str):
              violation type and labelled with total violation count, ordered by
              average process position so the flow reads left-to-right.
     """
-    nodes, items, truncated = _task3_build_activity_violation_nodes(alignments)
+    nodes, items, truncated = _task29_build_activity_violation_nodes(alignments)
 
     # fall back to an empty axis message when no violations exist
     has_flow = bool(nodes)
@@ -448,7 +448,7 @@ def task3_flow_chart_and_table(df: pd.DataFrame, alignments, output_dir: str):
 
     fig.suptitle("Violation Type Summary", fontsize=FONT_TITLE, y=0.98)
     fig.tight_layout(rect=[0, 0.07, 1, 0.93])
-    save_svg(fig, os.path.join(output_dir, "task3_flow_chart_and_table.svg"))
+    save_svg(fig, os.path.join(output_dir, "task29_flow_chart_and_table.svg"))
 
 
 # ---------------------------------------------------------------------------
@@ -459,13 +459,13 @@ def generate(alignments, output_dir: str):
     """Generate all Task 3 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 3 visualizations ---")
-    df = task3_violation_summary_dataframe(alignments)
+    df = task29_violation_summary_dataframe(alignments)
     if df.empty:
         logger.warning("      Skipped Task 3: no violation moves found.")
         return
-    task3_bar_chart(df, output_dir)
-    task3_heatmap(df, output_dir)
-    task3_pie_chart(df, output_dir)
-    task3_table(df, output_dir)
-    task3_table_and_bar_chart(df, output_dir)
-    task3_flow_chart_and_table(df, alignments, output_dir)
+    task29_bar_chart(df, output_dir)
+    task29_heatmap(df, output_dir)
+    task29_pie_chart(df, output_dir)
+    task29_table(df, output_dir)
+    task29_table_and_bar_chart(df, output_dir)
+    task29_flow_chart_and_table(df, alignments, output_dir)

@@ -156,7 +156,7 @@ def make_table(
     return tbl
 
 # ---------------------------------------------------------------------------
-# Alignment parsing helpers  (used by task2, task3, task4)
+# Alignment parsing helpers  (used by task28, task29, task20)
 # ---------------------------------------------------------------------------
 
 SKIP_ALIGNMENT_TOKENS = {">>", None}
@@ -213,7 +213,7 @@ def alignment_pairs_to_rows(alignment):
     return rows_out
 
 # ---------------------------------------------------------------------------
-# Shared number formatter (used by task4 and task6)
+# Shared number formatter (used by task20 and task31)
 # ---------------------------------------------------------------------------
 
 def format_threshold(threshold: float) -> str:

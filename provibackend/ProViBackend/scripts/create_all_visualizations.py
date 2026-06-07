@@ -9,8 +9,8 @@ Designed for the dataset-folder convention used on the server:
             EventLog.xes               (or EventLog.csv)
             Guideline.bpmn
         output/
-            task1/  task1_bar_chart.svg, task1_table.svg, ...
-            task2/  ...
+            task06/  task06_bar_chart.svg, task06_table.svg, ...
+            task28/  ...
             ...
 
 Two ways to run:
@@ -44,16 +44,16 @@ import sys
 import warnings
 warnings.filterwarnings("ignore")
 
-# Allow `from io_helpers import ...` and `import tasks.task1` when run as a script
+# Allow `from io_helpers import ...` and `import tasks.task06` when run as a script
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from io_helpers import load_event_log, load_model, run_alignments, fitness_summary_dataframe
-import tasks.task1 as task1
-import tasks.task2 as task2
-import tasks.task3 as task3
-import tasks.task4 as task4
-import tasks.task5 as task5
-import tasks.task6 as task6
+import tasks.task06 as task06
+import tasks.task28 as task28
+import tasks.task29 as task29
+import tasks.task20 as task20
+import tasks.task10 as task10
+import tasks.task31 as task31
 
 
 # ---------------------------------------------------------------------------
@@ -64,17 +64,17 @@ import tasks.task6 as task6
 #         <any filename>.xes  (or .csv)  ← event log
 #         <any filename>.bpmn            ← process model
 #     output/
-#         task1/  task2/  ...  task6/
+#         task06/  task28/  task29/  task20/  task10/  task31/
 # ---------------------------------------------------------------------------
 
 INPUT_SUBDIR  = "input"
 OUTPUT_SUBDIR = "output"
 LOG_EXTENSIONS   = {".xes", ".csv"}
 MODEL_EXTENSIONS = {".bpmn"}
-TASK_DIRS     = ["task1", "task2", "task3", "task4", "task5", "task6"]
+TASK_DIRS     = ["task06", "task28", "task29", "task20", "task10", "task31"]
 
 # Aliases mapping task-script filename stems to canonical idiom_keys.
-# E.g. task1.py writes "task1_scatter_plot.svg"; we strip "task1_" then
+# E.g. task06.py writes "task06_scatter_plot.svg"; we strip "task06_" then
 # rename "scatter_plot" -> "scatterplot" to match the Idiom collection.
 _FILE_RENAME = {
     "scatter_plot":              "scatterplot",
@@ -168,13 +168,13 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED") -> str
         return d
 
     generators = [
-        ("task1", lambda d: task1.generate(fitness_df,             d)),
-        ("task2", lambda d: task2.generate(alignments, model_path, d)),
-        ("task3", lambda d: task3.generate(alignments,             d)),
-        ("task4", lambda d: task4.generate(log, alignments,        d)),
-        ("task5", lambda d: task5.generate(fitness_df,             d)),
-        ("task6", lambda d: task6.generate(log, alignments,        d,
-                                           outcome_activity=outcome_activity)),
+        ("task06", lambda d: task06.generate(fitness_df,             d)),
+        ("task28", lambda d: task28.generate(alignments, model_path, d)),
+        ("task29", lambda d: task29.generate(alignments,             d)),
+        ("task20", lambda d: task20.generate(log, alignments,        d)),
+        ("task10", lambda d: task10.generate(fitness_df,             d)),
+        ("task31", lambda d: task31.generate(log, alignments,        d,
+                                             outcome_activity=outcome_activity)),
     ]
 
     for task_name, gen_fn in generators:
