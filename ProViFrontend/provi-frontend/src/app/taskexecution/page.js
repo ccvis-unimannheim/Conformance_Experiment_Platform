@@ -234,7 +234,7 @@ export default function TaskExecutionPage() {
             ) : currentGroup ? (
               <>
                 <h1 style={{ fontSize: "2.25rem", fontWeight: 900, color: "#00305e", letterSpacing: "-0.025em", marginBottom: "0.75rem" }}>
-                  Task {currentStep}: {currentGroup.task_label}
+                  {currentGroup.task_label}
                 </h1>
                 <p style={{ color: "#5a6061", maxWidth: "42rem", lineHeight: 1.6, fontSize: "1.25rem", fontWeight: 700 }}>
                   {currentIdiom?.idiom_label ?? ""}
