@@ -1,5 +1,5 @@
 """
-tasks/task1.py – Task 1: Overall degree of conformance.
+tasks/task06.py – Task 1: Overall degree of conformance.
 
 Visualizations: Bar Chart, Box Plot, Donut Chart, Scatter Plot, Heatmap, Table, Tile Metric.
 
@@ -25,7 +25,7 @@ from matplotlib.patches import FancyBboxPatch
 from shared import save_svg, make_table, BLUE, ORANGE, TEAL, GREEN, RED, FONT_TITLE, FONT_LABEL, FONT_ANNOT
 
 
-def task1_bar_chart(df, output_dir: str):
+def task06_bar_chart(df, output_dir: str):
     conform     = int(df["is_fit"].sum())
     non_conform = len(df) - conform
 
@@ -48,10 +48,10 @@ def task1_bar_chart(df, output_dir: str):
     ax.yaxis.grid(True, linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
     fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task1_bar_chart.svg"))
+    save_svg(fig, os.path.join(output_dir, "task06_bar_chart.svg"))
 
 
-def task1_box_plot(df, output_dir: str):
+def task06_box_plot(df, output_dir: str):
     fig, ax = plt.subplots(figsize=(4, 6))
     ax.boxplot(
         df["fitness"].values,
@@ -72,10 +72,10 @@ def task1_box_plot(df, output_dir: str):
     ax.yaxis.grid(True, linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
     fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task1_box_plot.svg"))
+    save_svg(fig, os.path.join(output_dir, "task06_box_plot.svg"))
 
 
-def task1_donut_chart(df, output_dir: str):
+def task06_donut_chart(df, output_dir: str):
     conform     = int(df["is_fit"].sum())
     non_conform = len(df) - conform
     total       = len(df)
@@ -99,10 +99,10 @@ def task1_donut_chart(df, output_dir: str):
     )
     ax.set_title("Share of Conformant Traces", fontsize=FONT_TITLE)
     fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task1_donut_chart.svg"))
+    save_svg(fig, os.path.join(output_dir, "task06_donut_chart.svg"))
 
 
-def task1_scatter_plot(df, output_dir: str):
+def task06_scatter_plot(df, output_dir: str):
     colors = [GREEN if fit else RED for fit in df["is_fit"]]
     fig, ax = plt.subplots(figsize=(10, 4))
     ax.scatter(df["trace_index"], df["fitness"], c=colors, s=15, alpha=0.6, linewidths=0)
@@ -119,10 +119,10 @@ def task1_scatter_plot(df, output_dir: str):
     ax.yaxis.grid(True, linestyle="--", alpha=0.4)
     ax.set_axisbelow(True)
     fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task1_scatter_plot.svg"))
+    save_svg(fig, os.path.join(output_dir, "task06_scatter_plot.svg"))
 
 
-def task1_heatmap(df, output_dir: str):
+def task06_heatmap(df, output_dir: str):
     avg  = df["fitness"].mean()
     cmap = "Greys"
 
@@ -139,10 +139,10 @@ def task1_heatmap(df, output_dir: str):
     cbar.set_ticks([0, 0.25, 0.5, 0.75, 1.0])
     cbar.set_ticklabels(["0%", "25%", "50%", "75%", "100%"])
     fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task1_heatmap.svg"))
+    save_svg(fig, os.path.join(output_dir, "task06_heatmap.svg"))
 
 
-def task1_table(df, output_dir: str):
+def task06_table(df, output_dir: str):
     conform     = int(df["is_fit"].sum())
     non_conform = len(df) - conform
     rate        = df["fitness"].mean() * 100
@@ -169,10 +169,10 @@ def task1_table(df, output_dir: str):
     )
     ax.set_title("Conformance Summary", fontsize=FONT_TITLE, pad=12)
     fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task1_table.svg"))
+    save_svg(fig, os.path.join(output_dir, "task06_table.svg"))
 
 
-def task1_tile_metric(df, output_dir: str):
+def task06_tile_metric(df, output_dir: str):
     avg = df["fitness"].mean() * 100
 
     fig, ax = plt.subplots(figsize=(4, 3))
@@ -190,7 +190,7 @@ def task1_tile_metric(df, output_dir: str):
             transform=ax.transAxes, ha="center", va="center",
             fontsize=32, color="#333333")
     fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task1_tile_metric.svg"))
+    save_svg(fig, os.path.join(output_dir, "task06_tile_metric.svg"))
 
 
 # ---------------------------------------------------------------------------
@@ -201,10 +201,10 @@ def generate(df, output_dir: str):
     """Generate all Task 1 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 1 visualizations ---")
-    task1_bar_chart(df, output_dir)
-    task1_box_plot(df, output_dir)
-    task1_donut_chart(df, output_dir)
-    task1_scatter_plot(df, output_dir)
-    task1_heatmap(df, output_dir)
-    task1_table(df, output_dir)
-    task1_tile_metric(df, output_dir)
+    task06_bar_chart(df, output_dir)
+    task06_box_plot(df, output_dir)
+    task06_donut_chart(df, output_dir)
+    task06_scatter_plot(df, output_dir)
+    task06_heatmap(df, output_dir)
+    task06_table(df, output_dir)
+    task06_tile_metric(df, output_dir)

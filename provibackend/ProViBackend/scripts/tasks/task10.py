@@ -1,5 +1,5 @@
 """
-tasks/task5.py – Task 5: Which percentage of traces fall into which conformance category?
+tasks/task10.py – Task 5: Which percentage of traces fall into which conformance category?
 
 Visualizations: Bar Chart, Pie Chart, Scatter Plot, Heatmap, Table.
 
@@ -37,11 +37,11 @@ HIGH_FITNESS_LABELS = ["0.80 – 0.85", "0.85 – 0.90", "0.90 – 0.95", "0.95 
 RANGE_COLORS = ["#F0F0F0", "#D4D4D4", "#B8B8B8", "#9C9C9C", "#777777", "#555555"]
 
 
-def _task5_color_list(n: int):
+def _task10_color_list(n: int):
     """Return a stable greyscale palette with enough colors for adaptive bins."""
     if n <= len(RANGE_COLORS):
         return RANGE_COLORS[:n]
-    cmap = LinearSegmentedColormap.from_list("task5_greys", ["#F0F0F0", "#555555"])
+    cmap = LinearSegmentedColormap.from_list("task10_greys", ["#F0F0F0", "#555555"])
     return [cmap(i / max(n - 1, 1)) for i in range(n)]
 
 
@@ -137,13 +137,13 @@ def _build_range_df(df) -> pd.DataFrame:
 # Visualizations
 # ---------------------------------------------------------------------------
 
-def task5_bar_chart(range_df: pd.DataFrame, output_dir: str):
+def task10_bar_chart(range_df: pd.DataFrame, output_dir: str):
     """Bar chart: percentage of traces per conformance range."""
     fig, ax = plt.subplots(figsize=(8, 5))
     bars = ax.bar(
         range_df["range"],
         range_df["percentage"],
-        color=_task5_color_list(len(range_df)),
+        color=_task10_color_list(len(range_df)),
         edgecolor="white",
         width=0.6,
     )
@@ -164,17 +164,17 @@ def task5_bar_chart(range_df: pd.DataFrame, output_dir: str):
     ax.set_axisbelow(True)
     ax.tick_params(axis="x", rotation=15)
     fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task5_bar_chart.svg"))
+    save_svg(fig, os.path.join(output_dir, "task10_bar_chart.svg"))
 
 
-def task5_pie_chart(range_df: pd.DataFrame, output_dir: str):
+def task10_pie_chart(range_df: pd.DataFrame, output_dir: str):
     """Pie chart: proportion of traces per conformance range."""
     # Only include ranges with at least one trace
     active = range_df[range_df["count"] > 0]
     if active.empty:
         active = range_df
 
-    active_colors = [_task5_color_list(len(range_df))[i] for i in active.index]
+    active_colors = [_task10_color_list(len(range_df))[i] for i in active.index]
     fig, ax = plt.subplots(figsize=(7, 5.5))
     wedges, texts, autotexts = ax.pie(
         active["count"],
@@ -190,10 +190,10 @@ def task5_pie_chart(range_df: pd.DataFrame, output_dir: str):
         autotext.set_color(contrasting_text_color(color))
     ax.set_title("Conformance Range Proportions", fontsize=FONT_TITLE)
     fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task5_pie_chart.svg"))
+    save_svg(fig, os.path.join(output_dir, "task10_pie_chart.svg"))
 
 
-def task5_scatter_plot(range_df: pd.DataFrame, output_dir: str):
+def task10_scatter_plot(range_df: pd.DataFrame, output_dir: str):
     """
     Bubble scatter plot: x = conformance range, y = percentage of traces,
     marker area proportional to trace count; count shown inside or above bubble.
@@ -254,16 +254,16 @@ def task5_scatter_plot(range_df: pd.DataFrame, output_dir: str):
     ax.grid(True, which="major", axis="both", linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
     fig.tight_layout(rect=[0, 0, 1, 0.85])
-    save_svg(fig, os.path.join(output_dir, "task5_scatter_plot.svg"))
+    save_svg(fig, os.path.join(output_dir, "task10_scatter_plot.svg"))
 
 
-def task5_heatmap(range_df: pd.DataFrame, output_dir: str):
+def task10_heatmap(range_df: pd.DataFrame, output_dir: str):
     """
     Horizontal heatmap: one cell per range, color encodes percentage,
     light blue (low) → dark blue (high).
     """
     pcts   = range_df["percentage"].values.reshape(1, -1)
-    cmap   = LinearSegmentedColormap.from_list("task5_hm", ["#F0F0F0", "#555555"])
+    cmap   = LinearSegmentedColormap.from_list("task10_hm", ["#F0F0F0", "#555555"])
     vmax   = max(pcts.max(), 1.0)
 
     fig, ax = plt.subplots(figsize=(10, 2.4))
@@ -285,10 +285,10 @@ def task5_heatmap(range_df: pd.DataFrame, output_dir: str):
     cbar = fig.colorbar(im, ax=ax, orientation="vertical", fraction=0.04, pad=0.02)
     cbar.set_label("Percentage (%)", fontsize=FONT_ANNOT)
     fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task5_heatmap.svg"))
+    save_svg(fig, os.path.join(output_dir, "task10_heatmap.svg"))
 
 
-def task5_table(range_df: pd.DataFrame, output_dir: str):
+def task10_table(range_df: pd.DataFrame, output_dir: str):
     """Table: Conformance Range | Count (Cases) | Percentage."""
     total = int(range_df["count"].sum())
     cell_text = [
@@ -312,7 +312,7 @@ def task5_table(range_df: pd.DataFrame, output_dir: str):
     )
     ax.set_title("Conformance Range Summary", fontsize=FONT_TITLE, pad=12)
     fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task5_table.svg"))
+    save_svg(fig, os.path.join(output_dir, "task10_table.svg"))
 
 
 # ---------------------------------------------------------------------------
@@ -325,8 +325,8 @@ def generate(df, output_dir: str):
     logger.info("\n--- Generating Task 5 visualizations ---")
     range_df = _build_range_df(df)
     logger.info(f"      -> Range counts: {dict(zip(range_df['range'], range_df['count']))}")
-    task5_bar_chart(range_df, output_dir)
-    task5_pie_chart(range_df, output_dir)
-    task5_scatter_plot(range_df, output_dir)
-    task5_heatmap(range_df, output_dir)
-    task5_table(range_df, output_dir)
+    task10_bar_chart(range_df, output_dir)
+    task10_pie_chart(range_df, output_dir)
+    task10_scatter_plot(range_df, output_dir)
+    task10_heatmap(range_df, output_dir)
+    task10_table(range_df, output_dir)
