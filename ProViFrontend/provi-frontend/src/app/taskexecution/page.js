@@ -225,38 +225,18 @@ export default function TaskExecutionPage() {
         {/* Main Content */}
         <main style={{ flexGrow: 1, paddingTop: "6rem", paddingBottom: "3rem", paddingLeft: "2rem", paddingRight: "2rem", maxWidth: "1440px", margin: "0 auto", width: "100%" }}>
 
-          <header style={{ marginBottom: "3rem" }}>
-            {showSkeleton ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                <div style={{ height: "2.5rem", width: "50%", backgroundColor: "#e5e7eb", borderRadius: "0.5rem" }} />
-                <div style={{ height: "1.5rem", width: "70%", backgroundColor: "#e5e7eb", borderRadius: "0.5rem" }} />
-              </div>
-            ) : currentGroup ? (
-              <>
-                <h1 style={{ fontSize: "2.25rem", fontWeight: 900, color: "#00305e", letterSpacing: "-0.025em", marginBottom: "0.75rem" }}>
-                  {currentGroup.task_label}
-                </h1>
-              </>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                <div style={{ height: "2.5rem", width: "50%", backgroundColor: "#e5e7eb", borderRadius: "0.5rem" }} />
-                <div style={{ height: "1.5rem", width: "70%", backgroundColor: "#e5e7eb", borderRadius: "0.5rem" }} />
-              </div>
-            )}
-          </header>
-
           {showSkeleton ? (
             <LoadingSkeleton />
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(12, minmax(0,1fr))", gap: "2rem", alignItems: "start" }}>
               <TaskVisualizationPanel
-                idiom={currentIdiom?.idiom_label ?? null}
                 svgUrl={svgUrl}
                 taskNumber={currentStep}
                 loadingSvg={loadingSvg}
               />
               <TaskAnswerPanel
                 options={[]}
+                taskLabel={currentGroup?.task_label ?? ""}
                 experimentId={experimentId}
                 taskId={currentGroup?.task_id ?? currentStep}
                 idiomId={currentIdiom?.idiom_id ?? ""}

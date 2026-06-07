@@ -26,6 +26,7 @@ import { useRouter } from "next/navigation";
  */
 const TaskAnswerPanel = ({
   options = [],
+  taskLabel = "",
   taskId,
   idiomId = "",
   datasetId = "",
@@ -128,6 +129,19 @@ const TaskAnswerPanel = ({
   return (
     <aside style={{ gridColumn: "span 4", display: "flex", flexDirection: "column", gap: "1.5rem" }}>
       <div style={cardStyle}>
+        {taskLabel && (
+          <p style={{
+            fontSize: "1.05rem",
+            fontWeight: 700,
+            color: "#00305e",
+            lineHeight: 1.5,
+            marginBottom: "1.5rem",
+            paddingBottom: "1.25rem",
+            borderBottom: "1px solid #f0f0f0",
+          }}>
+            {taskLabel}
+          </p>
+        )}
         <h2 style={headerStyle}>Your Answer</h2>
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>

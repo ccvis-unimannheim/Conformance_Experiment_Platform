@@ -11,7 +11,7 @@ const TaskVisualizationPanel = ({ svgUrl, taskNumber = 1, loadingSvg = false }) 
   const showPlaceholder = !svgUrl || imgError;
 
   return (
-    <section style={{ gridColumn: "1 / span 9" }}>
+    <section style={{ gridColumn: "1 / span 8" }}>
       <div style={{
         backgroundColor: "white",
         borderRadius: "0.75rem",
