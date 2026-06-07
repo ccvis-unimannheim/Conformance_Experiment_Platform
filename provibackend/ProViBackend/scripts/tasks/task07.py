@@ -237,8 +237,8 @@ def task07_gantt_chart(df: pd.DataFrame, output_dir: str):
     gantt_df = gantt_df.head(_GANTT_MAX_TRACES).reset_index(drop=True)
     n = len(gantt_df)
 
-    starts    = mdates.date2num(gantt_df["start_time"].dt.to_pydatetime())
-    ends      = mdates.date2num(gantt_df["end_time"].dt.to_pydatetime())
+    starts    = np.array(mdates.date2num(gantt_df["start_time"]))
+    ends      = np.array(mdates.date2num(gantt_df["end_time"]))
     durations = ends - starts
 
     # Dynamic min width: 1% of total visible span, at least 1 day
