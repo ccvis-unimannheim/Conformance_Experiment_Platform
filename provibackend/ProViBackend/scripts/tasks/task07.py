@@ -220,15 +220,14 @@ def task07_horizon_chart(df: pd.DataFrame, output_dir: str):
 def task07_gantt_chart(df: pd.DataFrame, output_dir: str):
     """Gantt chart: one row per trace, bar spanning start→end time.
 
-    Bar color encodes fitness (dark grey = high conformance, light = low).
+    Bar color encodes fitness via red→teal colormap scaled to actual data range.
+    X-axis shows month/year labels; outlier traces clipped at 95th-pct end time.
     Capped at _GANTT_MAX_TRACES rows for readability.
-    Zero-duration traces get a minimum visible bar width.
     """
     if df is None or df.empty:
         _save_empty(output_dir, "task07_gantt_chart.svg", "No timestamp data available")
         return
 
-    # Drop traces without end time and cap count
     gantt_df = df.dropna(subset=["end_time"]).copy()
     if gantt_df.empty:
         _save_empty(output_dir, "task07_gantt_chart.svg",
@@ -238,53 +237,77 @@ def task07_gantt_chart(df: pd.DataFrame, output_dir: str):
     gantt_df = gantt_df.head(_GANTT_MAX_TRACES).reset_index(drop=True)
     n = len(gantt_df)
 
-    # Convert timestamps to matplotlib float dates
-    starts   = mdates.date2num(gantt_df["start_time"].dt.to_pydatetime())
-    ends     = mdates.date2num(gantt_df["end_time"].dt.to_pydatetime())
+    starts    = mdates.date2num(gantt_df["start_time"].dt.to_pydatetime())
+    ends      = mdates.date2num(gantt_df["end_time"].dt.to_pydatetime())
     durations = ends - starts
 
-    # Minimum bar width: 0.2 days in matplotlib date units (prevents zero-width bars)
-    min_width = 0.2
+    # Dynamic min width: 1% of total visible span, at least 1 day
+    total_span = ends.max() - starts.min()
+    min_width = max(total_span * 0.01, 1.0)
     durations = np.where(durations < min_width, min_width, durations)
 
-    # Fitness → greyscale color (0.0 = light grey #DDDDDD, 1.0 = dark grey #333333)
     fitness_vals = gantt_df["fitness"].values
-    norm = mcolors.Normalize(vmin=0.0, vmax=1.0)
-    cmap = cm.get_cmap("Greys")
 
-    fig_height = max(4, 0.35 * n + 1.5)
+    # Colormap scaled to actual fitness range → maximises colour contrast
+    f_min = max(0.0, float(fitness_vals.min()) - 0.05)
+    f_max = min(1.0, float(fitness_vals.max()) + 0.05)
+    norm = mcolors.Normalize(vmin=f_min, vmax=f_max)
+    # coral/salmon (low) → light sage → teal (high conformance)
+    cmap = mcolors.LinearSegmentedColormap.from_list(
+        "conformance", ["#e07b6a", "#f5c99a", "#aed4c4", "#2d7d6f"]
+    )
+
+    fig_height = max(5, 0.30 * n + 2.0)
     fig, ax = plt.subplots(figsize=(14, fig_height))
+    ax.set_facecolor("#fafbfc")
 
     for i, (start, dur, fit) in enumerate(zip(starts, durations, fitness_vals)):
         color = cmap(norm(fit))
-        ax.barh(i, dur, left=start, height=0.65, color=color, edgecolor="white", linewidth=0.4)
+        ax.barh(i, dur, left=start, height=0.62,
+                color=color, edgecolor="white", linewidth=0.5, alpha=0.93)
 
-    # Y-axis: show trace indices (or "Case 1, Case 2, …")
+    # Clip x-axis at 95th-pct of end times to prevent outlier traces from
+    # compressing all other bars into a tiny sliver on the left
+    x_clip = float(np.percentile(ends, 95))
+    x_pad  = (x_clip - float(starts.min())) * 0.02
+    ax.set_xlim(float(starts.min()) - x_pad, x_clip + x_pad)
+
+    # Y-axis
     y_labels = [f"Case {int(gantt_df.loc[i, 'trace_index']) + 1}" for i in range(n)]
     ax.set_yticks(range(n))
-    ax.set_yticklabels(y_labels, fontsize=max(FONT_ANNOT - 1, 6))
+    ax.set_yticklabels(y_labels, fontsize=max(FONT_ANNOT - 2, 5))
+    ax.tick_params(axis="y", length=0)
     ax.invert_yaxis()
 
-    # X-axis: date formatting
+    # X-axis: explicit month/year labels instead of AutoDateFormatter
     ax.xaxis_date()
-    ax.xaxis.set_major_formatter(mdates.AutoDateFormatter(mdates.AutoDateLocator()))
+    ax.xaxis.set_major_locator(mdates.MonthLocator())
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%b '%y"))
     ax.tick_params(axis="x", labelrotation=30, labelsize=FONT_ANNOT)
 
-    ax.set_xlabel("Time", fontsize=FONT_LABEL)
-    ax.set_title(
-        f"Trace Timeline by Conformance"
-        + (f" (top {_GANTT_MAX_TRACES} shown)" if len(df.dropna(subset=["end_time"])) > _GANTT_MAX_TRACES else ""),
-        fontsize=FONT_TITLE,
-    )
-    ax.spines[["top", "right"]].set_visible(False)
+    # Vertical grid only — horizontal grid clutters dense row layout
+    ax.xaxis.grid(True, linestyle="--", alpha=0.25, color="#bbbbbb")
+    ax.set_axisbelow(True)
 
-    # Colorbar legend
+    ax.set_xlabel("Time", fontsize=FONT_LABEL)
+    total_with_end = len(df.dropna(subset=["end_time"]))
+    ax.set_title(
+        "Trace Timeline by Conformance"
+        + (f" (top {_GANTT_MAX_TRACES} of {total_with_end} shown)"
+           if total_with_end > _GANTT_MAX_TRACES else ""),
+        fontsize=FONT_TITLE, pad=12,
+    )
+    ax.spines[["top", "right", "left"]].set_visible(False)
+
+    # Colorbar with actual range tick labels
     sm = cm.ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array([])
-    cbar = fig.colorbar(sm, ax=ax, orientation="vertical", fraction=0.025, pad=0.02)
+    cbar = fig.colorbar(sm, ax=ax, orientation="vertical", fraction=0.02, pad=0.015)
     cbar.set_label("Conformance Rate", fontsize=FONT_ANNOT)
-    cbar.set_ticks([0, 0.25, 0.5, 0.75, 1.0])
-    cbar.set_ticklabels(["0%", "25%", "50%", "75%", "100%"])
+    mid = (f_min + f_max) / 2
+    cbar.set_ticks([f_min, mid, f_max])
+    cbar.set_ticklabels([f"{f_min:.0%}", f"{mid:.0%}", f"{f_max:.0%}"])
+    cbar.outline.set_visible(False)
 
     fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task07_gantt_chart.svg"))
