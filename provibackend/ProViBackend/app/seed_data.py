@@ -48,6 +48,12 @@ CANONICAL_TASKS = [
         "description": "Derive and visualize conformance trends over time using trace timestamps.",
         "answer_type": "single_choice",
     },
+    {
+        "task_key": "task08",
+        "label": "What violation co-occurrence patterns exist in the event log? Which violations tend to happen together?",
+        "description": "Identify pairs of violations that frequently co-occur across traces and quantify their co-occurrence strength.",
+        "answer_type": "single_choice",
+    },
 ]
 
 CANONICAL_IDIOMS = [
@@ -67,4 +73,8 @@ CANONICAL_IDIOMS = [
     {"idiom_key": "line_graph",           "label": "Line Graph",                           "granularity": "log",   "renderer_type": "svg",     "active": True},
     {"idiom_key": "horizon_chart",        "label": "Horizon Chart",                        "granularity": "log",   "renderer_type": "svg",     "active": True},
     {"idiom_key": "gantt_chart",          "label": "Gantt Chart",                          "granularity": "log",   "renderer_type": "svg",     "active": True},
+    {"idiom_key": "matrix",              "label": "Co-occurrence Matrix",                  "granularity": "log",   "renderer_type": "svg",     "active": True},
+    {"idiom_key": "network_diagram",     "label": "Network Diagram",                       "granularity": "log",   "renderer_type": "svg",     "active": True},
+    {"idiom_key": "scatter_plot",        "label": "Scatter Plot",                          "granularity": "log",   "renderer_type": "svg",     "active": True},
+    {"idiom_key": "tree",                "label": "Hierarchical Clustering Tree",           "granularity": "log",   "renderer_type": "svg",     "active": True},
 ]
