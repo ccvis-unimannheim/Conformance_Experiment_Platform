@@ -1,11 +1,11 @@
 # Maps DB Task.task_key to the SVG subdirectory name under new_output/
 TASK_KEY_TO_DIR = {
-    "T-01": "task1",
-    "T-02": "task2",
-    "T-03": "task3",
-    "T-04": "task4",
-    "T-05": "task5",
-    "T-06": "task6",
+    "T-01": "task06",
+    "T-02": "task28",
+    "T-03": "task29",
+    "T-04": "task20",
+    "T-05": "task10",
+    "T-06": "task31",
 }
 
 # Maps DB Idiom.idiom_key to the SVG filename suffix (without task prefix or .svg extension)
