@@ -51,6 +51,9 @@ from io_helpers import load_event_log, load_model, run_alignments, fitness_summa
 import tasks.task06 as task06
 import tasks.task07 as task07
 import tasks.task08 as task08
+import tasks.task09 as task09
+import tasks.task11 as task11
+import tasks.task12 as task12
 import tasks.task28 as task28
 import tasks.task29 as task29
 import tasks.task20 as task20
@@ -73,18 +76,19 @@ INPUT_SUBDIR  = "input"
 OUTPUT_SUBDIR = "output"
 LOG_EXTENSIONS   = {".xes", ".csv"}
 MODEL_EXTENSIONS = {".bpmn"}
-TASK_DIRS     = ["task06", "task07", "task08", "task28", "task29", "task20", "task10", "task31"]
+TASK_DIRS     = ["task06", "task07", "task08", "task09", "task11", "task12", "task28", "task29", "task20", "task10", "task31"]
 
 # Aliases mapping task-script filename stems to canonical idiom_keys.
 # E.g. task06.py writes "task06_scatter_plot.svg"; we strip "task06_" then
 # rename "scatter_plot" -> "scatterplot" to match the Idiom collection.
 _FILE_RENAME = {
-    "scatter_plot":              "scatterplot",
-    "box_plot":                  "boxplot",
-    "table_and_bar_chart":       "table_bar_chart",
-    "flow_chart_and_table":      "flow_chart_table",
-    "flow_chart_elaborate_bpmn": "flow_chart_elaborate",
-    "alignment_table":           "table",
+    "scatter_plot":                   "scatterplot",
+    "box_plot":                       "boxplot",
+    "table_and_bar_chart":            "table_bar_chart",
+    "flow_chart_and_table":           "flow_chart_table",
+    "flow_chart_elaborate_bpmn":      "flow_chart_elaborate",
+    "flow_chart_elaborate_bpmn_table":"flow_chart_elaborate_table",
+    "alignment_table":                "table",
 }
 
 # Per-task idiom keys that must NOT go through _FILE_RENAME.
@@ -178,8 +182,11 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED") -> str
     generators = [
         ("task06", lambda d: task06.generate(fitness_df,             d)),
         ("task07", lambda d: task07.generate(log, fitness_df,        d)),
-        ("task08", lambda d: task08.generate(log, alignments,        d)),
-        ("task28", lambda d: task28.generate(alignments, model_path, d)),
+        ("task08", lambda d: task08.generate(log, alignments,                    d)),
+        ("task09", lambda d: task09.generate(log, alignments,                    d, model_path=model_path)),
+        ("task11", lambda d: task11.generate(log, alignments,                    d, model_path=model_path)),
+        ("task12", lambda d: task12.generate(log, alignments,                    d)),
+        ("task28", lambda d: task28.generate(alignments, model_path,             d)),
         ("task29", lambda d: task29.generate(alignments,             d)),
         ("task20", lambda d: task20.generate(log, alignments,        d)),
         ("task10", lambda d: task10.generate(fitness_df,             d)),
