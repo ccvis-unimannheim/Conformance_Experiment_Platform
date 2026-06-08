@@ -439,3 +439,139 @@ def draw_decision_tree(
         if legend_kwargs is None:
             legend_kwargs = {}
         ax.legend(handles=legend_items, **legend_kwargs)
+
+# ---------------------------------------------------------------------------
+# Shared Tile Metric renderer  (used by task02 and task06)
+# ---------------------------------------------------------------------------
+
+def render_fitness_tile_metric(avg_fitness_pct: float, out_path: str):
+    """Render a single-value tile showing overall conformance rate and save to out_path."""
+    fig, ax = plt.subplots(figsize=(4, 3))
+    ax.axis("off")
+    ax.add_patch(FancyBboxPatch(
+        (0.05, 0.05), 0.9, 0.9,
+        boxstyle="round,pad=0.02", linewidth=2,
+        edgecolor="black", facecolor="white",
+        transform=ax.transAxes, clip_on=False,
+    ))
+    ax.text(0.5, 0.68, "Conformance Rate",
+            transform=ax.transAxes, ha="center", va="center",
+            fontsize=FONT_TITLE, color="#555555")
+    ax.text(0.5, 0.38, f"{avg_fitness_pct:.2f}%",
+            transform=ax.transAxes, ha="center", va="center",
+            fontsize=32, color="#333333")
+    fig.tight_layout()
+    save_svg(fig, out_path)
+
+# ---------------------------------------------------------------------------
+# Shared Parallel Sets renderer  (used by task01, task03, task05, …)
+# ---------------------------------------------------------------------------
+
+def draw_parallel_sets(
+    ax,
+    left_labels,
+    right_labels,
+    matrix,
+    left_colors,
+    right_colors=None,
+    left_title: str = "",
+    right_title: str = "",
+    bar_w: float = 0.10,
+    x_left: float = 0.12,
+    x_right: float = 0.88,
+):
+    """Draw a two-dimension Parallel Sets chart onto *ax*.
+
+    Parameters
+    ----------
+    left_labels   : sequence of str — categories on the left axis
+    right_labels  : sequence of str — categories on the right axis
+    matrix        : 2-D array-like, shape (len(left_labels), len(right_labels)) — counts
+    left_colors   : sequence of colour strings, one per left category
+    right_colors  : sequence of colour strings, one per right category; defaults to greyscale
+    left_title    : column header above left axis
+    right_title   : column header above right axis
+    bar_w         : width of the bar rectangles (axes units)
+    x_left/right  : x position of the left/right bar centres (axes units)
+    """
+    import numpy as _np
+    from matplotlib.patches import PathPatch as _PP
+    from matplotlib.path import Path as _Path
+
+    matrix = _np.asarray(matrix, dtype=float)
+    total  = float(matrix.sum())
+    if total == 0:
+        ax.text(0.5, 0.5, "No data.", ha="center", va="center", fontsize=11)
+        return
+
+    if right_colors is None:
+        n = len(right_labels)
+        _greys = ["#F0F0F0", "#D4D4D4", "#B8B8B8", "#9C9C9C", "#777777",
+                  "#555555", "#444444", "#333333"]
+        right_colors = [_greys[i % len(_greys)] for i in range(n)]
+
+    ctrl_x  = (x_left + x_right) / 2.0
+    g_hts   = matrix.sum(axis=1) / total
+    c_hts   = matrix.sum(axis=0) / total
+    g_bots  = _np.concatenate([[0.0], _np.cumsum(g_hts[:-1])])
+    c_bots  = _np.concatenate([[0.0], _np.cumsum(c_hts[:-1])])
+
+    # Left bars
+    for label, color, h, bot in zip(left_labels, left_colors, g_hts, g_bots):
+        ax.add_patch(plt.Rectangle(
+            (x_left - bar_w / 2, bot), bar_w, h,
+            facecolor=color, edgecolor="white", linewidth=0.8, zorder=3,
+        ))
+        if h > 0.03:
+            ax.text(x_left - bar_w / 2 - 0.015, bot + h / 2, label,
+                    ha="right", va="center", fontsize=FONT_ANNOT, color="#333333")
+
+    # Right bars
+    for label, color, h, bot in zip(right_labels, right_colors, c_hts, c_bots):
+        ax.add_patch(plt.Rectangle(
+            (x_right - bar_w / 2, bot), bar_w, h,
+            facecolor=color, edgecolor="white", linewidth=0.8, zorder=3,
+        ))
+        if h > 0.03:
+            ax.text(x_right + bar_w / 2 + 0.015, bot + h / 2, label,
+                    ha="left", va="center", fontsize=FONT_ANNOT - 1, color="#333333")
+
+    # Bezier ribbons
+    g_fill = g_bots.copy()
+    c_fill = c_bots.copy()
+    for gi, color in enumerate(left_colors):
+        for ci in range(len(right_labels)):
+            count = matrix[gi, ci]
+            if count == 0:
+                continue
+            rh   = count / total
+            ylb  = g_fill[gi];  ylt = ylb + rh
+            yrb  = c_fill[ci];  yrt = yrb + rh
+            g_fill[gi] += rh
+            c_fill[ci] += rh
+            verts = [
+                (x_left,  ylb),
+                (ctrl_x,  ylb), (ctrl_x, yrb), (x_right, yrb),
+                (x_right, yrt),
+                (ctrl_x,  yrt), (ctrl_x, ylt), (x_left,  ylt),
+                (x_left,  ylb),
+            ]
+            codes = [
+                _Path.MOVETO,
+                _Path.CURVE4, _Path.CURVE4, _Path.CURVE4,
+                _Path.LINETO,
+                _Path.CURVE4, _Path.CURVE4, _Path.CURVE4,
+                _Path.CLOSEPOLY,
+            ]
+            ax.add_patch(_PP(
+                _Path(verts, codes),
+                facecolor=color, edgecolor="none", alpha=0.35, zorder=2,
+            ))
+
+    # Column titles
+    if left_title:
+        ax.text(x_left,  1.08, left_title,  ha="center", va="bottom",
+                fontsize=FONT_LABEL, fontweight="bold")
+    if right_title:
+        ax.text(x_right, 1.08, right_title, ha="center", va="bottom",
+                fontsize=FONT_LABEL, fontweight="bold")

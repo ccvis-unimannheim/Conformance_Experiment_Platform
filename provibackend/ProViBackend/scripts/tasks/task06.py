@@ -22,7 +22,7 @@ import matplotlib.patches as mpatches
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.patches import FancyBboxPatch
 
-from shared import save_svg, make_table, BLUE, ORANGE, TEAL, GREEN, RED, FONT_TITLE, FONT_LABEL, FONT_ANNOT
+from shared import save_svg, make_table, render_fitness_tile_metric, BLUE, ORANGE, TEAL, GREEN, RED, FONT_TITLE, FONT_LABEL, FONT_ANNOT
 
 
 def task06_bar_chart(df, output_dir: str):
@@ -173,24 +173,8 @@ def task06_table(df, output_dir: str):
 
 
 def task06_tile_metric(df, output_dir: str):
-    avg = df["fitness"].mean() * 100
-
-    fig, ax = plt.subplots(figsize=(4, 3))
-    ax.axis("off")
-    ax.add_patch(FancyBboxPatch(
-        (0.05, 0.05), 0.9, 0.9,
-        boxstyle="round,pad=0.02", linewidth=2,
-        edgecolor="black", facecolor="white",
-        transform=ax.transAxes, clip_on=False,
-    ))
-    ax.text(0.5, 0.68, "Conformance Rate",
-            transform=ax.transAxes, ha="center", va="center",
-            fontsize=FONT_TITLE, color="#555555")
-    ax.text(0.5, 0.38, f"{avg:.2f}%",
-            transform=ax.transAxes, ha="center", va="center",
-            fontsize=32, color="#333333")
-    fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task06_tile_metric.svg"))
+    avg = float(df["fitness"].mean()) * 100
+    render_fitness_tile_metric(avg, os.path.join(output_dir, "task06_tile_metric.svg"))
 
 
 # ---------------------------------------------------------------------------

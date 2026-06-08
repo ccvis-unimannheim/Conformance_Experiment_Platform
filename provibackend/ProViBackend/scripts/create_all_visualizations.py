@@ -48,16 +48,23 @@ warnings.filterwarnings("ignore")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from io_helpers import load_event_log, load_model, run_alignments, fitness_summary_dataframe
+import tasks.task01 as task01
+import tasks.task02 as task02
+import tasks.task03 as task03
+import tasks.task04 as task04
+import tasks.task05 as task05
 import tasks.task06 as task06
 import tasks.task07 as task07
 import tasks.task08 as task08
 import tasks.task09 as task09
+import tasks.task10 as task10
 import tasks.task11 as task11
 import tasks.task12 as task12
+import tasks.task20 as task20
+import tasks.task23 as task23
+import tasks.task24 as task24
 import tasks.task28 as task28
 import tasks.task29 as task29
-import tasks.task20 as task20
-import tasks.task10 as task10
 import tasks.task31 as task31
 
 
@@ -76,7 +83,7 @@ INPUT_SUBDIR  = "input"
 OUTPUT_SUBDIR = "output"
 LOG_EXTENSIONS   = {".xes", ".csv"}
 MODEL_EXTENSIONS = {".bpmn"}
-TASK_DIRS     = ["task06", "task07", "task08", "task09", "task11", "task12", "task28", "task29", "task20", "task10", "task31"]
+TASK_DIRS     = ["task01", "task02", "task03", "task04", "task05", "task06", "task07", "task08", "task09", "task10", "task11", "task12", "task20", "task23", "task24", "task28", "task29", "task31"]
 
 # Aliases mapping task-script filename stems to canonical idiom_keys.
 # E.g. task06.py writes "task06_scatter_plot.svg"; we strip "task06_" then
@@ -180,16 +187,25 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED") -> str
         return d
 
     generators = [
+        ("task01", lambda d: task01.generate(log, fitness_df,        d,
+                                             outcome_activity=outcome_activity)),
+        ("task02", lambda d: task02.generate(fitness_df,             d)),
+        ("task03", lambda d: task03.generate(log, fitness_df,        d)),
+        ("task04", lambda d: task04.generate(log, fitness_df,        d)),
+        ("task05", lambda d: task05.generate(log, alignments,        d,
+                                             outcome_activity=outcome_activity)),
         ("task06", lambda d: task06.generate(fitness_df,             d)),
         ("task07", lambda d: task07.generate(log, fitness_df,        d)),
-        ("task08", lambda d: task08.generate(log, alignments,                    d)),
-        ("task09", lambda d: task09.generate(log, alignments,                    d, model_path=model_path)),
-        ("task11", lambda d: task11.generate(log, alignments,                    d, model_path=model_path)),
-        ("task12", lambda d: task12.generate(log, alignments,                    d)),
-        ("task28", lambda d: task28.generate(alignments, model_path,             d)),
-        ("task29", lambda d: task29.generate(alignments,             d)),
-        ("task20", lambda d: task20.generate(log, alignments,        d)),
+        ("task08", lambda d: task08.generate(log, alignments,        d)),
+        ("task09", lambda d: task09.generate(log, alignments,        d, model_path=model_path)),
         ("task10", lambda d: task10.generate(fitness_df,             d)),
+        ("task11", lambda d: task11.generate(log, alignments,        d, model_path=model_path)),
+        ("task12", lambda d: task12.generate(log, alignments,        d)),
+        ("task20", lambda d: task20.generate(log, alignments,        d)),
+        ("task23", lambda d: task23.generate(alignments,             d)),
+        ("task24", lambda d: task24.generate(log, model_path,        d)),
+        ("task28", lambda d: task28.generate(alignments, model_path, d)),
+        ("task29", lambda d: task29.generate(alignments,             d)),
         ("task31", lambda d: task31.generate(log, alignments,        d,
                                              outcome_activity=outcome_activity)),
     ]
