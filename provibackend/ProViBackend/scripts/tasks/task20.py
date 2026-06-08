@@ -1,11 +1,11 @@
 """
-tasks/task4.py – Task 4: Root-cause indicators for non-conformance.
+tasks/task20.py – Task 4: Root-cause indicators for non-conformance.
 
 Public API:
     generate(log, alignments, output_dir)
 
-Note: task6.py imports task4_trace_feature_dataframe, _task4_build_tree,
-      _task4_gini from this module.
+Note: task31.py imports task20_trace_feature_dataframe, _task20_build_tree,
+      _task20_gini from this module.
 """
 
 import logging
@@ -30,7 +30,7 @@ from shared import (
 )
 
 # Alias so that existing internal references still work
-_task4_format_threshold = format_threshold
+_task20_format_threshold = format_threshold
 
 
 # ---------------------------------------------------------------------------
@@ -38,7 +38,7 @@ _task4_format_threshold = format_threshold
 # ---------------------------------------------------------------------------
 
 # Task 4 feature engineering helpers
-TASK4_LABELS = {
+TASK20_LABELS = {
     "num_events": "trace:number of events",
     "unique_activities": "trace:unique activities",
     "repeated_activities": "trace:repeated activities",
@@ -47,13 +47,13 @@ TASK4_LABELS = {
 }
 
 
-def _task4_key(prefix: str, value) -> str:
+def _task20_key(prefix: str, value) -> str:
     raw = str(value)
     cleaned = "".join(ch if ch.isalnum() else "_" for ch in raw).strip("_")
     return f"{prefix}_{cleaned}"[:90]
 
 
-def _task4_value_to_float(value):
+def _task20_value_to_float(value):
     if value is None or pd.isna(value):
         return None
     if isinstance(value, bool):
@@ -66,9 +66,9 @@ def _task4_value_to_float(value):
         return None
 
 
-def _task4_feature_label(feature: str) -> str:
-    if feature in TASK4_LABELS:
-        return TASK4_LABELS[feature]
+def _task20_feature_label(feature: str) -> str:
+    if feature in TASK20_LABELS:
+        return TASK20_LABELS[feature]
     if feature.startswith("has_activity_"):
         return "activity:" + feature.replace("has_activity_", "") + " present"
     if feature.startswith("mean_"):
@@ -78,7 +78,7 @@ def _task4_feature_label(feature: str) -> str:
     return feature.replace("_", " ")
 
 
-def task4_trace_feature_dataframe(log, alignments):
+def task20_trace_feature_dataframe(log, alignments):
     """Build trace-level root-cause features from event attributes and alignment outcomes."""
     activity_counter = {}
     numeric_keys = {}
@@ -107,7 +107,7 @@ def task4_trace_feature_dataframe(log, alignments):
                     or key.lower().startswith("unnamed")
                 ):
                     continue
-                val = _task4_value_to_float(value)
+                val = _task20_value_to_float(value)
                 if val is None:
                     continue
                 numeric_values.setdefault(key, []).append(val)
@@ -149,15 +149,15 @@ def task4_trace_feature_dataframe(log, alignments):
     for payload in trace_payloads:
         row = {k: v for k, v in payload.items() if not k.startswith("_")}
         for activity in top_activities:
-            row[_task4_key("has_activity", activity)] = 1.0 if activity in payload["_activities"] else 0.0
+            row[_task20_key("has_activity", activity)] = 1.0 if activity in payload["_activities"] else 0.0
         for key in top_numeric_keys:
             values = payload["_numeric_values"].get(key, [])
             if values:
-                row[_task4_key("mean", key)] = float(np.mean(values))
-                row[_task4_key("max", key)] = float(np.max(values))
+                row[_task20_key("mean", key)] = float(np.mean(values))
+                row[_task20_key("max", key)] = float(np.max(values))
             else:
-                row[_task4_key("mean", key)] = np.nan
-                row[_task4_key("max", key)] = np.nan
+                row[_task20_key("mean", key)] = np.nan
+                row[_task20_key("max", key)] = np.nan
         rows.append(row)
 
     df = pd.DataFrame(rows)
@@ -167,14 +167,14 @@ def task4_trace_feature_dataframe(log, alignments):
 
 
 # Task 4 tree (model) helpers
-def _task4_gini(y: np.ndarray) -> float:
+def _task20_gini(y: np.ndarray) -> float:
     if len(y) == 0:
         return 0.0
     p = float(np.mean(y))
     return 1.0 - p ** 2 - (1.0 - p) ** 2
 
 
-def _task4_thresholds(values: np.ndarray):
+def _task20_thresholds(values: np.ndarray):
     unique = np.unique(values.astype(float))
     if len(unique) <= 1:
         return []
@@ -185,24 +185,24 @@ def _task4_thresholds(values: np.ndarray):
     return [float((a + b) / 2.0) for a, b in zip(unique[:-1], unique[1:])]
 
 
-def _task4_best_split(X: pd.DataFrame, y: np.ndarray, features, min_leaf: int):
-    parent = _task4_gini(y)
+def _task20_best_split(X: pd.DataFrame, y: np.ndarray, features, min_leaf: int):
+    parent = _task20_gini(y)
     best = None
     for feature in features:
         values = X[feature].to_numpy(dtype=float)
-        for threshold in _task4_thresholds(values):
+        for threshold in _task20_thresholds(values):
             left = values <= threshold
             right = ~left
             if left.sum() < min_leaf or right.sum() < min_leaf:
                 continue
-            weighted = (left.sum() * _task4_gini(y[left]) + right.sum() * _task4_gini(y[right])) / len(y)
+            weighted = (left.sum() * _task20_gini(y[left]) + right.sum() * _task20_gini(y[right])) / len(y)
             gain = parent - weighted
             if best is None or gain > best["gain"]:
                 best = {"feature": feature, "threshold": threshold, "gain": gain, "left": left, "right": right}
     return best
 
 
-def _task4_build_tree(X: pd.DataFrame, y: np.ndarray, features, depth=0, max_depth=3, min_leaf=12, counter=None):
+def _task20_build_tree(X: pd.DataFrame, y: np.ndarray, features, depth=0, max_depth=3, min_leaf=12, counter=None):
     if counter is None:
         counter = [0]
     counter[0] += 1
@@ -210,7 +210,7 @@ def _task4_build_tree(X: pd.DataFrame, y: np.ndarray, features, depth=0, max_dep
     node = {
         "id": counter[0],
         "depth": depth,
-        "gini": _task4_gini(y),
+        "gini": _task20_gini(y),
         "samples": int(len(y)),
         "value": [int(len(y) - violations), violations],
         "class": "non-conformant" if violations >= (len(y) - violations) else "conformant",
@@ -222,52 +222,52 @@ def _task4_build_tree(X: pd.DataFrame, y: np.ndarray, features, depth=0, max_dep
     }
     if depth >= max_depth or len(np.unique(y)) <= 1 or len(y) < min_leaf * 2:
         return node
-    split = _task4_best_split(X, y, features, min_leaf)
+    split = _task20_best_split(X, y, features, min_leaf)
     if split is None or split["gain"] <= 1e-9:
         return node
     node["feature"] = split["feature"]
     node["threshold"] = split["threshold"]
     node["gain"] = split["gain"]
-    node["left"] = _task4_build_tree(X.loc[split["left"]], y[split["left"]], features, depth + 1, max_depth, min_leaf, counter)
-    node["right"] = _task4_build_tree(X.loc[split["right"]], y[split["right"]], features, depth + 1, max_depth, min_leaf, counter)
+    node["left"] = _task20_build_tree(X.loc[split["left"]], y[split["left"]], features, depth + 1, max_depth, min_leaf, counter)
+    node["right"] = _task20_build_tree(X.loc[split["right"]], y[split["right"]], features, depth + 1, max_depth, min_leaf, counter)
     return node
 
 
-def _task4_format_threshold(threshold: float) -> str:
+def _task20_format_threshold(threshold: float) -> str:
     if abs(threshold - round(threshold)) < 1e-6:
         return str(int(round(threshold)))
     return f"{threshold:.2f}".rstrip("0").rstrip(".")
 
 
-def _task4_condition_text(feature: str, threshold: float, side: str) -> str:
-    label = _task4_feature_label(feature)
+def _task20_condition_text(feature: str, threshold: float, side: str) -> str:
+    label = _task20_feature_label(feature)
     if abs(threshold - 0.5) < 1e-9 and feature.startswith("has_activity_"):
         return label if side == "right" else label.replace(" present", " absent")
     op = "<=" if side == "left" else ">"
-    return f"{label} {op} {_task4_format_threshold(threshold)}"
+    return f"{label} {op} {_task20_format_threshold(threshold)}"
 
 
-def _task4_collect_leaves(node: dict, path=None):
+def _task20_collect_leaves(node: dict, path=None):
     path = [] if path is None else path
     if node.get("left") is None and node.get("right") is None:
         return [{"node": node, "path": path}]
     rows = []
     if node.get("left") is not None:
-        rows.extend(_task4_collect_leaves(
+        rows.extend(_task20_collect_leaves(
             node["left"],
-            path + [_task4_condition_text(node["feature"], node["threshold"], "left")],
+            path + [_task20_condition_text(node["feature"], node["threshold"], "left")],
         ))
     if node.get("right") is not None:
-        rows.extend(_task4_collect_leaves(
+        rows.extend(_task20_collect_leaves(
             node["right"],
-            path + [_task4_condition_text(node["feature"], node["threshold"], "right")],
+            path + [_task20_condition_text(node["feature"], node["threshold"], "right")],
         ))
     return rows
 
 
-def task4_root_cause_analysis(log, alignments):
+def task20_root_cause_analysis(log, alignments):
     """Create feature matrix, fit a small Gini tree, and summarize high-risk leaves."""
-    df = task4_trace_feature_dataframe(log, alignments)
+    df = task20_trace_feature_dataframe(log, alignments)
     if df.empty:
         return df, None, pd.DataFrame()
 
@@ -282,11 +282,11 @@ def task4_root_cause_analysis(log, alignments):
 
     X = df[features].astype(float)
     min_leaf = max(6, int(len(df) * 0.015))
-    tree = _task4_build_tree(X, target, features, max_depth=3, min_leaf=min_leaf)
+    tree = _task20_build_tree(X, target, features, max_depth=3, min_leaf=min_leaf)
     base_rate = float(target.mean())
     total_violations = max(int(target.sum()), 1)
     leaves = []
-    for item in _task4_collect_leaves(tree):
+    for item in _task20_collect_leaves(tree):
         node = item["node"]
         fit_count, violation_count = node["value"]
         samples = node["samples"]
@@ -311,7 +311,7 @@ def task4_root_cause_analysis(log, alignments):
 
 
 # Task 4 visualizations
-def _task4_tile_feature_label(feature: str) -> str:
+def _task20_tile_feature_label(feature: str) -> str:
     """Short label used in Task 4 insight tiles."""
     if feature == "num_events":
         return "Trace Length"
@@ -321,19 +321,19 @@ def _task4_tile_feature_label(feature: str) -> str:
         return "Resource Count"
     if "case_AMOUNT_REQ" in feature:
         return "Requested Amount"
-    return _task4_feature_label(feature).replace("trace:", "").replace("time:", "").replace("data:", "")
+    return _task20_feature_label(feature).replace("trace:", "").replace("time:", "").replace("data:", "")
 
 
-def _task4_tile_condition(feature: str, threshold: float, risk_side: str) -> str:
+def _task20_tile_condition(feature: str, threshold: float, risk_side: str) -> str:
     """Human-readable high-risk threshold condition."""
-    label = _task4_tile_feature_label(feature)
+    label = _task20_tile_feature_label(feature)
     if abs(threshold - 0.5) < 1e-9 and feature.startswith("has_activity_"):
         return label if risk_side == "above" else label.replace(" present", " absent")
     op = ">" if risk_side == "above" else "<="
-    return f"{label} {op} {_task4_format_threshold(threshold)}"
+    return f"{label} {op} {_task20_format_threshold(threshold)}"
 
 
-def _task4_tile_candidate_features(df_features: pd.DataFrame):
+def _task20_tile_candidate_features(df_features: pd.DataFrame):
     """Numeric attributes eligible for one-variable tile insights."""
     excluded = {"trace_index", "fitness", "is_nonconformant", "violation_count", "model_moves", "log_moves"}
     candidates = []
@@ -345,7 +345,7 @@ def _task4_tile_candidate_features(df_features: pd.DataFrame):
     return candidates
 
 
-def task4_attribute_tile_metrics(df_features: pd.DataFrame, top_n: int = 3) -> pd.DataFrame:
+def task20_attribute_tile_metrics(df_features: pd.DataFrame, top_n: int = 3) -> pd.DataFrame:
     """Find top single-attribute thresholds for Task 4 tile metrics."""
     if df_features.empty or df_features["is_nonconformant"].nunique() < 2:
         return pd.DataFrame()
@@ -355,10 +355,10 @@ def task4_attribute_tile_metrics(df_features: pd.DataFrame, top_n: int = 3) -> p
     min_leaf = max(6, int(len(df_features) * 0.015))
     tiles = []
 
-    for feature in _task4_tile_candidate_features(df_features):
+    for feature in _task20_tile_candidate_features(df_features):
         values = df_features[feature].astype(float).to_numpy()
         best = None
-        for threshold in _task4_thresholds(values):
+        for threshold in _task20_thresholds(values):
             below = values <= threshold
             above = ~below
             if below.sum() < min_leaf or above.sum() < min_leaf:
@@ -383,9 +383,9 @@ def task4_attribute_tile_metrics(df_features: pd.DataFrame, top_n: int = 3) -> p
 
             candidate = {
                 "feature": feature,
-                "label": _task4_tile_feature_label(feature),
+                "label": _task20_tile_feature_label(feature),
                 "threshold": threshold,
-                "condition": _task4_tile_condition(feature, threshold, risk_side),
+                "condition": _task20_tile_condition(feature, threshold, risk_side),
                 "risk_side": risk_side,
                 "coverage": coverage,
                 "above_rate": above_rate,
@@ -423,16 +423,16 @@ def task4_attribute_tile_metrics(df_features: pd.DataFrame, top_n: int = 3) -> p
     return pd.DataFrame(deduped).reset_index(drop=True)
 
 
-def _task4_format_ratio(value: float) -> str:
+def _task20_format_ratio(value: float) -> str:
     """Format likelihood ratio for tile display."""
     if np.isinf(value):
         return "inf"
     return f"{value:.2f}x"
 
 
-def task4_tile_metric(root_causes: pd.DataFrame, df_features: pd.DataFrame, output_dir: str):
+def task20_tile_metric(root_causes: pd.DataFrame, df_features: pd.DataFrame, output_dir: str):
     """Tile metric: top single-attribute thresholds for non-conformance."""
-    tile_df = task4_attribute_tile_metrics(df_features, top_n=3)
+    tile_df = task20_attribute_tile_metrics(df_features, top_n=3)
 
     fig, ax = plt.subplots(figsize=(12.2, 3.7))
     ax.set_xlim(0, 1)
@@ -443,7 +443,7 @@ def task4_tile_metric(root_causes: pd.DataFrame, df_features: pd.DataFrame, outp
     if tile_df.empty:
         ax.text(0.05, 0.55, "No discriminating attribute threshold found.", fontsize=FONT_ANNOT, color="#333333")
         fig.tight_layout()
-        save_svg(fig, os.path.join(output_dir, "task4_tile_metric.svg"))
+        save_svg(fig, os.path.join(output_dir, "task20_tile_metric.svg"))
         return
 
     tile_w = 0.29
@@ -472,13 +472,13 @@ def task4_tile_metric(root_causes: pd.DataFrame, df_features: pd.DataFrame, outp
                 f"Above vs below: {row['above_rate']:.1%} vs {row['below_rate']:.1%}", transform=ax.transAxes,
                 fontsize=FONT_ANNOT, color="#555555")
         ax.text(x0 + 0.025, y0 + tile_h - 0.540,
-                f"Likelihood ratio: {_task4_format_ratio(row['likelihood_ratio'])}", transform=ax.transAxes,
+                f"Likelihood ratio: {_task20_format_ratio(row['likelihood_ratio'])}", transform=ax.transAxes,
                 fontsize=FONT_ANNOT, color="#333333")
     fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task4_tile_metric.svg"))
+    save_svg(fig, os.path.join(output_dir, "task20_tile_metric.svg"))
 
 
-def _task4_attribute_type(feature: str) -> str:
+def _task20_attribute_type(feature: str) -> str:
     """Classify a trace-level feature for the Task 4 attribute table."""
     if feature.startswith("has_activity_"):
         return "Activity flag"
@@ -495,14 +495,14 @@ def _task4_attribute_type(feature: str) -> str:
     return "Attribute"
 
 
-def _task4_table_label(feature: str) -> str:
+def _task20_table_label(feature: str) -> str:
     """Readable attribute label for the Task 4 table."""
-    label = _task4_tile_feature_label(feature)
+    label = _task20_tile_feature_label(feature)
     label = label.replace("has activity ", "").replace(" present", "")
     return label
 
 
-def _task4_table_candidate_features(df_features: pd.DataFrame):
+def _task20_table_candidate_features(df_features: pd.DataFrame):
     """Attributes eligible for correlation-strength summary rows."""
     excluded = {"trace_index", "fitness", "is_nonconformant", "violation_count", "model_moves", "log_moves"}
     return [
@@ -513,7 +513,7 @@ def _task4_table_candidate_features(df_features: pd.DataFrame):
     ]
 
 
-def _task4_format_p_value(value: float) -> str:
+def _task20_format_p_value(value: float) -> str:
     """Format p-values compactly for the attribute table."""
     if pd.isna(value):
         return "-"
@@ -522,14 +522,14 @@ def _task4_format_p_value(value: float) -> str:
     return f"{value:.3f}"
 
 
-def task4_attribute_correlation_dataframe(df_features: pd.DataFrame) -> pd.DataFrame:
+def task20_attribute_correlation_dataframe(df_features: pd.DataFrame) -> pd.DataFrame:
     """Build one row per attribute, sorted by correlation strength."""
     if df_features.empty or df_features["is_nonconformant"].nunique() < 2:
         return pd.DataFrame()
 
     y = df_features["is_nonconformant"].astype(int).to_numpy()
     rows = []
-    for feature in _task4_table_candidate_features(df_features):
+    for feature in _task20_table_candidate_features(df_features):
         values = df_features[feature].astype(float).to_numpy()
         conform_values = values[y == 0]
         nonconform_values = values[y == 1]
@@ -539,8 +539,8 @@ def task4_attribute_correlation_dataframe(df_features: pd.DataFrame) -> pd.DataF
         conform_avg = float(np.mean(conform_values))
         nonconform_avg = float(np.mean(nonconform_values))
         rows.append({
-            "attribute": _task4_table_label(feature),
-            "type": _task4_attribute_type(feature),
+            "attribute": _task20_table_label(feature),
+            "type": _task20_attribute_type(feature),
             "conform_avg": conform_avg,
             "nonconform_avg": nonconform_avg,
             "difference": nonconform_avg - conform_avg,
@@ -558,9 +558,9 @@ def task4_attribute_correlation_dataframe(df_features: pd.DataFrame) -> pd.DataF
     )
 
 
-def task4_table(df_features: pd.DataFrame, output_dir: str):
+def task20_table(df_features: pd.DataFrame, output_dir: str):
     """Table: attribute averages and correlation with non-conformance."""
-    summary = task4_attribute_correlation_dataframe(df_features)
+    summary = task20_attribute_correlation_dataframe(df_features)
     cols = ["Attribute", "Type", "Conform avg", "Non-conform avg", "Difference", "Correlation", "p-value"]
     if summary.empty:
         cell_text = [["No discriminating attribute found", "-", "-", "-", "-", "-", "-"]]
@@ -574,7 +574,7 @@ def task4_table(df_features: pd.DataFrame, output_dir: str):
                 f"{row['nonconform_avg']:.2f}",
                 f"{row['difference']:+.2f}",
                 f"{row['correlation']:+.3f}",
-                _task4_format_p_value(row["p_value"]),
+                _task20_format_p_value(row["p_value"]),
             ])
 
     fig_h = max(4.0, 1.35 + len(cell_text) * 0.43)
@@ -605,11 +605,11 @@ def task4_table(df_features: pd.DataFrame, output_dir: str):
 
     ax.set_title("Attribute Correlation Summary", fontsize=FONT_TITLE, pad=12)
     fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task4_table.svg"))
+    save_svg(fig, os.path.join(output_dir, "task20_table.svg"))
 
 
 # Task 4 visualization layout helpers
-def _task4_assign_tree_positions(tree: dict):
+def _task20_assign_tree_positions(tree: dict):
     leaves = []
     max_depth = 0
 
@@ -643,7 +643,7 @@ def _task4_assign_tree_positions(tree: dict):
     tree["_y_gap"] = y_gap
 
 
-def _task4_plain_feature_name(feature: str) -> str:
+def _task20_plain_feature_name(feature: str) -> str:
     """Plain-English feature name for Task 4 decision-tree nodes."""
     if feature == "num_events":
         return "trace length"
@@ -659,20 +659,20 @@ def _task4_plain_feature_name(feature: str) -> str:
         return "requested amount"
     if feature.startswith("has_activity_"):
         return feature.replace("has_activity_", "")
-    return _task4_feature_label(feature).replace("trace:", "").replace("time:", "").replace("data:", "")
+    return _task20_feature_label(feature).replace("trace:", "").replace("time:", "").replace("data:", "")
 
 
-def _task4_split_question(feature: str, threshold: float) -> str:
+def _task20_split_question(feature: str, threshold: float) -> str:
     """Compact split label whose True branch goes left."""
     if abs(threshold - 0.5) < 1e-9 and feature.startswith("has_activity_"):
-        activity = _task4_plain_feature_name(feature)
+        activity = _task20_plain_feature_name(feature)
         return f"{activity} absent"
-    label = _task4_plain_feature_name(feature)
-    threshold_text = _task4_format_threshold(threshold)
+    label = _task20_plain_feature_name(feature)
+    threshold_text = _task20_format_threshold(threshold)
     return f"{label} <= {threshold_text}"
 
 
-def _task4_tree_feature_importance(tree: dict) -> pd.DataFrame:
+def _task20_tree_feature_importance(tree: dict) -> pd.DataFrame:
     """Summarize split gain by feature for the feature-importance chart."""
     rows = {}
 
@@ -691,7 +691,7 @@ def _task4_tree_feature_importance(tree: dict) -> pd.DataFrame:
     if not rows:
         return pd.DataFrame(columns=["feature", "label", "importance"])
     df = pd.DataFrame([
-        {"feature": feature, "label": _task4_table_label(feature), "importance": gain}
+        {"feature": feature, "label": _task20_table_label(feature), "importance": gain}
         for feature, gain in rows.items()
     ])
     total = df["importance"].sum()
@@ -700,9 +700,9 @@ def _task4_tree_feature_importance(tree: dict) -> pd.DataFrame:
     return df.sort_values("importance", ascending=True).reset_index(drop=True)
 
 
-def _task4_draw_feature_importance(ax, tree: dict):
+def _task20_draw_feature_importance(ax, tree: dict):
     """Draw a compact feature-importance bar chart for tree splits."""
-    importance = _task4_tree_feature_importance(tree)
+    importance = _task20_tree_feature_importance(tree)
     ax.set_title("Feature Importance", fontsize=FONT_TITLE, loc="left", pad=10)
     if importance.empty:
         ax.axis("off")
@@ -721,7 +721,7 @@ def _task4_draw_feature_importance(ax, tree: dict):
         ax.text(val + max(importance["importance"].max(), 0.01) * 0.02, y, f"{val:.2f}", va="center", fontsize=FONT_ANNOT)
 
 
-def task4_decision_tree(tree: dict, output_dir: str):
+def task20_decision_tree(tree: dict, output_dir: str):
     """Decision tree: shallow Gini tree fitted on trace/event attributes."""
     fig = plt.figure(figsize=(19.2, 8.0))
     gs = gridspec.GridSpec(1, 2, width_ratios=[3.7, 1.0], wspace=0.16)
@@ -742,7 +742,7 @@ def task4_decision_tree(tree: dict, output_dir: str):
         first_line_fn=lambda node: (
             "leaf"
             if node.get("feature") is None
-            else _task4_split_question(node["feature"], node["threshold"])
+            else _task20_split_question(node["feature"], node["threshold"])
         ),
         value_pair_fn=lambda node: (node["value"][0], node["value"][1]),
         node_facecolor_fn=lambda node: (
@@ -766,9 +766,9 @@ def task4_decision_tree(tree: dict, output_dir: str):
         x_gap=2.85,
         y_gap=2.05,
     )
-    _task4_draw_feature_importance(ax_importance, tree)
+    _task20_draw_feature_importance(ax_importance, tree)
     fig.tight_layout(rect=[0, 0.03, 1, 1])
-    save_svg(fig, os.path.join(output_dir, "task4_decision_tree.svg"))
+    save_svg(fig, os.path.join(output_dir, "task20_decision_tree.svg"))
 
 
 # ---------------------------------------------------------------------------
@@ -782,10 +782,10 @@ def generate(log, alignments, output_dir: str):
     """Generate all Task 4 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 4 visualizations ---")
-    df, tree, root_causes = task4_root_cause_analysis(log, alignments)
+    df, tree, root_causes = task20_root_cause_analysis(log, alignments)
     if df.empty:
         logger.warning("      Skipped Task 4: no trace-level features found.")
         return
-    task4_tile_metric(root_causes, df, output_dir)
-    task4_decision_tree(tree, output_dir)
-    task4_table(df, output_dir)
+    task20_tile_metric(root_causes, df, output_dir)
+    task20_decision_tree(tree, output_dir)
+    task20_table(df, output_dir)

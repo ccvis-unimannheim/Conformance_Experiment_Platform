@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 
-const TaskVisualizationPanel = ({ idiom = null, svgUrl, taskNumber = 1, loadingSvg = false }) => {
+const TaskVisualizationPanel = ({ svgUrl, taskNumber = 1, loadingSvg = false }) => {
   const [imgError, setImgError] = useState(false);
 
   // Reset img error when svgUrl changes
@@ -19,15 +19,8 @@ const TaskVisualizationPanel = ({ idiom = null, svgUrl, taskNumber = 1, loadingS
         boxShadow: "0 12px 32px rgba(45,52,53,0.04)",
         border: "1px solid #f0f0f0"
       }}>
-        {/* Panel header — idiom label comes from DB, shows placeholder if not loaded yet */}
-        <div style={{ marginBottom: "2rem" }}>
-          <h2 style={{ fontSize: "0.7rem", fontWeight: 700, color: "#5a6061", letterSpacing: "0.2em", textTransform: "uppercase", margin: 0 }}>
-            {idiom ?? "Idiom"}
-          </h2>
-        </div>
-
         {/* Visualization area */}
-        <div style={{ height: "380px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ height: "520px", display: "flex", alignItems: "center", justifyContent: "center" }}>
           {loadingSvg ? (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem" }}>
               <div style={{
@@ -73,7 +66,7 @@ const TaskVisualizationPanel = ({ idiom = null, svgUrl, taskNumber = 1, loadingS
               src={svgUrl}
               alt={`Task ${taskNumber} visualization`}
               onError={() => setImgError(true)}
-              style={{ maxWidth: "100%", maxHeight: "380px", objectFit: "contain" }}
+              style={{ maxWidth: "100%", maxHeight: "520px", objectFit: "contain" }}
             />
           )}
         </div>

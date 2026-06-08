@@ -1,4 +1,8 @@
 support.ipynb
+DEVELOPMENT_GUIDE.md
+*.xlsx
+.codegraph/
+.cursor/
 docs/**
 /2604/
 .env

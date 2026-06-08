@@ -46,7 +46,7 @@ def load_event_log(log_path: str):
         sys.exit(1)
 
     # PM4Py ≥ 2.7 returns a DataFrame from read_xes; convert to EventLog so
-    # task4/task6 can iterate over traces and events directly.
+    # task20/task31 can iterate over traces and events directly.
     if isinstance(raw, pd.DataFrame):
         log = pm4py.convert_to_event_log(raw)
     else:
@@ -72,7 +72,7 @@ def run_alignments(log, net, im, fm):
 
 
 def fitness_summary_dataframe(alignments):
-    """Build per-trace fitness DataFrame from raw alignment results (used by Task 1 & Task 5)."""
+    """Build per-trace fitness DataFrame from raw alignment results (used by Task 6 & Task 10)."""
     rows = []
     for i, result in enumerate(alignments):
         fitness = result["fitness"]

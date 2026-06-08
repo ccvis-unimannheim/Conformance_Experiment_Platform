@@ -9,10 +9,11 @@ except ImportError:
     run_visualization_pipeline = None
 
 try:
-    from ProViBackend.scripts.tasks import task1, task2, task3, task4, task5, task6
+    from ProViBackend.scripts.tasks import task06, task07, task08, task09, task10, task11, task12, task20, task28, task29, task31
     _TASK_MODULES = {
-        "task1": task1, "task2": task2, "task3": task3,
-        "task4": task4, "task5": task5, "task6": task6,
+        "task06": task06, "task07": task07, "task08": task08, "task09": task09,
+        "task10": task10, "task11": task11, "task12": task12, "task20": task20,
+        "task28": task28, "task29": task29, "task31": task31,
     }
 except ImportError:
     _TASK_MODULES = {}

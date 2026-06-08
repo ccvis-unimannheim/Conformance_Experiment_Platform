@@ -18,14 +18,16 @@ _SEED_NAMESPACE = uuid.UUID("00000000-0000-0000-0000-000000000001")
 
 
 def _seed_collection(collection_name: str, items: list, key_field: str):
-    """Insert canonical items if the collection is empty. Stable UUIDs derived from key_field."""
-    existing = dbc.get_query_db(collection_name, query={})
-    if existing:
-        return
+    """Upsert canonical items — inserts missing ones, leaves existing ones untouched."""
+    db = dbc.connect_to_database()
     for item in items:
         doc = dict(item)
         doc["_id"] = str(uuid.uuid5(_SEED_NAMESPACE, item[key_field]))
-        dbc.create_document(collection_name, doc)
+        db[collection_name].update_one(
+            {"_id": doc["_id"]},
+            {"$setOnInsert": doc},
+            upsert=True,
+        )
 
 
 @asynccontextmanager
