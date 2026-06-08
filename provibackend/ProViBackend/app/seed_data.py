@@ -54,6 +54,24 @@ CANONICAL_TASKS = [
         "description": "Identify pairs of violations that frequently co-occur across traces and quantify their co-occurrence strength.",
         "answer_type": "single_choice",
     },
+    {
+        "task_key": "task09",
+        "label": "How exactly does the process execution differ from the guidelines? Which activities are responsible, and what violation type occurs?",
+        "description": "Identify guideline violations per activity and violation type across the entire event log.",
+        "answer_type": "multiple_choice",
+    },
+    {
+        "task_key": "task11",
+        "label": "How often did a specific guideline violation occur?",
+        "description": "Summarize guideline violation frequency per activity and type across the entire event log.",
+        "answer_type": "multiple_choice",
+    },
+    {
+        "task_key": "task12",
+        "label": "In what percentage of traces do violations occur?",
+        "description": "Summarize the proportion of conformant vs deviating traces across the entire event log.",
+        "answer_type": "numeric",
+    },
 ]
 
 CANONICAL_IDIOMS = [
@@ -76,5 +94,7 @@ CANONICAL_IDIOMS = [
     {"idiom_key": "matrix",              "label": "Co-occurrence Matrix",                  "granularity": "log",   "renderer_type": "svg",     "active": True},
     {"idiom_key": "network_diagram",     "label": "Network Diagram",                       "granularity": "log",   "renderer_type": "svg",     "active": True},
     {"idiom_key": "scatter_plot",        "label": "Scatter Plot",                          "granularity": "log",   "renderer_type": "svg",     "active": True},
-    {"idiom_key": "tree",                "label": "Hierarchical Clustering Tree",           "granularity": "log",   "renderer_type": "svg",     "active": True},
+    {"idiom_key": "tree",                    "label": "Hierarchical Clustering Tree",          "granularity": "log",   "renderer_type": "svg",     "active": True},
+    {"idiom_key": "stacked_bar",             "label": "Stacked Bar Chart",                     "granularity": "log",   "renderer_type": "svg",     "active": True},
+    {"idiom_key": "flow_chart_elaborate_table", "label": "Flow Chart+ & Table",                "granularity": "log",   "renderer_type": "svg",     "active": True},
 ]
