@@ -59,6 +59,7 @@ import tasks.task29 as task29
 import tasks.task20 as task20
 import tasks.task10 as task10
 import tasks.task31 as task31
+import tasks.task36 as task36
 import tasks.task37 as task37
 
 
@@ -77,7 +78,7 @@ INPUT_SUBDIR  = "input"
 OUTPUT_SUBDIR = "output"
 LOG_EXTENSIONS   = {".xes", ".csv"}
 MODEL_EXTENSIONS = {".bpmn"}
-TASK_DIRS     = ["task06", "task07", "task08", "task09", "task11", "task12", "task28", "task29", "task20", "task10", "task31", "task37"]
+TASK_DIRS     = ["task06", "task07", "task08", "task09", "task11", "task12", "task28", "task29", "task20", "task10", "task31", "task36", "task37"]
 
 # Aliases mapping task-script filename stems to canonical idiom_keys.
 # E.g. task06.py writes "task06_scatter_plot.svg"; we strip "task06_" then
@@ -194,6 +195,7 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED") -> str
         ("task10", lambda d: task10.generate(fitness_df,             d)),
         ("task31", lambda d: task31.generate(log, alignments,        d,
                                              outcome_activity=outcome_activity)),
+        ("task36", lambda d: task36.generate(log, alignments,        d, model_path=model_path)),
         ("task37", lambda d: task37.generate(log, alignments,        d, model_path=model_path)),
     ]
 

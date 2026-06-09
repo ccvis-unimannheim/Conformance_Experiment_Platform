@@ -78,6 +78,12 @@ CANONICAL_TASKS = [
         "description": "Compare alignment-based and token-based replay fitness per trace; visualize distribution, agreement, and trend.",
         "answer_type": "single_choice",
     },
+    {
+        "task_key": "task36",
+        "label": "What is the conformance of each individual guideline rule in a Declare model?",
+        "description": "Assess per-rule conformance rates across the event log for a Declare constraint model.",
+        "answer_type": "single_choice",
+    },
 ]
 
 CANONICAL_IDIOMS = [
