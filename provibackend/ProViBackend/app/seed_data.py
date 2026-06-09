@@ -72,6 +72,12 @@ CANONICAL_TASKS = [
         "description": "Summarize the proportion of conformant vs deviating traces across the entire event log.",
         "answer_type": "numeric",
     },
+    {
+        "task_key": "task37",
+        "label": "How do fitness values of traces differ when applying two different techniques to compute them? What is the overall trend?",
+        "description": "Compare alignment-based and token-based replay fitness per trace; visualize distribution, agreement, and trend.",
+        "answer_type": "single_choice",
+    },
 ]
 
 CANONICAL_IDIOMS = [
