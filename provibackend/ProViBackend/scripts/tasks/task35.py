@@ -13,7 +13,7 @@ Idioms:
 import logging
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["flow_chart_elaborate", "flow_chart_elaborate_table"]
+IDIOMS = ["flow_chart_elaborate", "flow_chart_elaborate_table", "petri_net", "flow_chart_elaborate_dfg"]
 
 import os
 import html as _html
@@ -463,6 +463,232 @@ def task35_flow_chart_elaborate_bpmn_table(activity_type, activity_totals, n_vio
         f.write(composite)
 
 
+# ── Idiom 3: Petri net (graphviz, greyscale) ──────────────────────────────────
+
+def task35_petri_net(activity_type, activity_totals, model_path, output_dir):
+    fname = "task35_petri_net.svg"
+    if model_path is None:
+        _save_empty(output_dir, fname, "No process model provided.")
+        return
+    if not activity_totals:
+        _save_empty(output_dir, fname, "No guideline violations found.")
+        return
+    try:
+        import graphviz as _gv
+        import sys as _sys
+        # Load Petri net from BPMN
+        _scripts = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if _scripts not in _sys.path:
+            _sys.path.insert(0, _scripts)
+        from io_helpers import load_model
+        net, im, fm = load_model(model_path)
+
+        max_v = max(activity_totals.values()) if activity_totals else 1
+
+        dot = _gv.Digraph(format="svg")
+        dot.attr(bgcolor="white", rankdir="LR", fontname="Arial")
+        dot.attr("node", fontname="Arial")
+        dot.attr("edge", color="#888888")
+
+        # ── Places ─────────────────────────────────────────────────────────
+        for place in net.places:
+            is_init  = place in im
+            is_final = place in fm
+            if is_init:
+                dot.node(str(id(place)), label="●", shape="circle",
+                         width="0.35", fixedsize="true",
+                         style="filled", fillcolor="#333333", fontcolor="white",
+                         color="#333333", fontsize="10")
+            elif is_final:
+                dot.node(str(id(place)), label="", shape="doublecircle",
+                         width="0.3", fixedsize="true",
+                         style="filled", fillcolor="white", color="#555555",
+                         penwidth="2")
+            else:
+                dot.node(str(id(place)), label="", shape="circle",
+                         width="0.28", fixedsize="true",
+                         style="filled", fillcolor="white", color="#888888")
+
+        # ── Transitions ────────────────────────────────────────────────────
+        for trans in net.transitions:
+            if trans.label is None:  # silent / tau
+                dot.node(str(id(trans)), label="τ", shape="rectangle",
+                         width="0.25", height="0.55", fixedsize="true",
+                         style="filled", fillcolor="#555555", fontcolor="white",
+                         color="#333333", fontsize="8")
+            else:
+                name  = trans.label
+                skip  = activity_type.get((name, "Move on Model"), 0)
+                ins   = activity_type.get((name, "Move on Log"),   0)
+                total = activity_totals.get(name, 0)
+                rate  = total / max_v
+                fill  = _violation_shade(rate)
+                v_int = int(fill[1:3], 16)
+                fc    = "white" if v_int < 140 else _C_DARK
+                # Wrap long names at underscore
+                disp  = name.replace("_", "\\n")
+                ann   = f"\\n↑{skip} ↓{ins}" if total > 0 else ""
+                dot.node(str(id(trans)), label=disp + ann,
+                         shape="rectangle",
+                         style="filled", fillcolor=fill, fontcolor=fc,
+                         color="#777777", fontsize="9",
+                         margin="0.08,0.04")
+
+        # ── Arcs ───────────────────────────────────────────────────────────
+        for arc in net.arcs:
+            dot.edge(str(id(arc.source)), str(id(arc.target)),
+                     arrowsize="0.7")
+
+        # ── Legend group ───────────────────────────────────────────────────
+        with dot.subgraph(name="cluster_legend") as leg:
+            leg.attr(label="violation rate →", style="rounded",
+                     color="#cccccc", bgcolor="#fafafa",
+                     fontsize="9", fontcolor=_C_MED)
+            prev = None
+            for lvl, lbl in [(0.0, "0%"), (0.33, "33%"), (0.66, "66%"), (1.0, "100%")]:
+                nid  = f"_leg_{int(lvl*100)}"
+                fill = _violation_shade(lvl)
+                v    = int(fill[1:3], 16)
+                fc   = "white" if v < 140 else _C_DARK
+                leg.node(nid, label=lbl, shape="rectangle",
+                         style="filled", fillcolor=fill, fontcolor=fc,
+                         fontsize="8", width="0.7", height="0.35",
+                         fixedsize="true", color="#aaaaaa")
+                if prev:
+                    leg.edge(prev, nid, style="invis")
+                prev = nid
+
+        # ── Render ─────────────────────────────────────────────────────────
+        tmp_base = os.path.join(output_dir, "_task35_petri_net_tmp")
+        dot.render(tmp_base, cleanup=True)
+        rendered = tmp_base + ".svg"
+        if os.path.exists(rendered):
+            os.rename(rendered, os.path.join(output_dir, fname))
+        else:
+            _save_empty(output_dir, fname, "Graphviz render produced no output.")
+
+    except Exception as e:
+        logger.warning(f"task35_petri_net failed: {e}")
+        _save_empty(output_dir, fname, f"Petri net rendering failed: {e}")
+
+
+# ── Idiom 4: DFG (Directly-Follows Graph) ─────────────────────────────────────
+
+def task35_flow_chart_elaborate_dfg(activity_type, activity_totals, log, output_dir):
+    fname = "task35_flow_chart_elaborate_dfg.svg"
+    if log is None:
+        _save_empty(output_dir, fname, "No event log provided.")
+        return
+    if not activity_totals:
+        _save_empty(output_dir, fname, "No guideline violations found.")
+        return
+    try:
+        import math as _math
+        import graphviz as _gv
+        import pm4py as _pm4py
+
+        dfg, start_acts, end_acts = _pm4py.discover_dfg(log)
+        if not dfg:
+            _save_empty(output_dir, fname, "DFG discovery returned no edges.")
+            return
+
+        all_acts = set()
+        for s, t in dfg:
+            all_acts.add(s); all_acts.add(t)
+
+        max_v    = max(activity_totals.values()) if activity_totals else 1
+        max_edge = max(dfg.values())
+
+        dot = _gv.Digraph(format="svg")
+        dot.attr(bgcolor="white", rankdir="LR", fontname="Arial",
+                 pad="0.4", nodesep="0.5", ranksep="0.7")
+        dot.attr("node", fontname="Arial", fontsize="9", margin="0.1,0.06")
+        dot.attr("edge", fontname="Arial", fontsize="8", fontcolor=_C_MED)
+
+        # ── Nodes ──────────────────────────────────────────────────────────
+        for act in sorted(all_acts):
+            skip  = activity_type.get((act, "Move on Model"), 0)
+            ins   = activity_type.get((act, "Move on Log"),   0)
+            total = activity_totals.get(act, 0)
+            rate  = total / max_v
+            fill  = _violation_shade(rate)
+            v_int = int(fill[1:3], 16)
+            fc    = "white" if v_int < 140 else _C_DARK
+
+            ann  = f"\\n↑{skip} ↓{ins}" if total > 0 else ""
+            disp = act.replace("_", "\\n")
+
+            is_start = act in start_acts
+            is_end   = act in end_acts
+            pw       = "3" if is_start else ("2.5" if is_end else "1.2")
+            shape    = "rectangle"
+
+            dot.node(act, label=disp + ann,
+                     shape=shape, style="filled",
+                     fillcolor=fill, fontcolor=fc,
+                     color="#666666", penwidth=pw)
+
+        # ── Edges ──────────────────────────────────────────────────────────
+        for (s, t), count in dfg.items():
+            # Log-normalised width: thin=rare, thick=frequent
+            w = 0.5 + 3.5 * _math.log(count + 1) / _math.log(max_edge + 1)
+            dot.edge(s, t,
+                     label=str(count),
+                     penwidth=f"{w:.2f}",
+                     color="#aaaaaa",
+                     arrowsize="0.7")
+
+        # ── Start / end markers ────────────────────────────────────────────
+        dot.node("__START__", label="●", shape="circle",
+                 width="0.3", fixedsize="true",
+                 style="filled", fillcolor="#333333", fontcolor="white",
+                 color="#333333", fontsize="11")
+        dot.node("__END__", label="", shape="doublecircle",
+                 width="0.28", fixedsize="true",
+                 style="filled", fillcolor="white", color="#555555",
+                 penwidth="2.5")
+        for act in start_acts:
+            if act in all_acts:
+                dot.edge("__START__", act, color="#888888",
+                         arrowsize="0.7", penwidth="1.2")
+        for act in end_acts:
+            if act in all_acts:
+                dot.edge(act, "__END__", color="#888888",
+                         arrowsize="0.7", penwidth="1.2")
+
+        # ── Legend ─────────────────────────────────────────────────────────
+        with dot.subgraph(name="cluster_legend") as leg:
+            leg.attr(label="violation rate →", style="rounded",
+                     color="#cccccc", bgcolor="#fafafa",
+                     fontsize="9", fontcolor=_C_MED)
+            prev = None
+            for lvl, lbl in [(0.0, "0%"), (0.33, "33%"), (0.66, "66%"), (1.0, "100%")]:
+                nid  = f"_dleg_{int(lvl*100)}"
+                fill = _violation_shade(lvl)
+                v    = int(fill[1:3], 16)
+                fc   = "white" if v < 140 else _C_DARK
+                leg.node(nid, label=lbl, shape="rectangle",
+                         style="filled", fillcolor=fill, fontcolor=fc,
+                         fontsize="8", width="0.7", height="0.3",
+                         fixedsize="true", color="#aaaaaa")
+                if prev:
+                    leg.edge(prev, nid, style="invis")
+                prev = nid
+
+        # ── Render ─────────────────────────────────────────────────────────
+        tmp_base = os.path.join(output_dir, "_task35_dfg_tmp")
+        dot.render(tmp_base, cleanup=True)
+        rendered = tmp_base + ".svg"
+        if os.path.exists(rendered):
+            os.rename(rendered, os.path.join(output_dir, fname))
+        else:
+            _save_empty(output_dir, fname, "Graphviz render produced no output.")
+
+    except Exception as e:
+        logger.warning(f"task35_flow_chart_elaborate_dfg failed: {e}")
+        _save_empty(output_dir, fname, f"DFG rendering failed: {e}")
+
+
 # ── Public entry point ─────────────────────────────────────────────────────────
 
 def generate(log, alignments, output_dir, model_path=None):
@@ -473,10 +699,13 @@ def generate(log, alignments, output_dir, model_path=None):
 
     if not activity_totals:
         logger.warning("Skipped Task 35: no violations found in alignments.")
-        for stem in ["flow_chart_elaborate_bpmn", "flow_chart_elaborate_bpmn_table"]:
+        for stem in ["flow_chart_elaborate_bpmn", "flow_chart_elaborate_bpmn_table",
+                     "petri_net", "flow_chart_elaborate_dfg"]:
             _save_empty(output_dir, f"task35_{stem}.svg", "No guideline violations found.")
         return
 
     task35_flow_chart_elaborate_bpmn(activity_type, activity_totals, model_path, output_dir)
     task35_flow_chart_elaborate_bpmn_table(activity_type, activity_totals, n_violations,
                                            model_path, output_dir)
+    task35_petri_net(activity_type, activity_totals, model_path, output_dir)
+    task35_flow_chart_elaborate_dfg(activity_type, activity_totals, log, output_dir)

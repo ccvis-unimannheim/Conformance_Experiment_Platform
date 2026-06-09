@@ -115,4 +115,6 @@ CANONICAL_IDIOMS = [
     {"idiom_key": "tree",                    "label": "Hierarchical Clustering Tree",          "granularity": "log",   "renderer_type": "svg",     "active": True},
     {"idiom_key": "stacked_bar",             "label": "Stacked Bar Chart",                     "granularity": "log",   "renderer_type": "svg",     "active": True},
     {"idiom_key": "flow_chart_elaborate_table", "label": "Flow Chart+ & Table",                "granularity": "log",   "renderer_type": "svg",     "active": True},
+    {"idiom_key": "petri_net",                  "label": "Petri Net",                           "granularity": "log",   "renderer_type": "svg",     "active": True},
+    {"idiom_key": "flow_chart_elaborate_dfg",   "label": "Flow Chart+ DFG",                     "granularity": "log",   "renderer_type": "svg",     "active": True},
 ]
