@@ -84,6 +84,12 @@ CANONICAL_TASKS = [
         "description": "Assess per-rule conformance rates across the event log for a Declare constraint model.",
         "answer_type": "single_choice",
     },
+    {
+        "task_key": "task35",
+        "label": "Where does the recorded behavior violate which guidelines, as annotated on the process model?",
+        "description": "Present guideline violations (skipped/inserted activities) overlaid on the BPMN process model.",
+        "answer_type": "single_choice",
+    },
 ]
 
 CANONICAL_IDIOMS = [
