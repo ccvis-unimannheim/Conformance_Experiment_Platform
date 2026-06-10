@@ -60,13 +60,12 @@ jobs:
 
       - name: Upload SARIF to GitHub Security
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-${{ matrix.target.name }}.sarif
           category: trivy-${{ matrix.target.name }}
 
-      - name: Fail on HIGH/CRITICAL (push only, not schedule)
-        if: github.event_name == 'push'
+      - name: Fail on HIGH/CRITICAL
         run: |
           trivy image \
             --severity HIGH,CRITICAL \
