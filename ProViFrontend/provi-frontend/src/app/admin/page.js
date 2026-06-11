@@ -146,7 +146,7 @@ export default function AdminPage() {
                 <h2 className="text-h2 text-primary">Experiments</h2>
               </div>
 
-              <div className="space-y-4 mb-10">
+              <div className="space-y-4 mb-10 max-h-72 overflow-y-auto pr-1">
                 {experimentsLoading && (
                   <p className="text-body-sm text-secondary">Loading…</p>
                 )}

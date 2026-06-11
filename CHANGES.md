@@ -2,6 +2,20 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: Admin Experiments List Scrollable (2026-06-11)
+
+### Problem solved
+
+The Experiments section on `/admin` had no height limit, so the page grew taller as more experiment instances accumulated, eventually pushing other content off-screen and breaking the two-column layout balance.
+
+### Frontend (`ProViFrontend/`)
+
+| File | Change |
+|------|--------|
+| `provi-frontend/src/app/admin/page.js` | Added `max-h-72 overflow-y-auto pr-1` to the experiments list container (`<div className="space-y-4 mb-10">`). The list now caps at 288px (≈3–4 cards visible), scrolls vertically when exceeded, and `pr-1` reserves space for the scrollbar so card content isn't clipped. |
+
+---
+
 ## Session: Task List Natural Sort (2026-06-11)
 
 ### Problem solved
