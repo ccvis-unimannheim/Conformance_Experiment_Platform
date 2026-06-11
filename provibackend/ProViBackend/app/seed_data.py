@@ -157,6 +157,18 @@ CANONICAL_TASKS = [
         "answer_type": "single_choice",
     },
     {
+        "task_key": "task32",
+        "label": "What are the main violations in my process, and do they differ between sub-processes?",
+        "description": "Detect all guideline violations and rank them by total frequency (Pareto), then break each violation down across sub-logs to compare the main conformance issues between sub-processes.",
+        "answer_type": "single_choice",
+    },
+    {
+        "task_key": "task33",
+        "label": "How does the overall degree of conformance differ between traces with a certain data attribute value?",
+        "description": "Compare process conformance across sub-logs defined by a case-level data attribute; show fitness distributions, ranges, and summaries per group.",
+        "answer_type": "single_choice",
+    },
+    {
         "task_key": "task34",
         "label": "In which part of the process does a guideline violation occur at the trace level?",
         "description": "Locate guideline violations within individual traces, showing exactly where each trace deviates from the expected process model.",

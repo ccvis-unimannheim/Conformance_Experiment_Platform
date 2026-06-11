@@ -920,11 +920,11 @@ def calendar_small_multiples(group_to_daily, out_path, *, title, cbar_label,
                     for v in (s.values() if hasattr(s, "values") else dict(s).values())]
         vmax = max(all_vals) if all_vals else 1.0
     fig, axes = plt.subplots(len(groups), 1,
-                             figsize=(12, max(2.6, 2.1 * len(groups))), squeeze=False)
+                             figsize=(12, max(2.8, 2.4 * len(groups))), squeeze=False)
     last_im = None
     for ax, g in zip(axes[:, 0], groups):
         im = draw_calendar_heatmap(ax, group_to_daily[g], cmap=cmap, vmin=vmin, vmax=vmax)
-        ax.set_title(str(g), fontsize=FONT_ANNOT + 1, loc="left", pad=4)
+        ax.set_title(str(g), fontsize=FONT_ANNOT + 1, loc="left", pad=12)
         last_im = im if im is not None else last_im
     fig.suptitle(title, fontsize=FONT_TITLE, y=0.99)
     if last_im is not None:
