@@ -228,3 +228,21 @@ async def get_assigned_trials(
         "current_trial_index": assignment.get("current_trial_index", 0),
         "trials":              trials,
     })
+
+
+@router.post("/complete", tags=["participant"])
+async def mark_experiment_complete(provi_user_id: Annotated[str | None, Cookie()] = None):
+    if provi_user_id is None:
+        raise HTTPException(status_code=401, detail="No user cookie found.")
+
+    db = dbc.connect_to_database()
+    assignment = db["UserAssignment"].find_one({"user_id": provi_user_id})
+    if not assignment:
+        raise HTTPException(status_code=404, detail="No assignment found for this user.")
+
+    total = len(assignment.get("trial_sequence", []))
+    db["UserAssignment"].update_one(
+        {"_id": assignment["_id"]},
+        {"$set": {"current_trial_index": total}}
+    )
+    return JSONResponse(content={"message": "Experiment marked as complete."})
