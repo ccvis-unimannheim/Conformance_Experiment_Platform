@@ -20,6 +20,7 @@ try:
         task06, task07, task08, task09, task10, task11, task12, task20,
         task23, task24, task25, task26, task27,
         task28, task29, task30, task31,
+        task34,
         task35, task36, task37,
     )
     _TASK_MODULES = {
@@ -28,6 +29,7 @@ try:
         "task10": task10, "task11": task11, "task12": task12, "task20": task20,
         "task23": task23, "task24": task24, "task25": task25, "task26": task26, "task27": task27,
         "task28": task28, "task29": task29, "task30": task30, "task31": task31,
+        "task34": task34,
         "task35": task35, "task36": task36, "task37": task37,
     }
 except ImportError:

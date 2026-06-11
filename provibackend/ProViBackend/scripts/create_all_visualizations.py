@@ -71,6 +71,7 @@ import tasks.task28 as task28
 import tasks.task29 as task29
 import tasks.task30 as task30
 import tasks.task31 as task31
+import tasks.task34 as task34
 import tasks.task35 as task35
 import tasks.task36 as task36
 import tasks.task37 as task37
@@ -91,7 +92,7 @@ INPUT_SUBDIR  = "input"
 OUTPUT_SUBDIR = "output"
 LOG_EXTENSIONS   = {".xes", ".csv"}
 MODEL_EXTENSIONS = {".bpmn"}
-TASK_DIRS     = ["task01", "task02", "task03", "task04", "task05", "task06", "task07", "task08", "task09", "task10", "task11", "task12", "task20", "task23", "task24", "task25", "task26", "task27", "task28", "task29", "task30", "task31", "task35", "task36", "task37"]
+TASK_DIRS     = ["task01", "task02", "task03", "task04", "task05", "task06", "task07", "task08", "task09", "task10", "task11", "task12", "task20", "task23", "task24", "task25", "task26", "task27", "task28", "task29", "task30", "task31", "task34", "task35", "task36", "task37"]
 
 # Aliases mapping task-script filename stems to canonical idiom_keys.
 # E.g. task06.py writes "task06_scatter_plot.svg"; we strip "task06_" then
@@ -227,6 +228,7 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED",
                                              compare_attribute=compare_attribute)),
         ("task31", lambda d: task31.generate(log, alignments,        d,
                                              outcome_activity=outcome_activity)),
+        ("task34", lambda d: task34.generate(log, alignments,        d, model_path=model_path)),
         ("task35", lambda d: task35.generate(log, alignments,        d, model_path=model_path)),
         ("task36", lambda d: task36.generate(log, alignments,        d, model_path=model_path)),
         ("task37", lambda d: task37.generate(log, alignments,        d, model_path=model_path)),

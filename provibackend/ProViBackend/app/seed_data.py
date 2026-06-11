@@ -156,6 +156,12 @@ CANONICAL_TASKS = [
         "description": "Compare guideline violations across sub-logs split by a data attribute to uncover conformance differences between groups.",
         "answer_type": "single_choice",
     },
+    {
+        "task_key": "task34",
+        "label": "In which part of the process does a guideline violation occur at the trace level?",
+        "description": "Locate guideline violations within individual traces, showing exactly where each trace deviates from the expected process model.",
+        "answer_type": "single_choice",
+    },
 ]
 
 CANONICAL_IDIOMS = [

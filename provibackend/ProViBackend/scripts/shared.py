@@ -12,6 +12,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+import math
 import os
 import textwrap
 
@@ -1177,12 +1178,12 @@ def _bpmn_esc(v):
 
 _BPMN_MARKER_DEFS = (
     "<defs>"
-    '<marker id="arrow-grey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" '
-    'markerHeight="5" orient="auto" markerUnits="userSpaceOnUse">'
-    '<path d="M0,0 L10,5 L0,10 Z" fill="#888888"/></marker>'
-    '<marker id="arrow-faded" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" '
-    'markerHeight="5" orient="auto" markerUnits="userSpaceOnUse">'
-    '<path d="M0,0 L10,5 L0,10 Z" fill="#CCCCCC"/></marker>'
+    '<marker id="arrow-grey" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="10" '
+    'markerHeight="10" orient="auto" markerUnits="userSpaceOnUse">'
+    '<path d="M0,1 L10,5 L0,9 Z" fill="#444444"/></marker>'
+    '<marker id="arrow-faded" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" '
+    'markerHeight="8" orient="auto" markerUnits="userSpaceOnUse">'
+    '<path d="M0,1 L10,5 L0,9 Z" fill="#AAAAAA"/></marker>'
     "</defs>"
 )
 
@@ -1218,17 +1219,32 @@ def bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn=None, *, ox=0.0, oy=0
     def tx(x): return x - min_x + lp + ox
     def ty(y): return y - min_y + top_pad + oy
 
+    def _clean_pts(pts, min_seg=10.0):
+        """Drop penultimate points that create a tiny final segment.
+        A tiny final segment (< min_seg units) makes orient=auto point the
+        arrowhead in the wrong direction instead of the main travel direction."""
+        clean = list(pts)
+        while len(clean) >= 3:
+            x1, y1 = clean[-2]
+            x2, y2 = clean[-1]
+            if math.hypot(x2 - x1, y2 - y1) < min_seg:
+                clean.pop(-2)
+            else:
+                break
+        return clean
+
     out = []
     for fid, pts in edge_pts.items():
+        pts = _clean_pts(pts)
         pts_str = " ".join(f"{tx(x):.1f},{ty(y):.1f}" for x, y in pts)
         if faded_flow_fn is not None and faded_flow_fn(fid):
             out.append(
-                f'<polyline points="{pts_str}" fill="none" stroke="#CCCCCC" stroke-width="1.5" '
+                f'<polyline points="{pts_str}" fill="none" stroke="#AAAAAA" stroke-width="1.5" '
                 f'stroke-dasharray="5 4" stroke-linejoin="miter" marker-end="url(#arrow-faded)"/>'
             )
         else:
             out.append(
-                f'<polyline points="{pts_str}" fill="none" stroke="#888888" stroke-width="2" '
+                f'<polyline points="{pts_str}" fill="none" stroke="#444444" stroke-width="1.5" '
                 f'stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>'
             )
 
@@ -1355,11 +1371,16 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
 
     table_lines = []
     if table_rows and table_cols:
-        tx0, col_w, row_h = 24.0, 200.0, 22.0
+        col_w, row_h = 200.0, 22.0
+        table_total_w = col_w * len(table_cols)
+        # Pre-compute canvas width so we can center the table horizontally
+        legend_min_w = 24.0 + 265.0 * len(legend_items)
+        canvas_w = max(max_w, legend_min_w)
+        tx0 = max(24.0, (canvas_w - table_total_w) / 2.0)
         ty0 = y_cursor + 6.0
         table_lines.append(
             f'<rect x="{tx0:.1f}" y="{ty0:.1f}" '
-            f'width="{col_w * len(table_cols):.1f}" height="{row_h:.1f}" fill="#555555"/>'
+            f'width="{table_total_w:.1f}" height="{row_h:.1f}" fill="#555555"/>'
         )
         for ci, col in enumerate(table_cols):
             table_lines.append(
@@ -1371,7 +1392,7 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
             bg = "#F0F0F0" if ri % 2 else "#FFFFFF"
             table_lines.append(
                 f'<rect x="{tx0:.1f}" y="{ry:.1f}" '
-                f'width="{col_w * len(table_cols):.1f}" height="{row_h:.1f}" '
+                f'width="{table_total_w:.1f}" height="{row_h:.1f}" '
                 f'fill="{bg}" stroke="#E0E0E0" stroke-width="0.5"/>'
             )
             for ci, cell in enumerate(row):
@@ -1381,7 +1402,7 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
                     f'fill="#222">{_bpmn_esc(cell)}</text>'
                 )
         y_cursor = ty0 + (len(table_rows) + 1) * row_h
-        max_w = max(max_w, tx0 + col_w * len(table_cols))
+        max_w = max(max_w, tx0 + table_total_w)
 
     H_total = y_cursor + 34.0
     W = max(max_w, 24.0 + 265.0 * len(legend_items))
