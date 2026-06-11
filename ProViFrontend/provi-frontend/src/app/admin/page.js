@@ -18,7 +18,9 @@ function statusStyle(status) {
 
 function formatDateTime(iso) {
   if (!iso) return "—";
-  const d = new Date(iso);
+  // Stored timestamps are naive UTC strings — add Z so JS parses as UTC and displays in local (system) time
+  const s = iso.trim().replace(" ", "T");
+  const d = new Date(/Z$|[+-]\d{2}:?\d{2}$/.test(s) ? s : s + "Z");
   if (isNaN(d.getTime())) return "—";
   const pad = (n) => String(n).padStart(2, "0");
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${String(d.getFullYear()).slice(-2)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
