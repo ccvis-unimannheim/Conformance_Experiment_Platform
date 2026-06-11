@@ -1,6 +1,7 @@
 import uuid
 import io
 import csv
+import re
 from fastapi import APIRouter, BackgroundTasks, UploadFile, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
 try:
@@ -301,6 +302,7 @@ async def get_tasks():
     for doc in tasks:
         if "_id" in doc and not isinstance(doc["_id"], str):
             doc["_id"] = str(doc["_id"])
+    tasks.sort(key=lambda t: int(re.search(r'\d+', t.get("task_key", "0")).group()))
     return JSONResponse(content=tasks)
 
 

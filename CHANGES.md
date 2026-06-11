@@ -2,6 +2,20 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: Task List Natural Sort (2026-06-11)
+
+### Problem solved
+
+Tasks on `/admin/experiments/task` were displayed in MongoDB insertion order rather than logical order (task1, task2, …, taskN). With more than 9 tasks, lexicographic string sort would also break (e.g. task10 before task2).
+
+### Backend (`provibackend/`)
+
+| File | Change |
+|------|--------|
+| `ProViBackend/app/routers/admin.py` | Added `import re` at top. In `GET /admin/tasks`, added a natural-sort step after fetching: `tasks.sort(key=lambda t: int(re.search(r'\d+', t.get("task_key", "0")).group()))`. Tasks are now returned in task1 → task2 → … → taskN order regardless of insertion order in MongoDB. |
+
+---
+
 ## Session: Experiment Overview Page (2026-05-24)
 
 ### Goal
