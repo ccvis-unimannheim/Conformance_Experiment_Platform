@@ -357,7 +357,7 @@ export default function AdminPage() {
                             const hasTasks = exp.task_configs && exp.task_configs.length > 0;
                             const href = hasTasks
                               ? `/admin/experiments/idiom?experiment_id=${encodeURIComponent(expId)}`
-                              : `/admin/experiments/task?experiment_id=${encodeURIComponent(expId)}`;
+                              : `/admin/experiments/knowledge?experiment_id=${encodeURIComponent(expId)}`;
                             return (
                               <Link href={href}
                                 className="text-xs border border-border-subtle text-on-surface-variant px-3 py-1.5 rounded hover:bg-surface-container transition-colors flex items-center gap-1">

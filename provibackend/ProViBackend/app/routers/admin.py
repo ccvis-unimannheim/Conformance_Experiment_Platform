@@ -513,6 +513,77 @@ async def update_experiment(experiment_id: str, update_data: ds.ExperimentUpdate
 
 
 # ---------------------------------------------------------------------------
+# Knowledge Question management
+# ---------------------------------------------------------------------------
+
+@router.get("/knowledge-questions", tags=["admin"])
+async def get_knowledge_questions():
+    questions = dbc.get_query_db("KnowledgeQuestion", query={})
+    for doc in questions:
+        if "_id" in doc and not isinstance(doc["_id"], str):
+            doc["_id"] = str(doc["_id"])
+    return JSONResponse(content=questions)
+
+
+@router.post("/knowledge-questions", tags=["admin"])
+async def create_knowledge_question(q: ds.KnowledgeQuestionCreate):
+    qid = str(uuid.uuid4())
+    options = list(q.options)
+    if q.include_idk and (not options or options[-1] != "I don't know"):
+        options.append("I don't know")
+    doc = {
+        "_id": qid,
+        "section_title": q.section_title,
+        "text": q.text,
+        "options": options,
+        "include_idk": q.include_idk,
+        "correct_option_index": q.correct_option_index,
+        "is_system": False,
+        "created_at": utils.get_current_datetime(),
+    }
+    dbc.create_document("KnowledgeQuestion", doc)
+    return JSONResponse(
+        content={"message": "Knowledge question created.", "question_id": qid},
+        status_code=201,
+    )
+
+
+@router.delete("/knowledge-questions/{question_id}", tags=["admin"])
+async def delete_knowledge_question(question_id: str):
+    db = dbc.connect_to_database()
+    q = db["KnowledgeQuestion"].find_one({"_id": question_id})
+    if not q:
+        raise HTTPException(status_code=404, detail="Knowledge question not found.")
+    if q.get("is_system"):
+        raise HTTPException(status_code=403, detail="System questions cannot be deleted.")
+    referencing = list(db["Experiment"].find({"knowledge_question_ids": question_id}))
+    if referencing:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "Question is referenced by one or more experiments.",
+                "referencing_experiments": [
+                    {"_id": e["_id"], "name": e.get("name")} for e in referencing
+                ],
+            },
+        )
+    db["KnowledgeQuestion"].delete_one({"_id": question_id})
+    return JSONResponse(content={"message": "Knowledge question deleted."})
+
+
+@router.patch("/experiments/{experiment_id}/knowledge-questions", tags=["admin"])
+async def update_experiment_knowledge_questions(experiment_id: str, body: ds.KnowledgeQuestionIds):
+    updated = dbc.update_document(
+        "Experiment",
+        query={"_id": experiment_id},
+        update={"$set": {"knowledge_question_ids": body.knowledge_question_ids}},
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
+    return JSONResponse(content={"message": "Knowledge questions updated."})
+
+
+# ---------------------------------------------------------------------------
 # GroundTruth management
 # ---------------------------------------------------------------------------
 

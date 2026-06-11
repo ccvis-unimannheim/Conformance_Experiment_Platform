@@ -41,6 +41,43 @@ def _resolve_svg_path(task_id: str, idiom_id: str, dataset_id: str):
     return svg_path, None
 
 
+def _get_experiment_knowledge_questions(exp: dict) -> list:
+    """Return knowledge questions for an experiment, stripping correct_option_index."""
+    db = dbc.connect_to_database()
+    kq_ids = exp.get("knowledge_question_ids", [])
+    if kq_ids:
+        questions = list(db["KnowledgeQuestion"].find({"_id": {"$in": kq_ids}}))
+        id_order = {qid: i for i, qid in enumerate(kq_ids)}
+        questions.sort(key=lambda q: id_order.get(q["_id"], 999))
+    else:
+        questions = list(db["KnowledgeQuestion"].find({"is_system": True}))
+    for q in questions:
+        q.pop("correct_option_index", None)
+        if "_id" in q and not isinstance(q["_id"], str):
+            q["_id"] = str(q["_id"])
+    return questions
+
+
+@router.get("/knowledge-questions", tags=["participant"])
+async def get_active_knowledge_questions():
+    """Return knowledge questions for the currently active/published experiment."""
+    experiments = dbc.get_query_db("Experiment", {"status": {"$in": ["active", "published"]}})
+    if not experiments:
+        raise HTTPException(status_code=404, detail="No active experiment found.")
+    exp = sorted(experiments, key=lambda e: e.get("created_at", ""), reverse=True)[0]
+    return JSONResponse(content={"questions": _get_experiment_knowledge_questions(exp)})
+
+
+@router.get("/experiment/{experiment_id}/knowledge-questions", tags=["participant"])
+async def get_experiment_knowledge_questions(experiment_id: str):
+    """Return knowledge questions for a specific experiment (admin preview)."""
+    db = dbc.connect_to_database()
+    exp = db["Experiment"].find_one({"_id": experiment_id})
+    if not exp:
+        raise HTTPException(status_code=404, detail="Experiment not found.")
+    return JSONResponse(content={"questions": _get_experiment_knowledge_questions(exp)})
+
+
 @router.get("/experiment/active", tags=["participant"])
 async def get_active_experiment():
     """Return the trial list for the currently active experiment.

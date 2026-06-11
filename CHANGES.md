@@ -2,6 +2,22 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: Scrollable Dataset Tables (2026-06-11)
+
+### Problem solved
+
+Both dataset display surfaces lacked consistent scroll behaviour when the dataset list grew long.
+
+### Frontend (`ProViFrontend/`)
+
+| File | Change |
+|------|--------|
+| `provi-frontend/src/components/Admin/DatasetSelectTable.js` | Added `max-h-72 overflow-y-auto pr-1` to the table wrapper so the Choose Dataset(s) table on `/admin/experiments/new` scrolls vertically beyond 288 px. Added `sticky top-0 bg-surface-container-lowest z-10` to `<thead>` so column headers remain visible while scrolling. |
+
+*Note: the `/admin` Datasets list already had `max-h-72 overflow-y-auto pr-1` from the Datasets Section Redesign session.*
+
+---
+
 ## Session: Timestamp Timezone Fix (2026-06-11)
 
 ### Problem solved
