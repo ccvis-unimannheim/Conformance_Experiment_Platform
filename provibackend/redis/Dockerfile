@@ -1,5 +1,6 @@
 # Use the official Redis image as the base image
 FROM redis:8-alpine
+RUN apk update && apk upgrade --no-cache
 
 # Copy the redis.conf file to the appropriate directory in the container
 COPY redis.conf /usr/local/etc/redis/redis.conf
