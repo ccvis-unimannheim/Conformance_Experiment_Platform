@@ -2,7 +2,8 @@ import uuid
 import io
 import csv
 import re
-from fastapi import APIRouter, BackgroundTasks, UploadFile, HTTPException
+import shutil
+from fastapi import APIRouter, BackgroundTasks, UploadFile, HTTPException, Form
 from fastapi.responses import StreamingResponse, JSONResponse
 try:
     from ProViBackend.scripts.create_all_visualizations import (
@@ -64,7 +65,12 @@ def _validate_extension(filename: str, allowed: set, label: str) -> str:
 
 
 @router.post("/datasets/pair", tags=["admin"])
-async def upload_dataset_pair(log: UploadFile, guideline: UploadFile, background_tasks: BackgroundTasks):
+async def upload_dataset_pair(
+    log: UploadFile,
+    guideline: UploadFile,
+    background_tasks: BackgroundTasks,
+    dataset_title: str = Form(None),
+):
     """Upload an event log + BPMN guideline; triggers the visualization pipeline asynchronously."""
     # Validate file extensions BEFORE creating any directories on disk
     log_ext = _validate_extension(log.filename, ALLOWED_LOG_EXTENSIONS, "Event log")
@@ -89,7 +95,7 @@ async def upload_dataset_pair(log: UploadFile, guideline: UploadFile, background
 
         dataset_pair = ds.DatasetPair(
             dataset_id=pair_id,
-            dataset_title=pl.Path(log.filename).stem,   # keep original log name as title
+            dataset_title=dataset_title or pl.Path(log.filename).stem,
             dataset_is_active=False,
             insert_datetime=utils.get_current_datetime(),
             log=ds.DatasetFile(
@@ -244,6 +250,43 @@ async def get_datasets_from_db():
                                          "guideline.filename": 1,
                                          })
     return JSONResponse(content=pairs)
+
+
+@router.delete("/datasets/{dataset_id}", tags=["admin"])
+async def delete_dataset(dataset_id: str, force: bool = False):
+    db = dbc.connect_to_database()
+    referencing = list(db["Experiment"].find({"dataset_ids": dataset_id}))
+
+    if referencing and not force:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "Dataset is referenced by experiments.",
+                "referencing_experiments": [
+                    {"_id": e["_id"], "name": e.get("name"), "status": e.get("status")}
+                    for e in referencing
+                ],
+            },
+        )
+
+    demoted = []
+    for exp in referencing:
+        new_ids = [d for d in exp.get("dataset_ids", []) if d != dataset_id]
+        db["Experiment"].update_one(
+            {"_id": exp["_id"]},
+            {"$set": {"dataset_ids": new_ids, "status": "draft"}},
+        )
+        demoted.append({"_id": exp["_id"], "name": exp.get("name")})
+
+    pair_dir = DATA_DIRECTORY / dataset_id
+    if pair_dir.exists():
+        shutil.rmtree(pair_dir, ignore_errors=True)
+
+    result = db["DatasetPair"].delete_one({"dataset_id": dataset_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail=f"Dataset '{dataset_id}' not found.")
+
+    return JSONResponse(content={"message": "Dataset deleted.", "demoted_experiments": demoted})
 
 
 # Todo: Add validation for dataset_id and dataset_is_active that always two datasets are selected as active

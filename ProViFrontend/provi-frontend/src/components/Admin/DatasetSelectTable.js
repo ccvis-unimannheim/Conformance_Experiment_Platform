@@ -1,5 +1,13 @@
 "use client";
 
+function formatDateTime(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${String(d.getFullYear()).slice(-2)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 const DatasetSelectTable = ({ pairs, selectedIds, onToggle, isLoading, error }) => {
   if (isLoading) {
     return (
@@ -86,7 +94,7 @@ const DatasetSelectTable = ({ pairs, selectedIds, onToggle, isLoading, error }) 
                           {pair.log?.filename ?? "—"}
                         </span>
                         <span className="text-[11px] text-on-surface-variant">
-                          Uploaded: {pair.insert_datetime ? new Date(pair.insert_datetime).toLocaleDateString() : "—"}
+                          Uploaded: {formatDateTime(pair.insert_datetime)}
                         </span>
                       </div>
                     </td>
@@ -96,7 +104,7 @@ const DatasetSelectTable = ({ pairs, selectedIds, onToggle, isLoading, error }) 
                           {pair.guideline?.filename ?? "—"}
                         </span>
                         <span className="text-[11px] text-on-surface-variant">
-                          Uploaded: {pair.insert_datetime ? new Date(pair.insert_datetime).toLocaleDateString() : "—"}
+                          Uploaded: {formatDateTime(pair.insert_datetime)}
                         </span>
                       </div>
                     </td>
