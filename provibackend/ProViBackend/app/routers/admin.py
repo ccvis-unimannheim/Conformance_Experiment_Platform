@@ -416,16 +416,14 @@ async def get_experiment_stats(experiment_id: str):
 
     task_configs = exp.get("task_configs", [])
     total_tasks = len(task_configs)
-    participants = db["UserAssignment"].count_documents({"experiment_id": experiment_id})
+    assignments = list(db["UserAssignment"].find({"experiment_id": experiment_id}))
+    participants = len(assignments)
 
-    completed = 0
-    if participants > 0 and total_tasks > 0:
-        assignments = list(db["UserAssignment"].find({"experiment_id": experiment_id}, {"user_id": 1}))
-        for a in assignments:
-            uid = a["user_id"]
-            answered_tasks = db["Answer"].distinct("task_id", {"experiment_id": experiment_id, "user_id": uid})
-            if len(answered_tasks) >= total_tasks:
-                completed += 1
+    completed = sum(
+        1 for a in assignments
+        if a.get("current_trial_index", 0) >= len(a.get("trial_sequence", []))
+        and len(a.get("trial_sequence", [])) > 0
+    )
 
     return JSONResponse(content={
         "participants": participants,
