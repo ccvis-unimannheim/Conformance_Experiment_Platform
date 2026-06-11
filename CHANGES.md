@@ -2,6 +2,34 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: Knowledge Questions — Full DB Implementation (2026-06-11)
+
+### Problem solved
+
+Knowledge questions were hardcoded in the frontend. Admins had no way to add new questions or configure which questions each experiment uses without touching the source code.
+
+### Backend (`provibackend/`)
+
+| File | Change |
+|------|--------|
+| `app/datamodels/data_schemas.py` | Added `KnowledgeQuestion` and `KnowledgeQuestionCreate` models. Added `KnowledgeQuestionIds` model. Updated `KnowledgeAnswersRequest` to `{answers: Dict[str, int], tools: List[str]}` (server-side scoring). Added `knowledge_question_ids: List[str] = []` field to `Experiment` (empty = all system questions). |
+| `app/seed_data.py` | Added `CANONICAL_KNOWLEDGE_QUESTIONS` with the 6 existing hardcoded questions seeded as `is_system=True`. |
+| `app/main.py` | Imported `CANONICAL_KNOWLEDGE_QUESTIONS`; added seed call for `KnowledgeQuestion` collection on startup. |
+| `app/routers/admin.py` | Added `GET /admin/knowledge-questions`, `POST /admin/knowledge-questions`, `DELETE /admin/knowledge-questions/{id}` (system questions protected, 409 if referenced by experiments), `PATCH /admin/experiments/{id}/knowledge-questions` endpoints. |
+| `app/routers/participant.py` | Added `GET /participant/knowledge-questions` (active experiment, strips `correct_option_index`). Added `GET /participant/experiment/{id}/knowledge-questions` (admin preview). |
+| `app/routers/auth.py` | Updated `POST /auth/knowledge` to accept `{answers: {qid: optionIndex}, tools: [...]}`. Score computed server-side by comparing submitted indices against `correct_option_index` in DB. Stored format (`notes`, `score`, `level` in `KnowledgeAnswers`) unchanged for CSV export compatibility. |
+
+### Frontend (`ProViFrontend/`)
+
+| File | Change |
+|------|--------|
+| `src/app/admin/experiments/knowledge/page.js` | **New file.** Wizard step 2 between `/new` and `/task`. Lists all KQ with checkboxes (system + custom sections). "Add Question" opens a modal to create a new DB question with 2–6 options, optional "I don't know" toggle, and correct answer selection. On "Next", PATCHes the experiment with selected question IDs. |
+| `src/app/admin/experiments/new/page.js` | Changed post-create redirect from `/admin/experiments/task` to `/admin/experiments/knowledge`. |
+| `src/app/admin/page.js` | "Continue Editing" for experiments without task configs now points to `/admin/experiments/knowledge` instead of `/admin/experiments/task`. |
+| `src/app/knowledgequestion/page.js` | Replaced hardcoded question array with dynamic fetch from `GET /api/participant/knowledge-questions`. Answers submitted as `{answers: {question_id: option_index}, tools: [...]}` instead of pre-computed `{notes, score, level}`. Questions grouped by `section_title` from DB. |
+
+---
+
 ## Session: Scrollable Dataset Tables (2026-06-11)
 
 ### Problem solved
