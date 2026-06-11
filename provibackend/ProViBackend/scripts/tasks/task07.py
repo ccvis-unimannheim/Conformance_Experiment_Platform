@@ -27,7 +27,10 @@ import matplotlib.patches as mpatches
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 
-from shared import save_svg, BLUE, ORANGE, GREEN, RED, TEAL, FONT_TITLE, FONT_LABEL, FONT_ANNOT
+from shared import (
+    save_svg, build_fitness_time_series,
+    BLUE, ORANGE, GREEN, RED, TEAL, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+)
 
 # Maximum traces shown in the Gantt chart (readability + cognitive load)
 _GANTT_MAX_TRACES = 20
@@ -38,36 +41,8 @@ _GANTT_MAX_TRACES = 20
 # ---------------------------------------------------------------------------
 
 def _build_time_series_df(log, fitness_df) -> pd.DataFrame:
-    """Merge per-trace fitness values with trace start/end timestamps from the log.
-
-    Returns a DataFrame with columns:
-        trace_index, fitness, is_fit, start_time (Timestamp), end_time (Timestamp)
-
-    Rows where start_time is NaT (no timestamp in the log) are dropped.
-    """
-    rows = []
-    for _, row in fitness_df.iterrows():
-        idx = int(row["trace_index"])
-        try:
-            trace = log[idx]
-        except (IndexError, Exception):
-            continue
-        ts_start = trace[0].get("time:timestamp") if trace else None
-        ts_end   = trace[-1].get("time:timestamp") if trace else None
-        rows.append({
-            "trace_index": idx,
-            "fitness":     float(row["fitness"]),
-            "is_fit":      bool(row["is_fit"]),
-            "start_time":  pd.Timestamp(ts_start) if ts_start is not None else pd.NaT,
-            "end_time":    pd.Timestamp(ts_end)   if ts_end   is not None else pd.NaT,
-        })
-
-    if not rows:
-        return pd.DataFrame()
-
-    df = pd.DataFrame(rows)
-    df = df.dropna(subset=["start_time"]).sort_values("start_time").reset_index(drop=True)
-    return df
+    """Per-trace fitness + start/end timestamps; shared impl in shared.build_fitness_time_series."""
+    return build_fitness_time_series(log, fitness_df)
 
 
 def _auto_bin_freq(df: pd.DataFrame) -> str:

@@ -16,7 +16,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "stacked_bar", "table", "table_and_bar_chart", "matrix", "parallel_sets"]
+IDIOMS = ["bar_chart", "stacked_bar", "table", "table_and_bar_chart", "matrix",
+          "parallel_sets", "box_plot", "heatmap"]
 
 import os
 import numpy as np
@@ -26,11 +27,12 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib import gridspec
-from matplotlib.colors import LinearSegmentedColormap
 
 from shared import (
     save_svg, make_table, draw_parallel_sets, alignment_pairs_to_rows,
-    BLUE, ORANGE, FONT_TITLE, FONT_LABEL, FONT_ANNOT, contrasting_text_color,
+    draw_grouped_rate_bars, draw_composition_stacked_bars, draw_rate_matrix,
+    draw_grouped_box_plot, draw_value_heatmap, render_empty_state_svg,
+    BLUE, ORANGE, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 TOP_N = 10
@@ -105,14 +107,13 @@ def _task05_aggregate(viol_df: pd.DataFrame, n_traces: dict, top_n: int = TOP_N)
 def task05_bar_chart(agg_df: pd.DataFrame, output_dir: str):
     """Grouped bars: violation rate per top-N pattern for Positive vs Negative."""
     patterns = agg_df["pattern"].tolist()
-    x     = np.arange(len(patterns))
-    width = 0.38
 
     fig, ax = plt.subplots(figsize=(max(9, len(patterns) * 1.1), 5.5))
-    ax.bar(x - width / 2, agg_df["Positive_rate"], width,
-           color=_COLOR_POSITIVE, label="Positive outcome", edgecolor="white")
-    ax.bar(x + width / 2, agg_df["Negative_rate"], width,
-           color=_COLOR_NEGATIVE, label="Negative outcome", edgecolor="white")
+    rates = agg_df[["Positive_rate", "Negative_rate"]].values
+    x = draw_grouped_rate_bars(
+        ax, len(patterns), ["Positive outcome", "Negative outcome"], rates,
+        [_COLOR_POSITIVE, _COLOR_NEGATIVE],
+    )
 
     ax.set_xticks(x)
     ax.set_xticklabels(patterns, rotation=35, ha="right", fontsize=FONT_ANNOT - 1)
@@ -128,23 +129,14 @@ def task05_bar_chart(agg_df: pd.DataFrame, output_dir: str):
 
 def task05_stacked_bar(agg_df: pd.DataFrame, n_traces: dict, output_dir: str):
     """Stacked bar: one bar per outcome group, segments = top-N patterns + Other."""
-    groups  = ["Positive", "Negative"]
-    colors  = [f"#{h}" for h in ["555555", "777777", "999999", "BBBBBB", "CCCCCC",
-                                   "AAAAAA", "888888", "666666", "444444", "333333"]]
-
-    # Build stacks: each pattern contributes its count (violations, not traces)
+    groups   = ["Positive", "Negative"]
     patterns = agg_df["pattern"].tolist()
 
     fig, ax = plt.subplots(figsize=(5, 5.5))
-    bottoms = {g: 0.0 for g in groups}
-    for i, row in agg_df.iterrows():
-        for g, col in zip(groups, [_COLOR_POSITIVE, _COLOR_NEGATIVE]):
-            h = float(row[f"{g}_rate"])
-            if h > 0:
-                ax.bar(g, h, bottom=bottoms[g],
-                       color=colors[i % len(colors)], edgecolor="white", linewidth=0.5,
-                       label=row["pattern"] if g == "Positive" else "_nolegend_")
-            bottoms[g] += h
+    draw_composition_stacked_bars(
+        ax, groups, patterns,
+        agg_df[["Positive_rate", "Negative_rate"]].values,
+    )
 
     ax.set_ylabel("Cumulative violation rate (%)", fontsize=FONT_LABEL)
     ax.set_title("Violation Pattern Composition per Outcome Group", fontsize=FONT_TITLE)
@@ -218,12 +210,11 @@ def task05_table_and_bar_chart(agg_df: pd.DataFrame, output_dir: str):
 
     ax_bar = fig.add_subplot(gs[1])
     patterns = agg_df["pattern"].tolist()
-    x = np.arange(len(patterns))
-    w = 0.38
-    ax_bar.barh(x - w / 2, agg_df["Positive_rate"], w,
-                color=_COLOR_POSITIVE, label="Positive", edgecolor="white")
-    ax_bar.barh(x + w / 2, agg_df["Negative_rate"], w,
-                color=_COLOR_NEGATIVE, label="Negative", edgecolor="white")
+    x = draw_grouped_rate_bars(
+        ax_bar, len(patterns), ["Positive", "Negative"],
+        agg_df[["Positive_rate", "Negative_rate"]].values,
+        [_COLOR_POSITIVE, _COLOR_NEGATIVE], horizontal=True,
+    )
     ax_bar.set_yticks(x)
     ax_bar.set_yticklabels(patterns, fontsize=FONT_ANNOT - 1)
     ax_bar.set_xlabel("Rate (%)", fontsize=FONT_LABEL)
@@ -250,29 +241,10 @@ def task05_matrix(agg_df: pd.DataFrame, output_dir: str):
     groups   = ["Positive", "Negative"]
     data     = agg_df[["Positive_rate", "Negative_rate"]].values  # shape (N, 2)
 
-    cmap = LinearSegmentedColormap.from_list("task05_mat", ["#F8F8F8", "#444444"])
-    vmax = max(data.max(), 1.0)
-
     fig_h = max(3.0, 0.55 * len(patterns) + 1.2)
     fig, ax = plt.subplots(figsize=(5, fig_h))
-    im = ax.imshow(data, cmap=cmap, vmin=0, vmax=vmax, aspect="auto")
-
-    ax.set_xticks([0, 1])
-    ax.set_xticklabels(groups, fontsize=FONT_ANNOT)
-    ax.set_yticks(np.arange(len(patterns)))
-    ax.set_yticklabels(patterns, fontsize=FONT_ANNOT - 1)
-    ax.set_xlabel("Outcome Group", fontsize=FONT_LABEL)
+    draw_rate_matrix(fig, ax, data, patterns, groups, xlabel="Outcome Group")
     ax.set_title("Violation Rate Matrix (%)", fontsize=FONT_TITLE)
-
-    midpoint = vmax * 0.55
-    for ri, row in enumerate(data):
-        for ci, val in enumerate(row):
-            text_color = "white" if val > midpoint else "#222222"
-            ax.text(ci, ri, f"{val:.1f}%",
-                    ha="center", va="center", fontsize=FONT_ANNOT, color=text_color)
-
-    cbar = fig.colorbar(im, ax=ax, fraction=0.04, pad=0.02)
-    cbar.set_label("Rate (%)", fontsize=FONT_ANNOT)
     fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task05_matrix.svg"))
 
@@ -326,6 +298,50 @@ def task05_parallel_sets(agg_df: pd.DataFrame, viol_df: pd.DataFrame,
 
 
 # ---------------------------------------------------------------------------
+# Medium idioms
+# ---------------------------------------------------------------------------
+
+_GROUPS = ["Positive", "Negative"]
+
+
+def task05_box_plot(log, viol_df: pd.DataFrame, outcome_activity: str, output_dir: str):
+    """Violations-per-trace distribution per outcome sub-log (zero-violation traces included)."""
+    per_trace = viol_df.groupby("trace_index").size() if not viol_df.empty else pd.Series(dtype=int)
+    data = {g: [] for g in _GROUPS}
+    for i, trace in enumerate(log):
+        g = _task05_outcome_group(trace, outcome_activity)
+        data[g].append(int(per_trace.get(i, 0)))
+    arrays = [np.array(data[g]) for g in _GROUPS]
+    if all(a.size == 0 for a in arrays):
+        render_empty_state_svg(os.path.join(output_dir, "task05_box_plot.svg"),
+                               "Violations per Trace by Outcome", "No traces.")
+        return
+    fig, ax = plt.subplots(figsize=(5.5, 6))
+    draw_grouped_box_plot(ax, arrays, _GROUPS, [_COLOR_POSITIVE, _COLOR_NEGATIVE],
+                          ylabel="Violations per trace", ylim=None)
+    ax.set_title("Violations per Trace by Outcome Group", fontsize=FONT_TITLE)
+    fig.tight_layout()
+    save_svg(fig, os.path.join(output_dir, "task05_box_plot.svg"))
+
+
+def task05_heatmap(agg_df: pd.DataFrame, output_dir: str):
+    """Violation pattern × sub-log, rate, continuous colour (complements the matrix)."""
+    if agg_df.empty:
+        render_empty_state_svg(os.path.join(output_dir, "task05_heatmap.svg"),
+                               "Violation Rate Heatmap", "No violations found.")
+        return
+    patterns = agg_df["pattern"].tolist()
+    data = agg_df[["Positive_rate", "Negative_rate"]].values
+    fig_h = max(3.0, 0.55 * len(patterns) + 1.2)
+    fig, ax = plt.subplots(figsize=(5, fig_h))
+    draw_value_heatmap(fig, ax, data, patterns, _GROUPS, xlabel="Outcome Group",
+                       cbar_label="Rate (%)", annotate=False)
+    ax.set_title("Violation Rate Heatmap (%)", fontsize=FONT_TITLE)
+    fig.tight_layout()
+    save_svg(fig, os.path.join(output_dir, "task05_heatmap.svg"))
+
+
+# ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
 
@@ -357,3 +373,5 @@ def generate(log, alignments, output_dir: str, outcome_activity: str = "A_ACTIVA
     task05_table_and_bar_chart(agg_df, output_dir)
     task05_matrix(agg_df, output_dir)
     task05_parallel_sets(agg_df, viol_df, n_traces, output_dir)
+    task05_box_plot(log, viol_df, outcome_activity, output_dir)
+    task05_heatmap(agg_df, output_dir)
