@@ -564,11 +564,9 @@ def _flow_legend_handles():
 
 
 def _import_task28_chevron():
-    try:
-        from tasks.task28 import _draw_task28_basic_chevrons, _task28_chevron_figure_width
-    except ImportError:
-        from task28 import _draw_task28_basic_chevrons, _task28_chevron_figure_width
-    return _draw_task28_basic_chevrons, _task28_chevron_figure_width
+    # Chevron primitives live in shared.py (moved there from task28)
+    from shared import draw_chevron_strip, chevron_figure_width
+    return draw_chevron_strip, chevron_figure_width
 
 
 # ── Idiom: Flow Chart Basic ───────────────────────────────────────────────────
