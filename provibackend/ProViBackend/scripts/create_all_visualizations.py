@@ -40,6 +40,7 @@ logger = logging.getLogger(__name__)
 
 import argparse
 import os
+import re
 import sys
 import warnings
 warnings.filterwarnings("ignore")
@@ -48,16 +49,27 @@ warnings.filterwarnings("ignore")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from io_helpers import load_event_log, load_model, run_alignments, fitness_summary_dataframe
+import tasks.task01 as task01
+import tasks.task02 as task02
+import tasks.task03 as task03
+import tasks.task04 as task04
+import tasks.task05 as task05
 import tasks.task06 as task06
 import tasks.task07 as task07
 import tasks.task08 as task08
 import tasks.task09 as task09
+import tasks.task10 as task10
 import tasks.task11 as task11
 import tasks.task12 as task12
+import tasks.task20 as task20
+import tasks.task23 as task23
+import tasks.task24 as task24
+import tasks.task25 as task25
+import tasks.task26 as task26
+import tasks.task27 as task27
 import tasks.task28 as task28
 import tasks.task29 as task29
-import tasks.task20 as task20
-import tasks.task10 as task10
+import tasks.task30 as task30
 import tasks.task31 as task31
 import tasks.task35 as task35
 import tasks.task36 as task36
@@ -79,7 +91,7 @@ INPUT_SUBDIR  = "input"
 OUTPUT_SUBDIR = "output"
 LOG_EXTENSIONS   = {".xes", ".csv"}
 MODEL_EXTENSIONS = {".bpmn"}
-TASK_DIRS     = ["task06", "task07", "task08", "task09", "task11", "task12", "task28", "task29", "task20", "task10", "task31", "task35", "task36", "task37"]
+TASK_DIRS     = ["task01", "task02", "task03", "task04", "task05", "task06", "task07", "task08", "task09", "task10", "task11", "task12", "task20", "task23", "task24", "task25", "task26", "task27", "task28", "task29", "task30", "task31", "task35", "task36", "task37"]
 
 # Aliases mapping task-script filename stems to canonical idiom_keys.
 # E.g. task06.py writes "task06_scatter_plot.svg"; we strip "task06_" then
@@ -145,7 +157,8 @@ def _resolve_dataset_paths(dataset_dir: str):
 # Public entry point – called by both the CLI and the FastAPI backend
 # ---------------------------------------------------------------------------
 
-def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED") -> str:
+def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED",
+                 compare_attribute: str = "AMOUNT_REQ") -> str:
     """Run the full visualization pipeline for one dataset directory.
 
     Parameters
@@ -158,6 +171,9 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED") -> str
         ``<dataset_dir>/output/`` when not supplied.
     outcome_activity : str
         Activity name that marks a positive process outcome (used by Task 6).
+    compare_attribute : str
+        Case-level data attribute used by Task 30 to split the log into
+        sub-logs (numeric → median split, categorical → value groups).
 
     Returns
     -------
@@ -173,6 +189,7 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED") -> str
     logger.info(f"Process model     : {model_path}")
     logger.info(f"Output directory  : {output_dir}")
     logger.info(f"Outcome activity  : {outcome_activity}")
+    logger.info(f"Compare attribute : {compare_attribute}")
     log         = load_event_log(log_path)
     net, im, fm = load_model(model_path)
     alignments  = run_alignments(log, net, im, fm)
@@ -184,16 +201,30 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED") -> str
         return d
 
     generators = [
+        ("task01", lambda d: task01.generate(log, fitness_df,        d,
+                                             outcome_activity=outcome_activity)),
+        ("task02", lambda d: task02.generate(fitness_df,             d)),
+        ("task03", lambda d: task03.generate(log, fitness_df,        d)),
+        ("task04", lambda d: task04.generate(log, fitness_df,        d)),
+        ("task05", lambda d: task05.generate(log, alignments,        d,
+                                             outcome_activity=outcome_activity)),
         ("task06", lambda d: task06.generate(fitness_df,             d)),
         ("task07", lambda d: task07.generate(log, fitness_df,        d)),
-        ("task08", lambda d: task08.generate(log, alignments,                    d)),
-        ("task09", lambda d: task09.generate(log, alignments,                    d, model_path=model_path)),
-        ("task11", lambda d: task11.generate(log, alignments,                    d, model_path=model_path)),
-        ("task12", lambda d: task12.generate(log, alignments,                    d)),
-        ("task28", lambda d: task28.generate(alignments, model_path,             d)),
-        ("task29", lambda d: task29.generate(alignments,             d)),
-        ("task20", lambda d: task20.generate(log, alignments,        d)),
+        ("task08", lambda d: task08.generate(log, alignments,        d)),
+        ("task09", lambda d: task09.generate(log, alignments,        d, model_path=model_path)),
         ("task10", lambda d: task10.generate(fitness_df,             d)),
+        ("task11", lambda d: task11.generate(log, alignments,        d, model_path=model_path)),
+        ("task12", lambda d: task12.generate(log, alignments,        d)),
+        ("task20", lambda d: task20.generate(log, alignments,        d)),
+        ("task23", lambda d: task23.generate(alignments,             d, log=log)),
+        ("task24", lambda d: task24.generate(log, model_path,        d)),
+        ("task25", lambda d: task25.generate(log, fitness_df,        d, model_path=model_path)),
+        ("task26", lambda d: task26.generate(alignments,             d, model_path=model_path)),
+        ("task27", lambda d: task27.generate(log, fitness_df, alignments, d, model_path=model_path)),
+        ("task28", lambda d: task28.generate(alignments, model_path, d)),
+        ("task29", lambda d: task29.generate(alignments,             d)),
+        ("task30", lambda d: task30.generate(log, fitness_df, alignments, d,
+                                             compare_attribute=compare_attribute)),
         ("task31", lambda d: task31.generate(log, alignments,        d,
                                              outcome_activity=outcome_activity)),
         ("task35", lambda d: task35.generate(log, alignments,        d, model_path=model_path)),
@@ -210,16 +241,25 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED") -> str
 
         # Each task script writes "taskN_<idiom>.svg"; rename to canonical
         # "<idiom_key>.svg" form, applying _FILE_RENAME aliases.
+        # Only strip a real "taskNN_" prefix — already-canonical files (from a
+        # previous run on the same output dir) must pass through unchanged,
+        # otherwise "bar_chart.svg" would degrade to "chart.svg" on re-runs.
         skip = _TASK_RENAME_SKIP.get(task_name, set())
         for f in pathlib.Path(task_dir).glob("*.svg"):
             stem = f.stem
             parts = stem.split("_", 1)
-            idiom_key = parts[1] if len(parts) == 2 else stem
+            if len(parts) == 2 and re.fullmatch(r"task\d+", parts[0]):
+                idiom_key = parts[1]
+            else:
+                idiom_key = stem
             if idiom_key not in skip:
                 idiom_key = _FILE_RENAME.get(idiom_key, idiom_key)
             target = pathlib.Path(task_dir) / f"{idiom_key}.svg"
             if f != target:
-                f.rename(target)
+                # replace() overwrites existing targets on all platforms
+                # (os.rename would fail on Windows when re-running on a
+                #  non-empty output directory)
+                f.replace(target)
 
     logger.info("\nDone! SVGs written to:")
     for t in TASK_DIRS:
@@ -242,6 +282,11 @@ def parse_args():
     parser.add_argument(
         "--outcome-activity", default="A_ACTIVATED",
         help="Activity name that marks a positive outcome (Task 6). Default: A_ACTIVATED",
+    )
+    parser.add_argument(
+        "--compare-attribute", default="AMOUNT_REQ",
+        help="Case attribute used by Task 30 to split the log into sub-logs "
+             "(numeric: median split, categorical: value groups). Default: AMOUNT_REQ",
     )
     return parser.parse_args()
 
@@ -270,7 +315,8 @@ def main():
     _configure_cli_logging()
     args = parse_args()
     try:
-        run_pipeline(args.dataset_dir, outcome_activity=args.outcome_activity)
+        run_pipeline(args.dataset_dir, outcome_activity=args.outcome_activity,
+                     compare_attribute=args.compare_attribute)
     except (FileNotFoundError, ValueError) as e:
         logger.error(f"ERROR: {e}")
         sys.exit(1)

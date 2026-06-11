@@ -441,24 +441,33 @@ def task08_scatter_plot(violation_freq, cooccurrence, n_traces, output_dir):
     fig, ax = plt.subplots(figsize=(11, 8))
     ax.set_facecolor("#fafbfc")
 
+    # Normalise bubble area to a bounded range so high co-occurrence counts
+    # don't blow up into canvas-filling circles.
+    cc = df["cooccur"].values.astype(float)
+    cc_max = max(cc.max(), 1.0)
+    sizes = (cc / cc_max) * 1800.0 + 140.0
+
     sc = ax.scatter(
         x, y,
-        s=df["cooccur"].values * 55 + 80,
-        c=df["cooccur"].values, cmap=_CMAP_SEQ,
-        alpha=0.88, edgecolors=_C_MED, linewidths=0.6, vmin=0,
+        s=sizes,
+        c=cc, cmap=_CMAP_SEQ,
+        alpha=0.85, edgecolors=_C_MED, linewidths=0.6, vmin=0,
     )
 
-    # Label top 6 only, with white backing to prevent overlap
+    # Label top 6 only, with white backing; show the full violation names.
     for i, (_, row) in enumerate(df.head(6).iterrows()):
-        label = f"{_short_label(row['a'], 20)}\n× {_short_label(row['b'], 20)}"
+        label = f"{_short_label(row['a'], 40)}\n× {_short_label(row['b'], 40)}"
         ax.annotate(
             label,
             xy=(x[i], y[i]),
-            xytext=(10, 6), textcoords="offset points",
+            xytext=(12, 8), textcoords="offset points",
             fontsize=max(FONT_ANNOT - 1, 6), color=_C_DARK,
             bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="#dddddd",
-                      alpha=0.90, linewidth=0.5),
+                      alpha=0.92, linewidth=0.5),
         )
+
+    # Extra margins so the largest bubbles are not clipped at the axes' edges.
+    ax.margins(0.18)
 
     cbar = fig.colorbar(sc, ax=ax, fraction=0.03, pad=0.02)
     cbar.set_label("Co-occurrence count", fontsize=FONT_ANNOT)

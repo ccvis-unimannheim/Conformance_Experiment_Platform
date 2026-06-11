@@ -20,12 +20,11 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from matplotlib.patches import Polygon
 from matplotlib import gridspec
 
 from shared import (
     save_svg, BLUE, ORANGE, GREEN, RED, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
-    contrasting_text_color,
+    chevron_figure_width, chevron_nodes_from_alignment_rows, draw_chevron_strip,
 )
 
 
@@ -42,11 +41,6 @@ TASK28_MISMATCH_ROW_COLOR = "#D8D8D8"
 TASK28_TABLE_EDGE_COLOR = "#FFFFFF"
 TASK28_TABLE_COL_LABELS = ["Step", "Log Move", "Model Move", "Status"]
 TASK28_TABLE_COL_WIDTHS = [0.065, 0.375, 0.375, 0.185]
-TASK28_CHEVRON_HEIGHT = 1.65
-TASK28_CHEVRON_DEPTH = 0.92
-TASK28_CHEVRON_GAP = 0.82
-TASK28_CHEVRON_MIN_WIDTH = 6.15
-TASK28_CHEVRON_CHAR_WIDTH = 0.42
 
 
 def _extract_alignment_label(value):
@@ -233,101 +227,8 @@ def _add_task28_table_heading(fig, ctx, *, x=0.055, y=0.86, compact=False):
     )
 
 
-def _task28_nodes_from_rows(rows):
-    """Shared Task 2 move-to-chevron mapping."""
-    nodes = []
-    for row in rows:
-        if row["moveType"] == "Synchronous Move":
-            label = row["log_move"] if row["log_move"] != "-" else row["model_move"]
-            nodes.append({"label": str(label), "color": GREEN})
-        elif row["moveType"] == "Model Move":
-            nodes.append({"label": str(row["model_move"]), "color": BLUE})
-        elif row["moveType"] == "Mismatch Move":
-            nodes.append({"label": f"{row['log_move']} / {row['model_move']}", "color": ORANGE})
-        else:
-            nodes.append({"label": str(row["log_move"]), "color": RED})
-    return nodes
-
-
-def _task28_chevron_layout(nodes):
-    """Return chevron x positions and widths sized from label content."""
-    widths = []
-    for node in nodes:
-        label = node["label"]
-        longest = max(len(line) for line in str(label).splitlines())
-        content_w = TASK28_CHEVRON_DEPTH * 2.0 + 2.65 + longest * TASK28_CHEVRON_CHAR_WIDTH
-        widths.append(max(TASK28_CHEVRON_MIN_WIDTH, content_w))
-
-    x_cursor = 0.0
-    layout = []
-    for width in widths:
-        layout.append({"x": x_cursor, "width": width})
-        x_cursor += width + TASK28_CHEVRON_GAP
-    span = max(0.0, x_cursor - TASK28_CHEVRON_GAP)
-    return layout, span
-
-
-def _task28_chevron_figure_width(nodes):
-    """Choose a figure width that keeps chevron text from being compressed."""
-    _layout, span = _task28_chevron_layout(nodes)
-    return min(max(13.0, span * 0.29 + 1.6), 34.0)
-
-
-def _task28_chevron_font_size(label, width, base_fontsize):
-    """Shrink only when a very long label would otherwise touch chevron edges."""
-    longest = max(len(line) for line in str(label).splitlines())
-    available = max(width - TASK28_CHEVRON_DEPTH * 2.0 - 1.2, 1.0)
-    estimated = longest * 0.34
-    if estimated <= available:
-        return base_fontsize
-    return max(8.5, base_fontsize * available / estimated)
-
-
-def _draw_task28_basic_chevrons(ax, nodes, fontsize=10):
-    """Draw the shared chevron style with boxes sized to their labels."""
-    ax.set_aspect("auto")
-    ax.axis("off")
-
-    h = TASK28_CHEVRON_HEIGHT
-    notch_x = TASK28_CHEVRON_DEPTH
-    shoulder = TASK28_CHEVRON_DEPTH
-    layout, span = _task28_chevron_layout(nodes)
-
-    for i, node in enumerate(nodes):
-        base_x = layout[i]["x"]
-        width = layout[i]["width"]
-        mid_y = h / 2.0
-        verts = [
-            (base_x, 0.0),
-            (base_x + notch_x, mid_y),
-            (base_x, h),
-            (base_x + width - shoulder, h),
-            (base_x + width, mid_y),
-            (base_x + width - shoulder, 0.0),
-        ]
-        ax.add_patch(Polygon(
-            verts,
-            closed=True,
-            facecolor=node["color"],
-            edgecolor="#4a4a4a",
-            linewidth=1.25,
-            joinstyle="miter",
-        ))
-        ax.text(
-            base_x + width / 2.0,
-            mid_y,
-            node["label"],
-            ha="center",
-            va="center",
-            fontsize=_task28_chevron_font_size(node["label"], width, fontsize),
-            color=contrasting_text_color(node["color"]),
-            clip_on=False,
-        )
-
-    ax.set_xlim(-0.45, span + 0.45)
-    ax.set_ylim(-0.18, h + 0.18)
-    return span
-
+# Chevron strip primitives moved to shared.py (chevron_layout, draw_chevron_strip,
+# chevron_figure_width, chevron_nodes_from_alignment_rows) so task27 can reuse them.
 
 def _task28_move_legend_elements():
     return [
@@ -358,12 +259,12 @@ def task28_alignment_table(ctx: dict, output_dir: str):
 
 def task28_flow_chart_basic(ctx: dict, output_dir: str):
     """Chevron diagram (reference layout): titled flow strip + bottom move-type legend."""
-    nodes = _task28_nodes_from_rows(ctx["rows"])
+    nodes = chevron_nodes_from_alignment_rows(ctx["rows"])
 
-    fig_w = _task28_chevron_figure_width(nodes)
+    fig_w = chevron_figure_width(nodes)
     fig_h = 4.15
     fig, ax = plt.subplots(figsize=(fig_w, fig_h))
-    _draw_task28_basic_chevrons(ax, nodes, fontsize=10)
+    draw_chevron_strip(ax, nodes, fontsize=10)
     fig.subplots_adjust(left=0.045, right=0.985, top=0.55, bottom=0.28)
     fig.text(
         0.045,
@@ -399,9 +300,9 @@ def task28_flow_chart_basic(ctx: dict, output_dir: str):
 def task28_flow_chart_and_table(ctx: dict, output_dir: str):
     """Composite: table above, chevron row below."""
     rows = ctx["rows"]
-    nodes = _task28_nodes_from_rows(rows)
+    nodes = chevron_nodes_from_alignment_rows(rows)
 
-    fig_w = max(16.0, _task28_chevron_figure_width(nodes))
+    fig_w = max(16.0, chevron_figure_width(nodes))
     fig_h = max(7.0, 4.0 + len(rows) * 0.22 + 2.0)
 
     fig = plt.figure(figsize=(fig_w, fig_h))
@@ -423,7 +324,7 @@ def task28_flow_chart_and_table(ctx: dict, output_dir: str):
         font_size=9.4,
     )
 
-    _draw_task28_basic_chevrons(ax_bot, nodes, fontsize=11)
+    draw_chevron_strip(ax_bot, nodes, fontsize=11)
     ax_bot.set_title("Trace Alignment", fontsize=FONT_TITLE, pad=7)
 
     fig.tight_layout(rect=[0, 0.105, 1, 0.98])

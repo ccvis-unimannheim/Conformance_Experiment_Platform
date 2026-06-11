@@ -16,7 +16,7 @@
     "@mui/material": "^6.1.8",
     "autoprefixer": "^10.4.20",
     "material-symbols": "^0.44.5",
-    "next": "^16.1.7",
+    "next": "^16.2.7",
     "papaparse": "^5.4.1",
     "rc-tooltip": "^6.2.1",
     "react": "^18",
