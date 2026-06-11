@@ -1315,11 +1315,13 @@ def _bpmn_legend_lines(legend_items, y, x0=24.0):
 
 
 def render_bpmn_annotated(parsed, out_path, *, title, summary,
-                          node_style_fn, legend_items, faded_flow_fn=None):
+                          node_style_fn, legend_items, faded_flow_fn=None,
+                          legend_center=True):
     """Render a BPMN model to a standalone SVG with per-node annotation styling.
 
     node_style_fn(eid, elem) -> (fill, stroke, stroke_width, text_color)
     faded_flow_fn(flow_id) -> bool   (optional; draw the flow faded/dashed)
+    legend_center: horizontally centre the legend strip on the canvas (default).
     """
     body, W, H = bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn, top_pad=88.0)
     if not body:
@@ -1338,7 +1340,9 @@ def render_bpmn_annotated(parsed, out_path, *, title, summary,
         f'fill="#555">{_bpmn_esc(summary)}</text>',
     ]
     out += body
-    out += _bpmn_legend_lines(legend_items, H_total - 16)
+    span = 265.0 * (len(legend_items) - 1) + 140.0
+    lx0 = max(24.0, (W - span) / 2.0) if legend_center else 24.0
+    out += _bpmn_legend_lines(legend_items, H_total - 16, x0=lx0)
     out.append("</svg>")
     with open(out_path, "w", encoding="utf-8") as fh:
         fh.write("\n".join(out))
@@ -1346,11 +1350,15 @@ def render_bpmn_annotated(parsed, out_path, *, title, summary,
 
 
 def compose_bpmn_panels(panels, out_path, *, title, legend_items,
-                        table_rows=None, table_cols=None):
+                        table_rows=None, table_cols=None,
+                        legend_below_panels=True, legend_center=True):
     """Compose several BPMN panels (stacked vertically) + an optional table into one SVG.
 
     panels: list of {"parsed", "node_style_fn", "faded_flow_fn"(opt), "subtitle"}.
     table_rows/table_cols: optional comparison table rendered beneath the panels.
+    legend_below_panels: place the legend strip between the diagram and the table
+        (default) rather than at the very bottom of the canvas.
+    legend_center: horizontally centre the legend strip on the canvas (default).
     """
     panel_gap = 26.0
     y_cursor = 64.0  # below the main title
@@ -1368,6 +1376,12 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
         bodies += body
         max_w = max(max_w, w)
         y_cursor += 24.0 + h + panel_gap
+
+    # Optionally reserve a legend strip directly below the diagram (above table).
+    legend_below_y = None
+    if legend_below_panels:
+        legend_below_y = y_cursor + 8.0
+        y_cursor += 30.0
 
     table_lines = []
     if table_rows and table_cols:
@@ -1415,9 +1429,18 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
         f'<text x="24" y="40" font-family="Arial, sans-serif" font-size="13" '
         f'fill="black">{_bpmn_esc(title)}</text>',
     ]
+    def _legend_x0():
+        if not legend_center:
+            return 24.0
+        # Legend items are laid out on a fixed 265px stride; estimate the strip
+        # span and centre it on the canvas.
+        span = 265.0 * (len(legend_items) - 1) + 140.0
+        return max(24.0, (W - span) / 2.0)
+
     out += bodies
     out += table_lines
-    out += _bpmn_legend_lines(legend_items, H_total - 14)
+    legend_y = legend_below_y if legend_below_y is not None else (H_total - 14)
+    out += _bpmn_legend_lines(legend_items, legend_y, x0=_legend_x0())
     out.append("</svg>")
     with open(out_path, "w", encoding="utf-8") as fh:
         fh.write("\n".join(out))

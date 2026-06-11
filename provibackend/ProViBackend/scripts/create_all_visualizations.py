@@ -61,7 +61,9 @@ import tasks.task09 as task09
 import tasks.task10 as task10
 import tasks.task11 as task11
 import tasks.task12 as task12
+import tasks.task19 as task19
 import tasks.task20 as task20
+import tasks.task22 as task22
 import tasks.task23 as task23
 import tasks.task24 as task24
 import tasks.task25 as task25
@@ -94,7 +96,7 @@ INPUT_SUBDIR  = "input"
 OUTPUT_SUBDIR = "output"
 LOG_EXTENSIONS   = {".xes", ".csv"}
 MODEL_EXTENSIONS = {".bpmn"}
-TASK_DIRS     = ["task01", "task02", "task03", "task04", "task05", "task06", "task07", "task08", "task09", "task10", "task11", "task12", "task20", "task23", "task24", "task25", "task26", "task27", "task28", "task29", "task30", "task31", "task32", "task33", "task34", "task35", "task36", "task37"]
+TASK_DIRS     = ["task01", "task02", "task03", "task04", "task05", "task06", "task07", "task08", "task09", "task10", "task11", "task12", "task19", "task20", "task22", "task23", "task24", "task25", "task26", "task27", "task28", "task29", "task30", "task31", "task32", "task33", "task34", "task35", "task36", "task37"]
 
 # Aliases mapping task-script filename stems to canonical idiom_keys.
 # E.g. task06.py writes "task06_scatter_plot.svg"; we strip "task06_" then
@@ -113,6 +115,8 @@ _FILE_RENAME = {
 # task08 uses scatter_plot (SVG) which is distinct from scatterplot (echarts).
 _TASK_RENAME_SKIP: dict[str, set[str]] = {
     "task08": {"scatter_plot"},
+    "task19": {"scatter_plot"},
+    "task22": {"scatter_plot"},
     "task33": {"scatter_plot"},
     "task37": {"scatter_plot"},
 }
@@ -277,7 +281,13 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED",
         ("task10", lambda d: task10.generate(fitness_df,             d)),
         ("task11", lambda d: task11.generate(log, alignments,        d, model_path=model_path)),
         ("task12", lambda d: task12.generate(log, alignments,        d)),
+        ("task19", lambda d: task19.generate(log, alignments,        d,
+                                             model_path=model_path,
+                                             outcome_activity=outcome_activity)),
         ("task20", lambda d: task20.generate(log, alignments,        d)),
+        ("task22", lambda d: task22.generate(log, fitness_df, alignments, d,
+                                             model_path=model_path,
+                                             compare_attribute=compare_attribute)),
         ("task23", lambda d: task23.generate(alignments,             d, log=log)),
         ("task24", lambda d: task24.generate(log, model_path,        d)),
         ("task25", lambda d: task25.generate(log, fitness_df,        d, model_path=model_path)),

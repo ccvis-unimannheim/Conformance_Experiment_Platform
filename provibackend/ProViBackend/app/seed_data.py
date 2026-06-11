@@ -157,6 +157,18 @@ CANONICAL_TASKS = [
         "answer_type": "single_choice",
     },
     {
+        "task_key": "task22",
+        "label": "How can the overall process conformance be explained for different traces?",
+        "description": "Relate per-trace conformance to analyst-supplied candidate reasons (case data attributes); summarise the explanation per sub-log and present it on the process model.",
+        "answer_type": "single_choice",
+    },
+    {
+        "task_key": "task19",
+        "label": "What is the effect of a guideline violation on overall process goals?",
+        "description": "Formally define a process goal (positive outcome activity, else throughput), then relate each guideline violation and the activity it occurs at to whether the trace meets that goal.",
+        "answer_type": "single_choice",
+    },
+    {
         "task_key": "task32",
         "label": "What are the main violations in my process, and do they differ between sub-processes?",
         "description": "Detect all guideline violations and rank them by total frequency (Pareto), then break each violation down across sub-logs to compare the main conformance issues between sub-processes.",
