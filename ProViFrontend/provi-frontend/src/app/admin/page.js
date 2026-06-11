@@ -147,6 +147,20 @@ export default function AdminPage() {
     showToast("Dataset uploaded. Graph generation is running in the background — allow ~30 seconds before publishing an experiment using this dataset.");
   }
 
+  // ── Experiment stats (published only) ────────────
+  const [expStats, setExpStats] = useState({});
+
+  useEffect(() => {
+    const published = experiments.filter((e) => (e.status || "draft") === "published");
+    published.forEach((e) => {
+      const id = e._id || e.experiment_id;
+      fetch(`/api/admin/experiments/${encodeURIComponent(id)}/stats`)
+        .then((r) => r.ok ? r.json() : null)
+        .then((data) => { if (data) setExpStats((prev) => ({ ...prev, [id]: data })); })
+        .catch(() => {});
+    });
+  }, [experiments]);
+
   // ── Experiment manage ─────────────────────────────
   function toggleSelectExp(id) {
     setSelectedExpIds((prev) => {
@@ -331,55 +345,75 @@ export default function AdminPage() {
                     <div
                       key={expId}
                       onClick={expManageMode ? () => toggleSelectExp(expId) : undefined}
-                      className={`bg-surface-container-lowest p-5 rounded-xl flex items-center gap-3 shadow-sm border-l-4 ${s.border} ${expManageMode ? "cursor-pointer hover:bg-surface-container" : ""} ${checked ? "bg-primary/5" : ""}`}
+                      className={`bg-surface-container-lowest p-5 rounded-xl shadow-sm border-l-4 ${s.border} ${expManageMode ? "cursor-pointer hover:bg-surface-container" : ""} ${checked ? "bg-primary/5" : ""}`}
                     >
-                      {expManageMode && (
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleSelectExp(expId)}
-                          onClick={(e) => e.stopPropagation()}
-                          className="w-4 h-4 text-primary focus:ring-primary border-outline-variant cursor-pointer rounded flex-shrink-0"
-                        />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-bold text-on-surface mb-1 truncate">
-                          {exp.name || exp.experiment_name || "(unnamed)"}
-                        </h3>
-                        <p className="text-[11px] text-on-surface-variant font-medium flex items-center gap-1 uppercase tracking-wider">
-                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${s.dot}`} />
-                          {s.label}
-                        </p>
+                      {/* Row 1: name + status + buttons */}
+                      <div className="flex items-center gap-3">
+                        {expManageMode && (
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleSelectExp(expId)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-4 h-4 text-primary focus:ring-primary border-outline-variant cursor-pointer rounded flex-shrink-0"
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-bold text-on-surface mb-1 truncate">
+                            {exp.name || exp.experiment_name || "(unnamed)"}
+                          </h3>
+                          <p className="text-[11px] text-on-surface-variant font-medium flex items-center gap-1 uppercase tracking-wider">
+                            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${s.dot}`} />
+                            {s.label}
+                          </p>
+                        </div>
+                        {!expManageMode && (
+                          <div className="flex items-center gap-2 ml-2 flex-shrink-0">
+                            {status === "draft" && (() => {
+                              const hasTasks = exp.task_configs && exp.task_configs.length > 0;
+                              const href = hasTasks
+                                ? `/admin/experiments/idiom?experiment_id=${encodeURIComponent(expId)}`
+                                : `/admin/experiments/knowledge?experiment_id=${encodeURIComponent(expId)}`;
+                              return (
+                                <Link href={href}
+                                  className="text-xs border border-border-subtle text-on-surface-variant px-3 py-1.5 rounded hover:bg-surface-container transition-colors flex items-center gap-1">
+                                  <span className="material-symbols-outlined text-sm">edit</span>
+                                  Continue Editing
+                                </Link>
+                              );
+                            })()}
+                            {status === "published" && (
+                              <button onClick={() => markAsFinished(expId)}
+                                className="text-xs border border-slate-300 text-slate-600 px-3 py-1.5 rounded hover:bg-slate-100 transition-colors flex items-center gap-1">
+                                <span className="material-symbols-outlined text-sm">check_circle</span>
+                                Mark as Finished
+                              </button>
+                            )}
+                            {(status === "published" || status === "finished") && (
+                              <a href={`/api/admin/experiments/${encodeURIComponent(expId)}/answers/download`}
+                                className="text-xs border border-primary text-primary px-3 py-1.5 rounded hover:bg-primary hover:text-on-primary transition-colors flex items-center gap-1">
+                                <span className="material-symbols-outlined text-sm">download</span>
+                                Download Data
+                              </a>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      {!expManageMode && (
-                        <div className="flex items-center gap-2 ml-2 flex-shrink-0">
-                          {status === "draft" && (() => {
-                            const hasTasks = exp.task_configs && exp.task_configs.length > 0;
-                            const href = hasTasks
-                              ? `/admin/experiments/idiom?experiment_id=${encodeURIComponent(expId)}`
-                              : `/admin/experiments/knowledge?experiment_id=${encodeURIComponent(expId)}`;
-                            return (
-                              <Link href={href}
-                                className="text-xs border border-border-subtle text-on-surface-variant px-3 py-1.5 rounded hover:bg-surface-container transition-colors flex items-center gap-1">
-                                <span className="material-symbols-outlined text-sm">edit</span>
-                                Continue Editing
-                              </Link>
-                            );
-                          })()}
-                          {status === "published" && (
-                            <button onClick={() => markAsFinished(expId)}
-                              className="text-xs border border-slate-300 text-slate-600 px-3 py-1.5 rounded hover:bg-slate-100 transition-colors flex items-center gap-1">
-                              <span className="material-symbols-outlined text-sm">check_circle</span>
-                              Mark as Finished
-                            </button>
-                          )}
-                          {(status === "published" || status === "finished") && (
-                            <a href={`/api/admin/experiments/${encodeURIComponent(expId)}/answers/download`}
-                              className="text-xs border border-primary text-primary px-3 py-1.5 rounded hover:bg-primary hover:text-on-primary transition-colors flex items-center gap-1">
-                              <span className="material-symbols-outlined text-sm">download</span>
-                              Download Data
-                            </a>
-                          )}
+                      {/* Row 2: stats (published only) */}
+                      {status === "published" && expStats[expId] && (
+                        <div className="mt-3 pt-3 border-t border-outline-variant/40 flex items-center gap-4">
+                          <span className="flex items-center gap-1 text-[11px] text-on-surface-variant">
+                            <span className="material-symbols-outlined text-[14px]">group</span>
+                            <strong className="text-on-surface">{expStats[expId].participants}</strong> participants
+                          </span>
+                          <span className="flex items-center gap-1 text-[11px] text-on-surface-variant">
+                            <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                            <strong className="text-on-surface">{expStats[expId].completed}</strong> completed
+                          </span>
+                          <span className="flex items-center gap-1 text-[11px] text-on-surface-variant">
+                            <span className="material-symbols-outlined text-[14px]">task</span>
+                            <strong className="text-on-surface">{expStats[expId].total_tasks}</strong> tasks
+                          </span>
                         </div>
                       )}
                     </div>
