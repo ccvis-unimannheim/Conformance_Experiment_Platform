@@ -2,6 +2,38 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: Datasets Section Redesign (2026-06-11)
+
+### Problem solved
+
+The admin home page had a permanently-open "Upload Dataset" form on the left and no way to view, browse, or delete existing datasets. Admins had no UI to see what was already uploaded or to clean up obsolete datasets, and there was no protection against uploading a second dataset with the same name as an existing one (silently producing two entries with identical titles).
+
+### Approach
+
+Replaced the left column with a "Datasets" section that lists existing datasets (scrollable) with upload date/time and exposes Manage / Upload affordances. Upload is now an explicit modal action. Duplicate-name detection happens client-side at save time; deletes use a two-phase confirm-then-force flow so the admin can choose to abort or proceed when referenced experiments would be demoted.
+
+### Backend (`provibackend/`)
+
+| File | Change |
+|------|--------|
+| `ProViBackend/app/routers/admin.py` | Added `import shutil` and `Form` from fastapi. **POST `/admin/datasets/pair`** now accepts an optional `dataset_title` form field that overrides the default log-stem-derived title (used by the frontend's "Keep Both" rename flow). **New `DELETE /admin/datasets/{dataset_id}`** with `force: bool = False` query param: when `force=false` and any `Experiment.dataset_ids` references the dataset, returns 409 with `detail.referencing_experiments` (list of `{_id, name, status}`); when `force=true` (or no references exist), demotes each referencing experiment to `draft` (also removing the deleted dataset id from `dataset_ids`), removes the `data/{dataset_id}/` directory via `shutil.rmtree`, and deletes the `DatasetPair` document. Response includes `demoted_experiments` so the UI can name what was reverted. |
+
+### Frontend (`ProViFrontend/`)
+
+| File | Change |
+|------|--------|
+| `provi-frontend/src/components/Admin/UploadDatasetModal.js` | **New** — modal that wraps the previous upload UI (two `FileUploadCard`s + Save button). Receives `existingDatasets` to derive the title set; on Save derives `title` from the log filename stem and checks for collision. If a collision exists, renders an inner conflict dialog with three actions: **Cancel** (return to upload form), **Keep Both** (computes next-available `"{title} ({n})"` starting at n=2, posts with `dataset_title` form field), **Replace** (DELETEs the existing dataset with `?force=true` then re-posts with default title). Backdrop and close button are disabled while `isSaving` to prevent mid-upload close. |
+| `provi-frontend/src/app/admin/page.js` | Replaced the "Upload Dataset" left column with a "Datasets" section: scrollable list (max-h-72) showing `dataset_title` + `formatDateTime(insert_datetime)` (dd/mm/yy HH:MM, minute precision). Footer has two modes — **default**: `[Manage] [Upload]`; **manage**: per-row checkboxes + `[Cancel] [Delete Selected (n)]`. Delete uses a two-phase flow: first confirm modal (list of names + warning), then iterate `DELETE /api/admin/datasets/{id}` without force. 409 responses are collected into `forceConfirm` state; when present, a second modal lists each conflicting dataset alongside its referencing experiments (name + status) and offers `[Cancel] [Force Delete]`. Force path re-issues DELETE with `?force=true` and reports demoted experiment names in a toast. Removed `FileUploadCard`/`SaveResultModal` imports and the related `logFile`/`guidelineFile`/`isSaving`/`handleSave`/`modal` state — all migrated into the new modal. Added `Toast` for inline feedback (replaces the post-upload `SaveResultModal`). |
+| `provi-frontend/src/components/Admin/DatasetSelectTable.js` | Added inline `formatDateTime` helper (same dd/mm/yy HH:MM format) and swapped the two `new Date(...).toLocaleDateString()` calls under "Uploaded:" to use it, so timestamps on `/admin/experiments/new` match the new datasets list and include minute precision. |
+
+### Notes
+
+- `/admin/experiments/new` already fetches from the same `GET /api/admin/datasets` endpoint, so the data source is consistent without further changes.
+- "Force Delete" is destructive but reversible only in the sense that the demoted experiments can be re-published manually after their datasets are re-uploaded. The admin sees exactly which experiments will be affected before confirming.
+- Frontend duplicate detection is client-side (against the in-memory `datasets` list). A race condition exists if two admins upload simultaneously, but is harmless: the second upload will succeed with a different UUID and the duplicate title will simply coexist until cleaned up.
+
+---
+
 ## Session: Publish Mutex Check (2026-06-11)
 
 ### Problem solved

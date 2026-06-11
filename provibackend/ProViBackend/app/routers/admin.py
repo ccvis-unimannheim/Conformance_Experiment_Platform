@@ -407,6 +407,47 @@ async def get_experiments():
     return JSONResponse(content=experiments)
 
 
+@router.delete("/experiments/{experiment_id}", tags=["admin"])
+async def delete_experiment(experiment_id: str, force: bool = False):
+    db = dbc.connect_to_database()
+    exp = db["Experiment"].find_one({"_id": experiment_id})
+    if not exp:
+        raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
+
+    assignment_count = db["UserAssignment"].count_documents({"experiment_id": experiment_id})
+    answer_count     = db["Answer"].count_documents({"experiment_id": experiment_id})
+    log_count        = db["UILogging"].count_documents({"experiment_id": experiment_id})
+    status           = exp.get("status", "draft")
+    has_data         = assignment_count > 0 or answer_count > 0 or log_count > 0
+
+    if (status != "draft" or has_data) and not force:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "Experiment has collected data or is not in draft.",
+                "experiment": {"_id": experiment_id, "name": exp.get("name"), "status": status},
+                "counts": {
+                    "assignments": assignment_count,
+                    "answers": answer_count,
+                    "ui_logs": log_count,
+                },
+            },
+        )
+
+    db["UserAssignment"].delete_many({"experiment_id": experiment_id})
+    db["Answer"].delete_many({"experiment_id": experiment_id})
+    db["UILogging"].delete_many({"experiment_id": experiment_id})
+    db["Experiment"].delete_one({"_id": experiment_id})
+    return JSONResponse(content={
+        "message": "Experiment deleted.",
+        "deleted_counts": {
+            "assignments": assignment_count,
+            "answers": answer_count,
+            "ui_logs": log_count,
+        },
+    })
+
+
 @router.patch("/experiments/{experiment_id}/status", tags=["admin"])
 async def update_experiment_status(experiment_id: str, status: str):
     updated = dbc.update_document("Experiment", query={"_id": experiment_id}, update={"$set": {"status": status}})
