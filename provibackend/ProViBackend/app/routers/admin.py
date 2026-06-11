@@ -407,6 +407,33 @@ async def get_experiments():
     return JSONResponse(content=experiments)
 
 
+@router.get("/experiments/{experiment_id}/stats", tags=["admin"])
+async def get_experiment_stats(experiment_id: str):
+    db = dbc.connect_to_database()
+    exp = db["Experiment"].find_one({"_id": experiment_id})
+    if not exp:
+        raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
+
+    task_configs = exp.get("task_configs", [])
+    total_tasks = len(task_configs)
+    participants = db["UserAssignment"].count_documents({"experiment_id": experiment_id})
+
+    completed = 0
+    if participants > 0 and total_tasks > 0:
+        assignments = list(db["UserAssignment"].find({"experiment_id": experiment_id}, {"user_id": 1}))
+        for a in assignments:
+            uid = a["user_id"]
+            answered_tasks = db["Answer"].distinct("task_id", {"experiment_id": experiment_id, "user_id": uid})
+            if len(answered_tasks) >= total_tasks:
+                completed += 1
+
+    return JSONResponse(content={
+        "participants": participants,
+        "completed": completed,
+        "total_tasks": total_tasks,
+    })
+
+
 @router.delete("/experiments/{experiment_id}", tags=["admin"])
 async def delete_experiment(experiment_id: str, force: bool = False):
     db = dbc.connect_to_database()
