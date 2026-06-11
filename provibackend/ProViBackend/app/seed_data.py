@@ -72,6 +72,24 @@ CANONICAL_TASKS = [
         "description": "Summarize the proportion of conformant vs deviating traces across the entire event log.",
         "answer_type": "numeric",
     },
+    {
+        "task_key": "task37",
+        "label": "How do fitness values of traces differ when applying two different techniques to compute them? What is the overall trend?",
+        "description": "Compare alignment-based and token-based replay fitness per trace; visualize distribution, agreement, and trend.",
+        "answer_type": "single_choice",
+    },
+    {
+        "task_key": "task36",
+        "label": "What is the conformance of each individual guideline rule in a Declare model?",
+        "description": "Assess per-rule conformance rates across the event log for a Declare constraint model.",
+        "answer_type": "single_choice",
+    },
+    {
+        "task_key": "task35",
+        "label": "Where does the recorded behavior violate which guidelines, as annotated on the process model?",
+        "description": "Present guideline violations (skipped/inserted activities) overlaid on the BPMN process model.",
+        "answer_type": "single_choice",
+    },
 ]
 
 CANONICAL_IDIOMS = [
@@ -97,4 +115,6 @@ CANONICAL_IDIOMS = [
     {"idiom_key": "tree",                    "label": "Hierarchical Clustering Tree",          "granularity": "log",   "renderer_type": "svg",     "active": True},
     {"idiom_key": "stacked_bar",             "label": "Stacked Bar Chart",                     "granularity": "log",   "renderer_type": "svg",     "active": True},
     {"idiom_key": "flow_chart_elaborate_table", "label": "Flow Chart+ & Table",                "granularity": "log",   "renderer_type": "svg",     "active": True},
+    {"idiom_key": "petri_net",                  "label": "Petri Net",                           "granularity": "log",   "renderer_type": "svg",     "active": True},
+    {"idiom_key": "flow_chart_elaborate_dfg",   "label": "Flow Chart+ DFG",                     "granularity": "log",   "renderer_type": "svg",     "active": True},
 ]
