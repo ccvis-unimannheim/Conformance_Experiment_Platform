@@ -90,6 +90,72 @@ CANONICAL_TASKS = [
         "description": "Present guideline violations (skipped/inserted activities) overlaid on the BPMN process model.",
         "answer_type": "single_choice",
     },
+    {
+        "task_key": "task01",
+        "label": "How does the conformance of traces differ between those meeting a condition and those that do not?",
+        "description": "Compare conformance of sub-logs split by a process outcome condition; pinpoint violations in each group.",
+        "answer_type": "single_choice",
+    },
+    {
+        "task_key": "task02",
+        "label": "Does the event log predominantly follow the desired executions in the process model?",
+        "description": "Compute fitness of a log and determine whether the behavior predominantly conforms to the guidelines.",
+        "answer_type": "numeric",
+    },
+    {
+        "task_key": "task03",
+        "label": "How does the overall behavior of conformant traces differ from non-conformant traces?",
+        "description": "Inspect behavioral differences between conforming and non-conforming traces to identify correlating factors.",
+        "answer_type": "single_choice",
+    },
+    {
+        "task_key": "task04",
+        "label": "How does the degree of conformance differ between multiple logs or traces?",
+        "description": "Derive and compare process conformance across multiple logs or individual traces.",
+        "answer_type": "single_choice",
+    },
+    {
+        "task_key": "task05",
+        "label": "How often does a set of violations occur across different logs?",
+        "description": "Track the occurrence frequency of predefined violation patterns across multiple process executions.",
+        "answer_type": "multiple_choice",
+    },
+    {
+        "task_key": "task23",
+        "label": "How do guideline violations differ from each other?",
+        "description": "Summarize and compare violations to understand their variety and relative prevalence.",
+        "answer_type": "single_choice",
+    },
+    {
+        "task_key": "task24",
+        "label": "Where does the discovered process model differ from the prescribed guidelines?",
+        "description": "Discover a process model from the log and compare it against the normative BPMN model to locate deviations.",
+        "answer_type": "single_choice",
+    },
+    {
+        "task_key": "task25",
+        "label": "What is the overall degree of conformance between a log and guidelines, as discovered through visualization?",
+        "description": "Allow the analyst to discover the conformance degree by exploring visualized conformance checking results.",
+        "answer_type": "single_choice",
+    },
+    {
+        "task_key": "task26",
+        "label": "How impactful or serious is each guideline violation in the process execution?",
+        "description": "Present predefined violation types and their severity so analysts can assess the impact of non-conformance.",
+        "answer_type": "single_choice",
+    },
+    {
+        "task_key": "task27",
+        "label": "Which traces are conformant and which are non-conformant, and how do they differ?",
+        "description": "Identify and explore conformant versus non-conformant trace variants to understand their behavioral differences.",
+        "answer_type": "single_choice",
+    },
+    {
+        "task_key": "task30",
+        "label": "How do different sub-logs with certain data attribute values deviate from the prescribed process model?",
+        "description": "Compare guideline violations across sub-logs split by a data attribute to uncover conformance differences between groups.",
+        "answer_type": "single_choice",
+    },
 ]
 
 CANONICAL_IDIOMS = [
@@ -117,4 +183,8 @@ CANONICAL_IDIOMS = [
     {"idiom_key": "flow_chart_elaborate_table", "label": "Flow Chart+ & Table",                "granularity": "log",   "renderer_type": "svg",     "active": True},
     {"idiom_key": "petri_net",                  "label": "Petri Net",                           "granularity": "log",   "renderer_type": "svg",     "active": True},
     {"idiom_key": "flow_chart_elaborate_dfg",   "label": "Flow Chart+ DFG",                     "granularity": "log",   "renderer_type": "svg",     "active": True},
+    {"idiom_key": "parallel_sets",              "label": "Parallel Sets",                        "granularity": "log",   "renderer_type": "svg",     "active": True},
+    {"idiom_key": "calendar",                   "label": "Calendar",                             "granularity": "log",   "renderer_type": "svg",     "active": True},
+    {"idiom_key": "sunburst",                   "label": "Sunburst",                             "granularity": "log",   "renderer_type": "svg",     "active": True},
+    {"idiom_key": "tree_map",                   "label": "Tree Map",                             "granularity": "log",   "renderer_type": "svg",     "active": True},
 ]
