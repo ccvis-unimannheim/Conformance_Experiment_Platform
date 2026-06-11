@@ -4,9 +4,15 @@ import csv
 from fastapi import APIRouter, BackgroundTasks, UploadFile, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
 try:
-    from ProViBackend.scripts.create_all_visualizations import run_pipeline as run_visualization_pipeline
+    from ProViBackend.scripts.create_all_visualizations import (
+        run_pipeline as run_visualization_pipeline,
+        _FILE_RENAME,
+        _TASK_RENAME_SKIP,
+    )
 except ImportError:
     run_visualization_pipeline = None
+    _FILE_RENAME = {}
+    _TASK_RENAME_SKIP = {}
 
 try:
     from ProViBackend.scripts.tasks import (
@@ -300,11 +306,24 @@ async def get_tasks():
 
 @router.get("/task-idioms", tags=["admin"])
 async def get_task_idioms():
-    """Returns {task_key: [idiom_key, ...]} from the IDIOMS constant of each task script."""
-    return JSONResponse(content={
-        task_key: list(getattr(mod, "IDIOMS", []))
-        for task_key, mod in _TASK_MODULES.items()
-    })
+    """Returns {task_key: [canonical_idiom_key, ...]} from each task script's IDIOMS list.
+
+    Raw idiom names from task scripts use file-stem conventions (e.g. scatter_plot,
+    flow_chart_elaborate_bpmn); this endpoint translates them to canonical idiom_keys
+    matching the Idiom collection so the admin UI can filter correctly.
+    """
+    result = {}
+    for task_key, mod in _TASK_MODULES.items():
+        skip = _TASK_RENAME_SKIP.get(task_key, set())
+        raw_idioms = list(getattr(mod, "IDIOMS", []))
+        canonical = []
+        for idiom in raw_idioms:
+            if idiom not in skip:
+                canonical.append(_FILE_RENAME.get(idiom, idiom))
+            else:
+                canonical.append(idiom)
+        result[task_key] = canonical
+    return JSONResponse(content=result)
 
 
 # ---------------------------------------------------------------------------
