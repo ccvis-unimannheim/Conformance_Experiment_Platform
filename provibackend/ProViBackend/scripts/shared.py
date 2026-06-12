@@ -3,7 +3,8 @@ shared.py – Cross-task utilities for the CC Visualization Pipeline.
 
 Contains: color constants, save_svg, wrap_text, table helpers,
 draw_decision_tree, tree position layout, and alignment parsing helpers
-(_extract_alignment_label, alignment_pairs_to_rows, _task4_format_threshold).
+(_extract_alignment_label, alignment_pairs_to_rows, classify_step,
+_task4_format_threshold).
 
 All task modules import from here; this file must NOT import from any task module.
 """
@@ -157,7 +158,19 @@ def make_table(
     return tbl
 
 # ---------------------------------------------------------------------------
-# Alignment parsing helpers  (used by task28, task29, task20)
+# Alignment parsing helpers
+#
+# Two levels of abstraction:
+#   classify_step(obs_raw, exp_raw) -> (activity, type) | (None, None)
+#       Low-level primitive.  Returns the activity name + one of:
+#       "Move on Model" / "Move on Log" / "Mismatch Move".
+#       Used by task09, task11, task12, task34, task35.
+#
+#   alignment_pairs_to_rows(alignment) -> list[dict]
+#       High-level parser producing display rows with step/log_move/model_move/
+#       status/moveType fields.  moveType uses the canonical Convention-A names:
+#       "Synchronous Move" / "Model Move" / "Log Move" / "Mismatch Move".
+#       Used by task05, task19, task20, task22, task23, task27, task28, task29, task30.
 # ---------------------------------------------------------------------------
 
 SKIP_ALIGNMENT_TOKENS = {">>", None}
@@ -212,6 +225,32 @@ def alignment_pairs_to_rows(alignment):
                 "status": "Deviation", "moveType": "Log Move",
             })
     return rows_out
+
+
+def classify_step(observed_raw, expected_raw):
+    """Classify one PM4Py alignment step into (activity, violation_type) or (None, None).
+
+    Naming convention used by task09, task11, task12, task34, task35:
+        "Move on Model"  – activity required by the model but absent in the trace
+        "Move on Log"    – extra activity present in the trace but not in the model
+        "Mismatch Move"  – both present but with different labels
+        (None, None)     – Synchronous Move (conformant) or tau/hidden transition
+    """
+    obs = (str(observed_raw) if observed_raw else "").strip()
+    exp = (str(expected_raw) if expected_raw else "").strip()
+    obs_skip = obs in (">>", "")
+    exp_skip = exp in (">>", "")
+
+    if obs_skip and exp_skip:
+        return None, None
+    if not obs_skip and not exp_skip:
+        if obs == exp:
+            return None, None
+        return obs, "Mismatch Move"
+    if obs_skip:
+        return exp, "Move on Model"
+    return obs, "Move on Log"
+
 
 # ---------------------------------------------------------------------------
 # Shared number formatter (used by task20 and task31)

@@ -49,6 +49,7 @@ from shared import (
     render_empty_state_svg,
     contrasting_text_color,
     draw_parallel_sets,
+    classify_step,
 )
 
 def _chevron_nodes(rows):
@@ -117,10 +118,10 @@ def _parse_alignment(result):
         ml = _extract_label(model_v)
         if ll == ">>" and ml == ">>":
             continue
-        if   ll == ">>":       mt, act = "Move on Model", ml
-        elif ml == ">>":       mt, act = "Move on Log",   ll
-        elif ll != ml:         mt, act = "Mismatch Move", ll
-        else:                  mt, act = "Synchronous",   ll
+        act, mt = classify_step(ll, ml)
+        if mt is None:
+            mt = "Synchronous"
+            act = ll
         rows.append({
             "step":       i + 1,
             "log_move":   ll,

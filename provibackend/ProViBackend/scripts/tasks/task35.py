@@ -27,7 +27,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from shared import save_svg, FONT_TITLE, FONT_ANNOT
+from shared import save_svg, FONT_TITLE, FONT_ANNOT, classify_step as _classify_step
 
 _C_DARK = "#222222"
 _C_MED  = "#666666"
@@ -36,20 +36,6 @@ _TOP_N  = 15
 
 
 # ── Data extraction ────────────────────────────────────────────────────────────
-
-def _classify_step(obs_raw, exp_raw):
-    obs = (str(obs_raw) if obs_raw else "").strip()
-    exp = (str(exp_raw) if exp_raw else "").strip()
-    obs_skip = obs in (">>", "")
-    exp_skip = exp in (">>", "")
-    if obs_skip and exp_skip:
-        return None, None
-    if not obs_skip and not exp_skip:
-        return (None, None) if obs == exp else (obs, "Mismatch Move")
-    if obs_skip:
-        return exp, "Move on Model"
-    return obs, "Move on Log"
-
 
 def _extract_data(alignments):
     activity_type = Counter()
