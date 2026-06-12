@@ -30,7 +30,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
-from shared import save_svg, FONT_TITLE, FONT_LABEL, FONT_ANNOT
+from shared import save_svg, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
 
 # ── Palette ───────────────────────────────────────────────────────────────────
 _C_DARK   = "#222222"
@@ -58,20 +58,6 @@ _CAT_ORDER = ["conformant", "mom_only", "mol_only", "mm_only", "mixed"]
 
 
 # ── Data extraction ───────────────────────────────────────────────────────────
-
-def _classify_step(observed_raw, expected_raw):
-    obs = (str(observed_raw) if observed_raw else "").strip()
-    exp = (str(expected_raw) if expected_raw else "").strip()
-    obs_skip = obs in (">>", "")
-    exp_skip = exp in (">>", "")
-    if obs_skip and exp_skip:
-        return None, None
-    if not obs_skip and not exp_skip:
-        return (None, None) if obs == exp else (obs, "Mismatch Move")
-    if obs_skip:
-        return exp, "Move on Model"
-    return obs, "Move on Log"
-
 
 def _extract_data(alignments):
     """

@@ -39,7 +39,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.colors as mcolors
 
-from shared import save_svg, FONT_TITLE, FONT_LABEL, FONT_ANNOT
+from shared import save_svg, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
 
 # ── Palette ───────────────────────────────────────────────────────────────────
 _C_DARK   = "#222222"
@@ -65,22 +65,6 @@ _TOP_N = 12
 
 
 # ── Data extraction (identical logic to task09) ───────────────────────────────
-
-def _classify_step(observed_raw, expected_raw):
-    obs = (str(observed_raw) if observed_raw else "").strip()
-    exp = (str(expected_raw) if expected_raw else "").strip()
-    obs_skip = obs in (">>", "")
-    exp_skip = exp in (">>", "")
-    if obs_skip and exp_skip:
-        return None, None
-    if not obs_skip and not exp_skip:
-        if obs == exp:
-            return None, None
-        return obs, "Mismatch Move"
-    if obs_skip:
-        return exp, "Move on Model"
-    return obs, "Move on Log"
-
 
 def _extract_data(alignments):
     """Returns (activity_type Counter, activity_totals Counter, type_totals Counter, n_violations int)."""

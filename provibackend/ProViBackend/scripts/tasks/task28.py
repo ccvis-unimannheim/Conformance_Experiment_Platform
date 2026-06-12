@@ -25,6 +25,7 @@ from matplotlib import gridspec
 from shared import (
     save_svg, BLUE, ORANGE, GREEN, RED, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
     chevron_figure_width, chevron_nodes_from_alignment_rows, draw_chevron_strip,
+    alignment_pairs_to_rows,
 )
 
 
@@ -32,7 +33,6 @@ from shared import (
 # ---------------------------------------------------------------------------
 
 # Task 2 helpers
-SKIP_ALIGNMENT_TOKENS = {">>", None}
 TASK28_HEADER_COLOR = "#555555"
 TASK28_SYNC_ROW_COLOR = "#F2F2F2"
 TASK28_MODEL_ROW_COLOR = "#E0E0E0"
@@ -41,69 +41,6 @@ TASK28_MISMATCH_ROW_COLOR = "#D8D8D8"
 TASK28_TABLE_EDGE_COLOR = "#FFFFFF"
 TASK28_TABLE_COL_LABELS = ["Step", "Log Move", "Model Move", "Status"]
 TASK28_TABLE_COL_WIDTHS = [0.065, 0.375, 0.375, 0.185]
-
-
-def _extract_alignment_label(value):
-    """Pull activity label from PM4Py alignment tuple side (supports ('name', 'act') etc.)."""
-    if isinstance(value, (list, tuple)):
-        if len(value) >= 2 and not isinstance(value[1], (list, tuple, dict)):
-            return None if value[1] is None else str(value[1])
-        if len(value) >= 1 and not isinstance(value[-1], dict):
-            return None if value[-1] is None else str(value[-1])
-        return str(value)
-    if value is None:
-        return None
-    return str(value)
-
-
-def alignment_pairs_to_rows(alignment):
-    """Convert PM4Py alignment pairs to display rows, skipping empty internal moves."""
-    if not alignment:
-        return []
-    rows_out = []
-    step_num = 0
-    for raw_step in alignment:
-        if not isinstance(raw_step, (list, tuple)) or len(raw_step) != 2:
-            continue
-        observed_raw, expected_raw = raw_step
-        observed = _extract_alignment_label(observed_raw)
-        expected = _extract_alignment_label(expected_raw)
-        if observed in SKIP_ALIGNMENT_TOKENS and expected in SKIP_ALIGNMENT_TOKENS:
-            continue
-        step_num += 1
-        if observed not in SKIP_ALIGNMENT_TOKENS and expected not in SKIP_ALIGNMENT_TOKENS and observed == expected:
-            rows_out.append({
-                "step": step_num,
-                "log_move": observed,
-                "model_move": expected,
-                "status": "Synchronous",
-                "moveType": "Synchronous Move",
-            })
-        elif observed not in SKIP_ALIGNMENT_TOKENS and expected not in SKIP_ALIGNMENT_TOKENS:
-            rows_out.append({
-                "step": step_num,
-                "log_move": observed,
-                "model_move": expected,
-                "status": "Mismatch Move",
-                "moveType": "Mismatch Move",
-            })
-        elif observed in SKIP_ALIGNMENT_TOKENS and expected not in SKIP_ALIGNMENT_TOKENS:
-            rows_out.append({
-                "step": step_num,
-                "log_move": "-",
-                "model_move": expected,
-                "status": "Model Move",
-                "moveType": "Model Move",
-            })
-        elif observed not in SKIP_ALIGNMENT_TOKENS and expected in SKIP_ALIGNMENT_TOKENS:
-            rows_out.append({
-                "step": step_num,
-                "log_move": observed,
-                "model_move": "-",
-                "status": "Log Move",
-                "moveType": "Log Move",
-            })
-    return rows_out
 
 
 def pick_representative_trace_index(alignments):
