@@ -157,6 +157,12 @@ CANONICAL_TASKS = [
         "answer_type": "single_choice",
     },
     {
+        "task_key": "task17",
+        "label": "How often is a guideline violated, and how severe or problematic is a frequent violation?",
+        "description": "Present the frequency of each guideline violation and where it occurs on the model (by deviation type), so the analyst can judge severity and whether a rule is too strict using their own domain knowledge.",
+        "answer_type": "single_choice",
+    },
+    {
         "task_key": "task22",
         "label": "How can the overall process conformance be explained for different traces?",
         "description": "Relate per-trace conformance to analyst-supplied candidate reasons (case data attributes); summarise the explanation per sub-log and present it on the process model.",
