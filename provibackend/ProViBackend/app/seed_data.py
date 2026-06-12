@@ -156,6 +156,42 @@ CANONICAL_TASKS = [
         "description": "Compare guideline violations across sub-logs split by a data attribute to uncover conformance differences between groups.",
         "answer_type": "single_choice",
     },
+    {
+        "task_key": "task17",
+        "label": "How often is a guideline violated, and how severe or problematic is a frequent violation?",
+        "description": "Present the frequency of each guideline violation and where it occurs on the model (by deviation type), so the analyst can judge severity and whether a rule is too strict using their own domain knowledge.",
+        "answer_type": "single_choice",
+    },
+    {
+        "task_key": "task22",
+        "label": "How can the overall process conformance be explained for different traces?",
+        "description": "Relate per-trace conformance to analyst-supplied candidate reasons (case data attributes); summarise the explanation per sub-log and present it on the process model.",
+        "answer_type": "single_choice",
+    },
+    {
+        "task_key": "task19",
+        "label": "What is the effect of a guideline violation on overall process goals?",
+        "description": "Formally define a process goal (positive outcome activity, else throughput), then relate each guideline violation and the activity it occurs at to whether the trace meets that goal.",
+        "answer_type": "single_choice",
+    },
+    {
+        "task_key": "task32",
+        "label": "What are the main violations in my process, and do they differ between sub-processes?",
+        "description": "Detect all guideline violations and rank them by total frequency (Pareto), then break each violation down across sub-logs to compare the main conformance issues between sub-processes.",
+        "answer_type": "single_choice",
+    },
+    {
+        "task_key": "task33",
+        "label": "How does the overall degree of conformance differ between traces with a certain data attribute value?",
+        "description": "Compare process conformance across sub-logs defined by a case-level data attribute; show fitness distributions, ranges, and summaries per group.",
+        "answer_type": "single_choice",
+    },
+    {
+        "task_key": "task34",
+        "label": "In which part of the process does a guideline violation occur at the trace level?",
+        "description": "Locate guideline violations within individual traces, showing exactly where each trace deviates from the expected process model.",
+        "answer_type": "single_choice",
+    },
 ]
 
 CANONICAL_KNOWLEDGE_QUESTIONS = [

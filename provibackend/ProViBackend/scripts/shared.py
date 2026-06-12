@@ -12,6 +12,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+import math
 import os
 import textwrap
 
@@ -919,11 +920,11 @@ def calendar_small_multiples(group_to_daily, out_path, *, title, cbar_label,
                     for v in (s.values() if hasattr(s, "values") else dict(s).values())]
         vmax = max(all_vals) if all_vals else 1.0
     fig, axes = plt.subplots(len(groups), 1,
-                             figsize=(12, max(2.6, 2.1 * len(groups))), squeeze=False)
+                             figsize=(12, max(2.8, 2.4 * len(groups))), squeeze=False)
     last_im = None
     for ax, g in zip(axes[:, 0], groups):
         im = draw_calendar_heatmap(ax, group_to_daily[g], cmap=cmap, vmin=vmin, vmax=vmax)
-        ax.set_title(str(g), fontsize=FONT_ANNOT + 1, loc="left", pad=4)
+        ax.set_title(str(g), fontsize=FONT_ANNOT + 1, loc="left", pad=12)
         last_im = im if im is not None else last_im
     fig.suptitle(title, fontsize=FONT_TITLE, y=0.99)
     if last_im is not None:
@@ -1177,12 +1178,12 @@ def _bpmn_esc(v):
 
 _BPMN_MARKER_DEFS = (
     "<defs>"
-    '<marker id="arrow-grey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" '
-    'markerHeight="5" orient="auto" markerUnits="userSpaceOnUse">'
-    '<path d="M0,0 L10,5 L0,10 Z" fill="#888888"/></marker>'
-    '<marker id="arrow-faded" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" '
-    'markerHeight="5" orient="auto" markerUnits="userSpaceOnUse">'
-    '<path d="M0,0 L10,5 L0,10 Z" fill="#CCCCCC"/></marker>'
+    '<marker id="arrow-grey" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="10" '
+    'markerHeight="10" orient="auto" markerUnits="userSpaceOnUse">'
+    '<path d="M0,1 L10,5 L0,9 Z" fill="#444444"/></marker>'
+    '<marker id="arrow-faded" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" '
+    'markerHeight="8" orient="auto" markerUnits="userSpaceOnUse">'
+    '<path d="M0,1 L10,5 L0,9 Z" fill="#AAAAAA"/></marker>'
     "</defs>"
 )
 
@@ -1218,17 +1219,32 @@ def bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn=None, *, ox=0.0, oy=0
     def tx(x): return x - min_x + lp + ox
     def ty(y): return y - min_y + top_pad + oy
 
+    def _clean_pts(pts, min_seg=10.0):
+        """Drop penultimate points that create a tiny final segment.
+        A tiny final segment (< min_seg units) makes orient=auto point the
+        arrowhead in the wrong direction instead of the main travel direction."""
+        clean = list(pts)
+        while len(clean) >= 3:
+            x1, y1 = clean[-2]
+            x2, y2 = clean[-1]
+            if math.hypot(x2 - x1, y2 - y1) < min_seg:
+                clean.pop(-2)
+            else:
+                break
+        return clean
+
     out = []
     for fid, pts in edge_pts.items():
+        pts = _clean_pts(pts)
         pts_str = " ".join(f"{tx(x):.1f},{ty(y):.1f}" for x, y in pts)
         if faded_flow_fn is not None and faded_flow_fn(fid):
             out.append(
-                f'<polyline points="{pts_str}" fill="none" stroke="#CCCCCC" stroke-width="1.5" '
+                f'<polyline points="{pts_str}" fill="none" stroke="#AAAAAA" stroke-width="1.5" '
                 f'stroke-dasharray="5 4" stroke-linejoin="miter" marker-end="url(#arrow-faded)"/>'
             )
         else:
             out.append(
-                f'<polyline points="{pts_str}" fill="none" stroke="#888888" stroke-width="2" '
+                f'<polyline points="{pts_str}" fill="none" stroke="#444444" stroke-width="1.5" '
                 f'stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>'
             )
 
@@ -1299,11 +1315,13 @@ def _bpmn_legend_lines(legend_items, y, x0=24.0):
 
 
 def render_bpmn_annotated(parsed, out_path, *, title, summary,
-                          node_style_fn, legend_items, faded_flow_fn=None):
+                          node_style_fn, legend_items, faded_flow_fn=None,
+                          legend_center=True):
     """Render a BPMN model to a standalone SVG with per-node annotation styling.
 
     node_style_fn(eid, elem) -> (fill, stroke, stroke_width, text_color)
     faded_flow_fn(flow_id) -> bool   (optional; draw the flow faded/dashed)
+    legend_center: horizontally centre the legend strip on the canvas (default).
     """
     body, W, H = bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn, top_pad=88.0)
     if not body:
@@ -1322,7 +1340,9 @@ def render_bpmn_annotated(parsed, out_path, *, title, summary,
         f'fill="#555">{_bpmn_esc(summary)}</text>',
     ]
     out += body
-    out += _bpmn_legend_lines(legend_items, H_total - 16)
+    span = 265.0 * (len(legend_items) - 1) + 140.0
+    lx0 = max(24.0, (W - span) / 2.0) if legend_center else 24.0
+    out += _bpmn_legend_lines(legend_items, H_total - 16, x0=lx0)
     out.append("</svg>")
     with open(out_path, "w", encoding="utf-8") as fh:
         fh.write("\n".join(out))
@@ -1330,11 +1350,15 @@ def render_bpmn_annotated(parsed, out_path, *, title, summary,
 
 
 def compose_bpmn_panels(panels, out_path, *, title, legend_items,
-                        table_rows=None, table_cols=None):
+                        table_rows=None, table_cols=None,
+                        legend_below_panels=True, legend_center=True):
     """Compose several BPMN panels (stacked vertically) + an optional table into one SVG.
 
     panels: list of {"parsed", "node_style_fn", "faded_flow_fn"(opt), "subtitle"}.
     table_rows/table_cols: optional comparison table rendered beneath the panels.
+    legend_below_panels: place the legend strip between the diagram and the table
+        (default) rather than at the very bottom of the canvas.
+    legend_center: horizontally centre the legend strip on the canvas (default).
     """
     panel_gap = 26.0
     y_cursor = 64.0  # below the main title
@@ -1353,13 +1377,24 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
         max_w = max(max_w, w)
         y_cursor += 24.0 + h + panel_gap
 
+    # Optionally reserve a legend strip directly below the diagram (above table).
+    legend_below_y = None
+    if legend_below_panels:
+        legend_below_y = y_cursor + 8.0
+        y_cursor += 30.0
+
     table_lines = []
     if table_rows and table_cols:
-        tx0, col_w, row_h = 24.0, 200.0, 22.0
+        col_w, row_h = 200.0, 22.0
+        table_total_w = col_w * len(table_cols)
+        # Pre-compute canvas width so we can center the table horizontally
+        legend_min_w = 24.0 + 265.0 * len(legend_items)
+        canvas_w = max(max_w, legend_min_w)
+        tx0 = max(24.0, (canvas_w - table_total_w) / 2.0)
         ty0 = y_cursor + 6.0
         table_lines.append(
             f'<rect x="{tx0:.1f}" y="{ty0:.1f}" '
-            f'width="{col_w * len(table_cols):.1f}" height="{row_h:.1f}" fill="#555555"/>'
+            f'width="{table_total_w:.1f}" height="{row_h:.1f}" fill="#555555"/>'
         )
         for ci, col in enumerate(table_cols):
             table_lines.append(
@@ -1371,7 +1406,7 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
             bg = "#F0F0F0" if ri % 2 else "#FFFFFF"
             table_lines.append(
                 f'<rect x="{tx0:.1f}" y="{ry:.1f}" '
-                f'width="{col_w * len(table_cols):.1f}" height="{row_h:.1f}" '
+                f'width="{table_total_w:.1f}" height="{row_h:.1f}" '
                 f'fill="{bg}" stroke="#E0E0E0" stroke-width="0.5"/>'
             )
             for ci, cell in enumerate(row):
@@ -1381,7 +1416,7 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
                     f'fill="#222">{_bpmn_esc(cell)}</text>'
                 )
         y_cursor = ty0 + (len(table_rows) + 1) * row_h
-        max_w = max(max_w, tx0 + col_w * len(table_cols))
+        max_w = max(max_w, tx0 + table_total_w)
 
     H_total = y_cursor + 34.0
     W = max(max_w, 24.0 + 265.0 * len(legend_items))
@@ -1394,9 +1429,18 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
         f'<text x="24" y="40" font-family="Arial, sans-serif" font-size="13" '
         f'fill="black">{_bpmn_esc(title)}</text>',
     ]
+    def _legend_x0():
+        if not legend_center:
+            return 24.0
+        # Legend items are laid out on a fixed 265px stride; estimate the strip
+        # span and centre it on the canvas.
+        span = 265.0 * (len(legend_items) - 1) + 140.0
+        return max(24.0, (W - span) / 2.0)
+
     out += bodies
     out += table_lines
-    out += _bpmn_legend_lines(legend_items, H_total - 14)
+    legend_y = legend_below_y if legend_below_y is not None else (H_total - 14)
+    out += _bpmn_legend_lines(legend_items, legend_y, x0=_legend_x0())
     out.append("</svg>")
     with open(out_path, "w", encoding="utf-8") as fh:
         fh.write("\n".join(out))
