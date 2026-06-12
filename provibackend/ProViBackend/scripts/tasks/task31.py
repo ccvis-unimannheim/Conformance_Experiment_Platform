@@ -541,11 +541,13 @@ def task31_stacked_bar(df: pd.DataFrame, output_dir: str):
         mpatches.Patch(facecolor="#555555", label="Positive outcome"),
         mpatches.Patch(facecolor="#CCCCCC", label="Negative outcome"),
     ]
-    ax.legend(handles=legend_patches, loc="upper right",
-              frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
+    ax.legend(handles=legend_patches,
+              loc="upper left", bbox_to_anchor=(1.01, 1),
+              frameon=True, framealpha=0.9, fontsize=FONT_ANNOT,
+              borderaxespad=0)
     ax.set_title("Outcome Composition by Conformance Band", fontsize=FONT_TITLE, pad=10)
 
-    fig.tight_layout()
+    fig.tight_layout(rect=[0, 0, 0.88, 1])
     save_svg(fig, out_path)
 
 
@@ -884,10 +886,10 @@ def task31_heatmap(df: pd.DataFrame, log, output_dir: str):
         f"Definitive outcomes only  ·  Cells with n < {_HEATMAP_MIN_CELL_N} shown in grey"
         f"  ·  Granularity: {granularity_label}"
     )
-    ax.text(0.0, -0.09, footnote, transform=ax.transAxes,
-            fontsize=FONT_ANNOT - 1, color="#888888", va="top")
+    fig.text(0.01, 0.01, footnote, ha="left",
+             fontsize=FONT_ANNOT - 1, color="#888888")
 
-    fig.tight_layout(rect=[0, 0.10, 1, 1])
+    fig.tight_layout(rect=[0, 0.07, 1, 1])
     save_svg(fig, out_path)
 
 
