@@ -21,7 +21,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.dates as mdates
-from matplotlib import gridspec
 
 from shared import (
     save_svg, make_table, draw_decision_tree, wrap_text,
@@ -542,12 +541,11 @@ def task31_stacked_bar(df: pd.DataFrame, output_dir: str):
         mpatches.Patch(facecolor="#555555", label="Positive outcome"),
         mpatches.Patch(facecolor="#CCCCCC", label="Negative outcome"),
     ]
-    ax.legend(handles=legend_patches, loc="upper center",
-              bbox_to_anchor=(0.5, -0.12), ncol=2,
+    ax.legend(handles=legend_patches, loc="upper right",
               frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.set_title("Outcome Composition by Conformance Band", fontsize=FONT_TITLE, pad=10)
 
-    fig.tight_layout(rect=[0, 0.10, 1, 1])
+    fig.tight_layout()
     save_svg(fig, out_path)
 
 
@@ -575,7 +573,7 @@ def _task31_extract_start_times(log, df):
 
 
 def task31_scatter_plot(df: pd.DataFrame, log, output_dir: str):
-    """Scatter: trace-level fitness vs outcome (left) + temporal stability (right)."""
+    """Scatter: trace-level fitness vs outcome with bin-mean trend line."""
     out_path = os.path.join(output_dir, "task31_scatter_plot.svg")
     if len(df) < 15:
         render_empty_state_svg(out_path, "Conformance Degree vs. Outcome")
@@ -597,12 +595,10 @@ def task31_scatter_plot(df: pd.DataFrame, log, output_dir: str):
         fit_s = fitness
         out_s = outcome
 
-    # Compute 10-bin trend line
+    # Compute 10-bin trend line (use full data, not sampled)
     bins = np.linspace(0, 1, 11)
     bin_idx = np.digitize(fitness, bins[1:-1])
-    midpoints = []
-    rates = []
-    ses = []
+    midpoints, rates, ses = [], [], []
     for b in range(10):
         mask = bin_idx == b
         n_b = mask.sum()
@@ -617,105 +613,40 @@ def task31_scatter_plot(df: pd.DataFrame, log, output_dir: str):
     rates = np.array(rates)
     ses = np.array(ses)
 
-    # Extract timestamps
-    ts_map = _task31_extract_start_times(log, df)
-    has_time = False
-    if "trace_index" in df.columns and len(ts_map) >= 10:
-        try:
-            ts_series = df["trace_index"].map(ts_map)
-            valid_mask = ts_series.notna()
-            if valid_mask.sum() >= 10:
-                has_time = True
-                # Normalize tz-aware timestamps to tz-naive UTC
-                raw_ts = pd.to_datetime(ts_series[valid_mask], utc=True, errors="coerce")
-                ts_valid = raw_ts.dt.tz_localize(None)
-                fit_valid = df.loc[valid_mask, "fitness"].astype(float)
-                out_valid = df.loc[valid_mask, "positive_outcome"].astype(bool)
-        except Exception:
-            has_time = False
+    fig, ax = plt.subplots(figsize=(9.0, 5.2))
 
-    fig = plt.figure(figsize=(14.0, 5.2))
-    gs = gridspec.GridSpec(1, 2, wspace=0.32)
-    ax0 = fig.add_subplot(gs[0])
-    ax1 = fig.add_subplot(gs[1])
-
-    # Left panel
     jitter = np.random.default_rng(42).uniform(-0.07, 0.07, size=len(out_s))
     pos_mask_s = out_s == 1
     neg_mask_s = out_s == 0
-    ax0.scatter(fit_s[neg_mask_s], jitter[neg_mask_s],
-                color="#BBBBBB", s=18, alpha=0.35, marker="o", label="Negative outcome")
-    ax0.scatter(fit_s[pos_mask_s], 1 + jitter[pos_mask_s],
-                color="#333333", s=18, alpha=0.35, marker="o", label="Positive outcome")
+    ax.scatter(fit_s[neg_mask_s], jitter[neg_mask_s],
+               color="#BBBBBB", s=18, alpha=0.35, marker="o", label="Negative outcome")
+    ax.scatter(fit_s[pos_mask_s], 1 + jitter[pos_mask_s],
+               color="#333333", s=18, alpha=0.35, marker="o", label="Positive outcome")
     if len(midpoints) > 0:
-        ax0.plot(midpoints, rates, color="#000000", lw=2, zorder=5)
-        ax0.fill_between(midpoints, rates - ses, rates + ses, color="#888888", alpha=0.2)
+        ax.plot(midpoints, rates, color="#000000", lw=2, zorder=5)
+        ax.fill_between(midpoints, rates - ses, rates + ses, color="#888888", alpha=0.2)
 
-    ax0.set_ylim(-0.45, 1.45)
-    ax0.set_yticks([-0.35, 1.35])
-    ax0.set_yticklabels(["Negative", "Positive"], fontsize=FONT_ANNOT)
-    ax0.set_xlim(-0.03, 1.03)
-    ax0.set_xlabel("Conformance Degree (fitness)", fontsize=FONT_LABEL)
-    ax0.set_ylabel("Outcome", fontsize=FONT_LABEL)
-    ax0.spines["top"].set_visible(False)
-    ax0.spines["right"].set_visible(False)
-    ax0.yaxis.grid(True, linestyle="--", alpha=0.3)
-    ax0.set_axisbelow(True)
-    ax0.set_title("Conformance Degree vs. Outcome", fontsize=FONT_TITLE, pad=8)
+    ax.set_ylim(-0.45, 1.45)
+    ax.set_yticks([-0.35, 1.35])
+    ax.set_yticklabels(["Negative", "Positive"], fontsize=FONT_ANNOT)
+    ax.set_xlim(-0.03, 1.03)
+    ax.set_xlabel("Conformance Degree (fitness)", fontsize=FONT_LABEL)
+    ax.set_ylabel("Outcome", fontsize=FONT_LABEL)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.3)
+    ax.set_axisbelow(True)
+    ax.set_title("Conformance Degree vs. Outcome", fontsize=FONT_TITLE, pad=8)
     legend_patches = [
         mpatches.Patch(color="#333333", label="Positive outcome"),
         mpatches.Patch(color="#BBBBBB", label="Negative outcome"),
     ]
-    ax0.legend(handles=legend_patches, loc="upper left", frameon=False, fontsize=FONT_ANNOT)
-
-    # Right panel
-    if not has_time:
-        ax1.text(0.5, 0.5, "No timestamp data available",
-                 ha="center", va="center", fontsize=FONT_ANNOT, color="#888888",
-                 transform=ax1.transAxes)
-        ax1.axis("off")
-    else:
-        pos_t_mask = out_valid
-        neg_t_mask = ~out_valid
-        ax1.scatter(ts_valid[neg_t_mask], fit_valid[neg_t_mask],
-                    color="#BBBBBB", s=14, alpha=0.25, marker="x", label="Negative outcome")
-        ax1.scatter(ts_valid[pos_t_mask], fit_valid[pos_t_mask],
-                    color="#333333", s=14, alpha=0.25, marker="o", label="Positive outcome")
-
-        # Rolling mean per outcome group
-        try:
-            ts_pos = ts_valid[pos_t_mask]
-            fit_pos = fit_valid[pos_t_mask]
-            ts_neg = ts_valid[neg_t_mask]
-            fit_neg = fit_valid[neg_t_mask]
-
-            if len(ts_pos) >= 4:
-                ts_pos_idx = pd.Series(fit_pos.values, index=ts_pos.values)
-                ts_pos_idx = ts_pos_idx.sort_index()
-                roll_pos = ts_pos_idx.resample("W").mean().rolling(4, min_periods=2).mean().dropna()
-                ax1.plot(roll_pos.index, roll_pos.values, color="#333333", lw=1.8, ls="--")
-            if len(ts_neg) >= 4:
-                ts_neg_idx = pd.Series(fit_neg.values, index=ts_neg.values)
-                ts_neg_idx = ts_neg_idx.sort_index()
-                roll_neg = ts_neg_idx.resample("W").mean().rolling(4, min_periods=2).mean().dropna()
-                ax1.plot(roll_neg.index, roll_neg.values, color="#888888", lw=1.8, ls="--")
-        except Exception:
-            pass
-
-        ax1.set_ylim(-0.05, 1.05)
-        ax1.set_ylabel("Conformance Degree (fitness)", fontsize=FONT_LABEL)
-        ax1.xaxis.set_major_formatter(mdates.AutoDateFormatter(mdates.AutoDateLocator()))
-        plt.setp(ax1.get_xticklabels(), rotation=30, ha="right", fontsize=FONT_ANNOT)
-        ax1.spines["top"].set_visible(False)
-        ax1.spines["right"].set_visible(False)
-        ax1.yaxis.grid(True, linestyle="--", alpha=0.3)
-        ax1.set_axisbelow(True)
-        ax1.set_title("Conformance Over Time by Outcome", fontsize=FONT_TITLE, pad=8)
+    ax.legend(handles=legend_patches, loc="upper left", frameon=False, fontsize=FONT_ANNOT)
 
     caption = "Definitive outcomes only  ·  Trend line = bin-mean outcome rate (±1 SE, n≥5 per 0.1-width bin)"
     if sampled:
         caption += "  ·  Scatter shows 2,000 sampled traces"
-    fig.text(0.5, 0.01, caption, ha="center", fontsize=FONT_ANNOT - 1, color="#888888")
+    fig.text(0.0, 0.01, caption, ha="left", fontsize=FONT_ANNOT - 1, color="#888888")
 
     fig.tight_layout(rect=[0, 0.05, 1, 1])
     save_svg(fig, out_path)
