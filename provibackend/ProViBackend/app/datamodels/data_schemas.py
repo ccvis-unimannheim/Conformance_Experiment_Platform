@@ -31,9 +31,29 @@ class KnowledgeAnswers(BaseModel):
     level: int
 
 class KnowledgeAnswersRequest(BaseModel):
-    notes: str   # JSON string of individual answers
-    score: int   # 0–10
-    level: int   # 1 = Novice, 2 = Intermediate, 3 = Expert
+    answers: Dict[str, int]   # {question_id: option_index}
+    tools: List[str] = []
+
+class KnowledgeQuestion(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    id: str = Field(alias="_id")
+    section_title: str
+    text: str
+    options: List[str]
+    include_idk: bool
+    correct_option_index: Optional[int]
+    is_system: bool
+    created_at: str
+
+class KnowledgeQuestionCreate(BaseModel):
+    section_title: str
+    text: str
+    options: List[str]          # does NOT include "I don't know" (added automatically if include_idk=True)
+    include_idk: bool = False
+    correct_option_index: Optional[int] = None
+
+class KnowledgeQuestionIds(BaseModel):
+    knowledge_question_ids: List[str]
 
 class FeedbackAnswersRequest(BaseModel):
     difficulty: str  # "Very Easy" | "Easy" | "Neutral" | "Difficult" | "Very Difficult"
@@ -157,6 +177,7 @@ class Experiment(BaseModel):
     within_sequence_mode: str
     dataset_ids: List[str]
     task_configs: List[TaskConfig]
+    knowledge_question_ids: List[str] = []   # empty = use all system questions
     created_by: str             # FK → Administrator
     created_at: str
 

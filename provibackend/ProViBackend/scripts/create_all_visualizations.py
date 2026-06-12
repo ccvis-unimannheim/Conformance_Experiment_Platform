@@ -62,10 +62,12 @@ import tasks.task10 as task10
 import tasks.task11 as task11
 import tasks.task12 as task12
 import tasks.task13 as task13
+import tasks.task17 as task17
 import tasks.task18 as task18
 import tasks.task19 as task19
 import tasks.task20 as task20
 import tasks.task21 as task21
+import tasks.task22 as task22
 import tasks.task23 as task23
 import tasks.task24 as task24
 import tasks.task25 as task25
@@ -75,6 +77,9 @@ import tasks.task28 as task28
 import tasks.task29 as task29
 import tasks.task30 as task30
 import tasks.task31 as task31
+import tasks.task32 as task32
+import tasks.task33 as task33
+import tasks.task34 as task34
 import tasks.task35 as task35
 import tasks.task36 as task36
 import tasks.task37 as task37
@@ -95,7 +100,7 @@ INPUT_SUBDIR  = "input"
 OUTPUT_SUBDIR = "output"
 LOG_EXTENSIONS   = {".xes", ".csv"}
 MODEL_EXTENSIONS = {".bpmn"}
-TASK_DIRS     = ["task01", "task02", "task03", "task04", "task05", "task06", "task07", "task08", "task09", "task10", "task11", "task12", "task13", "task18", "task19", "task20", "task21", "task23", "task24", "task25", "task26", "task27", "task28", "task29", "task30", "task31", "task35", "task36", "task37"]
+TASK_DIRS     = ["task01", "task02", "task03", "task04", "task05", "task06", "task07", "task08", "task09", "task10", "task11", "task12", "task13", "task17", "task18", "task19", "task20", "task21", "task22", "task23", "task24", "task25", "task26", "task27", "task28", "task29", "task30", "task31", "task32", "task33", "task34", "task35", "task36", "task37"]
 
 # Aliases mapping task-script filename stems to canonical idiom_keys.
 # E.g. task06.py writes "task06_scatter_plot.svg"; we strip "task06_" then
@@ -114,8 +119,67 @@ _FILE_RENAME = {
 # task08 uses scatter_plot (SVG) which is distinct from scatterplot (echarts).
 _TASK_RENAME_SKIP: dict[str, set[str]] = {
     "task08": {"scatter_plot"},
+    "task19": {"scatter_plot"},
+    "task22": {"scatter_plot"},
+    "task33": {"scatter_plot"},
     "task37": {"scatter_plot"},
 }
+
+
+def _auto_detect_compare_attribute(log, preferred: str) -> str:
+    """Pick the best case attribute for sub-log splitting.
+
+    Priority:
+      1. preferred — if it exists in the log, use it.
+      2. Numeric case attribute with highest std (median split).
+      3. Categorical case attribute with 2–10 distinct values.
+      4. preferred as fallback (split_by_attribute will emit an empty-state SVG).
+    """
+    import numpy as np
+
+    _SKIP = {"concept:name", "variant", "variant-index", "creator", "library"}
+
+    attr_values: dict = {}
+    for trace in log:
+        attrs = getattr(trace, "attributes", {}) or {}
+        for k, v in attrs.items():
+            if k in _SKIP or k.startswith(":"):
+                continue
+            attr_values.setdefault(k, []).append(v)
+
+    if not attr_values:
+        return preferred
+    if preferred in attr_values:
+        return preferred
+
+    # Numeric candidates — need 80 %+ parseable values and non-zero std
+    numeric_candidates = []
+    for k, vals in attr_values.items():
+        nums = []
+        for v in vals:
+            try:
+                nums.append(float(v))
+            except (TypeError, ValueError):
+                pass
+        if len(nums) >= len(vals) * 0.8 and len(nums) > 1:
+            std = float(np.std(nums))
+            if std > 0:
+                numeric_candidates.append((k, std))
+    if numeric_candidates:
+        numeric_candidates.sort(key=lambda x: -x[1])
+        return numeric_candidates[0][0]
+
+    # Categorical candidates — 2–10 distinct values
+    categorical_candidates = []
+    for k, vals in attr_values.items():
+        distinct = len({str(v) for v in vals if v is not None})
+        if 2 <= distinct <= 10:
+            categorical_candidates.append((k, distinct))
+    if categorical_candidates:
+        categorical_candidates.sort(key=lambda x: x[1])
+        return categorical_candidates[0][0]
+
+    return preferred
 
 
 def _resolve_dataset_paths(dataset_dir: str):
@@ -195,6 +259,8 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED",
     logger.info(f"Outcome activity  : {outcome_activity}")
     logger.info(f"Compare attribute : {compare_attribute}")
     log         = load_event_log(log_path)
+    compare_attribute = _auto_detect_compare_attribute(log, compare_attribute)
+    logger.info(f"Compare attribute (resolved): {compare_attribute}")
     net, im, fm = load_model(model_path)
     alignments  = run_alignments(log, net, im, fm)
     fitness_df  = fitness_summary_dataframe(alignments)
@@ -220,11 +286,16 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED",
         ("task11", lambda d: task11.generate(log, alignments,        d, model_path=model_path)),
         ("task12", lambda d: task12.generate(log, alignments,        d)),
         ("task13", lambda d: task13.generate(log, alignments, model_path, d)),
+        ("task17", lambda d: task17.generate(log, alignments,        d,
+                                             model_path=model_path)),
         ("task18", lambda d: task18.generate(log, alignments, model_path, d)),
         ("task19", lambda d: task19.generate(log, alignments, model_path, d,
                                              outcome_activity=outcome_activity)),
         ("task20", lambda d: task20.generate(log, alignments,        d)),
         ("task21", lambda d: task21.generate(log, alignments, model_path, d)),
+        ("task22", lambda d: task22.generate(log, fitness_df, alignments, d,
+                                             model_path=model_path,
+                                             compare_attribute=compare_attribute)),
         ("task23", lambda d: task23.generate(alignments,             d, log=log)),
         ("task24", lambda d: task24.generate(log, model_path,        d)),
         ("task25", lambda d: task25.generate(log, fitness_df,        d, model_path=model_path)),
@@ -236,6 +307,11 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED",
                                              compare_attribute=compare_attribute)),
         ("task31", lambda d: task31.generate(log, alignments,        d,
                                              outcome_activity=outcome_activity)),
+        ("task32", lambda d: task32.generate(log, alignments,        d,
+                                             compare_attribute=compare_attribute)),
+        ("task33", lambda d: task33.generate(log, fitness_df,        d,
+                                             compare_attribute=compare_attribute)),
+        ("task34", lambda d: task34.generate(log, alignments,        d, model_path=model_path)),
         ("task35", lambda d: task35.generate(log, alignments,        d, model_path=model_path)),
         ("task36", lambda d: task36.generate(log, alignments,        d, model_path=model_path)),
         ("task37", lambda d: task37.generate(log, alignments,        d, model_path=model_path)),

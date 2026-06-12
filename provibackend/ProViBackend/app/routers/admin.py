@@ -2,7 +2,8 @@ import uuid
 import io
 import csv
 import re
-from fastapi import APIRouter, BackgroundTasks, UploadFile, HTTPException
+import shutil
+from fastapi import APIRouter, BackgroundTasks, UploadFile, HTTPException, Form
 from fastapi.responses import StreamingResponse, JSONResponse
 try:
     from ProViBackend.scripts.create_all_visualizations import (
@@ -17,20 +18,17 @@ except ImportError:
 
 try:
     from ProViBackend.scripts.tasks import (
-        task01, task02, task03, task04, task05,
-        task06, task07, task08, task09, task10, task11, task12, task13, task18, task19, task20, task21,
-        task23, task24, task25, task26, task27,
-        task28, task29, task30, task31,
-        task35, task36, task37,
+        task01, task02, task03, task04, task05, task06, task07, task08, task09, task10, task11, task12, task13, task17, task18, task19, task20, task21,
+        task22, task23, task24, task25, task26, task27, task28, task29, task30, task31, task32, task33, task34, task35, task36, task37,
     )
     _TASK_MODULES = {
         "task01": task01, "task02": task02, "task03": task03, "task04": task04, "task05": task05,
-        "task06": task06, "task07": task07, "task08": task08, "task09": task09,
-        "task10": task10, "task11": task11, "task12": task12, "task13": task13,
-        "task18": task18, "task19": task19, "task20": task20, "task21": task21,
-        "task23": task23, "task24": task24, "task25": task25, "task26": task26, "task27": task27,
-        "task28": task28, "task29": task29, "task30": task30, "task31": task31,
-        "task35": task35, "task36": task36, "task37": task37,
+        "task06": task06, "task07": task07, "task08": task08, "task09": task09, "task10": task10, 
+        "task11": task11, "task12": task12, "task13": task13, "task17": task17, "task18": task18, 
+        "task19": task19, "task20": task20, "task21": task21, "task22": task22, "task23": task23, 
+        "task24": task24, "task25": task25, "task26": task26, "task27": task27, "task28": task28, 
+        "task29": task29, "task30": task30, "task31": task31, "task32": task32, "task33": task33, 
+        "task34": task34, "task35": task35, "task36": task36, "task37": task37
     }
 except ImportError:
     _TASK_MODULES = {}
@@ -65,7 +63,12 @@ def _validate_extension(filename: str, allowed: set, label: str) -> str:
 
 
 @router.post("/datasets/pair", tags=["admin"])
-async def upload_dataset_pair(log: UploadFile, guideline: UploadFile, background_tasks: BackgroundTasks):
+async def upload_dataset_pair(
+    log: UploadFile,
+    guideline: UploadFile,
+    background_tasks: BackgroundTasks,
+    dataset_title: str = Form(None),
+):
     """Upload an event log + BPMN guideline; triggers the visualization pipeline asynchronously."""
     # Validate file extensions BEFORE creating any directories on disk
     log_ext = _validate_extension(log.filename, ALLOWED_LOG_EXTENSIONS, "Event log")
@@ -90,7 +93,7 @@ async def upload_dataset_pair(log: UploadFile, guideline: UploadFile, background
 
         dataset_pair = ds.DatasetPair(
             dataset_id=pair_id,
-            dataset_title=pl.Path(log.filename).stem,   # keep original log name as title
+            dataset_title=dataset_title or pl.Path(log.filename).stem,
             dataset_is_active=False,
             insert_datetime=utils.get_current_datetime(),
             log=ds.DatasetFile(
@@ -247,6 +250,43 @@ async def get_datasets_from_db():
     return JSONResponse(content=pairs)
 
 
+@router.delete("/datasets/{dataset_id}", tags=["admin"])
+async def delete_dataset(dataset_id: str, force: bool = False):
+    db = dbc.connect_to_database()
+    referencing = list(db["Experiment"].find({"dataset_ids": dataset_id}))
+
+    if referencing and not force:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "Dataset is referenced by experiments.",
+                "referencing_experiments": [
+                    {"_id": e["_id"], "name": e.get("name"), "status": e.get("status")}
+                    for e in referencing
+                ],
+            },
+        )
+
+    demoted = []
+    for exp in referencing:
+        new_ids = [d for d in exp.get("dataset_ids", []) if d != dataset_id]
+        db["Experiment"].update_one(
+            {"_id": exp["_id"]},
+            {"$set": {"dataset_ids": new_ids, "status": "draft"}},
+        )
+        demoted.append({"_id": exp["_id"], "name": exp.get("name")})
+
+    pair_dir = DATA_DIRECTORY / dataset_id
+    if pair_dir.exists():
+        shutil.rmtree(pair_dir, ignore_errors=True)
+
+    result = db["DatasetPair"].delete_one({"dataset_id": dataset_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail=f"Dataset '{dataset_id}' not found.")
+
+    return JSONResponse(content={"message": "Dataset deleted.", "demoted_experiments": demoted})
+
+
 # Todo: Add validation for dataset_id and dataset_is_active that always two datasets are selected as active
 @router.post("/datasets", tags=["admin"])
 async def select_active_datasets(selected_datasets_from_frontend: ds.ListDatasetsFromFrontend):
@@ -365,6 +405,72 @@ async def get_experiments():
     return JSONResponse(content=experiments)
 
 
+@router.get("/experiments/{experiment_id}/stats", tags=["admin"])
+async def get_experiment_stats(experiment_id: str):
+    db = dbc.connect_to_database()
+    exp = db["Experiment"].find_one({"_id": experiment_id})
+    if not exp:
+        raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
+
+    task_configs = exp.get("task_configs", [])
+    total_tasks = len(task_configs)
+    assignments = list(db["UserAssignment"].find({"experiment_id": experiment_id}))
+    participants = len(assignments)
+
+    completed = sum(
+        1 for a in assignments
+        if a.get("current_trial_index", 0) >= len(a.get("trial_sequence", []))
+        and len(a.get("trial_sequence", [])) > 0
+    )
+
+    return JSONResponse(content={
+        "participants": participants,
+        "completed": completed,
+        "total_tasks": total_tasks,
+    })
+
+
+@router.delete("/experiments/{experiment_id}", tags=["admin"])
+async def delete_experiment(experiment_id: str, force: bool = False):
+    db = dbc.connect_to_database()
+    exp = db["Experiment"].find_one({"_id": experiment_id})
+    if not exp:
+        raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
+
+    assignment_count = db["UserAssignment"].count_documents({"experiment_id": experiment_id})
+    answer_count     = db["Answer"].count_documents({"experiment_id": experiment_id})
+    log_count        = db["UILogging"].count_documents({"experiment_id": experiment_id})
+    status           = exp.get("status", "draft")
+    has_data         = assignment_count > 0 or answer_count > 0 or log_count > 0
+
+    if (status != "draft" or has_data) and not force:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "Experiment has collected data or is not in draft.",
+                "experiment": {"_id": experiment_id, "name": exp.get("name"), "status": status},
+                "counts": {
+                    "assignments": assignment_count,
+                    "answers": answer_count,
+                    "ui_logs": log_count,
+                },
+            },
+        )
+
+    db["UserAssignment"].delete_many({"experiment_id": experiment_id})
+    db["Answer"].delete_many({"experiment_id": experiment_id})
+    db["UILogging"].delete_many({"experiment_id": experiment_id})
+    db["Experiment"].delete_one({"_id": experiment_id})
+    return JSONResponse(content={
+        "message": "Experiment deleted.",
+        "deleted_counts": {
+            "assignments": assignment_count,
+            "answers": answer_count,
+            "ui_logs": log_count,
+        },
+    })
+
+
 @router.patch("/experiments/{experiment_id}/status", tags=["admin"])
 async def update_experiment_status(experiment_id: str, status: str):
     updated = dbc.update_document("Experiment", query={"_id": experiment_id}, update={"$set": {"status": status}})
@@ -427,6 +533,77 @@ async def update_experiment(experiment_id: str, update_data: ds.ExperimentUpdate
     if not updated:
         raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
     return JSONResponse(content={"message": "Experiment updated.", "experiment_id": experiment_id})
+
+
+# ---------------------------------------------------------------------------
+# Knowledge Question management
+# ---------------------------------------------------------------------------
+
+@router.get("/knowledge-questions", tags=["admin"])
+async def get_knowledge_questions():
+    questions = dbc.get_query_db("KnowledgeQuestion", query={})
+    for doc in questions:
+        if "_id" in doc and not isinstance(doc["_id"], str):
+            doc["_id"] = str(doc["_id"])
+    return JSONResponse(content=questions)
+
+
+@router.post("/knowledge-questions", tags=["admin"])
+async def create_knowledge_question(q: ds.KnowledgeQuestionCreate):
+    qid = str(uuid.uuid4())
+    options = list(q.options)
+    if q.include_idk and (not options or options[-1] != "I don't know"):
+        options.append("I don't know")
+    doc = {
+        "_id": qid,
+        "section_title": q.section_title,
+        "text": q.text,
+        "options": options,
+        "include_idk": q.include_idk,
+        "correct_option_index": q.correct_option_index,
+        "is_system": False,
+        "created_at": utils.get_current_datetime(),
+    }
+    dbc.create_document("KnowledgeQuestion", doc)
+    return JSONResponse(
+        content={"message": "Knowledge question created.", "question_id": qid},
+        status_code=201,
+    )
+
+
+@router.delete("/knowledge-questions/{question_id}", tags=["admin"])
+async def delete_knowledge_question(question_id: str):
+    db = dbc.connect_to_database()
+    q = db["KnowledgeQuestion"].find_one({"_id": question_id})
+    if not q:
+        raise HTTPException(status_code=404, detail="Knowledge question not found.")
+    if q.get("is_system"):
+        raise HTTPException(status_code=403, detail="System questions cannot be deleted.")
+    referencing = list(db["Experiment"].find({"knowledge_question_ids": question_id}))
+    if referencing:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "Question is referenced by one or more experiments.",
+                "referencing_experiments": [
+                    {"_id": e["_id"], "name": e.get("name")} for e in referencing
+                ],
+            },
+        )
+    db["KnowledgeQuestion"].delete_one({"_id": question_id})
+    return JSONResponse(content={"message": "Knowledge question deleted."})
+
+
+@router.patch("/experiments/{experiment_id}/knowledge-questions", tags=["admin"])
+async def update_experiment_knowledge_questions(experiment_id: str, body: ds.KnowledgeQuestionIds):
+    updated = dbc.update_document(
+        "Experiment",
+        query={"_id": experiment_id},
+        update={"$set": {"knowledge_question_ids": body.knowledge_question_ids}},
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
+    return JSONResponse(content={"message": "Knowledge questions updated."})
 
 
 # ---------------------------------------------------------------------------

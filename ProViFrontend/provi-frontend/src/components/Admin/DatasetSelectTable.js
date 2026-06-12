@@ -1,5 +1,15 @@
 "use client";
 
+function formatDateTime(iso) {
+  if (!iso) return "—";
+  // Stored timestamps are naive UTC strings — add Z so JS parses as UTC and displays in local (system) time
+  const s = iso.trim().replace(" ", "T");
+  const d = new Date(/Z$|[+-]\d{2}:?\d{2}$/.test(s) ? s : s + "Z");
+  if (isNaN(d.getTime())) return "—";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${String(d.getFullYear()).slice(-2)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 const DatasetSelectTable = ({ pairs, selectedIds, onToggle, isLoading, error }) => {
   if (isLoading) {
     return (
@@ -39,9 +49,9 @@ const DatasetSelectTable = ({ pairs, selectedIds, onToggle, isLoading, error }) 
           .
         </p>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-72 overflow-y-auto pr-1">
           <table className="w-full text-left border-collapse">
-            <thead>
+            <thead className="sticky top-0 bg-surface-container-lowest z-10">
               <tr className="border-b border-outline-variant">
                 <th className="py-4 px-2 w-10" />
                 <th className="py-4 px-4 text-label-caps text-on-surface-variant">
@@ -86,7 +96,7 @@ const DatasetSelectTable = ({ pairs, selectedIds, onToggle, isLoading, error }) 
                           {pair.log?.filename ?? "—"}
                         </span>
                         <span className="text-[11px] text-on-surface-variant">
-                          Uploaded: {pair.insert_datetime ? new Date(pair.insert_datetime).toLocaleDateString() : "—"}
+                          Uploaded: {formatDateTime(pair.insert_datetime)}
                         </span>
                       </div>
                     </td>
@@ -96,7 +106,7 @@ const DatasetSelectTable = ({ pairs, selectedIds, onToggle, isLoading, error }) 
                           {pair.guideline?.filename ?? "—"}
                         </span>
                         <span className="text-[11px] text-on-surface-variant">
-                          Uploaded: {pair.insert_datetime ? new Date(pair.insert_datetime).toLocaleDateString() : "—"}
+                          Uploaded: {formatDateTime(pair.insert_datetime)}
                         </span>
                       </div>
                     </td>
