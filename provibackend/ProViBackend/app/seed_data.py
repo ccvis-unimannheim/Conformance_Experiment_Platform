@@ -192,6 +192,12 @@ CANONICAL_TASKS = [
         "description": "Locate guideline violations within individual traces, showing exactly where each trace deviates from the expected process model.",
         "answer_type": "single_choice",
     },
+    {
+        "task_key": "task31",
+        "label": "Do cases with a higher degree of conformance lead to a higher probability of a positive process outcome?",
+        "description": "Compare sub-logs with different degrees of conformance w.r.t. their corresponding probability of a positive outcome (e.g., survival probability) over time.",
+        "answer_type": "single_choice",
+    },
 ]
 
 CANONICAL_IDIOMS = [
