@@ -436,44 +436,25 @@ def task31_bar_chart(df: pd.DataFrame, output_dir: str):
         agg_rows.append({"band": label, "n": n, "n_pos": n_pos, "rate": rate})
     agg = pd.DataFrame(agg_rows)
 
-    bar_colors = ["#333333", "#555555", "#777777", "#999999", "#BBBBBB", "#DDDDDD"]
     x = np.arange(len(_FITNESS_BIN_LABELS_EXACT))
 
     fig, ax = plt.subplots(figsize=(8.5, 5.2))
-    ax2 = ax.twinx()
+    ax.set_facecolor("#fafbfc")
 
-    bars = ax.bar(x, agg["rate"].fillna(0), width=0.58, color=bar_colors, zorder=3)
+    bars = ax.bar(x, agg["rate"].fillna(0), width=0.58, color=BLUE, zorder=3)
 
-    # Annotate bars
+    # Annotate each non-empty bar with "rate% (n=N)" above bar
+    max_rate = float(agg["rate"].fillna(0).max())
     for i, row in agg.iterrows():
         n = row["n"]
         rate = row["rate"]
-        if n == 0:
+        if n == 0 or np.isnan(rate):
             continue
-        # Rate label above bar
-        ax.text(i, rate + 1.5, f"{rate:.1f}%", ha="center", va="bottom",
-                fontsize=FONT_ANNOT, color="#222222")
-        # n= label inside bar
-        text_color = "#ffffff" if rate > 20 else "#444444"
-        bar_top = rate
-        inside_y = max(bar_top / 2, 2.0) if bar_top > 6 else bar_top + 2.5
-        if bar_top > 6:
-            ax.text(i, inside_y, f"n={n}", ha="center", va="center",
-                    fontsize=FONT_ANNOT - 1, color=text_color)
-        else:
-            ax.text(i, bar_top + 2.5, f"n={n}", ha="center", va="bottom",
-                    fontsize=FONT_ANNOT - 1, color="#444444")
+        ax.text(i, rate + max_rate * 0.02 + 0.5,
+                f"{rate:.1f}%  (n={n})",
+                ha="center", va="bottom", fontsize=FONT_ANNOT, color="#222222")
 
-    # Twin axis: trace count step line
-    ax2.step(x, agg["n"], where="mid", color="#AAAAAA", lw=1.5, zorder=2)
-    ax2.plot(x, agg["n"], color="#AAAAAA", marker="o", markersize=4, lw=0, zorder=2)
-    ax2.set_ylabel("Number of Traces", fontsize=FONT_LABEL, color="#888888")
-    ax2.tick_params(axis="y", colors="#888888")
-    ax2.spines["top"].set_visible(False)
-    ax2.spines["left"].set_visible(False)
-    ax2.spines["right"].set_color("#BBBBBB")
-
-    ax.set_ylim(0, 115)
+    ax.set_ylim(0, max(max_rate * 1.20, 10))
     ax.set_xlim(-0.6, len(_FITNESS_BIN_LABELS_EXACT) - 0.4)
     ax.set_xticks(x)
     ax.set_xticklabels(_FITNESS_BIN_LABELS_EXACT, fontsize=FONT_ANNOT)
@@ -485,12 +466,9 @@ def task31_bar_chart(df: pd.DataFrame, output_dir: str):
     ax.set_axisbelow(True)
     ax.set_title("Conformance Degree vs. Positive Outcome Rate", fontsize=FONT_TITLE, pad=10)
 
-    empty_bands = [row["band"] for _, row in agg.iterrows() if row["n"] == 0]
     caption = "Definitive outcomes only  ·  Bin '= 1.0' = fitness exactly 1.0"
-    ax.text(0.0, -0.13, caption, transform=ax.transAxes,
-            fontsize=FONT_ANNOT - 1, color="#888888", va="top")
-
-    fig.tight_layout()
+    fig.text(0.0, 0.01, caption, ha="left", fontsize=FONT_ANNOT - 1, color="#888888")
+    fig.tight_layout(rect=[0, 0.06, 1, 1])
     save_svg(fig, out_path)
 
 
@@ -524,12 +502,13 @@ def task31_stacked_bar(df: pd.DataFrame, output_dir: str):
     n_nonempty = len(band_data)
     fig_w = max(6.5, min(11.0, 1.3 * n_nonempty + 2.0))
     fig, ax = plt.subplots(figsize=(fig_w, 5.2))
+    ax.set_facecolor("#fafbfc")
 
     x = np.arange(n_nonempty)
-    band_labels = [d["band"] for d in band_data]
+    # Encode n= into x-tick labels (avoids below-axis collision)
+    band_labels = [f"{d['band']}\n(n={d['n']})" for d in band_data]
     prop_pos_arr = np.array([d["prop_pos"] for d in band_data])
     prop_neg_arr = np.array([d["prop_neg"] for d in band_data])
-    counts = [d["n"] for d in band_data]
 
     # Bottom segment = positive (darker), top = negative (lighter)
     bars_pos = ax.bar(x, prop_pos_arr, color="#555555", label="Positive outcome")
@@ -545,12 +524,6 @@ def task31_stacked_bar(df: pd.DataFrame, output_dir: str):
         if prop_neg_arr[i] >= 0.08:
             ax.text(i, prop_pos_arr[i] + prop_neg_arr[i] / 2, f"{prop_neg_arr[i] * 100:.0f}%",
                     ha="center", va="center", fontsize=FONT_ANNOT, color="#222222")
-
-    # n= labels below x-axis
-    for i, n in enumerate(counts):
-        ax.text(i, -0.07, f"n={n}", ha="center", va="top",
-                fontsize=FONT_ANNOT - 1, color="#666666",
-                transform=ax.get_xaxis_transform(), clip_on=False)
 
     ax.set_yticks([0, 0.25, 0.5, 0.75, 1.0])
     ax.set_yticklabels(["0%", "25%", "50%", "75%", "100%"], fontsize=FONT_ANNOT)
@@ -569,10 +542,12 @@ def task31_stacked_bar(df: pd.DataFrame, output_dir: str):
         mpatches.Patch(facecolor="#555555", label="Positive outcome"),
         mpatches.Patch(facecolor="#CCCCCC", label="Negative outcome"),
     ]
-    ax.legend(handles=legend_patches, loc="upper right", frameon=False, fontsize=FONT_ANNOT)
+    ax.legend(handles=legend_patches, loc="upper center",
+              bbox_to_anchor=(0.5, -0.12), ncol=2,
+              frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.set_title("Outcome Composition by Conformance Band", fontsize=FONT_TITLE, pad=10)
 
-    fig.tight_layout(rect=[0, 0.06, 1, 1])
+    fig.tight_layout(rect=[0, 0.10, 1, 1])
     save_svg(fig, out_path)
 
 
@@ -676,14 +651,15 @@ def task31_scatter_plot(df: pd.DataFrame, log, output_dir: str):
         ax0.plot(midpoints, rates, color="#000000", lw=2, zorder=5)
         ax0.fill_between(midpoints, rates - ses, rates + ses, color="#888888", alpha=0.2)
 
-    ax0.set_ylim(-0.25, 1.25)
-    ax0.set_yticks([0, 1])
+    ax0.set_ylim(-0.45, 1.45)
+    ax0.set_yticks([-0.35, 1.35])
     ax0.set_yticklabels(["Negative", "Positive"], fontsize=FONT_ANNOT)
     ax0.set_xlim(-0.03, 1.03)
     ax0.set_xlabel("Conformance Degree (fitness)", fontsize=FONT_LABEL)
+    ax0.set_ylabel("Outcome", fontsize=FONT_LABEL)
     ax0.spines["top"].set_visible(False)
     ax0.spines["right"].set_visible(False)
-    ax0.xaxis.grid(True, linestyle="--", alpha=0.3)
+    ax0.yaxis.grid(True, linestyle="--", alpha=0.3)
     ax0.set_axisbelow(True)
     ax0.set_title("Conformance Degree vs. Outcome", fontsize=FONT_TITLE, pad=8)
     legend_patches = [
@@ -791,10 +767,9 @@ def task31_matrix(df: pd.DataFrame, output_dir: str):
         data=np.nan_to_num(rate_matrix, nan=0.0),
         row_labels=_FITNESS_BIN_LABELS + ["All bands"],
         col_labels=["Negative Outcome", "Positive Outcome"],
-        xlabel="Outcome",
+        xlabel="Outcome Category",
         cbar_label="% of traces in band",
-        cell_fmt="{:.0f}%",
-        annotate=False,
+        annotate=False,   # manual two-line annotations added below
         rotate_xticks=0,
     )
 
@@ -823,8 +798,7 @@ def task31_matrix(df: pd.DataFrame, output_dir: str):
     ax.axhline(y=4.5, color="#AAAAAA", lw=1.0, ls="--")
 
     ax.set_ylabel("Fitness Band", fontsize=FONT_LABEL)
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
+    # Matrix convention: keep all four spines (bounding box of the color grid)
     ax.set_title("Outcome Rate by Conformance Band", fontsize=FONT_TITLE, pad=10)
 
     fig.tight_layout()
@@ -962,28 +936,27 @@ def task31_heatmap(df: pd.DataFrame, log, output_dir: str):
             if n >= _HEATMAP_MIN_CELL_N:
                 text_color = "#ffffff" if rate > 55 else "#222222"
                 ax.text(pi, bi, f"{rate:.0f}%\n(n={n})",
-                        ha="center", va="center", fontsize=FONT_ANNOT - 1,
+                        ha="center", va="center", fontsize=FONT_ANNOT,
                         color=text_color, linespacing=1.4, zorder=3)
             elif n > 0:
                 ax.text(pi, bi, f"n={n}", ha="center", va="center",
-                        fontsize=FONT_ANNOT - 1, color="#AAAAAA", zorder=3)
+                        fontsize=FONT_ANNOT, color="#AAAAAA", zorder=3)
             else:
                 ax.text(pi, bi, "—", ha="center", va="center",
-                        fontsize=FONT_ANNOT - 1, color="#DDDDDD", zorder=3)
+                        fontsize=FONT_ANNOT, color="#DDDDDD", zorder=3)
 
     ax.set_ylabel("Conformance Band (fitness)", fontsize=FONT_LABEL)
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
+    # Heatmap convention: keep all four spines (bounding box of the color matrix)
     ax.set_title("Positive Outcome Rate by Conformance Band and Period", fontsize=FONT_TITLE, pad=10)
 
     footnote = (
         f"Definitive outcomes only  ·  Cells with n < {_HEATMAP_MIN_CELL_N} shown in grey"
         f"  ·  Granularity: {granularity_label}"
     )
-    ax.text(0.0, -0.07, footnote, transform=ax.transAxes,
+    ax.text(0.0, -0.09, footnote, transform=ax.transAxes,
             fontsize=FONT_ANNOT - 1, color="#888888", va="top")
 
-    fig.tight_layout(rect=[0, 0.08, 1, 0.97])
+    fig.tight_layout(rect=[0, 0.10, 1, 1])
     save_svg(fig, out_path)
 
 
