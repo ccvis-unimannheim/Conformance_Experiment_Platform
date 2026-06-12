@@ -900,6 +900,46 @@ def draw_grouped_box_plot(ax, data, labels, colors, *, ylabel: str = "",
 # Shared time-series builder  (factored out of task07; also used by task01/04)
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Conformance category buckets — single source of truth.
+# Extracted from task10 so task01 / task25 / task27 / task33 (and task10's own
+# idioms) share one definition of the conformance ranges.
+# ---------------------------------------------------------------------------
+
+# 1.01 upper edge so fitness == 1.0 lands in the last (left-closed) bucket.
+CONFORMANCE_BINS = [0.0, 0.2, 0.4, 0.6, 0.8, 1.01]
+CONFORMANCE_LABELS = ["0.0 – 0.2", "0.2 – 0.4", "0.4 – 0.6", "0.6 – 0.8", "0.8 – 1.0"]
+CONFORMANCE_CATEGORY_NAMES = ["Very Low", "Low", "Medium", "High", "Very High"]
+
+
+def conformance_category_index(fitness_value) -> int:
+    """Index 0..4 of the fixed conformance category for one fitness value."""
+    f = float(fitness_value)
+    for i in range(len(CONFORMANCE_LABELS)):
+        if CONFORMANCE_BINS[i] <= f < CONFORMANCE_BINS[i + 1]:
+            return i
+    return len(CONFORMANCE_LABELS) - 1
+
+
+def conformance_category_series(fitness):
+    """Per-value category index (0..4) over the FIXED conformance buckets."""
+    import pandas as pd
+    return pd.Series([conformance_category_index(x) for x in fitness], dtype=int)
+
+
+def conformance_category_counts(fitness):
+    """DataFrame [category, range, count, percentage] over the FIXED buckets."""
+    import pandas as pd
+    idx = conformance_category_series(fitness)
+    total = len(idx)
+    rows = []
+    for i, (name, rng) in enumerate(zip(CONFORMANCE_CATEGORY_NAMES, CONFORMANCE_LABELS)):
+        c = int((idx == i).sum())
+        rows.append({"category": name, "range": rng, "count": c,
+                     "percentage": (c / total * 100 if total else 0.0)})
+    return pd.DataFrame(rows)
+
+
 def build_fitness_time_series(log, fitness_df):
     """Merge per-trace fitness with trace start/end timestamps from the log.
 
