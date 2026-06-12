@@ -635,7 +635,7 @@ def task29_matrix(alignments, output_dir: str):
         cbar_label="Violation count",
         cell_fmt="{:.0f}",
         annotate=True,
-        rotate_xticks=15,
+        rotate_xticks=0,
     )
     ax.set_title("Activity × Violation Type Matrix", fontsize=FONT_TITLE, pad=10)
     fig.tight_layout()
