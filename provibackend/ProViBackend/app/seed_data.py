@@ -31,6 +31,30 @@ CANONICAL_TASKS = [
         "answer_type": "single_choice",
     },
     {
+        "task_key": "task13",
+        "label": "What are the underlying reasons for guideline violations, in terms of case and event attributes?",
+        "description": "Show which case/event attributes (data, resource, time) are associated with guideline violations, ranked by association strength — the attribute-evidence companion to the root-cause analysis.",
+        "answer_type": "single_choice",
+    },
+    {
+        "task_key": "task18",
+        "label": "Which events are responsible for guideline violations in one or more traces?",
+        "description": "Deduce which activities/events are responsible for guideline violations from the alignment data, with each responsible activity's responsibility share and dominant attribute context.",
+        "answer_type": "multiple_choice",
+    },
+    {
+        "task_key": "task21",
+        "label": "What are the underlying reasons for guideline violations, as identified by the analyst through the visualization?",
+        "description": "Surface candidate reasons of both kinds (attributes and responsible events) side by side, neutrally ranked, so the analyst can identify the underlying reasons themselves.",
+        "answer_type": "single_choice",
+    },
+    {
+        "task_key": "task19",
+        "label": "What is the effect of a guideline violation on the overall process goal (reaching the outcome activity)?",
+        "description": "Discover, per violation pattern, the association between exhibiting the violation and achieving the process goal (signed risk difference and relative risk in outcome rate). Observational association, not causal.",
+        "answer_type": "single_choice",
+    },
+    {
         "task_key": "task10",
         "label": "Which percentage of traces in the event log fall into which conformance category?",
         "description": "Group traces by conformance ranges and determine their distribution.",
