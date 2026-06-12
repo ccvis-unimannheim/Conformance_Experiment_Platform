@@ -9,7 +9,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "heatmap", "pie_chart", "flow_chart_table", "table", "table_bar_chart"]
+IDIOMS = ["bar_chart", "heatmap", "pie_chart", "flow_chart_table", "table", "table_bar_chart",
+          "stacked_bar", "matrix", "sunburst", "tree_map", "parallel_sets"]
 
 import os
 import numpy as np
@@ -21,7 +22,104 @@ import matplotlib.patches as mpatches
 from matplotlib.patches import Polygon
 from matplotlib import gridspec
 
-from shared import save_svg, make_table, alignment_pairs_to_rows, BLUE, ORANGE, GREEN, RED, FONT_TITLE, FONT_LABEL, FONT_ANNOT, contrasting_text_color
+from shared import (
+    save_svg, make_table, alignment_pairs_to_rows,
+    BLUE, ORANGE, GREEN, RED, FONT_TITLE, FONT_LABEL, FONT_ANNOT, contrasting_text_color,
+    build_violation_pattern_df, draw_value_heatmap, draw_parallel_sets, render_empty_state_svg,
+)
+
+# ---------------------------------------------------------------------------
+# Canonical violation type order and color mapping
+# ---------------------------------------------------------------------------
+_VTYPES = ["Model Move", "Log Move", "Mismatch Move"]
+_VTYPE_COLOR = {
+    "Model Move":    BLUE,
+    "Log Move":      RED,
+    "Mismatch Move": ORANGE,
+}
+_TOP_N = 12   # top-N activities for per-activity idioms (consistent with task09/11/17)
+
+
+def _lighten(hex_color: str, amount: float = 0.5) -> str:
+    """Blend hex_color toward white by `amount` (0=no change, 1=white)."""
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    r = int(r + (255 - r) * amount)
+    g = int(g + (255 - g) * amount)
+    b = int(b + (255 - b) * amount)
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def _squarify_layout(sizes, x, y, w, h):
+    """Squarified treemap layout (no external dependency).
+
+    sizes must be sorted descending and scaled so sum(sizes) == w * h.
+    Returns one (x, y, w, h) rect per size, in input order.
+    """
+    rects = []
+    sizes = list(sizes)
+    while sizes:
+        if len(sizes) == 1:
+            rects.append((x, y, w, h))
+            break
+        short = min(w, h)
+
+        def worst_ratio(row):
+            row_total = sum(row)
+            thickness = row_total / short
+            worst = 1.0
+            for r in row:
+                cell_len = r / thickness
+                worst = max(worst, thickness / cell_len, cell_len / thickness)
+            return worst
+
+        row = [sizes[0]]
+        rest = sizes[1:]
+        current = worst_ratio(row)
+        while rest:
+            cand = worst_ratio(row + [rest[0]])
+            if cand <= current:
+                row.append(rest.pop(0))
+                current = cand
+            else:
+                break
+
+        thickness = sum(row) / short
+        if w >= h:
+            cy = y
+            for r in row:
+                cell_h = r / thickness
+                rects.append((x, cy, thickness, cell_h))
+                cy += cell_h
+            x += thickness
+            w -= thickness
+        else:
+            cx = x
+            for r in row:
+                cell_w = r / thickness
+                rects.append((cx, y, cell_w, thickness))
+                cx += cell_w
+            y += thickness
+            h -= thickness
+        sizes = rest
+    return rects
+
+
+def _task29_activity_type_pivot(alignments, top_n=_TOP_N):
+    """Aggregate violations per (activity, move_type) from raw alignments.
+
+    Returns (pivot, top_acts):
+      pivot    – dict {(activity, move_type): count}
+      top_acts – list of top_n activities sorted by total violation count desc
+    """
+    pat_df = build_violation_pattern_df(alignments)
+    if pat_df.empty:
+        return {}, []
+    pivot = {(r["activity"], r["move_type"]): int(r["count"])
+             for _, r in pat_df.iterrows()}
+    act_totals = pat_df.groupby("activity")["count"].sum()
+    top_acts = act_totals.nlargest(top_n).index.tolist()
+    return pivot, top_acts
 
 
 # ---------------------------------------------------------------------------
@@ -451,8 +549,296 @@ def task29_flow_chart_and_table(df: pd.DataFrame, alignments, output_dir: str):
     save_svg(fig, os.path.join(output_dir, "task29_flow_chart_and_table.svg"))
 
 
+
 # ---------------------------------------------------------------------------
-# Public entry point
+# New idiom 1: Stacked bar — violation type breakdown per activity
+# ---------------------------------------------------------------------------
+
+def task29_stacked_bar(alignments, output_dir: str):
+    """Horizontal stacked bar: top-N activities coloured by violation type (Model/Log/Mismatch)."""
+    out_path = os.path.join(output_dir, "task29_stacked_bar.svg")
+    pivot, top_acts = _task29_activity_type_pivot(alignments)
+    if not top_acts:
+        render_empty_state_svg(out_path, "Violation Type Breakdown per Activity")
+        return
+
+    # Sort activities by total violations descending (top = highest bar)
+    top_acts = sorted(top_acts,
+                      key=lambda a: sum(pivot.get((a, vt), 0) for vt in _VTYPES),
+                      reverse=True)
+
+    fig, ax = plt.subplots(figsize=(13, max(4.5, len(top_acts) * 0.6 + 2)))
+    ax.set_facecolor("#fafbfc")
+
+    lefts = np.zeros(len(top_acts))
+    for vtype in _VTYPES:
+        vals = np.array([pivot.get((a, vtype), 0) for a in top_acts], dtype=float)
+        bars = ax.barh(range(len(top_acts)), vals, left=lefts,
+                       color=_VTYPE_COLOR[vtype], label=vtype,
+                       edgecolor="white", linewidth=0.5, height=0.65)
+        # Annotate segment count when wide enough
+        for i, (bar, v) in enumerate(zip(bars, vals)):
+            if v > 0 and bar.get_width() > (lefts.max() + vals.max()) * 0.04:
+                ax.text(lefts[i] + v / 2, i, str(int(v)),
+                        ha="center", va="center",
+                        fontsize=FONT_ANNOT - 1, color=contrasting_text_color(_VTYPE_COLOR[vtype]))
+        lefts += vals
+
+    # Total count annotation at bar end
+    xmax = max(lefts.max(), 1)
+    for i, total in enumerate(lefts):
+        ax.text(total + xmax * 0.01, i, str(int(total)),
+                va="center", fontsize=FONT_ANNOT, color="#333333")
+
+    short_labels = [a if len(a) <= 30 else a[:28] + "…" for a in top_acts]
+    ax.set_yticks(range(len(top_acts)))
+    ax.set_yticklabels(short_labels, fontsize=FONT_ANNOT)
+    ax.invert_yaxis()
+    ax.set_xlabel("Number of violations", fontsize=FONT_LABEL)
+    ax.set_title(f"Violation Type Breakdown per Activity  (top {len(top_acts)})",
+                 fontsize=FONT_TITLE)
+    ax.set_xlim(0, xmax * 1.12)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.3)
+    ax.set_axisbelow(True)
+    ax.legend(loc="lower right", fontsize=FONT_ANNOT, frameon=True, framealpha=0.9)
+    fig.tight_layout()
+    save_svg(fig, out_path)
+
+
+# ---------------------------------------------------------------------------
+# New idiom 2: Matrix — activity × violation type annotated grid
+# ---------------------------------------------------------------------------
+
+def task29_matrix(alignments, output_dir: str):
+    """Annotated matrix: rows = top-N activities, columns = 3 violation types."""
+    out_path = os.path.join(output_dir, "task29_matrix.svg")
+    pivot, top_acts = _task29_activity_type_pivot(alignments)
+    if not top_acts:
+        render_empty_state_svg(out_path, "Activity × Violation Type Matrix")
+        return
+
+    data = np.array(
+        [[pivot.get((a, vt), 0) for vt in _VTYPES] for a in top_acts],
+        dtype=float,
+    )
+    short_labels = [a if len(a) <= 30 else a[:28] + "…" for a in top_acts]
+
+    fig_h = max(4.0, len(top_acts) * 0.6 + 2)
+    fig, ax = plt.subplots(figsize=(9, fig_h))
+
+    draw_value_heatmap(
+        fig, ax, data,
+        row_labels=short_labels,
+        col_labels=_VTYPES,
+        xlabel="Violation Type",
+        cbar_label="Violation count",
+        cell_fmt="{:.0f}",
+        annotate=True,
+        rotate_xticks=15,
+    )
+    ax.set_title("Activity × Violation Type Matrix", fontsize=FONT_TITLE, pad=10)
+    fig.tight_layout()
+    save_svg(fig, out_path)
+
+
+# ---------------------------------------------------------------------------
+# New idiom 3: Parallel Sets — violation type (left) × activity (right)
+# ---------------------------------------------------------------------------
+
+def task29_parallel_sets(alignments, output_dir: str):
+    """Parallel Sets: move type (left) flows to top-N violated activities (right)."""
+    out_path = os.path.join(output_dir, "task29_parallel_sets.svg")
+    pivot, top_acts = _task29_activity_type_pivot(alignments)
+    if not top_acts:
+        render_empty_state_svg(out_path, "Parallel Sets: Violation Type × Activity")
+        return
+
+    # Build count matrix: shape (3 move_types, n_right)
+    pat_df = build_violation_pattern_df(alignments)
+    top_set = set(top_acts)
+    right_labels = top_acts + ["Other"]
+    n_right = len(right_labels)
+    matrix = np.zeros((3, n_right), dtype=int)
+
+    for vi, vtype in enumerate(_VTYPES):
+        sub = pat_df[pat_df["move_type"] == vtype]
+        for ai, act in enumerate(top_acts):
+            row = sub[sub["activity"] == act]
+            matrix[vi, ai] = int(row["count"].sum()) if not row.empty else 0
+        matrix[vi, -1] = int(sub[~sub["activity"].isin(top_set)]["count"].sum())
+
+    fig, ax = plt.subplots(figsize=(11, 5.5))
+    ax.axis("off")
+    ax.set_xlim(-0.05, 1.05)
+    ax.set_ylim(-0.05, 1.15)
+    ax.set_title("Parallel Sets: Violation Type × Activity", fontsize=FONT_TITLE, pad=12)
+
+    grey_scale = ["#CCCCCC", "#AAAAAA", "#999999", "#888888", "#777777",
+                  "#666666", "#555555", "#444444", "#333333", "#222222", "#BBBBBB", "#DDDDDD", "#EEEEEE"]
+    right_colors = [grey_scale[i % len(grey_scale)] for i in range(n_right)]
+
+    draw_parallel_sets(
+        ax,
+        left_labels=_VTYPES,
+        right_labels=right_labels,
+        matrix=matrix,
+        left_colors=[_VTYPE_COLOR[vt] for vt in _VTYPES],
+        right_colors=right_colors,
+        left_title="Violation Type",
+        right_title="Activity",
+    )
+    fig.tight_layout()
+    save_svg(fig, out_path)
+
+
+# ---------------------------------------------------------------------------
+# New idiom 4: Tree Map — violation patterns by area = count
+# ---------------------------------------------------------------------------
+
+_TREEMAP_TOP_N = 20
+
+
+def task29_tree_map(alignments, output_dir: str):
+    """Tree map: one rectangle per (activity, move_type) pattern, area = count."""
+    out_path = os.path.join(output_dir, "task29_tree_map.svg")
+    pat_df = build_violation_pattern_df(alignments)
+    if pat_df.empty:
+        render_empty_state_svg(out_path, "Violation Pattern Tree Map")
+        return
+
+    by_count = pat_df.sort_values("count", ascending=False)
+    top = by_count.head(_TREEMAP_TOP_N)
+    items = [
+        {"label": row["activity"], "move_type": row["move_type"],
+         "count": int(row["count"]), "color": _VTYPE_COLOR[row["move_type"]]}
+        for _, row in top.iterrows()
+    ]
+    rest = by_count.iloc[_TREEMAP_TOP_N:]
+    if not rest.empty:
+        items.append({"label": "Other", "move_type": "", "count": int(rest["count"].sum()),
+                      "color": "#DDDDDD"})
+
+    W, H = 100.0, 62.0
+    total = sum(it["count"] for it in items)
+    sizes = [it["count"] / total * W * H for it in items]
+    rects = _squarify_layout(sizes, 0.0, 0.0, W, H)
+
+    fig, ax = plt.subplots(figsize=(12, 7.5))
+    ax.set_xlim(0, W)
+    ax.set_ylim(0, H)
+    ax.invert_yaxis()
+    ax.axis("off")
+    for it, (rx, ry, rw, rh) in zip(items, rects):
+        ax.add_patch(plt.Rectangle((rx, ry), rw, rh,
+                                   facecolor=it["color"], edgecolor="white", linewidth=2))
+        area_frac = (rw * rh) / (W * H)
+        if area_frac > 0.015 and rw > 7 and rh > 3.5:
+            fontsize = FONT_ANNOT if area_frac > 0.05 else FONT_ANNOT - 2
+            mt_short = it["move_type"].replace(" Move", "") if it["move_type"] else ""
+            label = it["label"]
+            if len(label) > 22:
+                label = label[:20] + "…"
+            cell_text = f"{label}\n{mt_short}\n×{it['count']}" if mt_short else f"{label}\n×{it['count']}"
+            ax.text(rx + rw / 2, ry + rh / 2, cell_text,
+                    ha="center", va="center", fontsize=fontsize,
+                    color=contrasting_text_color(it["color"]))
+
+    legend_handles = [
+        mpatches.Patch(color=_VTYPE_COLOR[vt], label=vt) for vt in _VTYPES
+    ]
+    if not rest.empty:
+        legend_handles.append(mpatches.Patch(color="#DDDDDD", label="Other"))
+    ax.legend(handles=legend_handles, loc="lower center",
+              bbox_to_anchor=(0.5, -0.06), ncol=4, frameon=False, fontsize=FONT_ANNOT)
+    ax.set_title(f"Violation Pattern Tree Map  (area = count, top-{len(top)})",
+                 fontsize=FONT_TITLE)
+    fig.tight_layout()
+    save_svg(fig, out_path)
+
+
+# ---------------------------------------------------------------------------
+# New idiom 5: Sunburst — move_type (inner) → activity (outer)
+# ---------------------------------------------------------------------------
+
+def task29_sunburst(alignments, output_dir: str):
+    """Sunburst: inner ring = 3 move types, outer ring = top activities per type."""
+    out_path = os.path.join(output_dir, "task29_sunburst.svg")
+    pat_df = build_violation_pattern_df(alignments)
+    if pat_df.empty:
+        render_empty_state_svg(out_path, "Violation Sunburst (Move Type → Activity)")
+        return
+
+    total = float(pat_df["count"].sum())
+    if total == 0:
+        render_empty_state_svg(out_path, "Violation Sunburst (Move Type → Activity)")
+        return
+
+    # Inner ring: aggregated by move_type (in canonical order)
+    ring1 = pat_df.groupby("move_type")["count"].sum().reindex(_VTYPES, fill_value=0)
+
+    # Outer ring: top-N activities per move_type, rest → "Other"
+    _SB_TOP_PER_TYPE = 5
+    outer_items = []  # list of (move_type, activity, count)
+    for vtype in _VTYPES:
+        sub = pat_df[pat_df["move_type"] == vtype].sort_values("count", ascending=False)
+        top = sub.head(_SB_TOP_PER_TYPE)
+        for _, row in top.iterrows():
+            outer_items.append((vtype, row["activity"], int(row["count"])))
+        rest_count = int(sub.iloc[_SB_TOP_PER_TYPE:]["count"].sum()) if len(sub) > _SB_TOP_PER_TYPE else 0
+        if rest_count > 0:
+            outer_items.append((vtype, "Other", rest_count))
+
+    fig, ax = plt.subplots(figsize=(8.5, 7.0))
+    common = dict(startangle=90, counterclock=False)
+
+    # Inner ring
+    inner_colors = [_VTYPE_COLOR[vt] for vt in _VTYPES]
+    ax.pie(ring1.values, radius=0.50, colors=inner_colors,
+           wedgeprops=dict(width=0.30, edgecolor="white", linewidth=1.5), **common)
+
+    # Outer ring
+    outer_values = [c for _, _, c in outer_items]
+    outer_colors = [_lighten(_VTYPE_COLOR[vt], 0.45 if i % 2 == 0 else 0.35)
+                    for i, (vt, _, _) in enumerate(outer_items)]
+    ax.pie(outer_values, radius=0.82, colors=outer_colors,
+           wedgeprops=dict(width=0.30, edgecolor="white", linewidth=1.5), **common)
+
+    # Angle-based annotations
+    def _annotate_ring(values, labels, r_mid, fontsize, colors, min_frac=0.05):
+        angle = 90.0
+        val_total = sum(values)
+        if val_total == 0:
+            return
+        for i, (val, label) in enumerate(zip(values, labels)):
+            frac = val / val_total
+            mid_angle = angle - frac * 360.0 / 2.0
+            angle -= frac * 360.0
+            if frac < min_frac:
+                continue
+            theta = np.deg2rad(mid_angle)
+            x, y = r_mid * np.cos(theta), r_mid * np.sin(theta)
+            short = label if len(label) <= 14 else label[:12] + "…"
+            ax.text(x, y, short, ha="center", va="center",
+                    fontsize=fontsize, color=contrasting_text_color(colors[i]))
+
+    _annotate_ring(ring1.values, list(ring1.index), 0.35, FONT_ANNOT, inner_colors, min_frac=0.04)
+    _annotate_ring(outer_values,
+                   [act for _, act, _ in outer_items],
+                   0.67, FONT_ANNOT - 1, outer_colors, min_frac=0.04)
+
+    ax.legend(
+        handles=[mpatches.Patch(color=_VTYPE_COLOR[vt], label=vt) for vt in _VTYPES],
+        title="Move Type (inner ring)", title_fontsize=FONT_ANNOT,
+        loc="lower center", bbox_to_anchor=(0.5, -0.05),
+        ncol=3, frameon=False, fontsize=FONT_ANNOT,
+    )
+    ax.set_title("Violation Sunburst (Move Type → Activity)",
+                 fontsize=FONT_TITLE, pad=10)
+    fig.tight_layout()
+    save_svg(fig, out_path)
+
+
 # ---------------------------------------------------------------------------
 
 def generate(alignments, output_dir: str):
@@ -469,3 +855,8 @@ def generate(alignments, output_dir: str):
     task29_table(df, output_dir)
     task29_table_and_bar_chart(df, output_dir)
     task29_flow_chart_and_table(df, alignments, output_dir)
+    task29_stacked_bar(alignments, output_dir)
+    task29_matrix(alignments, output_dir)
+    task29_parallel_sets(alignments, output_dir)
+    task29_tree_map(alignments, output_dir)
+    task29_sunburst(alignments, output_dir)
