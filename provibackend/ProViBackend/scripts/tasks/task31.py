@@ -329,7 +329,7 @@ def task31_table(df_table: pd.DataFrame, output_dir: str):
     fig_h = max(3.3, 1.35 + len(cell_text) * 0.52)
     fig, ax = plt.subplots(figsize=(10.6, fig_h))
     ax.axis("off")
-    tbl = make_table(
+    make_table(
         ax,
         cell_text=cell_text,
         col_labels=["Attribute Condition", "Approved Cases", "Total Cases", "Approval Rate (%)"],
@@ -340,14 +340,7 @@ def task31_table(df_table: pd.DataFrame, output_dir: str):
         header_color="#555555",
         zebra=True,
     )
-    row_colors = ["#F2F2F2", "#E4E4E4"] + ["#F2F2F2"] * max(0, len(cell_text) - 2)
-    for r, color in enumerate(row_colors, start=1):
-        for c in range(4):
-            tbl[r, c].set_facecolor(color)
-            tbl[r, c].set_edgecolor("#DDDDDD")
     ax.set_title("Conformance and Approval Rates", fontsize=FONT_TITLE, pad=12)
-    ax.text(0.04, 0.84, "Approved = A_ACTIVATED present | Definitive outcomes only",
-            transform=ax.transAxes, fontsize=FONT_ANNOT, color="#666666")
     fig.tight_layout(rect=[0, 0.02, 1, 0.96])
     save_svg(fig, os.path.join(output_dir, "task31_table.svg"))
 
@@ -624,9 +617,6 @@ def task31_scatter_plot(df: pd.DataFrame, log, output_dir: str):
                color="#BBBBBB", s=18, alpha=0.35, marker="o", label="Negative outcome")
     ax.scatter(fit_s[pos_mask_s], 1 + jitter[pos_mask_s],
                color="#333333", s=18, alpha=0.35, marker="o", label="Positive outcome")
-    if len(midpoints) > 0:
-        ax.plot(midpoints, rates, color="#000000", lw=2, zorder=5)
-        ax.fill_between(midpoints, rates - ses, rates + ses, color="#888888", alpha=0.2)
 
     ax.set_ylim(-0.45, 1.45)
     ax.set_yticks([-0.35, 1.35])
@@ -645,7 +635,7 @@ def task31_scatter_plot(df: pd.DataFrame, log, output_dir: str):
     ]
     ax.legend(handles=legend_patches, loc="upper left", frameon=False, fontsize=FONT_ANNOT)
 
-    caption = "Definitive outcomes only  ·  Trend line = bin-mean outcome rate (±1 SE, n≥5 per 0.1-width bin)"
+    caption = "Definitive outcomes only"
     if sampled:
         caption += "  ·  Scatter shows 2,000 sampled traces"
     fig.text(0.0, 0.01, caption, ha="left", fontsize=FONT_ANNOT - 1, color="#888888")
