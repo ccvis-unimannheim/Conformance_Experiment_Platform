@@ -18,7 +18,7 @@ except ImportError:
 try:
     from ProViBackend.scripts.tasks import (
         task01, task02, task03, task04, task05,
-        task06, task07, task08, task09, task10, task11, task12, task20,
+        task06, task07, task08, task09, task10, task11, task12, task13, task18, task19, task20, task21,
         task23, task24, task25, task26, task27,
         task28, task29, task30, task31,
         task35, task36, task37,
@@ -26,7 +26,8 @@ try:
     _TASK_MODULES = {
         "task01": task01, "task02": task02, "task03": task03, "task04": task04, "task05": task05,
         "task06": task06, "task07": task07, "task08": task08, "task09": task09,
-        "task10": task10, "task11": task11, "task12": task12, "task20": task20,
+        "task10": task10, "task11": task11, "task12": task12, "task13": task13,
+        "task18": task18, "task19": task19, "task20": task20, "task21": task21,
         "task23": task23, "task24": task24, "task25": task25, "task26": task26, "task27": task27,
         "task28": task28, "task29": task29, "task30": task30, "task31": task31,
         "task35": task35, "task36": task36, "task37": task37,
