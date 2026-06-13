@@ -103,7 +103,7 @@ INPUT_SUBDIR  = "input"
 OUTPUT_SUBDIR = "output"
 LOG_EXTENSIONS   = {".xes", ".csv"}
 MODEL_EXTENSIONS = {".bpmn"}
-TASK_DIRS     = ["task01", "task02", "task03", "task04", "task05", "task06", "task07", "task08", "task09", "task10", "task11", "task12","task13", "task14", "task15", "task16", "task17", "task19", "task20", "task22", "task23", "task24", "task25", "task26", "task27", "task28", "task29", "task30", "task31", "task32", "task33", "task34", "task35", "task36", "task37"]
+TASK_DIRS     = ["task01", "task02", "task03", "task04", "task05", "task06", "task07", "task08", "task09", "task10", "task11", "task12", "task13", "task14", "task15", "task16", "task17", "task18", "task19", "task20", "task21", "task22", "task23", "task24", "task25", "task26", "task27", "task28", "task29", "task30", "task31", "task32", "task33", "task34", "task35", "task36", "task37"]
 # Aliases mapping task-script filename stems to canonical idiom_keys.
 # E.g. task06.py writes "task06_scatter_plot.svg"; we strip "task06_" then
 # rename "scatter_plot" -> "scatterplot" to match the Idiom collection.
@@ -121,10 +121,13 @@ _FILE_RENAME = {
 # task08 uses scatter_plot (SVG) which is distinct from scatterplot (echarts).
 _TASK_RENAME_SKIP: dict[str, set[str]] = {
     "task08": {"scatter_plot"},
+    "task13": {"scatter_plot"},
     "task14": {"scatter_plot"},
     "task15": {"scatter_plot"},
     "task16": {"scatter_plot"},
+    "task18": {"scatter_plot"},
     "task19": {"scatter_plot"},
+    "task21": {"scatter_plot"},
     "task22": {"scatter_plot"},
     "task28": {"scatter_plot"},
     "task31": {"scatter_plot"},
