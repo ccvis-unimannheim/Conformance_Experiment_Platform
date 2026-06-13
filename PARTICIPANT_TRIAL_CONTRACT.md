@@ -11,8 +11,37 @@
   ordered, personalised trial list (one idiom per task).
 - `GET /participant/experiment/active` — same trial shape for the active
   experiment (no per-user assignment).
-- `GET /participant/vis/{dataset_id}/{task_id}/{idiom_id}` — the SVG for a trial.
+- `GET /participant/vis/{dataset_id}/{task_id}/{idiom_id}?experiment_id=...` —
+  the SVG for a trial.
 - `POST /survey/answer` — submit one answer (see *Answer submission* below).
+
+### SVG resolution (`/vis`, §7)
+
+`experiment_id` is an **optional** query parameter. SVGs are generated
+per-experiment via `POST /admin/experiments/{id}/generate`, which writes to
+`data/{dataset_id}/output/{experiment_id}/{task_key}/{idiom_key}.svg`. When
+`experiment_id` is given and that file exists, it is served; otherwise the
+endpoint falls back to the legacy shared path
+`data/{dataset_id}/output/{task_key}/{idiom_key}.svg` (older datasets generated
+before per-experiment paths existed). The frontend should always pass the
+`experiment_id` from the trial response (`experiment_id` field on
+`/experiment/active`, or the `{experiment_id}` path segment on
+`/assignment/{experiment_id}/trials`).
+
+`svg_available` on each trial reflects this same resolution (per-experiment
+path first, legacy path fallback), independent of `generation_status` below.
+
+### `generation_status` (admin-side, not sent to participants)
+
+Each `task_instance` on the `Experiment` document (admin contract, not part of
+the trial object below) carries a `generation_status`:
+`pending | running | ready | failed`, set by
+`POST /admin/experiments/{id}/generate` and polled via
+`GET /admin/experiments/{id}`. This tracks whether the pipeline has been *run*
+for that task; `svg_available` tracks whether a file currently *exists* on
+disk. The two usually agree, but `svg_available` can be `true` via the legacy
+fallback path even while `generation_status` is `pending` for a freshly
+created experiment that reuses an older dataset's SVGs.
 
 ## Trial object
 

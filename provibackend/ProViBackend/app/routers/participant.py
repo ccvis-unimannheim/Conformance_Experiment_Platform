@@ -18,8 +18,13 @@ class AssignmentRequest(BaseModel):
     experiment_id: str
 
 
-def _resolve_svg_path(task_id: str, idiom_id: str, dataset_id: str):
+def _resolve_svg_path(task_id: str, idiom_id: str, dataset_id: str, experiment_id: str | None = None):
     """Resolve DB IDs to a filesystem SVG path.
+
+    If `experiment_id` is given and the per-experiment SVG exists at
+    data/{dataset_id}/output/{experiment_id}/{task_key}/{idiom_key}.svg
+    (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7), that path is returned. Otherwise
+    falls back to the legacy shared path data/{dataset_id}/output/{task_key}/{idiom_key}.svg.
 
     Returns (path, error_message). On success error_message is None.
     """
@@ -35,10 +40,15 @@ def _resolve_svg_path(task_id: str, idiom_id: str, dataset_id: str):
 
     task_key  = task["task_key"]    # e.g. "task1"
     idiom_key = idiom["idiom_key"]  # e.g. "bar_chart"
-    svg_path  = (
-        config.BASE_DIRECTORY / "data" / dataset_id / "output" / task_key / f"{idiom_key}.svg"
-    )
-    return svg_path, None
+    output_dir = config.BASE_DIRECTORY / "data" / dataset_id / "output"
+
+    if experiment_id:
+        per_experiment_path = output_dir / experiment_id / task_key / f"{idiom_key}.svg"
+        if per_experiment_path.exists():
+            return per_experiment_path, None
+
+    legacy_path = output_dir / task_key / f"{idiom_key}.svg"
+    return legacy_path, None
 
 
 def _get_experiment_knowledge_questions(exp: dict) -> list:
@@ -90,6 +100,7 @@ async def get_active_experiment():
         raise HTTPException(status_code=404, detail="No active experiment found.")
 
     exp = sorted(experiments, key=lambda e: e.get("created_at", ""), reverse=True)[0]
+    experiment_id = str(exp.get("_id", ""))
     trials = []
 
     for tc in exp.get("task_configs", []):
@@ -105,7 +116,7 @@ async def get_active_experiment():
         if not task or not idiom:
             continue
 
-        svg_path, _ = _resolve_svg_path(task_id, idiom_id, dataset_id)
+        svg_path, _ = _resolve_svg_path(task_id, idiom_id, dataset_id, experiment_id)
         svg_available = bool(svg_path and svg_path.exists())
 
         trials.append({
@@ -128,9 +139,14 @@ async def get_active_experiment():
 
 
 @router.get("/vis/{dataset_id}/{task_id}/{idiom_id}", tags=["participant"])
-async def get_visualization(dataset_id: str, task_id: str, idiom_id: str):
-    """Return the SVG file for a specific task/idiom/dataset combination."""
-    svg_path, err = _resolve_svg_path(task_id, idiom_id, dataset_id)
+async def get_visualization(dataset_id: str, task_id: str, idiom_id: str, experiment_id: str | None = None):
+    """Return the SVG file for a specific task/idiom/dataset combination.
+
+    `experiment_id` is optional; if given and a per-experiment SVG exists at
+    data/{dataset_id}/output/{experiment_id}/{task_key}/{idiom_key}.svg it is
+    served, otherwise the legacy shared path is used (see _resolve_svg_path).
+    """
+    svg_path, err = _resolve_svg_path(task_id, idiom_id, dataset_id, experiment_id)
     if err:
         raise HTTPException(status_code=404, detail=err)
     if not svg_path.exists():
@@ -205,7 +221,7 @@ async def get_assigned_trials(
         if not task or not idiom:
             continue
 
-        svg_path, _ = _resolve_svg_path(task_id, idiom_id, dataset_id)
+        svg_path, _ = _resolve_svg_path(task_id, idiom_id, dataset_id, experiment_id)
         svg_available = bool(svg_path and svg_path.exists())
 
         trials.append({

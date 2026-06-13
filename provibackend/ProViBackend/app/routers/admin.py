@@ -75,10 +75,14 @@ def _validate_extension(filename: str, allowed: set, label: str) -> str:
 async def upload_dataset_pair(
     log: UploadFile,
     guideline: UploadFile,
-    background_tasks: BackgroundTasks,
     dataset_title: str = Form(None),
 ):
-    """Upload an event log + BPMN guideline; triggers the visualization pipeline asynchronously."""
+    """Upload an event log + BPMN guideline.
+
+    Generation no longer runs at upload time (see ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md
+    §7) — it is triggered per-experiment via POST /admin/experiments/{id}/generate,
+    once the admin has selected idioms (/idiom) and hyperparameters (/specify).
+    """
     # Validate file extensions BEFORE creating any directories on disk
     log_ext = _validate_extension(log.filename, ALLOWED_LOG_EXTENSIONS, "Event log")
     _validate_extension(guideline.filename, ALLOWED_MODEL_EXTENSIONS, "Guideline")
@@ -119,9 +123,6 @@ async def upload_dataset_pair(
 
         db = dbc.connect_to_database()
         db["DatasetPair"].insert_one(dataset_pair.model_dump())
-
-        if run_visualization_pipeline is not None:
-            background_tasks.add_task(run_visualization_pipeline, str(pair_dir))
 
         return {"dataset_id": pair_id}
     except HTTPException:
@@ -468,6 +469,18 @@ async def get_experiments():
     return JSONResponse(content=experiments)
 
 
+@router.get("/experiments/{experiment_id}", tags=["admin"])
+async def get_experiment(experiment_id: str):
+    """Return one experiment, including task_instances (with generation_status)
+    for polling after POST /experiments/{experiment_id}/generate."""
+    exp = dbc.get_document("Experiment", {"_id": experiment_id})
+    if not exp:
+        raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
+    if "_id" in exp and not isinstance(exp["_id"], str):
+        exp["_id"] = str(exp["_id"])
+    return JSONResponse(content=exp)
+
+
 @router.get("/experiments/{experiment_id}/stats", tags=["admin"])
 async def get_experiment_stats(experiment_id: str):
     db = dbc.connect_to_database()
@@ -542,51 +555,6 @@ async def update_experiment_status(experiment_id: str, status: str):
     return JSONResponse(content={"message": f"Experiment status updated to '{status}'."})
 
 
-def _sync_participant_experiment(experiment_id: str, participant_status: str):
-    """Build and upsert a ParticipantExperiment document for participant-facing queries."""
-    exp = dbc.get_document("Experiment", {"_id": experiment_id})
-    if not exp:
-        return
-    def _get_by_id(collection, id_str):
-        doc = dbc.get_document(collection, {"_id": id_str})
-        if doc:
-            return doc
-        try:
-            doc = dbc.get_document(collection, {"_id": ObjectId(id_str)})
-        except Exception:
-            pass
-        return doc
-
-    task_assignments = []
-    for tc in exp.get("task_configs", []):
-        task_doc = _get_by_id("Task", tc["task_id"])
-        idiom_doc = _get_by_id("Idiom", tc["idiom_id"])
-        task_key = task_doc["task_key"] if task_doc else None
-        idiom_key = idiom_doc["idiom_key"] if idiom_doc else None
-        pair_id = tc["dataset_id"]
-        svg_path = (
-            f"data/{pair_id}/output/{task_key}/{idiom_key}.svg"
-            if task_key and idiom_key else None
-        )
-        task_assignments.append({
-            "dataset_id": tc["dataset_id"],
-            "task_id": tc["task_id"],
-            "idiom_id": tc["idiom_id"],
-            "svg_path": svg_path,
-        })
-    db = dbc.connect_to_database()
-    db["ParticipantExperiment"].replace_one(
-        {"_id": experiment_id},
-        {
-            "_id": experiment_id,
-            "experiment_id": experiment_id,
-            "status": participant_status,
-            "task_assignments": task_assignments,
-        },
-        upsert=True,
-    )
-
-
 @router.patch("/experiments/{experiment_id}", tags=["admin"])
 async def update_experiment(experiment_id: str, update_data: ds.ExperimentUpdate):
     # Keep task_instances (canonical) and task_configs (legacy mirror) in sync,
@@ -608,6 +576,68 @@ async def update_experiment(experiment_id: str, update_data: ds.ExperimentUpdate
     if not updated:
         raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
     return JSONResponse(content={"message": "Experiment updated.", "experiment_id": experiment_id})
+
+
+def _run_generation_job(experiment_id: str, dataset_ids: list[str]):
+    """Background job: run the visualization pipeline for each dataset used by
+    this experiment, writing SVGs to the per-experiment output directory, then
+    mark every task_instance as 'ready' or 'failed' (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7)."""
+    exp = dbc.get_document("Experiment", {"_id": experiment_id})
+    if not exp:
+        return
+    task_instances = exp.get("task_instances", [])
+    errors: dict[str, str] = {}
+    for dataset_id in dataset_ids:
+        dataset_dir = DATA_DIRECTORY / dataset_id
+        try:
+            run_visualization_pipeline(str(dataset_dir), experiment_id=experiment_id)
+        except Exception as e:
+            _logger.exception("Generation failed for experiment %s, dataset %s", experiment_id, dataset_id)
+            errors[dataset_id] = str(e)
+    for ti in task_instances:
+        ds_id = ti.get("dataset_id")
+        if ds_id in errors:
+            ti["generation_status"] = "failed"
+            ti["generation_error"] = errors[ds_id]
+        else:
+            ti["generation_status"] = "ready"
+            ti["generation_error"] = None
+    dbc.update_document("Experiment", {"_id": experiment_id}, {"$set": {
+        "task_instances": task_instances,
+        "task_configs": task_instances_to_configs(task_instances),
+    }})
+
+
+@router.post("/experiments/{experiment_id}/generate", tags=["admin"])
+async def generate_experiment_visualizations(experiment_id: str, background_tasks: BackgroundTasks):
+    """Run the visualization pipeline for this experiment's datasets in the
+    background, writing SVGs to data/{dataset_id}/output/{experiment_id}/...
+    (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7). Poll GET /experiments/{experiment_id}
+    for per-task generation_status."""
+    exp = dbc.get_document("Experiment", {"_id": experiment_id})
+    if not exp:
+        raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
+    task_instances = exp.get("task_instances", [])
+    if not task_instances:
+        raise HTTPException(status_code=400, detail="Experiment has no task_instances to generate.")
+    if run_visualization_pipeline is None:
+        raise HTTPException(status_code=503, detail="Visualization pipeline unavailable.")
+
+    for ti in task_instances:
+        ti["generation_status"] = "running"
+        ti["generation_error"] = None
+    dbc.update_document("Experiment", {"_id": experiment_id}, {"$set": {
+        "task_instances": task_instances,
+        "task_configs": task_instances_to_configs(task_instances),
+    }})
+
+    dataset_ids = sorted({ti["dataset_id"] for ti in task_instances if ti.get("dataset_id")})
+    background_tasks.add_task(_run_generation_job, experiment_id, dataset_ids)
+    return JSONResponse(content={
+        "message": "Generation started.",
+        "experiment_id": experiment_id,
+        "dataset_ids": dataset_ids,
+    })
 
 
 # ---------------------------------------------------------------------------

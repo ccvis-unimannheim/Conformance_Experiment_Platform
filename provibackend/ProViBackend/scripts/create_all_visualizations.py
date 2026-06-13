@@ -192,8 +192,15 @@ def _auto_detect_compare_attribute(log, preferred: str) -> str:
     return preferred
 
 
-def _resolve_dataset_paths(dataset_dir: str):
-    """Locate log and model files inside <dataset_dir>/input/ by extension; create output dir."""
+def _resolve_dataset_paths(dataset_dir: str, experiment_id: str | None = None):
+    """Locate log and model files inside <dataset_dir>/input/ by extension; create output dir.
+
+    When `experiment_id` is given, SVGs are written to a per-experiment
+    subdirectory (`output/{experiment_id}/...`, see
+    ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7) so multiple experiments sharing the
+    same dataset can hold independently-generated idioms. Without it (CLI /
+    legacy use), the original `output/...` layout is used.
+    """
     if not os.path.isdir(dataset_dir):
         raise FileNotFoundError(f"Dataset directory not found: {dataset_dir}")
 
@@ -225,7 +232,10 @@ def _resolve_dataset_paths(dataset_dir: str):
             f"Expected a file with extension: {', '.join(sorted(MODEL_EXTENSIONS))}"
         )
 
-    output_dir = os.path.join(dataset_dir, OUTPUT_SUBDIR)
+    if experiment_id:
+        output_dir = os.path.join(dataset_dir, OUTPUT_SUBDIR, experiment_id)
+    else:
+        output_dir = os.path.join(dataset_dir, OUTPUT_SUBDIR)
     os.makedirs(output_dir, exist_ok=True)
 
     return log_path, model_path, output_dir
@@ -235,7 +245,8 @@ def _resolve_dataset_paths(dataset_dir: str):
 # Public entry point – called by both the CLI and the FastAPI backend
 # ---------------------------------------------------------------------------
 
-def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED",
+def run_pipeline(dataset_dir: str, experiment_id: str | None = None,
+                 outcome_activity: str = "A_ACTIVATED",
                  compare_attribute: str = "AMOUNT_REQ",
                  predominant_threshold: float = 0.8,
                  high_cooccurrence_threshold: float = 0.1) -> str:
@@ -246,9 +257,9 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED",
     dataset_dir : str
         Path to the dataset folder (must contain input/EventLog.{xes|csv}
         and input/Guideline.bpmn).
-    output_dir : str, optional
-        Where to write task SVG subdirectories.  Defaults to
-        ``<dataset_dir>/output/`` when not supplied.
+    experiment_id : str, optional
+        When given, SVGs are written to ``<dataset_dir>/output/{experiment_id}/``
+        instead of ``<dataset_dir>/output/`` (see ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7).
     outcome_activity : str
         Activity name that marks a positive process outcome (used by Task 6).
     compare_attribute : str
@@ -268,7 +279,7 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED",
     """
     import pathlib
 
-    log_path, model_path, output_dir = _resolve_dataset_paths(dataset_dir)
+    log_path, model_path, output_dir = _resolve_dataset_paths(dataset_dir, experiment_id)
 
     logger.error(f"Dataset directory : {os.path.abspath(dataset_dir)}")
     logger.info(f"Event log         : {log_path}")
@@ -393,6 +404,12 @@ def parse_args():
         help="Path to the dataset folder containing EventLog.{xes|csv} and Model.bpmn",
     )
     parser.add_argument(
+        "--experiment-id", default=None,
+        help="If given, write SVGs to <dataset-dir>/output/{experiment-id}/ instead of "
+             "<dataset-dir>/output/ (per-experiment generation, see "
+             "ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7).",
+    )
+    parser.add_argument(
         "--outcome-activity", default="A_ACTIVATED",
         help="Activity name that marks a positive outcome (Task 6). Default: A_ACTIVATED",
     )
@@ -438,7 +455,8 @@ def main():
     _configure_cli_logging()
     args = parse_args()
     try:
-        run_pipeline(args.dataset_dir, outcome_activity=args.outcome_activity,
+        run_pipeline(args.dataset_dir, experiment_id=args.experiment_id,
+                     outcome_activity=args.outcome_activity,
                      compare_attribute=args.compare_attribute,
                      predominant_threshold=args.predominant_threshold,
                      high_cooccurrence_threshold=args.high_cooccurrence_threshold)
