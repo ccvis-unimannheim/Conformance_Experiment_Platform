@@ -40,7 +40,7 @@ from matplotlib.patches import FancyBboxPatch
 from shared import (
     save_svg, make_table, render_fitness_tile_metric, render_empty_state_svg,
     alignment_pairs_to_rows, parse_bpmn_model, render_bpmn_annotated, contrasting_text_color,
-    BLUE, ORANGE, TEAL, GREEN, RED, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 # Reuse: task20's tree-building + decision-tree renderer for the Tree idiom.
@@ -55,7 +55,7 @@ def task06_bar_chart(df, output_dir: str):
     bars = ax.bar(
         ["Conform Traces", "Non-Conform Traces"],
         [conform, non_conform],
-        color=[BLUE, ORANGE], edgecolor="white", width=0.5,
+        color=[GREY_MED, GREY_LIGHT], edgecolor="white", width=0.5,
     )
     for bar, val in zip(bars, [conform, non_conform]):
         ax.text(
@@ -74,7 +74,7 @@ def task06_bar_chart(df, output_dir: str):
 
 
 def task06_scatter_plot(df, output_dir: str):
-    colors = [GREEN if fit else RED for fit in df["is_fit"]]
+    colors = [GREY_LIGHTER if fit else GREY_DARK for fit in df["is_fit"]]
     fig, ax = plt.subplots(figsize=(10, 4))
     ax.scatter(df["trace_index"], df["fitness"], c=colors, s=15, alpha=0.6, linewidths=0)
     ax.set_xlabel("Traces in Log ordered by time", fontsize=FONT_LABEL)
@@ -82,8 +82,8 @@ def task06_scatter_plot(df, output_dir: str):
     ax.set_ylim(-0.05, 1.1)
     ax.set_title("Conformance Rate per Trace", fontsize=FONT_TITLE)
     ax.legend(
-        handles=[mpatches.Patch(color=GREEN, label="Conform: True"),
-                 mpatches.Patch(color=RED,   label="Conform: False")],
+        handles=[mpatches.Patch(color=GREY_LIGHTER, label="Conform: True"),
+                 mpatches.Patch(color=GREY_DARK,   label="Conform: False")],
         frameon=False, fontsize=FONT_ANNOT,
     )
     ax.spines[["top", "right"]].set_visible(False)

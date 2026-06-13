@@ -3,8 +3,16 @@ import io
 import csv
 import re
 import shutil
+import sys
+import os
+import logging
 from fastapi import APIRouter, BackgroundTasks, UploadFile, HTTPException, Form
 from fastapi.responses import StreamingResponse, JSONResponse
+_logger = logging.getLogger(__name__)
+_scripts_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "scripts"))
+if _scripts_dir not in sys.path:
+    sys.path.insert(0, _scripts_dir)
+
 try:
     from ProViBackend.scripts.create_all_visualizations import (
         run_pipeline as run_visualization_pipeline,
@@ -12,41 +20,33 @@ try:
         _TASK_RENAME_SKIP,
     )
 except ImportError:
+    # The visualization pipeline pulls in heavy, optional deps (pm4py, etc.).
+    # Degrade gracefully so the rest of the admin API still works, but log the
+    # full traceback so the cause is never hidden.
+    _logger.exception("Could not import visualization pipeline; run_pipeline disabled")
     run_visualization_pipeline = None
     _FILE_RENAME = {}
     _TASK_RENAME_SKIP = {}
 
 try:
-    from ProViBackend.scripts.tasks import (
-        task01, task02, task03, task04, task05,
-        task06, task07, task08, task09, task10, task11, task12,
-        task13, task14, task15, task16,
-        task17, task18, task19, task20, task21,
-        task22, task23, task24, task25, task26, task27,
-        task28, task29, task30, task31,
-        task32, task33, task34,
-        task35, task36, task37,
-    )
-    _TASK_MODULES = {
-        "task01": task01, "task02": task02, "task03": task03, "task04": task04, "task05": task05,
-        "task06": task06, "task07": task07, "task08": task08, "task09": task09,
-        "task10": task10, "task11": task11, "task12": task12,
-        "task13": task13, "task14": task14, "task15": task15, "task16": task16,
-        "task17": task17, "task18": task18, "task19": task19, "task20": task20, "task21": task21,
-        "task22": task22,
-        "task23": task23, "task24": task24, "task25": task25, "task26": task26, "task27": task27,
-        "task28": task28, "task29": task29, "task30": task30, "task31": task31,
-        "task32": task32, "task33": task33, "task34": task34,
-        "task35": task35, "task36": task36, "task37": task37,
-    }
+    from ProViBackend.scripts.tasks import task_registry
+    _TASK_MODULES = task_registry.TASK_MODULES
 except ImportError:
-    _TASK_MODULES = {}
+    # These task modules are required for the task-idiom mapping. Failing fast
+    # here surfaces the problem in startup logs instead of silently returning an
+    # empty mapping (which makes the admin UI show every idiom for every task).
+    _logger.exception("Failed to import task modules required for /task-idioms")
+    raise
 from ProViBackend.utils import config, utils
 from ProViBackend.app.datamodels import data_schemas as ds
 import pathlib as pl
 
 import ProViBackend.utils.database.connection as dbc
 import ProViBackend.utils.redis_handler as redis_handler
+from ProViBackend.utils.database.migration import (
+    task_instances_to_configs,
+    task_configs_to_instances,
+)
 
 router = APIRouter(
     prefix="/admin"
@@ -75,10 +75,14 @@ def _validate_extension(filename: str, allowed: set, label: str) -> str:
 async def upload_dataset_pair(
     log: UploadFile,
     guideline: UploadFile,
-    background_tasks: BackgroundTasks,
     dataset_title: str = Form(None),
 ):
-    """Upload an event log + BPMN guideline; triggers the visualization pipeline asynchronously."""
+    """Upload an event log + BPMN guideline.
+
+    Generation no longer runs at upload time (see ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md
+    §7) — it is triggered per-experiment via POST /admin/experiments/{id}/generate,
+    once the admin has selected idioms (/idiom) and hyperparameters (/specify).
+    """
     # Validate file extensions BEFORE creating any directories on disk
     log_ext = _validate_extension(log.filename, ALLOWED_LOG_EXTENSIONS, "Event log")
     _validate_extension(guideline.filename, ALLOWED_MODEL_EXTENSIONS, "Guideline")
@@ -119,9 +123,6 @@ async def upload_dataset_pair(
 
         db = dbc.connect_to_database()
         db["DatasetPair"].insert_one(dataset_pair.model_dump())
-
-        if run_visualization_pipeline is not None:
-            background_tasks.add_task(run_visualization_pipeline, str(pair_dir))
 
         return {"dataset_id": pair_id}
     except HTTPException:
@@ -213,6 +214,26 @@ async def download_experiment_answers(experiment_id: str):
 
     # ── Clean up Task Answers columns ─────────────────────────────────────
     if not df_answers.empty:
+        # Resolve task_id → task_key + task_name
+        unique_task_ids = df_answers["task_id"].dropna().unique().tolist()
+        task_lookup = {}
+        for tid in unique_task_ids:
+            doc = dbc.get_document("Task", {"_id": tid})
+            if doc:
+                task_lookup[tid] = {"task_key": doc.get("task_key", ""), "task_name": doc.get("label", "")}
+        df_answers["task_key"] = df_answers["task_id"].map(lambda x: task_lookup.get(x, {}).get("task_key", ""))
+        df_answers["task_name"] = df_answers["task_id"].map(lambda x: task_lookup.get(x, {}).get("task_name", ""))
+
+        # Resolve idiom_id → idiom_key + idiom_name
+        unique_idiom_ids = df_answers["idiom_id"].dropna().unique().tolist()
+        idiom_lookup = {}
+        for iid in unique_idiom_ids:
+            doc = dbc.get_document("Idiom", {"_id": iid})
+            if doc:
+                idiom_lookup[iid] = {"idiom_key": doc.get("idiom_key", ""), "idiom_name": doc.get("label", "")}
+        df_answers["idiom_key"] = df_answers["idiom_id"].map(lambda x: idiom_lookup.get(x, {}).get("idiom_key", ""))
+        df_answers["idiom_name"] = df_answers["idiom_id"].map(lambda x: idiom_lookup.get(x, {}).get("idiom_name", ""))
+
         if "response_time_ms" in df_answers.columns:
             df_answers["response_time_s"] = (df_answers["response_time_ms"] / 1000).round(2)
             df_answers = df_answers.drop(columns=["response_time_ms"])
@@ -378,6 +399,40 @@ async def get_task_idioms():
     return JSONResponse(content=result)
 
 
+@router.get("/tasks/{task_key}/param-spec", tags=["admin"])
+async def get_task_param_spec(task_key: str, dataset_id: str | None = None):
+    """Return this task's hyperparameter spec for /specify (col E, see
+    ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4-5, §9-10).
+
+    Unauthored or param-free tasks return `param_spec: []`, which /specify
+    renders as "No parameters required — ready to generate". `dataset_id` is
+    accepted for forward-compatibility: once a task declares PARAM_SPEC entries
+    with a `source` (e.g. "log.activities"), candidate values for that dataset
+    are populated here (§14, step 6).
+    """
+    if task_key not in _TASK_MODULES:
+        raise HTTPException(status_code=404, detail=f"Unknown task '{task_key}'.")
+    return JSONResponse(content={
+        "task_key": task_key,
+        "param_spec": task_registry.get_param_spec(task_key),
+    })
+
+
+@router.get("/tasks/{task_key}/answer-formats", tags=["admin"])
+async def get_task_answer_formats(task_key: str):
+    """Return this task's allowed answer formats for /answer-format-groundtruth
+    (col D, see ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4-5, §11).
+
+    Unauthored tasks fall back to a single generic `free-text` format.
+    """
+    if task_key not in _TASK_MODULES:
+        raise HTTPException(status_code=404, detail=f"Unknown task '{task_key}'.")
+    return JSONResponse(content={
+        "task_key": task_key,
+        "answer_formats": task_registry.get_answer_formats(task_key),
+    })
+
+
 # ---------------------------------------------------------------------------
 # Question management
 # ---------------------------------------------------------------------------
@@ -412,6 +467,18 @@ async def get_experiments():
         if "_id" in doc and not isinstance(doc["_id"], str):
             doc["_id"] = str(doc["_id"])
     return JSONResponse(content=experiments)
+
+
+@router.get("/experiments/{experiment_id}", tags=["admin"])
+async def get_experiment(experiment_id: str):
+    """Return one experiment, including task_instances (with generation_status)
+    for polling after POST /experiments/{experiment_id}/generate."""
+    exp = dbc.get_document("Experiment", {"_id": experiment_id})
+    if not exp:
+        raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
+    if "_id" in exp and not isinstance(exp["_id"], str):
+        exp["_id"] = str(exp["_id"])
+    return JSONResponse(content=exp)
 
 
 @router.get("/experiments/{experiment_id}/stats", tags=["admin"])
@@ -488,60 +555,89 @@ async def update_experiment_status(experiment_id: str, status: str):
     return JSONResponse(content={"message": f"Experiment status updated to '{status}'."})
 
 
-def _sync_participant_experiment(experiment_id: str, participant_status: str):
-    """Build and upsert a ParticipantExperiment document for participant-facing queries."""
-    exp = dbc.get_document("Experiment", {"_id": experiment_id})
-    if not exp:
-        return
-    def _get_by_id(collection, id_str):
-        doc = dbc.get_document(collection, {"_id": id_str})
-        if doc:
-            return doc
-        try:
-            doc = dbc.get_document(collection, {"_id": ObjectId(id_str)})
-        except Exception:
-            pass
-        return doc
-
-    task_assignments = []
-    for tc in exp.get("task_configs", []):
-        task_doc = _get_by_id("Task", tc["task_id"])
-        idiom_doc = _get_by_id("Idiom", tc["idiom_id"])
-        task_key = task_doc["task_key"] if task_doc else None
-        idiom_key = idiom_doc["idiom_key"] if idiom_doc else None
-        pair_id = tc["dataset_id"]
-        svg_path = (
-            f"data/{pair_id}/output/{task_key}/{idiom_key}.svg"
-            if task_key and idiom_key else None
-        )
-        task_assignments.append({
-            "dataset_id": tc["dataset_id"],
-            "task_id": tc["task_id"],
-            "idiom_id": tc["idiom_id"],
-            "svg_path": svg_path,
-        })
-    db = dbc.connect_to_database()
-    db["ParticipantExperiment"].replace_one(
-        {"_id": experiment_id},
-        {
-            "_id": experiment_id,
-            "experiment_id": experiment_id,
-            "status": participant_status,
-            "task_assignments": task_assignments,
-        },
-        upsert=True,
-    )
-
-
 @router.patch("/experiments/{experiment_id}", tags=["admin"])
 async def update_experiment(experiment_id: str, update_data: ds.ExperimentUpdate):
-    fields: dict = {"task_configs": [tc.model_dump() for tc in update_data.task_configs]}
+    # Keep task_instances (canonical) and task_configs (legacy mirror) in sync,
+    # regardless of which one the caller sends.
+    fields: dict = {}
+    if update_data.task_instances is not None:
+        instances = [ti.model_dump() for ti in update_data.task_instances]
+        fields["task_instances"] = instances
+        fields["task_configs"] = task_instances_to_configs(instances)
+    elif update_data.task_configs is not None:
+        configs = [tc.model_dump() for tc in update_data.task_configs]
+        fields["task_configs"] = configs
+        fields["task_instances"] = task_configs_to_instances(configs)
     if update_data.status is not None:
         fields["status"] = update_data.status
+    if not fields:
+        raise HTTPException(status_code=400, detail="No fields to update.")
     updated = dbc.update_document("Experiment", query={"_id": experiment_id}, update={"$set": fields})
     if not updated:
         raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
     return JSONResponse(content={"message": "Experiment updated.", "experiment_id": experiment_id})
+
+
+def _run_generation_job(experiment_id: str, dataset_ids: list[str]):
+    """Background job: run the visualization pipeline for each dataset used by
+    this experiment, writing SVGs to the per-experiment output directory, then
+    mark every task_instance as 'ready' or 'failed' (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7)."""
+    exp = dbc.get_document("Experiment", {"_id": experiment_id})
+    if not exp:
+        return
+    task_instances = exp.get("task_instances", [])
+    errors: dict[str, str] = {}
+    for dataset_id in dataset_ids:
+        dataset_dir = DATA_DIRECTORY / dataset_id
+        try:
+            run_visualization_pipeline(str(dataset_dir), experiment_id=experiment_id)
+        except Exception as e:
+            _logger.exception("Generation failed for experiment %s, dataset %s", experiment_id, dataset_id)
+            errors[dataset_id] = str(e)
+    for ti in task_instances:
+        ds_id = ti.get("dataset_id")
+        if ds_id in errors:
+            ti["generation_status"] = "failed"
+            ti["generation_error"] = errors[ds_id]
+        else:
+            ti["generation_status"] = "ready"
+            ti["generation_error"] = None
+    dbc.update_document("Experiment", {"_id": experiment_id}, {"$set": {
+        "task_instances": task_instances,
+        "task_configs": task_instances_to_configs(task_instances),
+    }})
+
+
+@router.post("/experiments/{experiment_id}/generate", tags=["admin"])
+async def generate_experiment_visualizations(experiment_id: str, background_tasks: BackgroundTasks):
+    """Run the visualization pipeline for this experiment's datasets in the
+    background, writing SVGs to data/{dataset_id}/output/{experiment_id}/...
+    (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7). Poll GET /experiments/{experiment_id}
+    for per-task generation_status."""
+    exp = dbc.get_document("Experiment", {"_id": experiment_id})
+    if not exp:
+        raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
+    task_instances = exp.get("task_instances", [])
+    if not task_instances:
+        raise HTTPException(status_code=400, detail="Experiment has no task_instances to generate.")
+    if run_visualization_pipeline is None:
+        raise HTTPException(status_code=503, detail="Visualization pipeline unavailable.")
+
+    for ti in task_instances:
+        ti["generation_status"] = "running"
+        ti["generation_error"] = None
+    dbc.update_document("Experiment", {"_id": experiment_id}, {"$set": {
+        "task_instances": task_instances,
+        "task_configs": task_instances_to_configs(task_instances),
+    }})
+
+    dataset_ids = sorted({ti["dataset_id"] for ti in task_instances if ti.get("dataset_id")})
+    background_tasks.add_task(_run_generation_job, experiment_id, dataset_ids)
+    return JSONResponse(content={
+        "message": "Generation started.",
+        "experiment_id": experiment_id,
+        "dataset_ids": dataset_ids,
+    })
 
 
 # ---------------------------------------------------------------------------

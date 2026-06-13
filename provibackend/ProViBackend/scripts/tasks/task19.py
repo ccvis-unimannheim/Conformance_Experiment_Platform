@@ -57,7 +57,7 @@ from shared import (
     alignment_pairs_to_rows, chevron_nodes_from_alignment_rows, draw_chevron_strip,
     chevron_figure_width, parse_bpmn_model, compose_bpmn_panels, render_bpmn_annotated,
     contrasting_text_color, place_scatter_labels,
-    BLUE, ORANGE, GREEN, RED, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 # Reuse: the exact process-goal (outcome activity) logic from task31.
@@ -214,8 +214,8 @@ def _effect_table_data(records, top_n=TOP_N):
 
 
 def _effect_colors(records):
-    """Signed bar colours: negative (missing goal) = RED, positive = BLUE."""
-    return [RED if r["risk_diff"] < 0 else BLUE for r in records]
+    """Signed bar colours: negative (missing goal) = GREY_DARK, positive = GREY_MED."""
+    return [GREY_DARK if r["risk_diff"] < 0 else GREY_MED for r in records]
 
 
 # ---------------------------------------------------------------------------
@@ -247,8 +247,8 @@ def task19_bar_chart(eff, output_dir):
     ax.set_xlabel("Risk difference in goal rate (percentage points)", fontsize=FONT_LABEL)
     ax.set_title("Violation Patterns Associated with the Process Goal", fontsize=FONT_TITLE)
     ax.legend(handles=[
-        mpatches.Patch(color=RED, label="Associated with missing the goal (−)"),
-        mpatches.Patch(color=BLUE, label="Associated with achieving the goal (+)"),
+        mpatches.Patch(color=GREY_DARK, label="Associated with missing the goal (−)"),
+        mpatches.Patch(color=GREY_MED, label="Associated with achieving the goal (+)"),
         mpatches.Patch(facecolor="#cccccc", hatch="//", label=f"Low support (< {MIN_SUPPORT} traces)"),
     ], frameon=False, fontsize=FONT_ANNOT - 1, loc="lower right")
     ax.spines[["top", "right"]].set_visible(False)
@@ -271,7 +271,7 @@ def task19_scatter_plot(eff, output_dir):
     for r in records:
         low = r["low_support"]
         ax.scatter(r["support"], r["risk_diff"],
-                   s=60, c=(RED if r["risk_diff"] < 0 else BLUE),
+                   s=60, c=(GREY_DARK if r["risk_diff"] < 0 else GREY_MED),
                    alpha=0.35 if low else 0.85,
                    edgecolors="#333333", linewidths=0.8,
                    marker="o" if not low else "D")
@@ -380,10 +380,10 @@ def task19_parallel_sets(eff, output_dir):
 
     fig, ax = plt.subplots(figsize=(10, max(6, len(left_labels) * 0.5 + 2)))
     ax.axis("off")
-    left_colors = [BLUE if i % 2 == 0 else ORANGE for i in range(len(left_labels))]
+    left_colors = [GREY_MED if i % 2 == 0 else GREY_LIGHT for i in range(len(left_labels))]
     draw_parallel_sets(
         ax, left_labels, ["Goal achieved", "Goal missed"], matrix, left_colors,
-        right_colors=[GREEN, RED],
+        right_colors=[GREY_LIGHTER, GREY_DARK],
         left_title="Top violation pattern present", right_title="Process goal",
     )
     # Title above the column headers (which draw_parallel_sets places at y=1.08).

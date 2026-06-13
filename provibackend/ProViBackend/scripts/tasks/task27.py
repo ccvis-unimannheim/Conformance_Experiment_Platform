@@ -41,7 +41,7 @@ from shared import (
     draw_composition_stacked_bars, draw_grouped_box_plot, draw_value_heatmap,
     draw_gantt_strips, calendar_heatmap, render_empty_state_svg,
     parse_bpmn_model, compose_bpmn_panels, contrasting_text_color,
-    BLUE, ORANGE, GREEN, RED, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 TOP_N = 15
@@ -49,8 +49,8 @@ TOP_N = 15
 STRIPS_PER_STATUS = 3
 
 # Two-colour status palette, consistent with task03/task04
-_COLOR_CONFORM     = BLUE
-_COLOR_NON_CONFORM = ORANGE
+_COLOR_CONFORM     = GREY_MED
+_COLOR_NON_CONFORM = GREY_LIGHT
 _STATUS_COLORS = {"Conformant": _COLOR_CONFORM, "Non-conformant": _COLOR_NON_CONFORM}
 
 
@@ -245,7 +245,7 @@ def task27_parallel_sets(vdf: pd.DataFrame, output_dir: str):
 
 # Cell categories (code order = drawing precedence; higher code wins per cell)
 _REL_ABSENT, _REL_CONFORM, _REL_UNEXPECTED, _REL_SKIPPED = 0, 1, 2, 3
-_REL_COLORS = ["#FFFFFF", GREEN, RED, BLUE]
+_REL_COLORS = ["#FFFFFF", GREY_LIGHTER, GREY_DARK, GREY_MED]
 _REL_LABELS = ["Absent", "Contained (conform)", "Unexpected (log move)",
                "Skipped (model move)"]
 
@@ -340,13 +340,13 @@ def task27_matrix(vdf: pd.DataFrame, alignments, output_dir: str):
 
 def _chevron_move_legend_handles():
     return [
-        mpatches.Patch(facecolor=GREEN,  edgecolor="black", linewidth=0.75,
+        mpatches.Patch(facecolor=GREY_LIGHTER,  edgecolor="black", linewidth=0.75,
                        label="Synchronous move (Conform)"),
-        mpatches.Patch(facecolor=BLUE,   edgecolor="black", linewidth=0.75,
+        mpatches.Patch(facecolor=GREY_MED,   edgecolor="black", linewidth=0.75,
                        label="Model move only"),
-        mpatches.Patch(facecolor=RED,    edgecolor="black", linewidth=0.75,
+        mpatches.Patch(facecolor=GREY_DARK,    edgecolor="black", linewidth=0.75,
                        label="Log move only"),
-        mpatches.Patch(facecolor=ORANGE, edgecolor="black", linewidth=0.75,
+        mpatches.Patch(facecolor=GREY_LIGHT, edgecolor="black", linewidth=0.75,
                        label="Mismatch move"),
     ]
 
@@ -589,11 +589,11 @@ def _task27_exemplar_style(rep_rows):
         name = elem.get("name", "")
         if elem.get("kind") == "task":
             if name in skipped:
-                return (BLUE, "#444444", 3, contrasting_text_color(BLUE))
+                return (GREY_MED, "#444444", 3, contrasting_text_color(GREY_MED))
             if name in mismatch:
-                return (ORANGE, "#444444", 3, contrasting_text_color(ORANGE))
+                return (GREY_LIGHT, "#444444", 3, contrasting_text_color(GREY_LIGHT))
             if name in conform:
-                return (GREEN, "#666666", 2, contrasting_text_color(GREEN))
+                return (GREY_LIGHTER, "#666666", 2, contrasting_text_color(GREY_LIGHTER))
         return ("white", "#888888", 2, "#333333")
     return _style
 
@@ -641,9 +641,9 @@ def task27_flow_chart_elaborate_table(vdf, alignments, model_path, output_dir):
         os.path.join(output_dir, "task27_flow_chart_elaborate_table.svg"),
         title="Conformant vs. Non-conformant Variant Exemplars on the Model",
         legend_items=[
-            (GREEN,  "#666666", 2, "Conform (synchronous)"),
-            (BLUE,   "#444444", 3, "Model move (skipped)"),
-            (ORANGE, "#444444", 3, "Mismatch move"),
+            (GREY_LIGHTER,  "#666666", 2, "Conform (synchronous)"),
+            (GREY_MED,   "#444444", 3, "Model move (skipped)"),
+            (GREY_LIGHT, "#444444", 3, "Mismatch move"),
             ("white", "#888888", 2, "Not on this trace"),
         ],
         table_rows=table_rows,

@@ -17,6 +17,9 @@ export default function NewExperimentPage() {
   const [loadingPairs, setLoadingPairs] = useState(true);
   const [pairsError, setPairsError] = useState(null);
 
+  const [randomizeOrder, setRandomizeOrder] = useState(true);
+  const [designType, setDesignType] = useState("between");
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
 
@@ -66,12 +69,12 @@ export default function NewExperimentPage() {
           name: name.trim(),
           type: "CC",
           status: "draft",
-          design_type: "between",
+          design_type: designType,
           between_factors: [],
           within_factors: [],
           stratification_fields: [],
           between_balance_mode: "random",
-          within_sequence_mode: "fixed",
+          within_sequence_mode: randomizeOrder ? "random" : "fixed",
           dataset_ids: Array.from(selectedIds),
           task_configs: [],
           created_by: "admin",
@@ -119,6 +122,65 @@ export default function NewExperimentPage() {
             error={pairsError}
           />
         </div>
+
+        <section className="mt-section-gap bg-surface-container-lowest p-gutter rounded-xl border border-outline-variant">
+          <h2 className="text-h2 text-primary mb-6">Experiment Settings</h2>
+          <div className="space-y-6">
+            <div>
+              <p className="text-label-caps text-on-surface-variant mb-3">STUDY DESIGN</p>
+              <div className="flex gap-3">
+                {[
+                  { value: "between", label: "Between-subjects", desc: "Each participant sees one idiom per task (balanced random allocation)." },
+                  { value: "within",  label: "Within-subjects",  desc: "Each participant sees all idioms for every task." },
+                ].map(({ value, label, desc }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setDesignType(value)}
+                    className={`flex-1 text-left px-4 py-3 rounded-lg border transition-all ${
+                      designType === value
+                        ? "border-primary bg-primary/5"
+                        : "border-outline-variant hover:border-primary/50"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+                        designType === value ? "border-primary" : "border-outline-variant"
+                      }`}>
+                        {designType === value && (
+                          <div className="w-2 h-2 rounded-full bg-primary" />
+                        )}
+                      </div>
+                      <span className={`text-body-sm font-medium ${designType === value ? "text-primary" : "text-on-surface"}`}>
+                        {label}
+                      </span>
+                    </div>
+                    <p className="text-body-xs text-secondary ml-6">{desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-label-caps text-on-surface-variant mb-3">TRIAL ORDER</p>
+              <div
+                className="flex items-center gap-3 cursor-pointer"
+                onClick={() => setRandomizeOrder((v) => !v)}
+              >
+                <div className={`w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+                  randomizeOrder ? "bg-primary border-primary" : "border-outline-variant"
+                }`}>
+                  {randomizeOrder && (
+                    <span className="material-symbols-outlined text-white leading-none" style={{ fontSize: "11px" }}>check</span>
+                  )}
+                </div>
+                <span className="text-body-sm text-on-surface select-none">
+                  Randomize question order for each participant
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
 
         {submitError && (
           <p className="mt-6 text-body-sm text-error">{submitError}</p>

@@ -1,15 +1,17 @@
 """
 Participant assignment logic: balanced random idiom allocation.
 
-When a participant joins an experiment, this module assigns them exactly one
-idiom per task. The selection uses a counter-based balancing strategy: for
-each task, the idiom with the fewest prior assignments is chosen (random
-tiebreak), so the distribution across idioms stays equal over time.
+Between-subjects: for each task the idiom with the fewest prior assignments is
+chosen (random tiebreak), keeping the distribution across idioms equal over time.
 
-Note on concurrency: if two participants call this simultaneously, both may
-read the same counts and land on the same idiom. For typical research
-experiment sizes (<200 participants) this slight skew is acceptable. If strict
-balance is required, wrap the read-count + insert in a MongoDB transaction.
+Within-subjects: every participant receives all idioms for every task; the full
+trial list is shuffled when within_sequence_mode == "random".
+
+Note on concurrency: if two participants call this simultaneously in between
+mode, both may read the same counts and land on the same idiom. For typical
+research experiment sizes (<200 participants) this slight skew is acceptable.
+If strict balance is required, wrap the read-count + insert in a MongoDB
+transaction.
 """
 
 import random
@@ -75,17 +77,16 @@ def assign_participant_to_experiment(user_id: str, experiment_id: str) -> dict:
     """
     Create and persist a balanced idiom assignment for a participant.
 
-    - If the participant already has an assignment for this experiment, the
-      existing document is returned unchanged (idempotent).
-    - Otherwise, for each task in the experiment one idiom is chosen (least
-      assigned so far, random tiebreak) and a UserAssignment document is
-      written to MongoDB.
+    - Idempotent: returns the existing assignment unchanged on repeat calls.
+    - Between-subjects: one idiom per task chosen via least-assigned balancing
+      (random tiebreak). group_id is set to the sorted assigned idiom_ids.
+    - Within-subjects: all idioms for every task are included; every participant
+      sees the full set. group_id is set to "within".
+    - Trial order is shuffled when within_sequence_mode == "random".
 
     Returns the UserAssignment document dict (including '_id').
-
     Raises ValueError when the experiment is missing or has no task_configs.
     """
-    # Idempotency guard — never create two assignments for the same pair
     existing = dbc.get_user_assignment(user_id, experiment_id)
     if existing:
         return existing
@@ -98,31 +99,44 @@ def assign_participant_to_experiment(user_id: str, experiment_id: str) -> dict:
     if not task_configs:
         raise ValueError(f"Experiment '{experiment_id}' has no task_configs.")
 
+    design_type = experiment.get("design_type", "between")
     grouped = _group_configs_by_task(task_configs)
 
-    # assigned_between: {task_id: idiom_id}  (for between-subjects tracking)
     assigned_between: dict[str, str] = {}
-    # trial_sequence: ordered list of "task_id::idiom_id::dataset_id" tokens
     trial_sequence: list[str] = []
+    group_id: str = ""
 
-    for task_id, options in grouped.items():
-        candidate_ids = [opt["idiom_id"] for opt in options]
-        counts = _count_idiom_assignments(experiment_id, task_id, candidate_ids)
-        chosen = _pick_least_assigned(options, counts)
+    if design_type == "within":
+        # Within-subjects: participant sees ALL idioms for every task
+        for task_id, options in grouped.items():
+            for opt in options:
+                trial_sequence.append(
+                    f"{task_id}::{opt['idiom_id']}::{opt['dataset_id']}"
+                )
+        if experiment.get("within_sequence_mode", "fixed") == "random":
+            random.shuffle(trial_sequence)
+        group_id = "within"
+    else:
+        # Between-subjects: one idiom per task, least-assigned balancing
+        for task_id, options in grouped.items():
+            candidate_ids = [opt["idiom_id"] for opt in options]
+            counts = _count_idiom_assignments(experiment_id, task_id, candidate_ids)
+            chosen = _pick_least_assigned(options, counts)
 
-        assigned_between[task_id] = chosen["idiom_id"]
-        trial_sequence.append(
-            f"{task_id}::{chosen['idiom_id']}::{chosen['dataset_id']}"
-        )
-
-    # Randomise the presentation order of tasks for this participant
-    random.shuffle(trial_sequence)
+            assigned_between[task_id] = chosen["idiom_id"]
+            trial_sequence.append(
+                f"{task_id}::{chosen['idiom_id']}::{chosen['dataset_id']}"
+            )
+        if experiment.get("within_sequence_mode", "fixed") == "random":
+            random.shuffle(trial_sequence)
+        # group_id encodes which idiom was assigned per task (sorted by task_id)
+        group_id = ",".join(iid for _, iid in sorted(assigned_between.items()))
 
     assignment_doc = {
         "_id": str(uuid.uuid4()),
         "experiment_id": experiment_id,
         "user_id": user_id,
-        "group_id": "",
+        "group_id": group_id,
         "assigned_between": assigned_between,
         "trial_sequence": trial_sequence,
         "current_trial_index": 0,

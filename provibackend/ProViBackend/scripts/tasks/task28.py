@@ -29,8 +29,7 @@ from matplotlib import gridspec
 from matplotlib.colors import LinearSegmentedColormap
 
 from shared import (
-    save_svg, make_table, BLUE, ORANGE, GREEN, RED,
-    FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    save_svg, make_table, GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
     chevron_figure_width, chevron_nodes_from_alignment_rows, draw_chevron_strip,
     alignment_pairs_to_rows, build_violation_pattern_df,
     draw_value_heatmap, draw_rate_matrix, draw_grouped_box_plot,
@@ -167,9 +166,9 @@ def _add_task28_table_heading(fig, ctx, *, x=0.055, y=0.86, compact=False):
 
 def _task28_move_legend_elements():
     return [
-        mpatches.Patch(facecolor=GREEN, edgecolor="black", linewidth=0.75, label="Synchronous move (Conform)"),
-        mpatches.Patch(facecolor=BLUE, edgecolor="black", linewidth=0.75, label="Model move only"),
-        mpatches.Patch(facecolor=RED, edgecolor="black", linewidth=0.75, label="Log move only"),
+        mpatches.Patch(facecolor=GREY_LIGHTER, edgecolor="black", linewidth=0.75, label="Synchronous move (Conform)"),
+        mpatches.Patch(facecolor=GREY_MED, edgecolor="black", linewidth=0.75, label="Model move only"),
+        mpatches.Patch(facecolor=GREY_DARK, edgecolor="black", linewidth=0.75, label="Log move only"),
     ]
 
 
@@ -278,7 +277,6 @@ def task28_flow_chart_and_table(ctx: dict, output_dir: str):
 
 
 _MISSING_MOVE_TOKENS = {"-", "None", "(skip)", ">>", ""}
-
 
 def _trace_act_status(rows):
     """activity -> alignment status for one trace. Deviations override 'conform'."""

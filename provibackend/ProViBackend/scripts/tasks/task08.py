@@ -11,10 +11,15 @@ Skipped (require BPMN rendering infrastructure):
     flow_table, flow_plus, flow_plus_table
 
 Public API:
-    generate(log, alignments, output_dir)
+    generate(log, alignments, output_dir, high_cooccurrence_threshold=0.1)
         log        – PM4Py EventLog (for total trace count)
         alignments – list[dict] from pm4py.conformance_diagnostics_alignments
         output_dir – directory where SVGs are written
+        high_cooccurrence_threshold – share of traces (0–1) at/above which a
+                       violation pair's co-occurrence is regarded as "high".
+                       Drawn neutrally as a reference value on the co-occurrence
+                       idioms; no pair is flagged pass/fail, so the analyst
+                       decides which correlations are noteworthy.
 """
 
 import logging
@@ -59,8 +64,31 @@ _CMAP_SEQ = "Greys"     # sequential: white → black
 _TOP_N = 12
 # Min co-occurrence count for network edges / scatter points
 _MIN_COOCCUR = 1
+# Default share of traces at/above which a pair's co-occurrence counts as "high".
+# Neutral reference only — no pair is flagged pass/fail. Overridable via
+# generate(high_cooccurrence_threshold=...).
+DEFAULT_HIGH_COOCCURRENCE_THRESHOLD = 0.1
 
 SKIP_TOKENS = {">>", None}
+
+
+def _cooccur_threshold_caption(thr_count: float, thr_frac: float) -> str:
+    """Neutral one-line label describing the high-co-occurrence reference value."""
+    return (f"High co-occurrence threshold: ≥ {thr_count:.0f} traces "
+            f"({thr_frac * 100:.0f}% of all traces)")
+
+
+def _add_threshold_footer(fig, thr_count, thr_frac):
+    """Lay out the figure with a reserved bottom band and place the high
+    co-occurrence reference there as a centered footer.
+
+    Using a figure-level footer (in the reserved band) keeps the caption clear
+    of axes content, rotated tick labels and legends, which is where the older
+    in-axes caption used to collide.
+    """
+    fig.tight_layout(rect=(0, 0.06, 1, 1))
+    fig.text(0.5, 0.02, _cooccur_threshold_caption(thr_count, thr_frac),
+             ha="center", va="bottom", fontsize=FONT_ANNOT, color=_C_MED)
 
 
 # ---------------------------------------------------------------------------
@@ -213,7 +241,7 @@ def _build_cooccur_matrix(top_viols, violation_freq, cooccurrence):
     return mat
 
 
-def task08_heatmap(violation_freq, cooccurrence, output_dir):
+def task08_heatmap(violation_freq, cooccurrence, output_dir, thr_count, thr_frac):
     if not violation_freq:
         _no_violations(output_dir, "heatmap")
         return
@@ -239,10 +267,14 @@ def task08_heatmap(violation_freq, cooccurrence, output_dir):
     cbar = fig.colorbar(im, ax=ax, fraction=0.03, pad=0.02)
     cbar.set_label("Co-occurrence count", fontsize=FONT_ANNOT)
     cbar.outline.set_visible(False)
+    # Neutral reference line marking the "high co-occurrence" threshold on the
+    # colour scale (no cell is highlighted — the reader decides what is high).
+    if 0 < thr_count <= mat.max():
+        cbar.ax.axhline(thr_count, color=_C_DARK, linewidth=1.2, linestyle="--")
 
     ax.set_title("Violation Co-occurrence Heatmap\n(diagonal = individual frequency)",
                  fontsize=FONT_TITLE)
-    fig.tight_layout()
+    _add_threshold_footer(fig, thr_count, thr_frac)
     save_svg(fig, os.path.join(output_dir, "task08_heatmap.svg"))
 
 
@@ -250,7 +282,7 @@ def task08_heatmap(violation_freq, cooccurrence, output_dir):
 # Idiom 3: Matrix — same as heatmap but with numbers in each cell
 # ---------------------------------------------------------------------------
 
-def task08_matrix(violation_freq, cooccurrence, output_dir):
+def task08_matrix(violation_freq, cooccurrence, output_dir, thr_count, thr_frac):
     if not violation_freq:
         _no_violations(output_dir, "matrix")
         return
@@ -284,7 +316,7 @@ def task08_matrix(violation_freq, cooccurrence, output_dir):
 
     ax.set_title("Violation Co-occurrence Matrix\n(diagonal = individual frequency)",
                  fontsize=FONT_TITLE)
-    fig.tight_layout()
+    _add_threshold_footer(fig, thr_count, thr_frac)
     save_svg(fig, os.path.join(output_dir, "task08_matrix.svg"))
 
 
@@ -292,7 +324,7 @@ def task08_matrix(violation_freq, cooccurrence, output_dir):
 # Idiom 4: Network Diagram — violations as nodes, co-occurrence as edges
 # ---------------------------------------------------------------------------
 
-def task08_network_diagram(violation_freq, cooccurrence, output_dir):
+def task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count, thr_frac):
     try:
         import networkx as nx
     except ImportError:
@@ -396,7 +428,7 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir):
                  "(node size = frequency · edge width & shade = co-occurrence count)",
                  fontsize=FONT_TITLE)
     ax.axis("off")
-    fig.tight_layout()
+    _add_threshold_footer(fig, thr_count, thr_frac)
     save_svg(fig, os.path.join(output_dir, "task08_network_diagram.svg"))
 
 
@@ -404,7 +436,8 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir):
 # Idiom 5: Scatter Plot — each point = a violation pair
 # ---------------------------------------------------------------------------
 
-def task08_scatter_plot(violation_freq, cooccurrence, n_traces, output_dir):
+def task08_scatter_plot(violation_freq, cooccurrence, n_traces, output_dir,
+                        thr_count, thr_frac):
     """Scatter: X = freq(A), Y = freq(B), bubble size = co-occurrence count.
 
     Only top 12 pairs shown (by co-occurrence). Small jitter separates points
@@ -471,6 +504,10 @@ def task08_scatter_plot(violation_freq, cooccurrence, n_traces, output_dir):
     cbar = fig.colorbar(sc, ax=ax, fraction=0.03, pad=0.02)
     cbar.set_label("Co-occurrence count", fontsize=FONT_ANNOT)
     cbar.outline.set_visible(False)
+    # Neutral reference line marking the "high co-occurrence" threshold on the
+    # colour scale (no point is highlighted — the reader decides what is high).
+    if 0 < thr_count <= cc_max:
+        cbar.ax.axhline(thr_count, color=_C_DARK, linewidth=1.2, linestyle="--")
 
     ax.set_xlabel("Frequency of Violation A  (traces)", fontsize=FONT_LABEL)
     ax.set_ylabel("Frequency of Violation B  (traces)", fontsize=FONT_LABEL)
@@ -481,7 +518,7 @@ def task08_scatter_plot(violation_freq, cooccurrence, n_traces, output_dir):
     ax.yaxis.grid(True, linestyle="--", alpha=0.3)
     ax.set_axisbelow(True)
 
-    fig.tight_layout()
+    _add_threshold_footer(fig, thr_count, thr_frac)
     save_svg(fig, os.path.join(output_dir, "task08_scatter_plot.svg"))
 
 
@@ -489,7 +526,8 @@ def task08_scatter_plot(violation_freq, cooccurrence, n_traces, output_dir):
 # Idiom 6: Table — ranked co-occurrence pairs
 # ---------------------------------------------------------------------------
 
-def task08_table(violation_freq, cooccurrence, n_traces, output_dir):
+def task08_table(violation_freq, cooccurrence, n_traces, output_dir,
+                 thr_count, thr_frac):
     if not cooccurrence:
         _no_violations(output_dir, "table")
         return
@@ -537,7 +575,7 @@ def task08_table(violation_freq, cooccurrence, n_traces, output_dir):
 
     ax.set_title("Top Violation Co-occurrences", fontsize=FONT_TITLE,
                  pad=12, loc="left")
-    fig.tight_layout()
+    _add_threshold_footer(fig, thr_count, thr_frac)
     save_svg(fig, os.path.join(output_dir, "task08_table.svg"))
 
 
@@ -545,7 +583,8 @@ def task08_table(violation_freq, cooccurrence, n_traces, output_dir):
 # Idiom 7: Table & Bar Chart — left bar chart + right table
 # ---------------------------------------------------------------------------
 
-def task08_table_bar_chart(violation_freq, cooccurrence, n_traces, output_dir):
+def task08_table_bar_chart(violation_freq, cooccurrence, n_traces, output_dir,
+                           thr_count, thr_frac):
     if not violation_freq:
         _no_violations(output_dir, "table_bar_chart")
         return
@@ -597,7 +636,7 @@ def task08_table_bar_chart(violation_freq, cooccurrence, n_traces, output_dir):
 
     fig.suptitle("Violation Frequency & Top Co-occurrences", fontsize=FONT_TITLE,
                  y=1.01, fontweight="bold")
-    fig.tight_layout()
+    _add_threshold_footer(fig, thr_count, thr_frac)
     save_svg(fig, os.path.join(output_dir, "task08_table_bar_chart.svg"))
 
 
@@ -607,12 +646,24 @@ def task08_table_bar_chart(violation_freq, cooccurrence, n_traces, output_dir):
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def generate(log, alignments, output_dir: str):
-    """Generate all Task 8 SVGs into output_dir."""
+def generate(log, alignments, output_dir: str,
+             high_cooccurrence_threshold: float = DEFAULT_HIGH_COOCCURRENCE_THRESHOLD):
+    """Generate all Task 8 SVGs into output_dir.
+
+    high_cooccurrence_threshold : float
+        Share of traces (0–1) at/above which a violation pair's co-occurrence is
+        regarded as "high". Drawn neutrally as a reference value on the
+        co-occurrence idioms — no pair is flagged pass/fail, so the analyst
+        decides which correlations are noteworthy.
+    """
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 8 visualizations (Violation co-occurrence patterns) ---")
 
     n_traces = len(log)
+    thr_frac  = high_cooccurrence_threshold
+    thr_count = thr_frac * n_traces
+    logger.info(f"      High co-occurrence threshold: {thr_frac * 100:.0f}% "
+                f"(≥ {thr_count:.0f} of {n_traces} traces)")
     violation_sets, violation_freq, cooccurrence = _extract_violation_data(alignments)
 
     n_with_viols = sum(1 for vs in violation_sets if vs)

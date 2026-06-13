@@ -32,7 +32,7 @@ from shared import (
     save_svg, make_table, draw_parallel_sets, build_violation_pattern_df,
     render_empty_state_svg, contrasting_text_color,
     parse_bpmn_model, render_bpmn_annotated, draw_value_heatmap,
-    RED, ORANGE, GREEN, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    GREY_DARK, GREY_LIGHT, GREY_LIGHTER, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 TOP_N = 12
@@ -76,7 +76,7 @@ def resolve_severity(activity: str, move_type: str) -> str:
 
 # Consistent severity colours across ALL idioms of this task
 # (greyscale palette per house style: dark = grave).
-SEVERITY_COLORS = {"High": RED, "Medium": ORANGE, "Low": GREEN}
+SEVERITY_COLORS = {"High": GREY_DARK, "Medium": GREY_LIGHT, "Low": GREY_LIGHTER}
 _SEVERITY_RANK = {s: i for i, s in enumerate(SEVERITY_LEVELS)}
 
 

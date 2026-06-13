@@ -29,7 +29,7 @@ import matplotlib.colors as mcolors
 
 from shared import (
     save_svg, build_fitness_time_series,
-    BLUE, ORANGE, GREEN, RED, TEAL, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 # Maximum traces shown in the Gantt chart (readability + cognitive load)
@@ -98,12 +98,12 @@ def task07_line_graph(df: pd.DataFrame, output_dir: str):
     x = binned["time_bin"]
     y = binned["avg_fitness"]
 
-    ax.fill_between(x, y, alpha=0.18, color=BLUE)
-    ax.plot(x, y, color=BLUE, linewidth=1.8, marker="o", markersize=4)
+    ax.fill_between(x, y, alpha=0.18, color=GREY_MED)
+    ax.plot(x, y, color=GREY_MED, linewidth=1.8, marker="o", markersize=4)
 
     # Overall mean reference line
     overall_mean = df["fitness"].mean()
-    ax.axhline(overall_mean, color=ORANGE, linewidth=1.2,
+    ax.axhline(overall_mean, color=GREY_LIGHT, linewidth=1.2,
                linestyle="--", label=f"Overall mean: {overall_mean:.2f}")
 
     ax.set_ylim(-0.05, 1.1)
@@ -151,10 +151,10 @@ def task07_horizon_chart(df: pd.DataFrame, output_dir: str):
     # Continuous filled areas relative to mean baseline
     ax.fill_between(x, mean_val, y,
                     where=(y >= mean_val), interpolate=True,
-                    color=RED, alpha=0.75, label="Above mean (higher conformance)")
+                    color=GREY_DARK, alpha=0.75, label="Above mean (higher conformance)")
     ax.fill_between(x, mean_val, y,
                     where=(y <= mean_val), interpolate=True,
-                    color=GREEN, alpha=0.75, label="Below mean (lower conformance)")
+                    color=GREY_LIGHTER, alpha=0.75, label="Below mean (lower conformance)")
 
     # Thin line connecting data points for readability
     ax.plot(x, y, color="#444444", linewidth=0.9, alpha=0.5)
@@ -195,7 +195,8 @@ def task07_horizon_chart(df: pd.DataFrame, output_dir: str):
 def task07_gantt_chart(df: pd.DataFrame, output_dir: str):
     """Gantt chart: one row per trace, bar spanning start→end time.
 
-    Bar color encodes fitness via red→teal colormap scaled to actual data range.
+    Bar shade encodes fitness via a white→black greyscale colormap scaled to
+    the actual data range.
     X-axis shows month/year labels; outlier traces clipped at 95th-pct end time.
     Capped at _GANTT_MAX_TRACES rows for readability.
     """

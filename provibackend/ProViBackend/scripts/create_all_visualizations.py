@@ -192,8 +192,15 @@ def _auto_detect_compare_attribute(log, preferred: str) -> str:
     return preferred
 
 
-def _resolve_dataset_paths(dataset_dir: str):
-    """Locate log and model files inside <dataset_dir>/input/ by extension; create output dir."""
+def _resolve_dataset_paths(dataset_dir: str, experiment_id: str | None = None):
+    """Locate log and model files inside <dataset_dir>/input/ by extension; create output dir.
+
+    When `experiment_id` is given, SVGs are written to a per-experiment
+    subdirectory (`output/{experiment_id}/...`, see
+    ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7) so multiple experiments sharing the
+    same dataset can hold independently-generated idioms. Without it (CLI /
+    legacy use), the original `output/...` layout is used.
+    """
     if not os.path.isdir(dataset_dir):
         raise FileNotFoundError(f"Dataset directory not found: {dataset_dir}")
 
@@ -225,7 +232,10 @@ def _resolve_dataset_paths(dataset_dir: str):
             f"Expected a file with extension: {', '.join(sorted(MODEL_EXTENSIONS))}"
         )
 
-    output_dir = os.path.join(dataset_dir, OUTPUT_SUBDIR)
+    if experiment_id:
+        output_dir = os.path.join(dataset_dir, OUTPUT_SUBDIR, experiment_id)
+    else:
+        output_dir = os.path.join(dataset_dir, OUTPUT_SUBDIR)
     os.makedirs(output_dir, exist_ok=True)
 
     return log_path, model_path, output_dir
@@ -235,8 +245,11 @@ def _resolve_dataset_paths(dataset_dir: str):
 # Public entry point – called by both the CLI and the FastAPI backend
 # ---------------------------------------------------------------------------
 
-def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED",
-                 compare_attribute: str = "AMOUNT_REQ") -> str:
+def run_pipeline(dataset_dir: str, experiment_id: str | None = None,
+                 outcome_activity: str = "A_ACTIVATED",
+                 compare_attribute: str = "AMOUNT_REQ",
+                 predominant_threshold: float = 0.8,
+                 high_cooccurrence_threshold: float = 0.1) -> str:
     """Run the full visualization pipeline for one dataset directory.
 
     Parameters
@@ -244,14 +257,20 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED",
     dataset_dir : str
         Path to the dataset folder (must contain input/EventLog.{xes|csv}
         and input/Guideline.bpmn).
-    output_dir : str, optional
-        Where to write task SVG subdirectories.  Defaults to
-        ``<dataset_dir>/output/`` when not supplied.
+    experiment_id : str, optional
+        When given, SVGs are written to ``<dataset_dir>/output/{experiment_id}/``
+        instead of ``<dataset_dir>/output/`` (see ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7).
     outcome_activity : str
         Activity name that marks a positive process outcome (used by Task 6).
     compare_attribute : str
         Case-level data attribute used by Task 30 to split the log into
         sub-logs (numeric → median split, categorical → value groups).
+    predominant_threshold : float
+        Fitness level (0–1) above which Task 2 considers the overall behaviour
+        to "predominantly" follow the desired executions in the model.
+    high_cooccurrence_threshold : float
+        Share of traces (0–1) at/above which Task 8 marks a violation pair's
+        co-occurrence as "high" (drawn neutrally as a reference value).
 
     Returns
     -------
@@ -260,7 +279,7 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED",
     """
     import pathlib
 
-    log_path, model_path, output_dir = _resolve_dataset_paths(dataset_dir)
+    log_path, model_path, output_dir = _resolve_dataset_paths(dataset_dir, experiment_id)
 
     logger.error(f"Dataset directory : {os.path.abspath(dataset_dir)}")
     logger.info(f"Event log         : {log_path}")
@@ -268,6 +287,8 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED",
     logger.info(f"Output directory  : {output_dir}")
     logger.info(f"Outcome activity  : {outcome_activity}")
     logger.info(f"Compare attribute : {compare_attribute}")
+    logger.info(f"Predominant thresh: {predominant_threshold}")
+    logger.info(f"High co-occ thresh: {high_cooccurrence_threshold}")
     log         = load_event_log(log_path)
     compare_attribute = _auto_detect_compare_attribute(log, compare_attribute)
     logger.info(f"Compare attribute (resolved): {compare_attribute}")
@@ -283,7 +304,8 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED",
     generators = [
         ("task01", lambda d: task01.generate(log, fitness_df,        d,
                                              outcome_activity=outcome_activity)),
-        ("task02", lambda d: task02.generate(fitness_df,             d)),
+        ("task02", lambda d: task02.generate(fitness_df,             d,
+                                             predominant_threshold=predominant_threshold)),
         ("task03", lambda d: task03.generate(log, fitness_df,        d)),
         ("task04", lambda d: task04.generate(log, fitness_df,        d)),
         ("task05", lambda d: task05.generate(log, alignments,        d,
@@ -291,7 +313,8 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED",
         ("task06", lambda d: task06.generate(fitness_df,             d,
                                              log=log, alignments=alignments, model_path=model_path)),
         ("task07", lambda d: task07.generate(log, fitness_df,        d)),
-        ("task08", lambda d: task08.generate(log, alignments,        d)),
+        ("task08", lambda d: task08.generate(log, alignments,        d,
+                                             high_cooccurrence_threshold=high_cooccurrence_threshold)),
         ("task09", lambda d: task09.generate(log, alignments,        d, model_path=model_path)),
         ("task10", lambda d: task10.generate(fitness_df,             d, log=log)),
         ("task11", lambda d: task11.generate(log, alignments,        d, model_path=model_path)),
@@ -381,6 +404,12 @@ def parse_args():
         help="Path to the dataset folder containing EventLog.{xes|csv} and Model.bpmn",
     )
     parser.add_argument(
+        "--experiment-id", default=None,
+        help="If given, write SVGs to <dataset-dir>/output/{experiment-id}/ instead of "
+             "<dataset-dir>/output/ (per-experiment generation, see "
+             "ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7).",
+    )
+    parser.add_argument(
         "--outcome-activity", default="A_ACTIVATED",
         help="Activity name that marks a positive outcome (Task 6). Default: A_ACTIVATED",
     )
@@ -388,6 +417,16 @@ def parse_args():
         "--compare-attribute", default="AMOUNT_REQ",
         help="Case attribute used by Task 30 to split the log into sub-logs "
              "(numeric: median split, categorical: value groups). Default: AMOUNT_REQ",
+    )
+    parser.add_argument(
+        "--predominant-threshold", type=float, default=0.8,
+        help="Fitness level (0–1) above which Task 2 reports the behaviour as "
+             "predominantly following the model. Default: 0.8",
+    )
+    parser.add_argument(
+        "--high-cooccurrence-threshold", type=float, default=0.1,
+        help="Share of traces (0–1) at/above which Task 8 marks a violation "
+             "pair's co-occurrence as high (neutral reference). Default: 0.1",
     )
     return parser.parse_args()
 
@@ -416,8 +455,11 @@ def main():
     _configure_cli_logging()
     args = parse_args()
     try:
-        run_pipeline(args.dataset_dir, outcome_activity=args.outcome_activity,
-                     compare_attribute=args.compare_attribute)
+        run_pipeline(args.dataset_dir, experiment_id=args.experiment_id,
+                     outcome_activity=args.outcome_activity,
+                     compare_attribute=args.compare_attribute,
+                     predominant_threshold=args.predominant_threshold,
+                     high_cooccurrence_threshold=args.high_cooccurrence_threshold)
     except (FileNotFoundError, ValueError) as e:
         logger.error(f"ERROR: {e}")
         sys.exit(1)

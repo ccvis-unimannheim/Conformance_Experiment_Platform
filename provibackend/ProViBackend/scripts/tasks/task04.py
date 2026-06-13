@@ -31,7 +31,7 @@ from shared import (
     save_svg, make_table, build_variant_df, variant_table_data,
     draw_composition_stacked_bars, draw_grouped_box_plot, draw_value_heatmap,
     render_empty_state_svg,
-    BLUE, ORANGE, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    GREY_MED, GREY_LIGHT, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 TOP_N = 15
@@ -65,7 +65,7 @@ def _task04_build_variant_df(log, fitness_df: pd.DataFrame) -> pd.DataFrame:
 def task04_bar_chart(vdf: pd.DataFrame, output_dir: str):
     """Bar chart: top-N variants × fitness; bars coloured by conformant / non-conformant."""
     top = vdf.head(TOP_N)
-    colors = [BLUE if f >= 1.0 else ORANGE for f in top["fitness"]]
+    colors = [GREY_MED if f >= 1.0 else GREY_LIGHT for f in top["fitness"]]
 
     fig, ax = plt.subplots(figsize=(max(7, len(top) * 0.75), 5))
     bars = ax.bar(top["label"], top["fitness"], color=colors, edgecolor="white", width=0.65)
@@ -81,8 +81,8 @@ def task04_bar_chart(vdf: pd.DataFrame, output_dir: str):
     import matplotlib.patches as mpatches
     ax.legend(
         handles=[
-            mpatches.Patch(color=BLUE,   label="Conformant (fitness = 1.0)"),
-            mpatches.Patch(color=ORANGE, label="Non-conformant (fitness < 1.0)"),
+            mpatches.Patch(color=GREY_MED,   label="Conformant (fitness = 1.0)"),
+            mpatches.Patch(color=GREY_LIGHT, label="Non-conformant (fitness < 1.0)"),
         ],
         frameon=False, fontsize=FONT_ANNOT,
         loc="lower right", bbox_to_anchor=(1.0, -0.18), ncol=2,
@@ -129,7 +129,7 @@ def task04_scatter_plot(vdf: pd.DataFrame, output_dir: str):
     """Scatter: all variants; x = trace count (log scale if wide), y = fitness."""
     counts  = vdf["count"].values.astype(float)
     fitness = vdf["fitness"].values
-    colors  = [BLUE if f >= 1.0 else ORANGE for f in fitness]
+    colors  = [GREY_MED if f >= 1.0 else GREY_LIGHT for f in fitness]
 
     use_log = counts.max() / max(counts.min(), 1) > 20
 
@@ -167,8 +167,8 @@ def task04_scatter_plot(vdf: pd.DataFrame, output_dir: str):
     import matplotlib.patches as mpatches
     ax.legend(
         handles=[
-            mpatches.Patch(color=BLUE,   label="Conformant"),
-            mpatches.Patch(color=ORANGE, label="Non-conformant"),
+            mpatches.Patch(color=GREY_MED,   label="Conformant"),
+            mpatches.Patch(color=GREY_LIGHT, label="Non-conformant"),
         ],
         frameon=False, fontsize=FONT_ANNOT,
     )
@@ -212,8 +212,8 @@ def task04_stacked_bar(vdf: pd.DataFrame, output_dir: str):
 def task04_line_graph(vdf: pd.DataFrame, output_dir: str):
     """Fitness profile across frequency-ranked variants (x = rank, y = fitness)."""
     fig, ax = plt.subplots(figsize=(11, 5))
-    ax.plot(vdf["rank"], vdf["fitness"], color=BLUE, linewidth=1.8, marker="o", markersize=4)
-    ax.fill_between(vdf["rank"], vdf["fitness"], alpha=0.15, color=BLUE)
+    ax.plot(vdf["rank"], vdf["fitness"], color=GREY_MED, linewidth=1.8, marker="o", markersize=4)
+    ax.fill_between(vdf["rank"], vdf["fitness"], alpha=0.15, color=GREY_MED)
     ax.set_xlabel("Variant rank (by frequency)", fontsize=FONT_LABEL)
     ax.set_ylabel("Fitness (0–1)", fontsize=FONT_LABEL)
     ax.set_ylim(-0.05, 1.1)
@@ -229,7 +229,7 @@ def task04_box_plot(vdf: pd.DataFrame, fitness_df: pd.DataFrame, output_dir: str
     """Two boxes: variant-level fitness vs trace-level fitness (log/trace duality)."""
     data = [vdf["fitness"].values, fitness_df["fitness"].values]
     fig, ax = plt.subplots(figsize=(5.5, 6))
-    draw_grouped_box_plot(ax, data, ["Variant-level", "Trace-level"], [BLUE, ORANGE],
+    draw_grouped_box_plot(ax, data, ["Variant-level", "Trace-level"], [GREY_MED, GREY_LIGHT],
                           ylabel="Fitness (0.0 – 1.0)")
     ax.set_title("Variant-level vs. Trace-level Fitness", fontsize=FONT_TITLE)
     fig.tight_layout()
@@ -254,7 +254,7 @@ def task04_table_bar_chart(vdf: pd.DataFrame, output_dir: str):
 
     ax_bar = fig.add_subplot(gs[1])
     y = np.arange(len(top))
-    colors = [BLUE if f >= 1.0 else ORANGE for f in top["fitness"]]
+    colors = [GREY_MED if f >= 1.0 else GREY_LIGHT for f in top["fitness"]]
     ax_bar.barh(y, top["fitness"], color=colors, edgecolor="white")
     ax_bar.set_yticks(y)
     ax_bar.set_yticklabels(top["label"], fontsize=FONT_ANNOT - 1)

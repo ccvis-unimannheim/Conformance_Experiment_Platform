@@ -39,7 +39,7 @@ from shared import (
     draw_grouped_rate_bars, draw_composition_stacked_bars, draw_rate_matrix,
     draw_value_heatmap, draw_grouped_box_plot, calendar_small_multiples,
     render_empty_state_svg, format_threshold,
-    BLUE, ORANGE, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    GREY_MED, GREY_LIGHT, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 TOP_N = 10
@@ -48,7 +48,7 @@ TOP_N = 10
 MAX_CATEGORICAL_GROUPS = 4
 
 # Sub-log palette; first two match the task05 group colours
-_GROUP_PALETTE = [BLUE, ORANGE, "#333333", "#CCCCCC", "#888888"]
+_GROUP_PALETTE = [GREY_MED, GREY_LIGHT, "#333333", "#CCCCCC", "#888888"]
 
 
 # ---------------------------------------------------------------------------

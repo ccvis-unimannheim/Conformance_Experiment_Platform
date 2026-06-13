@@ -24,8 +24,7 @@ import matplotlib.dates as mdates
 
 from shared import (
     save_svg, make_table, draw_decision_tree, wrap_text,
-    format_threshold, BLUE, ORANGE, GREEN, RED, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
-    draw_value_heatmap, render_empty_state_svg,
+    format_threshold, GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT, draw_value_heatmap, render_empty_state_svg,
 )
 from tasks.task20 import (
     task20_trace_feature_dataframe,
@@ -433,7 +432,7 @@ def task31_bar_chart(df: pd.DataFrame, output_dir: str):
     fig, ax = plt.subplots(figsize=(8.5, 5.2))
     ax.set_facecolor("#fafbfc")
 
-    bars = ax.bar(x, agg["rate"].fillna(0), width=0.58, color=BLUE, zorder=3)
+    bars = ax.bar(x, agg["rate"].fillna(0), width=0.58, color=GREY_MED, zorder=3)
 
     # Annotate each non-empty bar with "rate% (n=N)" above bar
     max_rate = float(agg["rate"].fillna(0).max())

@@ -1,2 +1,3 @@
 provi-frontend/node_modules
 provi-frontend/.next
+provi-frontend/.env.local

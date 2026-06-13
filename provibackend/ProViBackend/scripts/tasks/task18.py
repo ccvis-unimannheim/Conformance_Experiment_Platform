@@ -63,7 +63,7 @@ from shared import (
     alignment_pairs_to_rows, chevron_nodes_from_alignment_rows, draw_chevron_strip,
     chevron_figure_width, parse_bpmn_model, compose_bpmn_panels,
     contrasting_text_color, place_scatter_labels,
-    BLUE, ORANGE, GREEN, RED, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 # Reuse: violation label + per-trace features.
@@ -77,7 +77,7 @@ from tasks.task28 import build_task28_context
 TOP_N = 12   # responsible activities kept where an idiom would otherwise crowd
 
 # Move-type palette (matches task29).
-_MOVE_COLORS = {"Model Move": BLUE, "Log Move": RED, "Mismatch Move": ORANGE}
+_MOVE_COLORS = {"Model Move": GREY_MED, "Log Move": GREY_DARK, "Mismatch Move": GREY_LIGHT}
 
 _EMPTY_STEMS = [
     ("task18_flow_chart_elaborate_bpmn_table.svg", "Responsible Activities on the Model"),
@@ -350,7 +350,7 @@ def task18_bar_chart(resp, output_dir):
         return
     labels = [f"{r['activity']}\n({r['move_type'].split()[0]})" for r in records]
     pct = [r["pct"] for r in records]
-    colors = [_MOVE_COLORS.get(r["move_type"], BLUE) for r in records]
+    colors = [_MOVE_COLORS.get(r["move_type"], GREY_MED) for r in records]
 
     fig, ax = plt.subplots(figsize=(max(9.0, len(records) * 1.05), 5.5))
     pos = np.arange(len(records))
@@ -458,7 +458,7 @@ def task18_table_and_bar_chart(resp, output_dir):
     ax_b = fig.add_subplot(gs[1])
     labels = [f"{r['activity']} ({r['move_type'].split()[0]})" for r in records][::-1]
     pct = [r["pct"] for r in records][::-1]
-    colors = [_MOVE_COLORS.get(r["move_type"], BLUE) for r in records][::-1]
+    colors = [_MOVE_COLORS.get(r["move_type"], GREY_MED) for r in records][::-1]
     y = np.arange(len(labels))
     ax_b.barh(y, pct, color=colors, edgecolor="white")
     ax_b.set_yticks(y)
@@ -502,8 +502,8 @@ def task18_parallel_sets(resp, output_dir):
 
     fig, ax = plt.subplots(figsize=(10, max(6, len(left_labels) * 0.5 + 2)))
     ax.axis("off")
-    left_colors = [BLUE if i % 2 == 0 else ORANGE for i in range(len(left_labels))]
-    right_colors = [_MOVE_COLORS.get(mt, BLUE) for mt in present_moves]
+    left_colors = [GREY_MED if i % 2 == 0 else GREY_LIGHT for i in range(len(left_labels))]
+    right_colors = [_MOVE_COLORS.get(mt, GREY_MED) for mt in present_moves]
     draw_parallel_sets(
         ax, left_labels, present_moves, matrix, left_colors,
         right_colors=right_colors,

@@ -30,12 +30,12 @@ from shared import (
     save_svg, make_table, draw_parallel_sets, build_violation_pattern_df,
     alignment_pairs_to_rows, draw_grouped_box_plot, draw_value_heatmap,
     calendar_heatmap, render_empty_state_svg,
-    BLUE, ORANGE, RED, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    GREY_MED, GREY_LIGHT, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 TOP_N = 15
 
-_MOVE_COLORS = {"Model Move": BLUE, "Log Move": RED, "Mismatch Move": ORANGE}
+_MOVE_COLORS = {"Model Move": GREY_MED, "Log Move": GREY_DARK, "Mismatch Move": GREY_LIGHT}
 _MOVE_ORDER  = ["Model Move", "Log Move", "Mismatch Move"]
 
 
@@ -72,7 +72,7 @@ def _move_legend(ax, present_types):
 def task23_bar_chart(pat_df: pd.DataFrame, output_dir: str):
     """Bar chart: top-N violation patterns ranked by occurrence count."""
     top    = pat_df.head(TOP_N)
-    colors = [_MOVE_COLORS.get(mt, BLUE) for mt in top["move_type"]]
+    colors = [_MOVE_COLORS.get(mt, GREY_MED) for mt in top["move_type"]]
     ymax   = max(int(top["count"].max()), 1)
 
     fig, ax = plt.subplots(figsize=(max(9, len(top) * 1.1), 5.5))
@@ -188,7 +188,7 @@ def task23_table_and_bar_chart(pat_df: pd.DataFrame, output_dir: str):
 
     ax_bar = fig.add_subplot(gs[1])
     x      = np.arange(len(top))
-    colors = [_MOVE_COLORS.get(mt, BLUE) for mt in top["move_type"]]
+    colors = [_MOVE_COLORS.get(mt, GREY_MED) for mt in top["move_type"]]
     ax_bar.barh(x, top["count"], color=colors, edgecolor="white")
     ax_bar.set_yticks(x)
     ax_bar.set_yticklabels(top["pattern"], fontsize=FONT_ANNOT - 1)
@@ -304,7 +304,7 @@ def task23_parallel_sets(pat_df: pd.DataFrame, output_dir: str):
 
 def task23_scatter_plot(pat_df: pd.DataFrame, output_dir: str):
     """One dot per pattern: x = #traces affected, y = total occurrences, colour = move-type."""
-    colors = [_MOVE_COLORS.get(mt, BLUE) for mt in pat_df["move_type"]]
+    colors = [_MOVE_COLORS.get(mt, GREY_MED) for mt in pat_df["move_type"]]
     fig, ax = plt.subplots(figsize=(9, 6))
     ax.scatter(pat_df["n_traces"], pat_df["count"], c=colors, s=60, alpha=0.8,
                edgecolors="white", linewidths=0.6)
@@ -353,7 +353,7 @@ def task23_box_plot(pat_df: pd.DataFrame, alignments, output_dir: str):
             continue
         labels.append(row["pattern"])
         data.append(np.array(vals))
-        colors.append(_MOVE_COLORS.get(row["move_type"], BLUE))
+        colors.append(_MOVE_COLORS.get(row["move_type"], GREY_MED))
     if not data:
         render_empty_state_svg(os.path.join(output_dir, "task23_box_plot.svg"),
                                "Occurrences per Affected Trace", "No violations found.")
