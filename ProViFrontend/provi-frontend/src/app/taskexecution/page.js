@@ -42,24 +42,17 @@ function groupTrialsByTask(trials) {
 // Skeleton placeholder
 function LoadingSkeleton() {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(12, minmax(0,1fr))", gap: "2rem", alignItems: "start" }}>
-      <section style={{ gridColumn: "1 / span 8" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 440px", gap: "1.5rem", alignItems: "start" }}>
+      <section>
         <div style={{ backgroundColor: "white", borderRadius: "0.75rem", padding: "2.5rem", boxShadow: "0 4px 16px rgba(45,52,53,0.06)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2.5rem" }}>
-            <div style={{ height: "0.75rem", width: "5rem", backgroundColor: "#e5e7eb", borderRadius: "0.25rem" }} />
-            <div style={{ display: "flex", gap: "1rem" }}>
-              <div style={{ height: "0.75rem", width: "6rem", backgroundColor: "#e5e7eb", borderRadius: "0.25rem" }} />
-              <div style={{ height: "0.75rem", width: "7rem", backgroundColor: "#e5e7eb", borderRadius: "0.25rem" }} />
-            </div>
-          </div>
-          <div style={{ height: "400px", backgroundColor: "#f3f4f6", borderRadius: "0.5rem", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ height: "calc(100vh - 12rem)", minHeight: "460px", backgroundColor: "#f3f4f6", borderRadius: "0.5rem", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <span style={{ color: "#9ca3af", fontSize: "0.875rem", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>
               Loading visualization…
             </span>
           </div>
         </div>
       </section>
-      <aside style={{ gridColumn: "span 4", display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+      <aside style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
         <div style={{ backgroundColor: "#f2f4f4", borderRadius: "0.75rem", padding: "2rem" }}>
           <div style={{ height: "0.75rem", width: "8rem", backgroundColor: "#d1d5db", borderRadius: "0.25rem", marginBottom: "2rem" }} />
           {[1, 2, 3, 4].map((i) => (
@@ -223,12 +216,12 @@ export default function TaskExecutionPage() {
         </nav>
 
         {/* Main Content */}
-        <main style={{ flexGrow: 1, paddingTop: "6rem", paddingBottom: "3rem", paddingLeft: "2rem", paddingRight: "2rem", maxWidth: "1440px", margin: "0 auto", width: "100%" }}>
+        <main style={{ flexGrow: 1, paddingTop: "5.5rem", paddingBottom: "2rem", paddingLeft: "1.5rem", paddingRight: "1.5rem", maxWidth: "1800px", margin: "0 auto", width: "100%" }}>
 
           {showSkeleton ? (
             <LoadingSkeleton />
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(12, minmax(0,1fr))", gap: "2rem", alignItems: "start" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 440px", gap: "1.5rem", alignItems: "start" }}>
               <TaskVisualizationPanel
                 svgUrl={svgUrl}
                 taskNumber={currentStep}
