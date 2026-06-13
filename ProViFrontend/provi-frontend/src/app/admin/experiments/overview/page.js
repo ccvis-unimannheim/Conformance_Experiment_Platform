@@ -167,18 +167,32 @@ function ExperimentOverviewContent() {
       <ExperimentSetupHeader />
 
       <main className="flex-grow max-w-[1140px] mx-auto w-full px-8 py-10 flex flex-col gap-8">
+        {/* Published banner */}
+        {status === "published" && (
+          <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-lg px-5 py-4">
+            <span className="material-symbols-outlined text-green-600 text-2xl icon-filled">check_circle</span>
+            <div>
+              <p className="text-sm font-bold text-green-800">Experiment is published and active</p>
+              <p className="text-xs text-green-700">Participants can now access and complete this experiment.</p>
+            </div>
+          </div>
+        )}
+
         {/* Page heading */}
         <div className="flex flex-col gap-1">
           <h1 className="font-h1 text-h1 text-primary mb-2">Experiment Overview</h1>
           <p className="font-body-lg text-body-lg text-secondary max-w-2xl">
-            Review the tasks and idioms selected for this experiment. Use the buttons below to save
-            as a draft or publish when ready.
+            {status === "published"
+              ? "This experiment is published and accepting participants. The configuration below is read-only."
+              : "Review the tasks and idioms selected for this experiment. Use the buttons below to save as a draft or publish when ready."}
           </p>
         </div>
 
         {/* Metadata strip */}
         {experiment && (
-          <div className="bg-white border border-border-subtle rounded-lg p-5 flex flex-wrap items-center gap-6">
+          <div className={`border rounded-lg p-5 flex flex-wrap items-center gap-6 ${
+            status === "published" ? "bg-green-50 border-green-200" : "bg-white border-border-subtle"
+          }`}>
             <div className="flex-1 min-w-[160px]">
               <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-0.5">
                 Experiment Name
@@ -203,15 +217,16 @@ function ExperimentOverviewContent() {
               <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-0.5">
                 Status
               </p>
-              <span
-                className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-                  status === "published"
-                    ? "bg-green-100 text-green-800"
-                    : "bg-yellow-100 text-yellow-800"
-                }`}
-              >
-                {status}
-              </span>
+              {status === "published" ? (
+                <span className="inline-flex items-center gap-1.5 text-sm font-bold text-green-700 bg-green-100 border border-green-300 px-3 py-1 rounded-full">
+                  <span className="material-symbols-outlined text-base icon-filled">check_circle</span>
+                  Published
+                </span>
+              ) : (
+                <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-yellow-100 text-yellow-800">
+                  {status}
+                </span>
+              )}
             </div>
           </div>
         )}
@@ -362,7 +377,7 @@ function ExperimentOverviewContent() {
       </main>
 
       {/* Footer action bar */}
-      <div className="border-t border-border-subtle bg-white sticky bottom-0">
+      <div className={`border-t sticky bottom-0 ${status === "published" ? "border-green-200 bg-green-50" : "border-border-subtle bg-white"}`}>
         <div className="max-w-[1140px] mx-auto px-8 py-4 flex justify-between items-center">
           <button
             onClick={() => router.back()}
@@ -370,23 +385,39 @@ function ExperimentOverviewContent() {
           >
             <span className="material-symbols-outlined text-sm">arrow_back</span> Previous Step
           </button>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={saveAsDraft}
-              className="flex items-center gap-2 text-sm font-semibold border border-border-subtle text-on-surface-variant px-6 py-2.5 rounded-lg hover:bg-surface-container transition-colors"
-            >
-              <span className="material-symbols-outlined text-sm">save</span>
-              Save as Draft
-            </button>
-            <button
-              onClick={publishExperiment}
-              disabled={status === "published" || publishing}
-              className="flex items-center gap-2 font-button text-button bg-primary text-on-primary px-8 py-2.5 rounded-lg hover:opacity-90 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <span className="material-symbols-outlined text-sm">publish</span>
-              {status === "published" ? "Published" : publishing ? "Publishing..." : "Publish Experiment"}
-            </button>
-          </div>
+          {status === "published" ? (
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-2 text-sm font-semibold text-green-700">
+                <span className="material-symbols-outlined text-lg icon-filled text-green-600">check_circle</span>
+                Experiment is published and active
+              </span>
+              <button
+                onClick={() => router.push("/admin")}
+                className="flex items-center gap-2 text-sm font-semibold bg-green-700 text-white px-6 py-2.5 rounded-lg hover:bg-green-800 transition-colors"
+              >
+                <span className="material-symbols-outlined text-sm">dashboard</span>
+                Back to Admin Home page
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={saveAsDraft}
+                className="flex items-center gap-2 text-sm font-semibold border border-border-subtle text-on-surface-variant px-6 py-2.5 rounded-lg hover:bg-surface-container transition-colors"
+              >
+                <span className="material-symbols-outlined text-sm">save</span>
+                Save as Draft
+              </button>
+              <button
+                onClick={publishExperiment}
+                disabled={publishing}
+                className="flex items-center gap-2 font-button text-button bg-primary text-on-primary px-8 py-2.5 rounded-lg hover:opacity-90 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <span className="material-symbols-outlined text-sm">publish</span>
+                {publishing ? "Publishing..." : "Publish Experiment"}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
