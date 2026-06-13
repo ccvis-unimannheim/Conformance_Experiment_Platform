@@ -134,7 +134,7 @@ function IdiomSelectionContent() {
         body: JSON.stringify({ task_configs: taskConfigs }),
       });
       if (!res.ok) throw new Error(await res.text());
-      router.push(`/admin/experiments/overview?experiment_id=${encodeURIComponent(experimentId)}`);
+      router.push(`/admin/experiments/specify?experiment_id=${encodeURIComponent(experimentId)}`);
     } catch (e) {
       showToast(`Failed to save experiment: ${e.message}`, true);
     }
