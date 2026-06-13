@@ -178,43 +178,27 @@ def task12_pie_chart(stats, output_dir):
 
     slice_data = [
         (n_c, pct_c, _CAT_COLORS["conformant"], "Conformant"),
-        (n_d, pct_d, _C_DARK,                   "Deviating"),
+        (n_d, pct_d, "#333333",                 "Deviating"),
     ]
 
-    fig, ax = plt.subplots(figsize=(9, 6.5))
-    wedges, _ = ax.pie(
+    def _autopct(pct):
+        cnt = int(round(pct / 100 * n_t))
+        return f"{pct:.1f}%\n({cnt:,})"
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    wedges, _texts, autotexts = ax.pie(
         [n_c, n_d],
         labels=None,
         colors=[d[2] for d in slice_data],
-        autopct=None,
-        startangle=180,
-        wedgeprops={"edgecolor": "white", "linewidth": 2.5},
+        autopct=_autopct,
+        startangle=90,
+        pctdistance=0.68,
+        wedgeprops={"edgecolor": "white", "linewidth": 2},
+        textprops=dict(fontsize=FONT_ANNOT),
     )
-
-    # Manually annotate each slice
-    for wedge, (cnt, pct, clr, _) in zip(wedges, slice_data):
-        angle_mid = np.radians((wedge.theta1 + wedge.theta2) / 2)
-        cos_a, sin_a = np.cos(angle_mid), np.sin(angle_mid)
-        label_txt = f"{pct:.1f}%\n({cnt:,})"
+    for atext, (_, _, clr, _) in zip(autotexts, slice_data):
         r_in = int(clr[1:3], 16)
-        txt_clr = "white" if r_in < 150 else _C_DARK
-
-        if pct < 5:
-            # Outside label with leader line
-            xy  = (0.6 * cos_a, 0.6 * sin_a)
-            txt = (1.35 * cos_a, 1.35 * sin_a)
-            ax.annotate(
-                label_txt,
-                xy=xy, xytext=txt,
-                arrowprops=dict(arrowstyle="-", color=_C_LIGHT, lw=0.9),
-                ha="center", va="center",
-                fontsize=FONT_ANNOT + 1, color=_C_DARK,
-            )
-        else:
-            ax.text(0.65 * cos_a, 0.65 * sin_a, label_txt,
-                    ha="center", va="center",
-                    fontsize=FONT_ANNOT + 1, color=txt_clr,
-                    linespacing=1.4)
+        atext.set_color("white" if r_in < 150 else _C_DARK)
 
     ax.legend(
         wedges,
@@ -226,10 +210,7 @@ def task12_pie_chart(stats, output_dir):
         frameon=True, framealpha=0.9,
         ncol=2,
     )
-    ax.set_title(
-        f"Conformant vs Deviating Traces\n{n_t:,} total traces",
-        fontsize=FONT_TITLE, pad=16,
-    )
+    ax.set_title("Conformant vs Deviating Traces", fontsize=FONT_TITLE, pad=16)
     fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task12_pie_chart.svg"))
 

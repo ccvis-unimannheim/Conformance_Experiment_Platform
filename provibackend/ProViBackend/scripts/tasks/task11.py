@@ -168,14 +168,14 @@ def task11_pie_chart(type_totals, n_violations, output_dir):
         cnt = int(round(pct / 100 * n_violations))
         return f"{pct:.1f}%\n({cnt:,})"
 
-    fig, ax = plt.subplots(figsize=(9, 6))
-    wedges, texts, autotexts = ax.pie(
+    fig, ax = plt.subplots(figsize=(8, 6))
+    wedges, _texts, autotexts = ax.pie(
         counts,
         labels=None,
         colors=colors,
         autopct=_autopct,
-        startangle=140,
-        pctdistance=0.72,
+        startangle=90,
+        pctdistance=0.68,
         wedgeprops={"edgecolor": "white", "linewidth": 2},
     )
     for atext, clr in zip(autotexts, colors):
@@ -183,18 +183,20 @@ def task11_pie_chart(type_totals, n_violations, output_dir):
         r = int(clr[1:3], 16)
         atext.set_color("white" if r < 150 else _C_DARK)
 
+    _VTYPE_DISPLAY = {
+        "Move on Model": "Model Move",
+        "Move on Log":   "Log Move",
+        "Mismatch Move": "Mismatch Move",
+    }
     ax.legend(
-        wedges, [f"{t}  ({type_totals[t]:,})" for t in types],
+        wedges, [f"{_VTYPE_DISPLAY.get(t, t)}  ({type_totals[t]:,})" for t in types],
         loc="lower center",
         bbox_to_anchor=(0.5, -0.08),
         fontsize=FONT_ANNOT,
         frameon=True, framealpha=0.9,
         ncol=min(len(types), 3),
     )
-    ax.set_title(
-        f"Guideline Violations by Type\n{n_violations:,} total violations",
-        fontsize=FONT_TITLE, pad=16,
-    )
+    ax.set_title("Guideline Violations by Type", fontsize=FONT_TITLE, pad=16)
     fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task11_pie_chart.svg"))
 

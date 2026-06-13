@@ -195,21 +195,21 @@ def task29_heatmap(df: pd.DataFrame, output_dir: str):
 def task29_pie_chart(df: pd.DataFrame, output_dir: str):
     """Pie chart: proportion of violation move types."""
     colors = [GREY_MED if mt == "Model Move" else GREY_DARK if mt == "Log Move" else GREY_LIGHT for mt in df["move_type"]]
-    labels = [label.replace("\n", " ") for label in df["violation_type"]]
+    labels = list(df["move_type"])
 
-    fig, ax = plt.subplots(figsize=(7, 5.5))
-    wedges, texts, autotexts = ax.pie(
+    fig, ax = plt.subplots(figsize=(8, 6))
+    wedges, _texts, autotexts = ax.pie(
         df["count"],
         colors=colors,
-        startangle=110,
+        startangle=90,
         autopct=lambda pct: f"{pct:.1f}%" if pct >= 1 else "",
-        pctdistance=0.72,
+        pctdistance=0.68,
         wedgeprops=dict(edgecolor="white", linewidth=2),
         textprops=dict(fontsize=FONT_ANNOT),
     )
     for color, autotext in zip(colors, autotexts):
         autotext.set_color(contrasting_text_color(color))
-    ax.legend(wedges, labels, loc="lower center", bbox_to_anchor=(0.5, -0.10), ncol=1, frameon=False, fontsize=FONT_ANNOT)
+    ax.legend(wedges, labels, loc="lower center", bbox_to_anchor=(0.5, -0.08), ncol=len(labels), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.set_title("Violation Type Proportions", fontsize=FONT_TITLE)
     fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task29_pie_chart.svg"))
