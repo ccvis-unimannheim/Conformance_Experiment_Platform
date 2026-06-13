@@ -63,6 +63,10 @@ import pathlib as pl
 
 import ProViBackend.utils.database.connection as dbc
 import ProViBackend.utils.redis_handler as redis_handler
+from ProViBackend.utils.database.migration import (
+    task_instances_to_configs,
+    task_configs_to_instances,
+)
 
 router = APIRouter(
     prefix="/admin"
@@ -571,9 +575,21 @@ def _sync_participant_experiment(experiment_id: str, participant_status: str):
 
 @router.patch("/experiments/{experiment_id}", tags=["admin"])
 async def update_experiment(experiment_id: str, update_data: ds.ExperimentUpdate):
-    fields: dict = {"task_configs": [tc.model_dump() for tc in update_data.task_configs]}
+    # Keep task_instances (canonical) and task_configs (legacy mirror) in sync,
+    # regardless of which one the caller sends.
+    fields: dict = {}
+    if update_data.task_instances is not None:
+        instances = [ti.model_dump() for ti in update_data.task_instances]
+        fields["task_instances"] = instances
+        fields["task_configs"] = task_instances_to_configs(instances)
+    elif update_data.task_configs is not None:
+        configs = [tc.model_dump() for tc in update_data.task_configs]
+        fields["task_configs"] = configs
+        fields["task_instances"] = task_configs_to_instances(configs)
     if update_data.status is not None:
         fields["status"] = update_data.status
+    if not fields:
+        raise HTTPException(status_code=400, detail="No fields to update.")
     updated = dbc.update_document("Experiment", query={"_id": experiment_id}, update={"$set": fields})
     if not updated:
         raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")

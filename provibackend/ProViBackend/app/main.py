@@ -1,3 +1,4 @@
+import logging
 import uuid
 from contextlib import asynccontextmanager
 
@@ -5,7 +6,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import ProViBackend.utils.config as config
 import ProViBackend.utils.database.connection as dbc
+from ProViBackend.utils.database.migration import migrate_experiments_to_task_instances
 from .seed_data import CANONICAL_TASKS, CANONICAL_IDIOMS, CANONICAL_KNOWLEDGE_QUESTIONS
+
+logger = logging.getLogger(__name__)
 from .routers import questionnaire
 from .routers import vis
 from .routers import admin
@@ -35,6 +39,10 @@ async def lifespan(app: FastAPI):
     _seed_collection("Task", CANONICAL_TASKS, key_field="task_key")
     _seed_collection("Idiom", CANONICAL_IDIOMS, key_field="idiom_key")
     _seed_collection("KnowledgeQuestion", CANONICAL_KNOWLEDGE_QUESTIONS, key_field="kq_key")
+    try:
+        migrate_experiments_to_task_instances()
+    except Exception:
+        logger.exception("task_instances migration failed; continuing startup")
     yield
 
 
