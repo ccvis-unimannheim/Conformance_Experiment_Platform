@@ -178,10 +178,10 @@ def task10_bar_chart(range_df: pd.DataFrame, output_dir: str):
     ax.set_title("Traces per Conformance Range", fontsize=FONT_TITLE)
     ax.set_ylim(0, max(range_df["percentage"].max() * 1.15, 5))
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.5)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    ax.tick_params(axis="x", rotation=15)
-    fig.tight_layout()
+    ax.tick_params(axis="x", rotation=0)
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task10_bar_chart.svg"))
 
 

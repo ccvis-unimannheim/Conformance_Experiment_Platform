@@ -202,7 +202,7 @@ def task08_bar_chart(violation_freq, n_traces, output_dir):
     pcts   = [c / n_traces * 100 for c in counts]
 
     fig, ax = plt.subplots(figsize=(12, 5))
-    bars = ax.barh(range(len(top)), counts, color=_C_DARK, alpha=0.85, height=0.65)
+    bars = ax.barh(range(len(top)), counts, color=_C_DARK, alpha=0.85, height=0.65, edgecolor="white")
     ax.invert_yaxis()
 
     # Annotate with % of traces
@@ -215,11 +215,11 @@ def task08_bar_chart(violation_freq, n_traces, output_dir):
     ax.set_xlabel("Number of Traces", fontsize=FONT_LABEL)
     ax.set_title("Most Frequent Guideline Violations", fontsize=FONT_TITLE)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.35)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
     ax.tick_params(axis="y", length=0)
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task08_bar_chart.svg"))
 
 

@@ -140,11 +140,11 @@ def task09_bar_chart(type_totals, n_violations, output_dir):
     ax.set_xlabel("Number of violations", fontsize=FONT_LABEL)
     ax.set_title("Guideline Violations by Type", fontsize=FONT_TITLE)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.3)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
     ax.set_xlim(0, max(counts) * 1.3)
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task09_bar_chart.svg"))
 
 

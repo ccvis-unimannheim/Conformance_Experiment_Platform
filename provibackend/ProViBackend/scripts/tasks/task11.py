@@ -144,11 +144,11 @@ def task11_bar_chart(activity_totals, n_violations, output_dir):
         fontsize=FONT_TITLE,
     )
     ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.3)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
     ax.set_xlim(0, max_c * 1.32)
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task11_bar_chart.svg"))
 
 

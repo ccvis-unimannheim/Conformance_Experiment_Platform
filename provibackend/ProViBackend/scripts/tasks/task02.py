@@ -44,7 +44,7 @@ def task02_bar_chart(df, output_dir: str, predominant_threshold: float):
     avg = float(df["fitness"].mean())
 
     fig, ax = plt.subplots(figsize=(4.5, 5))
-    bar = ax.bar(["Overall"], [avg], color=GREY_MED, edgecolor="white", width=0.5)[0]
+    bar = ax.bar(["Overall"], [avg], color=GREY_MED, edgecolor="white", width=0.3)[0]
     ax.text(bar.get_x() + bar.get_width() / 2, avg + 0.018, f"{avg:.3f}",
             ha="center", va="bottom", fontsize=FONT_ANNOT)
 
@@ -62,9 +62,9 @@ def task02_bar_chart(df, output_dir: str, predominant_threshold: float):
     ax.set_ylabel("Overall Conformance Rate (0–1)", fontsize=FONT_LABEL)
     ax.set_title("Overall Process Conformance", fontsize=FONT_TITLE, pad=10)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.5)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task02_bar_chart.svg"))
 
 

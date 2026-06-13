@@ -143,16 +143,17 @@ def task01_bar_chart(stats_df: pd.DataFrame, output_dir: str):
     ax.set_title("Mean Conformance Rate by Outcome Group", fontsize=FONT_TITLE)
     ax.set_ylim(0, 1.15)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.5)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
     ax.legend(
         handles=[
             mpatches.Patch(color=_COLOR_POSITIVE, label="Positive outcome"),
             mpatches.Patch(color=_COLOR_NEGATIVE, label="Negative outcome"),
         ],
-        frameon=False, fontsize=FONT_ANNOT,
+        loc="lower center", bbox_to_anchor=(0.5, -0.25),
+        ncol=2, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT,
     )
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task01_bar_chart.svg"))
 
 

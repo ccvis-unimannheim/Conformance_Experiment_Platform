@@ -124,16 +124,17 @@ def task03_bar_chart(presence_df: pd.DataFrame, output_dir: str):
                         f"{h:.0f}%", ha="center", va="bottom", fontsize=7)
 
     ax.set_xticks(x)
-    ax.set_xticklabels(acts, rotation=35, ha="right", fontsize=FONT_ANNOT - 1)
+    ax.set_xticklabels(acts, fontsize=FONT_ANNOT - 1)
     ax.set_ylabel("Presence rate (% of traces)", fontsize=FONT_LABEL)
     ax.set_title(f"Top-{len(acts)} Differentiating Activities by Conformance Group",
                  fontsize=FONT_TITLE)
     ax.set_ylim(0, min(115, presence_df[["Conformant", "Non-conformant"]].values.max() * 1.18))
-    ax.legend(frameon=False, fontsize=FONT_ANNOT)
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=2, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.5)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task03_bar_chart.svg"))
 
 

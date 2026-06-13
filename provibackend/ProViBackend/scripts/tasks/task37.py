@@ -210,7 +210,7 @@ def task37_bar_chart(data, output_dir):
 
     # Trace-level bars
     bars1 = ax.bar(x - w / 2 if has_t2 else x, t1_left, width=w,
-                   color=_C_T1, label=data["t1_name"])
+                   color=_C_T1, edgecolor="white", label=data["t1_name"])
     for b, v in zip(bars1, t1_left):
         ax.text(b.get_x() + b.get_width() / 2, v + 0.012,
                 f"{v:.3f}", ha="center", va="bottom",
@@ -218,7 +218,7 @@ def task37_bar_chart(data, output_dir):
 
     if has_t2:
         bars2 = ax.bar(x + w / 2, t2_left, width=w,
-                       color=_C_T2, label=data["t2_name"])
+                       color=_C_T2, edgecolor="white", label=data["t2_name"])
         for b, v in zip(bars2, t2_left):
             ax.text(b.get_x() + b.get_width() / 2, v + 0.012,
                     f"{v:.3f}", ha="center", va="bottom",
@@ -230,7 +230,7 @@ def task37_bar_chart(data, output_dir):
     ax.set_ylim(0, 1.18)
     ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%.2f"))
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.3)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
 
     # Log-level annotation box
@@ -250,10 +250,11 @@ def task37_bar_chart(data, output_dir):
         fontsize=FONT_TITLE,
     )
     if has_t2:
-        ax.legend(fontsize=FONT_ANNOT, frameon=False, loc="upper left")
+        ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.25),
+                  ncol=2, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
 
     # Log-level annotation placed below the x-axis to avoid overlapping bars
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     fig.subplots_adjust(bottom=0.22)
     fig.text(0.5, 0.01, "   ".join(pf_lines),
              ha="center", va="bottom",

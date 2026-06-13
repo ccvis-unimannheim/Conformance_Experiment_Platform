@@ -197,8 +197,8 @@ def task29_bar_chart(df: pd.DataFrame, output_dir: str):
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    ax.tick_params(axis="x", labelrotation=15)
-    fig.tight_layout()
+    ax.tick_params(axis="x", labelrotation=0)
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task29_bar_chart.svg"))
 
 

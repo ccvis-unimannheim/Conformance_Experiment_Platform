@@ -150,12 +150,12 @@ def task32_bar_chart(agg_df, attr, output_dir):
     ax.set_ylabel("Total occurrences", fontsize=FONT_LABEL)
     ax.set_ylim(0, totals.max() * 1.18)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.4)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
 
     ax.set_title(f"Main Violations — Frequency Ranking (top {len(patterns)})",
                  fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task32_bar_chart.svg"))
 
 

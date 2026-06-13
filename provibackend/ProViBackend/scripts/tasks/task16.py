@@ -238,12 +238,13 @@ def task16_bar_chart(viol_df, s, output_dir):
     ax.invert_yaxis()
     ax.set_xlabel("Violation Count", fontsize=FONT_LABEL)
     ax.set_title("Top Activities by Violation Count", fontsize=FONT_TITLE)
-    ax.legend(frameon=False, fontsize=FONT_ANNOT, loc="lower right")
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=2, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.4)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
     _add_stats_footer(fig, s)
-    fig.tight_layout(rect=[0, 0.04, 1, 1])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
 
 

@@ -488,13 +488,12 @@ def task28_bar_chart(df, output_dir):
     ax.set_ylim(0, counts.max() * 1.12)
     ax.set_title("Observed Deviating Steps per Pattern", fontsize=FONT_TITLE)
     ax.legend(handles=[mpatches.Patch(color=_move_color(m), label=m) for m in move_types],
-              title="Deviation type", frameon=False, fontsize=FONT_ANNOT - 1,
-              title_fontsize=FONT_ANNOT, loc="upper left",
-              bbox_to_anchor=(1.01, 1), borderaxespad=0)
+              loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=len(move_types), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out)
 
 

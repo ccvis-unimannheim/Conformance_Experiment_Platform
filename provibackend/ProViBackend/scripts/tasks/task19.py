@@ -250,11 +250,12 @@ def task19_bar_chart(eff, output_dir):
         mpatches.Patch(color=GREY_DARK, label="Associated with missing the goal (−)"),
         mpatches.Patch(color=GREY_MED, label="Associated with achieving the goal (+)"),
         mpatches.Patch(facecolor="#cccccc", hatch="//", label=f"Low support (< {MIN_SUPPORT} traces)"),
-    ], frameon=False, fontsize=FONT_ANNOT - 1, loc="lower right")
+    ], loc="lower center", bbox_to_anchor=(0.5, -0.35),
+       ncol=3, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.4)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 
