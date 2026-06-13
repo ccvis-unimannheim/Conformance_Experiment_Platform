@@ -10,7 +10,6 @@ import { UITrackingProvider } from "../../utils/usertracking";
 import ProjectLogo from "../../public/images/logo-no-background.png";
 import UniLogo from "../../public/images/Logo_UMA_EN_RGB.png";
 
-// Group flat trials array by task_key, preserving order
 function groupTrialsByTask(trials) {
   const groups = [];
   const seen = new Map();
@@ -39,7 +38,6 @@ function groupTrialsByTask(trials) {
   return groups;
 }
 
-// Skeleton placeholder
 function LoadingSkeleton() {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 440px", gap: "1.5rem", alignItems: "start" }}>
@@ -68,7 +66,6 @@ function LoadingSkeleton() {
   );
 }
 
-// TaskExecutionPage
 export default function TaskExecutionPage() {
   const [taskGroups, setTaskGroups]               = useState([]);
   const [experimentId, setExperimentId]           = useState(null);
@@ -78,11 +75,9 @@ export default function TaskExecutionPage() {
   const [loadingTasks, setLoadingTasks]           = useState(true);
   const [loadingSvg, setLoadingSvg]               = useState(false);
 
-  // ── 3-step fetch on mount
   useEffect(() => {
     const fetchTasks = async () => {
       try {
-        // Step 1 — get active experiment
         const expRes = await fetch("/api/participant/experiment/active", {
           method: "GET",
           credentials: "include",
@@ -92,7 +87,6 @@ export default function TaskExecutionPage() {
         const expId = expData.experiment_id;
         setExperimentId(expId);
 
-        // Step 2 — create/get assignment for this participant
         const assignRes = await fetch("/api/participant/assignment", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -101,7 +95,6 @@ export default function TaskExecutionPage() {
         });
         if (!assignRes.ok) throw new Error(`Assignment failed: HTTP ${assignRes.status}`);
 
-        // Step 3 — fetch personalized trial list
         const trialsRes = await fetch(`/api/participant/assignment/${expId}/trials`, {
           method: "GET",
           credentials: "include",
@@ -119,7 +112,6 @@ export default function TaskExecutionPage() {
     fetchTasks();
   }, []);
 
-  // ── Fetch SVG when group or idiom index changes
   useEffect(() => {
     const group = taskGroups[currentGroupIndex];
     if (!group) return;
@@ -152,7 +144,6 @@ export default function TaskExecutionPage() {
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [currentGroupIndex, currentIdiomIndex, taskGroups]);
 
-  // ── Advance: idiom-first, then task
   const handleAnswerSubmit = () => {
     const group = taskGroups[currentGroupIndex];
     if (!group) return;
@@ -164,7 +155,6 @@ export default function TaskExecutionPage() {
     }
   };
 
-  // ── Derived display values
   const currentGroup = taskGroups[currentGroupIndex];
   const currentIdiom = currentGroup?.idioms[currentIdiomIndex];
 
@@ -177,12 +167,10 @@ export default function TaskExecutionPage() {
 
   const showSkeleton = loadingTasks;
 
-  // ── Render
   return (
     <UITrackingProvider>
       <div style={{ backgroundColor: "#f9f9f9", color: "#2d3435", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
 
-        {/* ── Nav Bar ── */}
         <nav style={{
           backgroundColor: "#ffffff",
           position: "fixed", top: 0, zIndex: 50, width: "100%",
@@ -211,9 +199,7 @@ export default function TaskExecutionPage() {
           </div>
         </nav>
 
-        {/* Main Content */}
         <main style={{ flexGrow: 1, paddingTop: "5.5rem", paddingBottom: "2rem", paddingLeft: "1.5rem", paddingRight: "1.5rem", maxWidth: "1800px", margin: "0 auto", width: "100%" }}>
-
           {showSkeleton ? (
             <LoadingSkeleton />
           ) : (
@@ -228,6 +214,7 @@ export default function TaskExecutionPage() {
                 taskLabel={currentGroup?.task_label ?? ""}
                 experimentId={experimentId}
                 taskId={currentGroup?.task_id ?? currentStep}
+                taskKey={currentGroup?.task_key ?? ""}
                 idiomId={currentIdiom?.idiom_id ?? ""}
                 idiomKey={currentIdiom?.idiom_key ?? ""}
                 datasetId={currentIdiom?.dataset_id ?? ""}
