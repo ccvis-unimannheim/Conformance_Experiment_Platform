@@ -112,6 +112,10 @@ const TaskAnswerPanel = ({
     boxShadow: "0 4px 14px rgba(0,48,94,0.2)",
     transition: "background-color 0.15s ease",
   };
+  
+  // temporary debug — remove after testing
+  console.log("taskId:", taskId, typeof taskId);
+  console.log("taskDesc:", taskDescriptions[Number(taskId)]);
 
   return (
     <aside style={{ display: "flex", flexDirection: "column", gap: "1.5rem", position: "sticky", top: "5rem", maxHeight: "calc(100vh - 6rem)", overflowY: "auto", scrollbarWidth: "none" }}>
