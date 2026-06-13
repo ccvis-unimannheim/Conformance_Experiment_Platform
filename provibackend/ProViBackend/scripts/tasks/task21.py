@@ -271,7 +271,7 @@ def task21_table_and_bar_chart(candidates, output_dir):
                 frameon=False, fontsize=FONT_ANNOT - 1, loc="lower right")
     ax_b.spines[["top", "right"]].set_visible(False)
     ax_b.set_title("Unified ranking", fontsize=FONT_TITLE, pad=8)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 
@@ -351,7 +351,7 @@ def task21_flow_chart_and_table(ctx, candidates, output_dir):
                font_size=9, cell_pad=0.07)
     ax_tab.set_title("Candidate Reasons to Explore (ranked, attributes + events)",
                      fontsize=FONT_TITLE, pad=6)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 

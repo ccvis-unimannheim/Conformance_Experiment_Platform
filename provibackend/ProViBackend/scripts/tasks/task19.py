@@ -286,7 +286,7 @@ def task19_scatter_plot(eff, output_dir):
     ax.spines[["top", "right"]].set_visible(False)
     ax.grid(True, linestyle="--", alpha=0.4)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 
@@ -346,7 +346,7 @@ def task19_table_and_bar_chart(eff, output_dir):
     ax_b.set_xlabel("Risk diff (pp)", fontsize=FONT_LABEL)
     ax_b.spines[["top", "right"]].set_visible(False)
     ax_b.set_title("Signed goal effect", fontsize=FONT_TITLE, pad=8)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 
@@ -439,7 +439,7 @@ def task19_flow_chart_and_table(eff, alignments, output_dir):
                bbox=[0.02, 0.05, 0.96, 0.84], col_widths=col_widths,
                font_size=9, cell_pad=0.07)
     ax_tab.set_title("Violation Patterns Associated with the Goal (ranked)", fontsize=FONT_TITLE, pad=6)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 

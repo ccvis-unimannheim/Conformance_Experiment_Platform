@@ -176,7 +176,7 @@ def task03_scatter_plot(trace_rows: list, output_dir: str):
     ax.spines[["top", "right"]].set_visible(False)
     ax.grid(True, linestyle="--", alpha=0.4)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task03_scatter_plot.svg"))
 
 
@@ -205,7 +205,7 @@ def task03_table(presence_df: pd.DataFrame, output_dir: str):
         cell_pad=0.10,
     )
     ax.set_title(f"Top-{len(cell_text)} Differentiating Activities", fontsize=FONT_TITLE, pad=12)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task03_table.svg"))
 
 
@@ -251,7 +251,7 @@ def task03_table_and_bar_chart(presence_df: pd.DataFrame, output_dir: str):
     ax_bar.xaxis.grid(True, linestyle="--", alpha=0.5)
     ax_bar.set_axisbelow(True)
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task03_table_and_bar_chart.svg"))
 
 
@@ -321,7 +321,7 @@ def task03_parallel_sets(trace_rows: list, presence_df: pd.DataFrame, output_dir
         right_title="Activity",
     )
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task03_parallel_sets.svg"))
 
 
@@ -361,9 +361,10 @@ def task03_stacked_bar(trace_rows: list, output_dir: str):
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
-    ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1.0), frameon=False,
-              fontsize=FONT_ANNOT - 1, title="Activity", title_fontsize=FONT_ANNOT)
-    fig.tight_layout()
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=max(1, len(handles)), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task03_stacked_bar.svg"))
 
 
@@ -397,7 +398,7 @@ def task03_box_plot(trace_rows: list, output_dir: str):
 
     ax.set_title("Activity Presence Rate Distribution per Conformance Group",
                  fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task03_box_plot.svg"))
 
 
@@ -410,7 +411,7 @@ def task03_matrix(presence_df: pd.DataFrame, output_dir: str):
     draw_value_heatmap(fig, ax, data, acts, _GROUPS, xlabel="Conformance Group",
                        cbar_label="Presence rate (%)", cell_fmt="{:.0f}%", annotate=True)
     ax.set_title("Activity Presence by Group (top differentiators)", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task03_matrix.svg"))
 
 
@@ -429,7 +430,7 @@ def task03_heatmap(trace_rows: list, output_dir: str):
     draw_value_heatmap(fig, ax, data, acts, _GROUPS, xlabel="Conformance Group",
                        cbar_label="Presence rate (%)", annotate=False)
     ax.set_title("Activity Presence Rate by Group (all activities)", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task03_heatmap.svg"))
 
 

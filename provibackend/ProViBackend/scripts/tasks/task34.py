@@ -213,7 +213,7 @@ def _draw_alignment_table(ax, rows, bbox, font_size=10.5):
     tbl.auto_set_font_size(False)
     tbl.set_fontsize(font_size)
     for (r, c), cell in tbl.get_celld().items():
-        cell.set_edgecolor("#E0E0E0")
+        cell.set_edgecolor("#333333")
         cell.set_linewidth(0.8)
         if r == 0:
             cell.set_facecolor(_HDR_BG)
@@ -323,7 +323,7 @@ def task34_stacked_bar(ctx, output_dir):
     mol_vals = [act_counts[a]["mol"]      for a in acts]
     mis_vals = [act_counts[a]["mismatch"] for a in acts]
 
-    # Each row ~0.55 in; min 2.0, max 14.0 — avoids huge bars for single-activity traces
+    # Each row ~0.55 in; min 2.0, max 14.0
     fig_h = min(max(2.0, len(acts) * 0.55 + 1.8), 14.0)
     bar_h = min(0.7, (fig_h - 1.8) / max(len(acts), 1))
     fig, ax = plt.subplots(figsize=(11, fig_h))
@@ -358,17 +358,13 @@ def task34_stacked_bar(ctx, output_dir):
         fontsize=FONT_TITLE, pad=8,
     )
     ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.3, zorder=0)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.45, zorder=0)
     ax.set_axisbelow(True)
 
-    fig.legend(
-        handles=ax.get_legend_handles_labels()[0],
-        labels=ax.get_legend_handles_labels()[1],
-        loc="lower center", bbox_to_anchor=(0.5, 0.0),
-        ncol=3, fontsize=FONT_ANNOT,
-        frameon=True, fancybox=False, edgecolor="#cccccc",
-    )
-    fig.tight_layout(rect=[0, 0.10, 1, 1])
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles, labels, loc="center left", bbox_to_anchor=(1.02, 0.5),
+              ncol=1, fontsize=FONT_ANNOT, frameon=True, framealpha=0.9)
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task34_stacked_bar.svg"))
 
 
@@ -536,7 +532,7 @@ def task34_heatmap(ctxs, output_dir):
         f"Violation Count per Activity — Top {len(show)} Most Violated Traces",
         fontsize=FONT_TITLE, pad=9,
     )
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task34_heatmap.svg"))
 
 
@@ -662,7 +658,7 @@ def task34_flow_chart_basic(ctx, output_dir):
     fig.legend(handles=legend_handles, loc="lower center",
                bbox_to_anchor=(0.5, 0.01), ncol=3,
                fontsize=FONT_ANNOT, frameon=True, fancybox=False, edgecolor="#cccccc")
-    fig.tight_layout(rect=[0, 0.10, 1, 1])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task34_flow_chart_basic.svg"))
 
 
@@ -777,7 +773,7 @@ def task34_matrix(act_freqs, cooccur, output_dir):
         "(diagonal = individual violation frequency  ·  off-diagonal = traces both violated)",
         fontsize=FONT_TITLE,
     )
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task34_matrix.svg"))
 
 
@@ -827,7 +823,7 @@ def task34_parallel_sets(log_act_v, output_dir):
         fontsize=FONT_TITLE, pad=8,
     )
     ax.axis("off")
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task34_parallel_sets.svg"))
 
 

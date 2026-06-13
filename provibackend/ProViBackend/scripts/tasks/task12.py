@@ -160,7 +160,7 @@ def task12_tile_metric(stats, output_dir):
                 transform=ax.transAxes)
 
     fig.suptitle("Process Conformance Summary", fontsize=FONT_TITLE + 1, y=1.02)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task12_tile_metric.svg"))
 
 
@@ -211,7 +211,7 @@ def task12_pie_chart(stats, output_dir):
         ncol=2,
     )
     ax.set_title("Conformant vs Deviating Traces", fontsize=FONT_TITLE, pad=16)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task12_pie_chart.svg"))
 
 
@@ -332,18 +332,18 @@ def task12_stacked_bar(stats, output_dir):
         fontsize=FONT_TITLE,
     )
     ax.spines[["top", "right", "left"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.25)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
     ax.legend(
         handles=patches,
-        loc="upper center",
-        bbox_to_anchor=(0.5, -0.20),
+        loc="lower center",
+        bbox_to_anchor=(0.5, -0.25),
         ncol=3,
         fontsize=FONT_ANNOT,
         frameon=True, framealpha=0.9,
     )
 
-    fig.tight_layout(rect=[0, 0.10, 1, 1])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task12_stacked_bar.svg"))
 
 
@@ -401,7 +401,7 @@ def task12_table(stats, output_dir):
     x = l
     for hdr, cw in zip(col_headers, col_widths):
         ax.add_patch(plt.Rectangle((x, t - row_h), cw * tw, row_h,
-                                   fc=_HDR_BG, ec="white", linewidth=0.5,
+                                   fc=_HDR_BG, ec="#333333", linewidth=0.5,
                                    transform=ax.transAxes, clip_on=False))
         ax.text(x + cw * tw * 0.5, t - row_h * 0.5, hdr,
                 ha="center", va="center", fontsize=FONT_ANNOT,
@@ -420,7 +420,7 @@ def task12_table(stats, output_dir):
 
         for j, (val, cw) in enumerate(zip(row, col_widths)):
             ax.add_patch(plt.Rectangle((x, y_top), cw * tw, row_h,
-                                       fc=bg, ec="#eeeeee", linewidth=0.4,
+                                       fc=bg, ec="#333333", linewidth=0.5,
                                        transform=ax.transAxes, clip_on=False))
             ha = "left" if j == 0 else "center"
             px = x + 0.008 if j == 0 else x + cw * tw * 0.5
@@ -434,7 +434,7 @@ def task12_table(stats, output_dir):
         f"Process Conformance Breakdown  ·  {n_t:,} total traces",
         fontsize=FONT_TITLE, pad=14,
     )
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task12_table.svg"))
 
 
@@ -514,7 +514,7 @@ def task12_table_bar_chart(stats, output_dir):
         f"Process Conformance Breakdown  ·  {n_t:,} total traces",
         fontsize=FONT_TITLE + 1, y=1.01,
     )
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task12_table_bar_chart.svg"))
 
 

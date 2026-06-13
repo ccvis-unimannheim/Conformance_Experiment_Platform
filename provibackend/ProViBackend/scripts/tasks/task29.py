@@ -224,7 +224,7 @@ def task29_heatmap(df: pd.DataFrame, output_dir: str):
         ax.text(0, i, f"{int(val)}", ha="center", va="center", fontsize=FONT_ANNOT, color=color)
     cbar = fig.colorbar(im, ax=ax, fraction=0.08, pad=0.04)
     cbar.set_label("Number of Violations", fontsize=FONT_ANNOT)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task29_heatmap.svg"))
 
 
@@ -247,7 +247,7 @@ def task29_pie_chart(df: pd.DataFrame, output_dir: str):
         autotext.set_color(contrasting_text_color(color))
     ax.legend(wedges, labels, loc="lower center", bbox_to_anchor=(0.5, -0.08), ncol=len(labels), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.set_title("Violation Type Proportions", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task29_pie_chart.svg"))
 
 
@@ -274,7 +274,7 @@ def task29_table(df: pd.DataFrame, output_dir: str):
         highlight_last_row=True,
     )
     ax.set_title("Violation Type Summary", fontsize=FONT_TITLE, pad=12)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task29_table.svg"))
 
 
@@ -317,7 +317,7 @@ def task29_table_and_bar_chart(df: pd.DataFrame, output_dir: str):
     ax_bar.xaxis.grid(True, linestyle="--", alpha=0.4)
     ax_bar.set_axisbelow(True)
     fig.suptitle("Violation Type Summary", fontsize=FONT_TITLE, y=0.98)
-    fig.tight_layout(rect=[0, 0, 1, 0.93])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task29_table_and_bar_chart.svg"))
 
 
@@ -484,7 +484,7 @@ def task29_flow_chart_and_table(df: pd.DataFrame, alignments, output_dir: str):
     )
 
     fig.suptitle("Violation Type Summary", fontsize=FONT_TITLE, y=0.98)
-    fig.tight_layout(rect=[0, 0.07, 1, 0.93])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task29_flow_chart_and_table.svg"))
 
 
@@ -538,10 +538,11 @@ def task29_stacked_bar(alignments, output_dir: str):
                  fontsize=FONT_TITLE)
     ax.set_xlim(0, xmax * 1.12)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.3)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    ax.legend(loc="lower right", fontsize=FONT_ANNOT, frameon=True, framealpha=0.9)
-    fig.tight_layout()
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=3, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
 
 
@@ -577,7 +578,7 @@ def task29_matrix(alignments, output_dir: str):
         rotate_xticks=0,
     )
     ax.set_title("Activity × Violation Type Matrix", fontsize=FONT_TITLE, pad=10)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
 
 
@@ -627,7 +628,7 @@ def task29_parallel_sets(alignments, output_dir: str):
         left_title="Violation Type",
         right_title="Activity",
     )
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
 
 
@@ -692,7 +693,7 @@ def task29_tree_map(alignments, output_dir: str):
               bbox_to_anchor=(0.5, -0.06), ncol=4, frameon=False, fontsize=FONT_ANNOT)
     ax.set_title(f"Violation Pattern Tree Map  (area = count, top-{len(top)})",
                  fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
 
 
@@ -774,7 +775,7 @@ def task29_sunburst(alignments, output_dir: str):
     )
     ax.set_title("Violation Sunburst (Move Type → Activity)",
                  fontsize=FONT_TITLE, pad=10)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
 
 

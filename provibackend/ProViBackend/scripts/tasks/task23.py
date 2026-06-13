@@ -119,16 +119,17 @@ def task23_stacked_bar(pat_df: pd.DataFrame, output_dir: str):
         bottoms += vals
 
     ax.set_xticks(x)
-    ax.set_xticklabels(top_acts, rotation=40, ha="right", fontsize=FONT_ANNOT - 1)
+    ax.set_xticklabels(top_acts, rotation=0, fontsize=FONT_ANNOT - 1)
     ax.set_ylabel("Violation count", fontsize=FONT_LABEL)
     ax.set_title(f"Violation Composition per Activity (top-{len(top_acts)})",
                  fontsize=FONT_TITLE)
-    ax.legend(frameon=False, fontsize=FONT_ANNOT,
-              title="Move type", title_fontsize=FONT_ANNOT)
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=max(1, len(handles)), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task23_stacked_bar.svg"))
 
 
@@ -159,7 +160,7 @@ def task23_table(pat_df: pd.DataFrame, output_dir: str):
         highlight_last_row=True,
     )
     ax.set_title(f"Top-{len(top)} Violation Patterns", fontsize=FONT_TITLE, pad=4)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task23_table.svg"))
 
 
@@ -207,7 +208,7 @@ def task23_table_and_bar_chart(pat_df: pd.DataFrame, output_dir: str):
     ax_bar.xaxis.grid(True, linestyle="--", alpha=0.5)
     ax_bar.set_axisbelow(True)
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task23_table_and_bar_chart.svg"))
 
 
@@ -251,7 +252,7 @@ def task23_matrix(pat_df: pd.DataFrame, output_dir: str):
 
     cbar = fig.colorbar(im, ax=ax, fraction=0.04, pad=0.02)
     cbar.set_label("Count", fontsize=FONT_ANNOT)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task23_matrix.svg"))
 
 
@@ -297,7 +298,7 @@ def task23_parallel_sets(pat_df: pd.DataFrame, output_dir: str):
         right_title="Activity",
     )
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task23_parallel_sets.svg"))
 
 
@@ -320,9 +321,9 @@ def task23_scatter_plot(pat_df: pd.DataFrame, output_dir: str):
     ax.set_title("Violation Patterns: Reach vs. Frequency", fontsize=FONT_TITLE)
     _move_legend(ax, set(pat_df["move_type"]))
     ax.spines[["top", "right"]].set_visible(False)
-    ax.grid(True, linestyle="--", alpha=0.4)
+    ax.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task23_scatter_plot.svg"))
 
 
@@ -381,7 +382,7 @@ def task23_box_plot(pat_df: pd.DataFrame, alignments, output_dir: str):
                 transform=ax.transAxes, ha="center", va="top",
                 fontsize=FONT_ANNOT, color="#888888")
     ax.set_title(title, fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task23_box_plot.svg"))
 
 
@@ -400,7 +401,7 @@ def task23_heatmap(pat_df: pd.DataFrame, output_dir: str):
     draw_value_heatmap(fig, ax, data, top_acts, present_types, xlabel="Move Type",
                        cbar_label="Count", annotate=False)
     ax.set_title(f"Violation Count Heatmap (top-{len(top_acts)} activities)", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task23_heatmap.svg"))
 
 

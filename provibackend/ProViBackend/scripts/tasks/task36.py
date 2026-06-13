@@ -490,7 +490,7 @@ def task36_network_diagram(data: dict, output_dir: str):
               fontsize=FONT_ANNOT - 1, frameon=True, framealpha=0.95,
               edgecolor="#dddddd")
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
 
     path = os.path.join(output_dir, "task36_network_diagram.svg")
     save_svg(fig, path)

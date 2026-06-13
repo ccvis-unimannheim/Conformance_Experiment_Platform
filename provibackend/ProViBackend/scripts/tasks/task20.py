@@ -689,7 +689,7 @@ def task20_tree(tree: dict, output_dir: str):
         y_gap=2.05,
     )
     _task20_draw_feature_importance(ax_importance, tree)
-    fig.tight_layout(rect=[0, 0.03, 1, 1])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task20_tree.svg"))
 
 
@@ -782,7 +782,7 @@ def task20_network_diagram(alignments, output_dir: str, top_n: int = 12):
     ax.set_ylim(-1.45, 1.45)
     ax.set_title("Violation Pattern Co-occurrence Network\n(node size = #traces, edge width = co-occurrence)",
                  fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 

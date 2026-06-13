@@ -185,7 +185,7 @@ def task15_table(viol_df, s, output_dir):
     )
     ax.set_title("Violations by Activity (log-level aggregate)", fontsize=FONT_TITLE, pad=10)
     _add_stats_footer(fig, s)
-    fig.tight_layout(rect=[0, 0.04, 1, 1])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
 
 
@@ -273,7 +273,7 @@ def task15_scatter_plot(fitness_df, s, output_dir):
     ax.yaxis.grid(True, linestyle="--", alpha=0.3)
     ax.set_axisbelow(True)
     _add_stats_footer(fig, s)
-    fig.tight_layout(rect=[0, 0.04, 1, 1])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
 
 
@@ -526,7 +526,7 @@ def task15_parallel_sets(viol_df, fitness_df, alignments, s, output_dir):
         left_title="Fitness Band",
         right_title="Move Type",
     )
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
 
 

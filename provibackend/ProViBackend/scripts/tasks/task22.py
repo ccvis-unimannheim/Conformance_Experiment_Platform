@@ -212,12 +212,12 @@ def task22_stacked_bar(trace_df, groups, attr, output_dir):
     ax.set_ylim(0, 105)
     ax.set_title(f"Fitness Band Composition by {attr}", fontsize=FONT_TITLE)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.4)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    ax.legend(title="Fitness band", frameon=False, fontsize=FONT_ANNOT - 1,
-              title_fontsize=FONT_ANNOT,
-              loc="upper left", bbox_to_anchor=(1.01, 1), borderaxespad=0)
-    fig.tight_layout()
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=max(1, len(handles)), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task22_stacked_bar.svg"))
 
 
@@ -274,9 +274,9 @@ def task22_scatter_plot(trace_df, groups, meta, attr, output_dir):
               title_fontsize=FONT_ANNOT,
               loc="upper left", bbox_to_anchor=(1.01, 1), borderaxespad=0)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.4)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task22_scatter_plot.svg"))
 
 
@@ -312,7 +312,7 @@ def task22_table(stats_df, attr, output_dir):
     )
     ax.set_title(f"Conformance Summary by {attr} (Δ explains the spread)",
                  fontsize=FONT_TITLE, pad=10)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task22_table.svg"))
 
 
@@ -414,7 +414,7 @@ def task22_parallel_sets(trace_df, groups, attr, output_dir):
         left_title="Sub-log (reason)",
         right_title="Fitness band",
     )
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task22_parallel_sets.svg"))
 
 

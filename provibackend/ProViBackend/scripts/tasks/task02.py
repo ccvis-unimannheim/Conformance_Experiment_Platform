@@ -91,7 +91,7 @@ def task02_table(df, output_dir: str, predominant_threshold: float):
         cell_pad=0.12,
     )
     ax.set_title("Overall Conformance Summary", fontsize=FONT_TITLE, pad=12)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task02_table.svg"))
 
 
