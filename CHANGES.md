@@ -2,6 +2,168 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: Knowledge Questions — Full DB Implementation (2026-06-11)
+
+### Problem solved
+
+Knowledge questions were hardcoded in the frontend. Admins had no way to add new questions or configure which questions each experiment uses without touching the source code.
+
+### Backend (`provibackend/`)
+
+| File | Change |
+|------|--------|
+| `app/datamodels/data_schemas.py` | Added `KnowledgeQuestion` and `KnowledgeQuestionCreate` models. Added `KnowledgeQuestionIds` model. Updated `KnowledgeAnswersRequest` to `{answers: Dict[str, int], tools: List[str]}` (server-side scoring). Added `knowledge_question_ids: List[str] = []` field to `Experiment` (empty = all system questions). |
+| `app/seed_data.py` | Added `CANONICAL_KNOWLEDGE_QUESTIONS` with the 6 existing hardcoded questions seeded as `is_system=True`. |
+| `app/main.py` | Imported `CANONICAL_KNOWLEDGE_QUESTIONS`; added seed call for `KnowledgeQuestion` collection on startup. |
+| `app/routers/admin.py` | Added `GET /admin/knowledge-questions`, `POST /admin/knowledge-questions`, `DELETE /admin/knowledge-questions/{id}` (system questions protected, 409 if referenced by experiments), `PATCH /admin/experiments/{id}/knowledge-questions` endpoints. |
+| `app/routers/participant.py` | Added `GET /participant/knowledge-questions` (active experiment, strips `correct_option_index`). Added `GET /participant/experiment/{id}/knowledge-questions` (admin preview). |
+| `app/routers/auth.py` | Updated `POST /auth/knowledge` to accept `{answers: {qid: optionIndex}, tools: [...]}`. Score computed server-side by comparing submitted indices against `correct_option_index` in DB. Stored format (`notes`, `score`, `level` in `KnowledgeAnswers`) unchanged for CSV export compatibility. |
+
+### Frontend (`ProViFrontend/`)
+
+| File | Change |
+|------|--------|
+| `src/app/admin/experiments/knowledge/page.js` | **New file.** Wizard step 2 between `/new` and `/task`. Lists all KQ with checkboxes (system + custom sections). "Add Question" opens a modal to create a new DB question with 2–6 options, optional "I don't know" toggle, and correct answer selection. On "Next", PATCHes the experiment with selected question IDs. |
+| `src/app/admin/experiments/new/page.js` | Changed post-create redirect from `/admin/experiments/task` to `/admin/experiments/knowledge`. |
+| `src/app/admin/page.js` | "Continue Editing" for experiments without task configs now points to `/admin/experiments/knowledge` instead of `/admin/experiments/task`. |
+| `src/app/knowledgequestion/page.js` | Replaced hardcoded question array with dynamic fetch from `GET /api/participant/knowledge-questions`. Answers submitted as `{answers: {question_id: option_index}, tools: [...]}` instead of pre-computed `{notes, score, level}`. Questions grouped by `section_title` from DB. |
+
+---
+
+## Session: Scrollable Dataset Tables (2026-06-11)
+
+### Problem solved
+
+Both dataset display surfaces lacked consistent scroll behaviour when the dataset list grew long.
+
+### Frontend (`ProViFrontend/`)
+
+| File | Change |
+|------|--------|
+| `provi-frontend/src/components/Admin/DatasetSelectTable.js` | Added `max-h-72 overflow-y-auto pr-1` to the table wrapper so the Choose Dataset(s) table on `/admin/experiments/new` scrolls vertically beyond 288 px. Added `sticky top-0 bg-surface-container-lowest z-10` to `<thead>` so column headers remain visible while scrolling. |
+
+*Note: the `/admin` Datasets list already had `max-h-72 overflow-y-auto pr-1` from the Datasets Section Redesign session.*
+
+---
+
+## Session: Timestamp Timezone Fix (2026-06-11)
+
+### Problem solved
+
+Dataset upload timestamps were displaying in UTC instead of the admin's local (Berlin) time. Root cause: the backend stores naive UTC datetime strings (e.g. `"2026-06-11 12:32:00.123456"`) without timezone info. JavaScript's `new Date()` treats space-separated datetime strings as local time rather than UTC, so no UTC→local conversion was applied and the times appeared 2 hours behind CEST.
+
+### Frontend (`ProViFrontend/`)
+
+| File | Change |
+|------|--------|
+| `provi-frontend/src/app/admin/page.js` | Updated `formatDateTime`: replaces the space separator with `T`, then appends `Z` if no timezone offset is already present (checked via `/Z$\|[+-]\d{2}:?\d{2}$/`). `new Date()` now parses the value as UTC and `getHours()`/`getMinutes()` output the browser's local time — Berlin time for German admins, system time elsewhere. |
+| `provi-frontend/src/components/Admin/DatasetSelectTable.js` | Same `formatDateTime` fix, so the "Uploaded:" timestamp in `/admin/experiments/new` is also timezone-correct. |
+
+---
+
+## Session: Experiment Manage Mode (2026-06-11)
+
+### Problem solved
+
+The Experiments section on `/admin` had no way to delete experiments. Admins needed a Manage mode (mirroring the Datasets section) with a two-phase delete flow that surfaces participant-data counts and offers a "Download data first" link before force-deleting.
+
+### Backend (`provibackend/`)
+
+| File | Change |
+|------|--------|
+| `ProViBackend/app/routers/admin.py` | **New `DELETE /admin/experiments/{experiment_id}?force=false`**. Counts `UserAssignment`, `Answer`, and `UILogging` documents for the experiment. If `status != "draft"` **or** any count > 0 and `force=false` → returns 409 with `detail.experiment` (name, status) and `detail.counts` (assignments, answers, ui_logs). If `force=true` or a draft with no data → cascades `delete_many` across all three collections then deletes the `Experiment` document. Returns `deleted_counts` in the response body. |
+
+### Frontend (`ProViFrontend/`)
+
+| File | Change |
+|------|--------|
+| `provi-frontend/src/app/admin/page.js` | Added Manage mode to the Experiments right column, mirroring the Datasets left column: `expManageMode`, `selectedExpIds`, `expDeleteConfirmOpen`, `expForceConfirm` state; `toggleSelectExp`, `exitExpManage`, `performExpDelete`, `handleExpDeleteConfirmed`, `handleExpForceConfirmed` helpers. In Manage mode each experiment card shows a checkbox; action buttons (Continue Editing / Mark as Finished / Download Data) are hidden to avoid misclicks. Footer switches to `[Cancel] [Delete Selected (n)]`. Delete follows the same two-phase pattern as datasets: first confirm modal lists selected names with a note that draft-with-no-data experiments delete immediately; if any return 409, a second force-confirm modal shows per-experiment data counts (assignments · answers · UI logs) and a "Download data first ↓" link for experiments with answers > 0, warning that force delete permanently removes all participant data. Renamed dataset manage state vars to `dsManageMode`/`selectedDsIds` to avoid collision with the new experiment equivalents. |
+
+---
+
+## Session: Datasets Section Redesign (2026-06-11)
+
+### Problem solved
+
+The admin home page had a permanently-open "Upload Dataset" form on the left and no way to view, browse, or delete existing datasets. Admins had no UI to see what was already uploaded or to clean up obsolete datasets, and there was no protection against uploading a second dataset with the same name as an existing one (silently producing two entries with identical titles).
+
+### Approach
+
+Replaced the left column with a "Datasets" section that lists existing datasets (scrollable) with upload date/time and exposes Manage / Upload affordances. Upload is now an explicit modal action. Duplicate-name detection happens client-side at save time; deletes use a two-phase confirm-then-force flow so the admin can choose to abort or proceed when referenced experiments would be demoted.
+
+### Backend (`provibackend/`)
+
+| File | Change |
+|------|--------|
+| `ProViBackend/app/routers/admin.py` | Added `import shutil` and `Form` from fastapi. **POST `/admin/datasets/pair`** now accepts an optional `dataset_title` form field that overrides the default log-stem-derived title (used by the frontend's "Keep Both" rename flow). **New `DELETE /admin/datasets/{dataset_id}`** with `force: bool = False` query param: when `force=false` and any `Experiment.dataset_ids` references the dataset, returns 409 with `detail.referencing_experiments` (list of `{_id, name, status}`); when `force=true` (or no references exist), demotes each referencing experiment to `draft` (also removing the deleted dataset id from `dataset_ids`), removes the `data/{dataset_id}/` directory via `shutil.rmtree`, and deletes the `DatasetPair` document. Response includes `demoted_experiments` so the UI can name what was reverted. |
+
+### Frontend (`ProViFrontend/`)
+
+| File | Change |
+|------|--------|
+| `provi-frontend/src/components/Admin/UploadDatasetModal.js` | **New** — modal that wraps the previous upload UI (two `FileUploadCard`s + Save button). Receives `existingDatasets` to derive the title set; on Save derives `title` from the log filename stem and checks for collision. If a collision exists, renders an inner conflict dialog with three actions: **Cancel** (return to upload form), **Keep Both** (computes next-available `"{title} ({n})"` starting at n=2, posts with `dataset_title` form field), **Replace** (DELETEs the existing dataset with `?force=true` then re-posts with default title). Backdrop and close button are disabled while `isSaving` to prevent mid-upload close. |
+| `provi-frontend/src/app/admin/page.js` | Replaced the "Upload Dataset" left column with a "Datasets" section: scrollable list (max-h-72) showing `dataset_title` + `formatDateTime(insert_datetime)` (dd/mm/yy HH:MM, minute precision). Footer has two modes — **default**: `[Manage] [Upload]`; **manage**: per-row checkboxes + `[Cancel] [Delete Selected (n)]`. Delete uses a two-phase flow: first confirm modal (list of names + warning), then iterate `DELETE /api/admin/datasets/{id}` without force. 409 responses are collected into `forceConfirm` state; when present, a second modal lists each conflicting dataset alongside its referencing experiments (name + status) and offers `[Cancel] [Force Delete]`. Force path re-issues DELETE with `?force=true` and reports demoted experiment names in a toast. Removed `FileUploadCard`/`SaveResultModal` imports and the related `logFile`/`guidelineFile`/`isSaving`/`handleSave`/`modal` state — all migrated into the new modal. Added `Toast` for inline feedback (replaces the post-upload `SaveResultModal`). |
+| `provi-frontend/src/components/Admin/DatasetSelectTable.js` | Added inline `formatDateTime` helper (same dd/mm/yy HH:MM format) and swapped the two `new Date(...).toLocaleDateString()` calls under "Uploaded:" to use it, so timestamps on `/admin/experiments/new` match the new datasets list and include minute precision. |
+
+### Notes
+
+- `/admin/experiments/new` already fetches from the same `GET /api/admin/datasets` endpoint, so the data source is consistent without further changes.
+- "Force Delete" is destructive but reversible only in the sense that the demoted experiments can be re-published manually after their datasets are re-uploaded. The admin sees exactly which experiments will be affected before confirming.
+- Frontend duplicate detection is client-side (against the in-memory `datasets` list). A race condition exists if two admins upload simultaneously, but is harmless: the second upload will succeed with a different UUID and the duplicate title will simply coexist until cleaned up.
+
+---
+
+## Session: Publish Mutex Check (2026-06-11)
+
+### Problem solved
+
+The overview page's "Publish Experiment" button always called `PATCH /experiments/{id}/status?status=published` unconditionally, allowing multiple experiments to be in `published` state simultaneously. Business rule: at most one experiment may be published at a time.
+
+### Approach
+
+Frontend-only check on the overview page. When the admin clicks Publish, the page refetches the experiments list to detect any other experiment with `status === "published"`. If one is found, a confirmation modal blocks the action and offers two choices:
+
+- **Cancel** — abort publishing.
+- **Finish & Publish** — PATCH the conflicting experiment to `finished`, then publish the current one.
+
+No backend change yet, so a race condition remains if two admins click Publish simultaneously. Backend 409 enforcement is deferred to a future session (likely bundled with merging the two status-update endpoints).
+
+### Frontend (`ProViFrontend/`)
+
+| File | Change |
+|------|--------|
+| `provi-frontend/src/app/admin/experiments/overview/page.js` | Added `publishConflict` and `publishing` state. Split `publishExperiment()` into a validation entrypoint (refetches experiments, detects another published one, opens modal if found) and a private `_doPublish()` helper that contains the actual `PATCH …/status?status=published` call. Added `confirmFinishAndPublish()` which PATCHes the conflicting experiment to `finished` then calls `_doPublish()`. Publish button now also disables during `publishing` and shows "Publishing…". New inline conflict modal (styled like `SaveResultModal`) displays the conflicting experiment name with Cancel / "Finish & Publish" actions. |
+
+---
+
+## Session: Admin Experiments List Scrollable (2026-06-11)
+
+### Problem solved
+
+The Experiments section on `/admin` had no height limit, so the page grew taller as more experiment instances accumulated, eventually pushing other content off-screen and breaking the two-column layout balance.
+
+### Frontend (`ProViFrontend/`)
+
+| File | Change |
+|------|--------|
+| `provi-frontend/src/app/admin/page.js` | Added `max-h-72 overflow-y-auto pr-1` to the experiments list container (`<div className="space-y-4 mb-10">`). The list now caps at 288px (≈3–4 cards visible), scrolls vertically when exceeded, and `pr-1` reserves space for the scrollbar so card content isn't clipped. |
+
+---
+
+## Session: Task List Natural Sort (2026-06-11)
+
+### Problem solved
+
+Tasks on `/admin/experiments/task` were displayed in MongoDB insertion order rather than logical order (task1, task2, …, taskN). With more than 9 tasks, lexicographic string sort would also break (e.g. task10 before task2).
+
+### Backend (`provibackend/`)
+
+| File | Change |
+|------|--------|
+| `ProViBackend/app/routers/admin.py` | Added `import re` at top. In `GET /admin/tasks`, added a natural-sort step after fetching: `tasks.sort(key=lambda t: int(re.search(r'\d+', t.get("task_key", "0")).group()))`. Tasks are now returned in task1 → task2 → … → taskN order regardless of insertion order in MongoDB. |
+
+---
+
 ## Session: Experiment Overview Page (2026-05-24)
 
 ### Goal

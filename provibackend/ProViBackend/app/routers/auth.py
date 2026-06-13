@@ -1,3 +1,4 @@
+import json
 import os
 import uuid
 from typing import Annotated
@@ -82,11 +83,32 @@ async def check_for_cookie(provi_user_id: Annotated[str | None, Cookie()] = None
 async def knowledge_answers(body: ds.KnowledgeAnswersRequest, provi_user_id: Annotated[str | None, Cookie()] = None):
     if provi_user_id is None:
         return JSONResponse(content={"message": "No cookie detected! Please call GET /auth to receive a cookie"}, status_code=401)
+
+    # Load questions to compute score server-side
+    db = dbc.connect_to_database()
+    question_ids = list(body.answers.keys())
+    questions = list(db["KnowledgeQuestion"].find({"_id": {"$in": question_ids}})) if question_ids else []
+
+    score = sum(
+        1 for q in questions
+        if q.get("correct_option_index") is not None
+        and body.answers.get(q["_id"]) == q["correct_option_index"]
+    )
+    level = 1 if score <= 3 else (2 if score <= 7 else 3)
+
+    notes_dict = {qid: opt_idx for qid, opt_idx in body.answers.items()}
+    notes_dict["tools"] = body.tools
+
     knowledge_id = str(uuid.uuid4())
-    doc = {"_id": knowledge_id, **body.model_dump()}
+    doc = {
+        "_id": knowledge_id,
+        "notes": json.dumps(notes_dict),
+        "score": score,
+        "level": level,
+    }
     dbc.create_document("KnowledgeAnswers", doc)
     dbc.update_document("User", {"user_id": provi_user_id}, {"$set": {"knowledge_id": knowledge_id}})
-    return JSONResponse(content={"message": "Knowledge answers added to database."})
+    return JSONResponse(content={"message": "Knowledge answers added to database.", "score": score, "level": level})
 
 
 @router.post("/feedback", tags=["auth"])

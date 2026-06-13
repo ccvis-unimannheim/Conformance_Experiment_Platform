@@ -20,6 +20,9 @@ function ExperimentOverviewContent() {
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("draft");
 
+  const [publishConflict, setPublishConflict] = useState(null);
+  const [publishing, setPublishing] = useState(false);
+
   const [toast, setToast] = useState({ visible: false, message: "", isError: false });
   const showToast = useCallback((message, isError = false) => {
     setToast({ visible: true, message, isError });
@@ -105,7 +108,8 @@ function ExperimentOverviewContent() {
     }
   }
 
-  async function publishExperiment() {
+  async function _doPublish() {
+    setPublishing(true);
     try {
       const res = await fetch(
         `/api/admin/experiments/${experimentId}/status?status=published`,
@@ -116,6 +120,45 @@ function ExperimentOverviewContent() {
       showToast("Experiment published successfully!");
     } catch (e) {
       showToast(`Failed to publish: ${e.message}`, true);
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  async function publishExperiment() {
+    if (publishing) return;
+    try {
+      const res = await fetch(`/api/admin/experiments`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const exps = await res.json();
+      const conflict = exps.find(
+        (e) => getId(e) !== experimentId && (e.status || e.experiment_status) === "published"
+      );
+      if (conflict) {
+        setPublishConflict(conflict);
+        return;
+      }
+      await _doPublish();
+    } catch (e) {
+      showToast(`Failed to publish: ${e.message}`, true);
+    }
+  }
+
+  async function confirmFinishAndPublish() {
+    if (!publishConflict) return;
+    const conflictId = getId(publishConflict);
+    setPublishing(true);
+    try {
+      const res = await fetch(
+        `/api/admin/experiments/${encodeURIComponent(conflictId)}/status?status=finished`,
+        { method: "PATCH" }
+      );
+      if (!res.ok) throw new Error(`Failed to finish existing: ${await res.text()}`);
+      setPublishConflict(null);
+      await _doPublish();
+    } catch (e) {
+      showToast(e.message, true);
+      setPublishing(false);
     }
   }
 
@@ -337,15 +380,50 @@ function ExperimentOverviewContent() {
             </button>
             <button
               onClick={publishExperiment}
-              disabled={status === "published"}
+              disabled={status === "published" || publishing}
               className="flex items-center gap-2 font-button text-button bg-primary text-on-primary px-8 py-2.5 rounded-lg hover:opacity-90 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <span className="material-symbols-outlined text-sm">publish</span>
-              {status === "published" ? "Published" : "Publish Experiment"}
+              {status === "published" ? "Published" : publishing ? "Publishing..." : "Publish Experiment"}
             </button>
           </div>
         </div>
       </div>
+
+      {publishConflict && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl p-8 w-full max-w-md mx-4 flex flex-col gap-4">
+            <div className="flex items-center gap-3">
+              <span className="material-symbols-outlined text-4xl text-amber-500">warning</span>
+              <h2 className="text-h2 text-on-surface">Another experiment is published</h2>
+            </div>
+            <p className="text-body-sm text-on-surface-variant">
+              "<span className="font-semibold">{publishConflict.name || publishConflict.experiment_name || "(unnamed)"}</span>" is currently published. Only one experiment can be published at a time.
+            </p>
+            <p className="text-body-sm text-on-surface-variant">
+              Publishing this experiment will mark the existing one as <span className="font-semibold">finished</span>. Continue?
+            </p>
+            <div className="flex justify-end gap-3 mt-2">
+              <button
+                type="button"
+                onClick={() => setPublishConflict(null)}
+                disabled={publishing}
+                className="text-sm font-semibold border border-border-subtle text-on-surface-variant px-5 py-2 rounded-lg hover:bg-surface-container transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmFinishAndPublish}
+                disabled={publishing}
+                className="text-sm font-semibold bg-primary text-on-primary px-5 py-2 rounded-lg hover:opacity-90 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {publishing ? "Working..." : "Finish & Publish"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Toast
         message={toast.message}

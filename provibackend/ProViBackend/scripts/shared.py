@@ -549,6 +549,72 @@ def render_empty_state_svg(out_path: str, title: str, message: str = "No data av
     ax.set_title(title, fontsize=FONT_TITLE)
     save_svg(fig, out_path)
 
+
+def place_scatter_labels(ax, points, *, x_margin: float = 0.16, y_margin: float = 0.14,
+                         cluster_x_frac: float = 0.08, gap_y_frac: float = 0.06,
+                         dx_frac: float = 0.025, fontsize: float = None):
+    """Annotate scatter points with non-overlapping, non-crossing callout labels.
+
+    points: iterable of (x, y, text). Nearby points are grouped into clusters (by
+    x proximity); within a cluster the labels are spread monotonically into the
+    emptier vertical direction so the leader lines never cross and never swap a
+    label onto the wrong dot. Labels for points in the right half are placed to the
+    left (and vice versa) so they don't run off the canvas. Used by task18/task19's
+    scatter idioms.
+    """
+    pts = [p for p in points if p is not None]
+    if not pts:
+        return
+    if fontsize is None:
+        fontsize = FONT_ANNOT - 1
+
+    ax.margins(x=x_margin, y=y_margin)
+    x0, x1 = ax.get_xlim()
+    y0, y1 = ax.get_ylim()
+    xr = (x1 - x0) or 1.0
+    yr = (y1 - y0) or 1.0
+    xmid = (x0 + x1) / 2.0
+    ymid = (y0 + y1) / 2.0
+    gap = yr * gap_y_frac
+    dx = xr * dx_frac
+
+    # Cluster by x proximity.
+    ordered = sorted(pts, key=lambda p: p[0])
+    clusters = []
+    for p in ordered:
+        if clusters and (p[0] - clusters[-1][-1][0]) <= xr * cluster_x_frac:
+            clusters[-1].append(p)
+        else:
+            clusters.append([p])
+
+    for cluster in clusters:
+        cx = sum(p[0] for p in cluster) / len(cluster)
+        cy = sum(p[1] for p in cluster) / len(cluster)
+        to_right = cx < xmid
+        placed = []
+        if cy > ymid:
+            # Cluster sits high — spread labels downward into the emptier space.
+            prev = None
+            for p in sorted(cluster, key=lambda p: p[1], reverse=True):
+                ty = p[1] if prev is None else min(p[1], prev - gap)
+                prev = ty
+                placed.append((p, ty))
+        else:
+            prev = None
+            for p in sorted(cluster, key=lambda p: p[1]):
+                ty = p[1] if prev is None else max(p[1], prev + gap)
+                prev = ty
+                placed.append((p, ty))
+        for (x, y, text), ty in placed:
+            ax.annotate(
+                text, (x, y),
+                xytext=(x + (dx if to_right else -dx), ty), textcoords="data",
+                ha="left" if to_right else "right", va="center",
+                fontsize=fontsize, annotation_clip=False,
+                bbox=dict(boxstyle="round,pad=0.18", fc="white", ec="#dddddd", lw=0.5, alpha=0.85),
+                arrowprops=dict(arrowstyle="-", color="#aaaaaa", lw=0.6),
+            )
+
 # ---------------------------------------------------------------------------
 # Shared variant aggregation  (used by task04, task25 and task27)
 # ---------------------------------------------------------------------------
@@ -833,6 +899,46 @@ def draw_grouped_box_plot(ax, data, labels, colors, *, ylabel: str = "",
 # ---------------------------------------------------------------------------
 # Shared time-series builder  (factored out of task07; also used by task01/04)
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Conformance category buckets — single source of truth.
+# Extracted from task10 so task01 / task25 / task27 / task33 (and task10's own
+# idioms) share one definition of the conformance ranges.
+# ---------------------------------------------------------------------------
+
+# 1.01 upper edge so fitness == 1.0 lands in the last (left-closed) bucket.
+CONFORMANCE_BINS = [0.0, 0.2, 0.4, 0.6, 0.8, 1.01]
+CONFORMANCE_LABELS = ["0.0 – 0.2", "0.2 – 0.4", "0.4 – 0.6", "0.6 – 0.8", "0.8 – 1.0"]
+CONFORMANCE_CATEGORY_NAMES = ["Very Low", "Low", "Medium", "High", "Very High"]
+
+
+def conformance_category_index(fitness_value) -> int:
+    """Index 0..4 of the fixed conformance category for one fitness value."""
+    f = float(fitness_value)
+    for i in range(len(CONFORMANCE_LABELS)):
+        if CONFORMANCE_BINS[i] <= f < CONFORMANCE_BINS[i + 1]:
+            return i
+    return len(CONFORMANCE_LABELS) - 1
+
+
+def conformance_category_series(fitness):
+    """Per-value category index (0..4) over the FIXED conformance buckets."""
+    import pandas as pd
+    return pd.Series([conformance_category_index(x) for x in fitness], dtype=int)
+
+
+def conformance_category_counts(fitness):
+    """DataFrame [category, range, count, percentage] over the FIXED buckets."""
+    import pandas as pd
+    idx = conformance_category_series(fitness)
+    total = len(idx)
+    rows = []
+    for i, (name, rng) in enumerate(zip(CONFORMANCE_CATEGORY_NAMES, CONFORMANCE_LABELS)):
+        c = int((idx == i).sum())
+        rows.append({"category": name, "range": rng, "count": c,
+                     "percentage": (c / total * 100 if total else 0.0)})
+    return pd.DataFrame(rows)
+
 
 def build_fitness_time_series(log, fitness_df):
     """Merge per-trace fitness with trace start/end timestamps from the log.
@@ -1589,6 +1695,40 @@ def chevron_nodes_from_alignment_rows(rows):
         else:
             nodes.append({"label": str(row["log_move"]), "color": RED})
     return nodes
+
+
+def alignment_violation_node_style(rep_rows):
+    """Return a BPMN node_style_fn marking a trace's deviating / conform tasks.
+
+    Maps the alignment rows (alignment_pairs_to_rows output) of one representative
+    trace onto the desired model: model moves -> BLUE (skipped step), mismatch
+    moves -> ORANGE, synchronous moves -> GREEN, everything else -> white. Shared
+    by the "Reasons" family (task13/task18/task21) so the elaborate flow idiom
+    annotates violations identically. node_style_fn(eid, elem) ->
+    (fill, stroke, stroke_width, text_color)."""
+    skipped, mismatch, conform = set(), set(), set()
+    for row in rep_rows:
+        mt = row["moveType"]
+        if mt == "Synchronous Move":
+            lbl = str(row["log_move"]) if str(row["log_move"]) not in {"-", "None"} \
+                else str(row["model_move"])
+            conform.add(lbl)
+        elif mt == "Model Move":
+            skipped.add(str(row["model_move"]))
+        elif mt == "Mismatch Move":
+            mismatch.add(str(row["model_move"]))
+
+    def _style(eid, elem):
+        name = elem.get("name", "")
+        if elem.get("kind") == "task":
+            if name in skipped:
+                return (BLUE, "#444444", 3, contrasting_text_color(BLUE))
+            if name in mismatch:
+                return (ORANGE, "#444444", 3, contrasting_text_color(ORANGE))
+            if name in conform:
+                return (GREEN, "#666666", 2, contrasting_text_color(GREEN))
+        return ("white", "#888888", 2, "#333333")
+    return _style
 
 # ---------------------------------------------------------------------------
 # Shared Parallel Sets renderer  (used by task01, task03, task05, …)

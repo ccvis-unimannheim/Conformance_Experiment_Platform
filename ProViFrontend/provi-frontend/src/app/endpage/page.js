@@ -41,7 +41,15 @@ export default function EndPage() {
         body: JSON.stringify({ difficulty }),
       });
     } catch {
-      // best-effort; don't block window.close on network error
+      // best-effort
+    }
+    try {
+      await fetch("/api/participant/complete", {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch {
+      // best-effort
     }
     window.close();
     setTimeout(() => setCloseFailed(true), 400);

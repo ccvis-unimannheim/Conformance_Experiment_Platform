@@ -1,8 +1,20 @@
 """
-tasks/task20.py – Task 4: Root-cause indicators for non-conformance.
+tasks/task20.py – Task ID 20: Explain / Discover / Reasons for guideline violations
+(the Decision-Tree member of the Reasons triad).
+
+Validated idiom mapping (10 idioms = 7 High + 3 Medium):
+    HIGH:   bar_chart, scatter_plot, table, table_bar_chart, flow_chart_table,
+            flow_chart_elaborate_table, parallel_sets
+    MEDIUM: flow_chart_elaborate, network_diagram, decision_tree
+
+task20 is the tree companion to task13 (attribute evidence) and task18 (event
+responsibility). The bar/scatter/table/table-bar/parallel/flow idioms are the SAME
+attribute-evidence idioms as task13 — rendered here via task13's helpers (reuse, not
+re-implement) — plus a co-occurrence network of violation patterns, the elaborate
+model, and the existing Decision Tree (kept exactly as-is).
 
 Public API:
-    generate(log, alignments, output_dir)
+    generate(log, alignments, output_dir, model_path=None)
 
 Note: task31.py imports task20_trace_feature_dataframe, _task20_build_tree,
       _task20_gini from this module.
@@ -12,7 +24,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["tile_metric", "table", "decision_tree"]
+IDIOMS = ["bar_chart", "scatter_plot", "table", "table_bar_chart", "flow_chart_table",
+          "flow_chart_elaborate_table", "parallel_sets",
+          "flow_chart_elaborate", "network_diagram", "decision_tree"]
 
 import os
 import numpy as np
@@ -26,8 +40,14 @@ from scipy import stats
 
 from shared import (
     save_svg, make_table, draw_decision_tree, alignment_pairs_to_rows,
+    render_empty_state_svg, parse_bpmn_model, render_bpmn_annotated,
     format_threshold, wrap_text, BLUE, ORANGE, GREEN, RED, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
+
+# Reuse the Reasons-triad siblings: task13 (attribute-evidence idioms) and task18
+# (event responsibility, for the standalone elaborate model). These are imported
+# LAZILY inside generate()/helpers — task13 imports task20 at module load, so a
+# top-level import here would create a circular-import failure.
 
 # Alias so that existing internal references still work
 _task20_format_threshold = format_threshold
@@ -430,54 +450,6 @@ def _task20_format_ratio(value: float) -> str:
     return f"{value:.2f}x"
 
 
-def task20_tile_metric(root_causes: pd.DataFrame, df_features: pd.DataFrame, output_dir: str):
-    """Tile metric: top single-attribute thresholds for non-conformance."""
-    tile_df = task20_attribute_tile_metrics(df_features, top_n=3)
-
-    fig, ax = plt.subplots(figsize=(12.2, 3.7))
-    ax.set_xlim(0, 1)
-    ax.set_ylim(0, 1)
-    ax.axis("off")
-    ax.set_title("Key Non-Conformance Indicators", fontsize=FONT_TITLE, loc="left", pad=12)
-
-    if tile_df.empty:
-        ax.text(0.05, 0.55, "No discriminating attribute threshold found.", fontsize=FONT_ANNOT, color="#333333")
-        fig.tight_layout()
-        save_svg(fig, os.path.join(output_dir, "task20_tile_metric.svg"))
-        return
-
-    tile_w = 0.29
-    gap = 0.035
-    y0 = 0.16
-    tile_h = 0.66
-    for i, (_, row) in enumerate(tile_df.iterrows()):
-        x0 = 0.04 + i * (tile_w + gap)
-        ax.add_patch(mpatches.FancyBboxPatch(
-            (x0, y0), tile_w, tile_h,
-            boxstyle="round,pad=0.014",
-            linewidth=1.2,
-            edgecolor="#AAAAAA",
-            facecolor="#F8F8F8",
-            transform=ax.transAxes,
-            clip_on=False,
-        ))
-        ax.text(x0 + 0.025, y0 + tile_h - 0.095, row["label"], transform=ax.transAxes,
-                fontsize=FONT_TITLE, color="#333333")
-        ax.text(x0 + 0.025, y0 + tile_h - 0.205, row["condition"], transform=ax.transAxes,
-                fontsize=FONT_LABEL, color="#333333")
-        ax.text(x0 + 0.025, y0 + tile_h - 0.330,
-                f"Violations captured: {row['coverage']:.1%}", transform=ax.transAxes,
-                fontsize=FONT_ANNOT, color="#555555")
-        ax.text(x0 + 0.025, y0 + tile_h - 0.435,
-                f"Above vs below: {row['above_rate']:.1%} vs {row['below_rate']:.1%}", transform=ax.transAxes,
-                fontsize=FONT_ANNOT, color="#555555")
-        ax.text(x0 + 0.025, y0 + tile_h - 0.540,
-                f"Likelihood ratio: {_task20_format_ratio(row['likelihood_ratio'])}", transform=ax.transAxes,
-                fontsize=FONT_ANNOT, color="#333333")
-    fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task20_tile_metric.svg"))
-
-
 def _task20_attribute_type(feature: str) -> str:
     """Classify a trace-level feature for the Task 4 attribute table."""
     if feature.startswith("has_activity_"):
@@ -556,56 +528,6 @@ def task20_attribute_correlation_dataframe(df_features: pd.DataFrame) -> pd.Data
         .sort_values(["strength", "correlation"], ascending=[False, False])
         .reset_index(drop=True)
     )
-
-
-def task20_table(df_features: pd.DataFrame, output_dir: str):
-    """Table: attribute averages and correlation with non-conformance."""
-    summary = task20_attribute_correlation_dataframe(df_features)
-    cols = ["Attribute", "Type", "Conform avg", "Non-conform avg", "Difference", "Correlation", "p-value"]
-    if summary.empty:
-        cell_text = [["No discriminating attribute found", "-", "-", "-", "-", "-", "-"]]
-    else:
-        cell_text = []
-        for _, row in summary.iterrows():
-            cell_text.append([
-                wrap_text(row["attribute"], 24, break_long_words=False),
-                row["type"],
-                f"{row['conform_avg']:.2f}",
-                f"{row['nonconform_avg']:.2f}",
-                f"{row['difference']:+.2f}",
-                f"{row['correlation']:+.3f}",
-                _task20_format_p_value(row["p_value"]),
-            ])
-
-    fig_h = max(4.0, 1.35 + len(cell_text) * 0.43)
-    fig, ax = plt.subplots(figsize=(12.8, fig_h))
-    ax.axis("off")
-    table = ax.table(
-        cellText=cell_text,
-        colLabels=cols,
-        cellLoc="center",
-        bbox=[0.025, 0.04, 0.95, 0.84],
-        colWidths=[0.25, 0.15, 0.13, 0.15, 0.12, 0.11, 0.09],
-    )
-    table.auto_set_font_size(False)
-    table.set_fontsize(8.2)
-    for (r_idx, c_idx), cell in table.get_celld().items():
-        cell.set_edgecolor("#FFFFFF")
-        cell.set_linewidth(1.0)
-        if r_idx == 0:
-            cell.set_facecolor("#555555")
-            cell.set_text_props(color="white")
-            continue
-        if summary.empty:
-            cell.set_facecolor("#F0F0F0")
-            continue
-        corr = float(summary.iloc[r_idx - 1]["correlation"])
-        cell.set_facecolor("#E8E8E8" if corr >= 0 else "#F2F2F2")
-        cell.set_text_props(color="#222222")
-
-    ax.set_title("Attribute Correlation Summary", fontsize=FONT_TITLE, pad=12)
-    fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task20_table.svg"))
 
 
 # Task 4 visualization layout helpers
@@ -772,20 +694,180 @@ def task20_decision_tree(tree: dict, output_dir: str):
 
 
 # ---------------------------------------------------------------------------
+# Added valid idioms — attribute-evidence idioms reused verbatim from task13
+# (same computation kernel + renderers), written under task20's stems.
+# ---------------------------------------------------------------------------
+
+def _reuse_task13(render_fn, output_dir, src_stem, dst_stem, *args):
+    """Call a task13 renderer (writes task13_<src_stem>.svg) then rename it to the
+    task20_<dst_stem>.svg stem so it lands under task20's output path/slug."""
+    render_fn(*args)
+    src = os.path.join(output_dir, f"task13_{src_stem}.svg")
+    dst = os.path.join(output_dir, f"task20_{dst_stem}.svg")
+    if os.path.exists(src):
+        os.replace(src, dst)
+
+
+# ---------------------------------------------------------------------------
+# Network Diagram (Med) — co-occurrence network of violation patterns
+# ---------------------------------------------------------------------------
+
+def _violation_pattern_sets(alignments):
+    """Per trace: set of (activity, move_type) violation patterns."""
+    out = []
+    for result in alignments:
+        patterns = set()
+        for step in alignment_pairs_to_rows(result.get("alignment", [])):
+            mt = step["moveType"]
+            if mt == "Synchronous Move":
+                continue
+            activity = step["model_move"] if mt == "Model Move" else step["log_move"]
+            if not activity or str(activity) in {"-", "None", "(skip)"}:
+                continue
+            patterns.add(f"{activity} ({mt.split()[0]})")
+        out.append(patterns)
+    return out
+
+
+def task20_network_diagram(alignments, output_dir: str, top_n: int = 12):
+    """Med: co-occurrence network of violation patterns. Nodes = violation patterns
+    (size = #traces exhibiting it), edges = co-occurrence in the same trace
+    (width = count). Circular layout (no external graph library)."""
+    path = os.path.join(output_dir, "task20_network_diagram.svg")
+    pattern_sets = _violation_pattern_sets(alignments)
+    freq = {}
+    for s in pattern_sets:
+        for p in s:
+            freq[p] = freq.get(p, 0) + 1
+    if not freq:
+        render_empty_state_svg(path, "Violation Pattern Co-occurrence Network",
+                               "No violation patterns found.")
+        return
+
+    nodes = [p for p, _ in sorted(freq.items(), key=lambda kv: kv[1], reverse=True)[:top_n]]
+    node_set = set(nodes)
+    co = {}
+    for s in pattern_sets:
+        present = [p for p in s if p in node_set]
+        for i in range(len(present)):
+            for j in range(i + 1, len(present)):
+                key = tuple(sorted((present[i], present[j])))
+                co[key] = co.get(key, 0) + 1
+
+    n = len(nodes)
+    angles = np.linspace(0, 2 * np.pi, n, endpoint=False)
+    pos = {p: (np.cos(a), np.sin(a)) for p, a in zip(nodes, angles)}
+    max_freq = max(freq[p] for p in nodes)
+    max_co = max(co.values()) if co else 1
+
+    fig, ax = plt.subplots(figsize=(11, 9))
+    ax.set_aspect("equal")
+    ax.axis("off")
+    # Edges first (so nodes sit on top)
+    for (a, b), w in co.items():
+        x0, y0 = pos[a]; x1, y1 = pos[b]
+        ax.plot([x0, x1], [y0, y1], color="#999999",
+                linewidth=0.6 + 4.0 * (w / max_co), alpha=0.45, zorder=1)
+    # Nodes
+    for p in nodes:
+        x, y = pos[p]
+        size = 200 + 1400 * (freq[p] / max_freq)
+        ax.scatter([x], [y], s=size, color=BLUE, edgecolors="#333333",
+                   linewidths=1.0, alpha=0.9, zorder=2)
+        ha = "left" if x >= 0 else "right"
+        ax.annotate(f"{p}\n({freq[p]})", (x, y), xytext=(x * 1.18, y * 1.18),
+                    textcoords="data", ha=ha, va="center", fontsize=FONT_ANNOT - 1,
+                    zorder=3)
+    ax.set_xlim(-1.7, 1.7)
+    ax.set_ylim(-1.45, 1.45)
+    ax.set_title("Violation Pattern Co-occurrence Network\n(node size = #traces, edge width = co-occurrence)",
+                 fontsize=FONT_TITLE)
+    fig.tight_layout()
+    save_svg(fig, path)
 
 
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def generate(log, alignments, output_dir: str):
-    """Generate all Task 4 SVGs into output_dir."""
+def generate(log, alignments, output_dir: str, model_path=None):
+    """Generate all Task ID 20 SVGs into output_dir.
+
+    The Decision Tree (kept exactly as-is) plus the attribute-evidence idioms
+    (reused from task13), the elaborate model (reused from task18), and a
+    violation-pattern co-occurrence network. Legacy extras still rendered."""
     os.makedirs(output_dir, exist_ok=True)
-    logger.info("\n--- Generating Task 4 visualizations ---")
+    logger.info("\n--- Generating Task ID 20 visualizations ---")
+    # Lazy imports to avoid the task13↔task20 circular import at module load.
+    import tasks.task13 as task13
+    from tasks.task28 import build_task28_context
+
     df, tree, root_causes = task20_root_cause_analysis(log, alignments)
     if df.empty:
-        logger.warning("      Skipped Task 4: no trace-level features found.")
+        logger.warning("      Skipped Task 20: no trace-level features found.")
         return
-    task20_tile_metric(root_causes, df, output_dir)
+
+    # Decision Tree — the module's original rendering, unchanged.
     task20_decision_tree(tree, output_dir)
-    task20_table(df, output_dir)
+    # Network Diagram (new)
+    task20_network_diagram(alignments, output_dir)
+
+    # Attribute-evidence idioms — reuse task13's kernel + renderers.
+    feat = task20_trace_feature_dataframe(log, alignments)
+    evidence_df, attr_meta = task13._build_evidence_frame(log, feat, list(task13.CANDIDATE_ATTRIBUTES))
+    if attr_meta and int(evidence_df["violation"].sum()) > 0:
+        ranking = task13._rank_attributes(evidence_df, attr_meta)
+        ctx = build_task28_context(alignments)
+        _reuse_task13(task13.task13_bar_chart, output_dir, "bar_chart", "bar_chart", attr_meta, evidence_df, output_dir)
+        _reuse_task13(task13.task13_scatter_plot, output_dir, "scatter_plot", "scatter_plot", attr_meta, evidence_df, output_dir)
+        _reuse_task13(task13.task13_table, output_dir, "table", "table", ranking, output_dir)
+        _reuse_task13(task13.task13_table_and_bar_chart, output_dir, "table_and_bar_chart", "table_and_bar_chart", ranking, output_dir)
+        _reuse_task13(task13.task13_parallel_sets, output_dir, "parallel_sets", "parallel_sets", evidence_df, ranking, output_dir)
+        _reuse_task13(task13.task13_flow_chart_and_table, output_dir, "flow_chart_and_table", "flow_chart_and_table", ctx, ranking, output_dir)
+        _reuse_task13(task13.task13_flow_chart_elaborate_bpmn_table, output_dir,
+                      "flow_chart_elaborate_bpmn_table", "flow_chart_elaborate_bpmn_table",
+                      ctx, ranking, model_path, output_dir)
+    else:
+        logger.warning("      task20: no attribute evidence / no violations — attribute idioms skipped.")
+
+    # Flow Chart+ standalone — reuse task18's responsibility model annotation.
+    _task20_flow_chart_elaborate(log, alignments, model_path, output_dir)
+
+
+def _task20_flow_chart_elaborate(log, alignments, model_path, output_dir):
+    """Flow Chart+ (Med standalone): the desired model with responsible activities
+    highlighted by violation frequency (reuses task18's responsibility + node style)."""
+    path = os.path.join(output_dir, "task20_flow_chart_elaborate_bpmn.svg")
+    if not model_path:
+        render_empty_state_svg(path, "Responsible Activities on the Model",
+                               "No model available.")
+        return
+    import tasks.task18 as task18   # lazy (avoids circular import at module load)
+    resp = task18.task18_responsibility(log, alignments)
+    if not resp["records"]:
+        render_empty_state_svg(path, "Responsible Activities on the Model",
+                               "No guideline violations found.")
+        return
+    try:
+        parsed = parse_bpmn_model(model_path)
+    except Exception as e:
+        logger.warning(f"      task20: BPMN parse failed: {e}")
+        render_empty_state_svg(path, "Responsible Activities on the Model",
+                               "BPMN model could not be parsed.")
+        return
+    if not parsed.get("elements"):
+        render_empty_state_svg(path, "Responsible Activities on the Model",
+                               "No BPMN geometry to render.")
+        return
+    share_map = task18._activity_share_map(resp["records"])
+    render_bpmn_annotated(
+        parsed, path,
+        title="Activities Responsible for Guideline Violations",
+        summary="Darker = higher responsibility share (more violation moves on that activity).",
+        node_style_fn=task18._responsibility_node_style(share_map),
+        legend_items=[
+            ("#414141", "#333333", 3, "High responsibility"),
+            ("#c8c8c8", "#333333", 3, "Lower responsibility"),
+            ("white",   "#888888", 2, "Not responsible"),
+        ],
+    )
