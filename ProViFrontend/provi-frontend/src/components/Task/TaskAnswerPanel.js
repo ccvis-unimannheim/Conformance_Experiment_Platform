@@ -127,7 +127,7 @@ const TaskAnswerPanel = ({
   };
 
   return (
-    <aside style={{ gridColumn: "span 4", display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+    <aside style={{ display: "flex", flexDirection: "column", gap: "1.5rem", position: "sticky", top: "5rem", maxHeight: "calc(100vh - 6rem)", overflowY: "auto", scrollbarWidth: "none" }}>
       <div style={cardStyle}>
         {taskLabel && (
           <p style={{
