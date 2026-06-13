@@ -97,6 +97,24 @@ CANONICAL_TASKS = [
         "answer_type": "numeric",
     },
     {
+        "task_key": "task14",
+        "label": "What kind of violation occurs in a given trace?",
+        "description": "Classify the violations present in a representative trace and provide a description of each violation type.",
+        "answer_type": "multiple_choice",
+    },
+    {
+        "task_key": "task15",
+        "label": "How can the overall process conformance be explained?",
+        "description": "Relate per-trace conformance to case-level attribute groups and summarise the conformance distribution across groups.",
+        "answer_type": "single_choice",
+    },
+    {
+        "task_key": "task16",
+        "label": "What is the reason for guideline violations?",
+        "description": "Identify and annotate the activities and move types responsible for violations across the event log.",
+        "answer_type": "single_choice",
+    },
+    {
         "task_key": "task37",
         "label": "How do fitness values of traces differ when applying two different techniques to compute them? What is the overall trend?",
         "description": "Compare alignment-based and token-based replay fitness per trace; visualize distribution, agreement, and trend.",
