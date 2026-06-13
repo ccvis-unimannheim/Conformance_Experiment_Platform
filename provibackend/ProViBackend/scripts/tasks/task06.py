@@ -89,7 +89,7 @@ def task06_scatter_plot(df, output_dir: str):
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.4)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task06_scatter_plot.svg"))
 
 
@@ -125,7 +125,7 @@ def task06_table(df, output_dir: str):
         cell_pad=0.14,
     )
     ax.set_title("Conformance Summary", fontsize=FONT_TITLE, pad=12)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task06_table.svg"))
 
 

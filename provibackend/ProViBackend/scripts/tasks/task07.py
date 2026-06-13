@@ -117,7 +117,7 @@ def task07_line_graph(df: pd.DataFrame, output_dir: str):
     ax.set_axisbelow(True)
     ax.legend(frameon=False, fontsize=FONT_ANNOT)
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task07_line_graph.svg"))
 
 
@@ -184,7 +184,7 @@ def task07_horizon_chart(df: pd.DataFrame, output_dir: str):
     ax.set_axisbelow(True)
     ax.legend(frameon=False, fontsize=FONT_ANNOT, loc="lower left")
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task07_horizon_chart.svg"))
 
 
@@ -290,7 +290,7 @@ def task07_gantt_chart(df: pd.DataFrame, output_dir: str):
     cbar.set_ticklabels([f"{f_min:.0%}", f"{mid:.0%}", f"{f_max:.0%}"])
     cbar.outline.set_visible(False)
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task07_gantt_chart.svg"))
 
 

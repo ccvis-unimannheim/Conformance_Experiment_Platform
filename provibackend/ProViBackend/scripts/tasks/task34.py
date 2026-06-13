@@ -213,7 +213,7 @@ def _draw_alignment_table(ax, rows, bbox, font_size=10.5):
     tbl.auto_set_font_size(False)
     tbl.set_fontsize(font_size)
     for (r, c), cell in tbl.get_celld().items():
-        cell.set_edgecolor("#E0E0E0")
+        cell.set_edgecolor("#333333")
         cell.set_linewidth(0.8)
         if r == 0:
             cell.set_facecolor(_HDR_BG)

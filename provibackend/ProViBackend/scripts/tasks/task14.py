@@ -162,7 +162,7 @@ def task14_table(ctx, output_dir):
         f"Violation Classification — {ctx['trace_label']}  (fitness {ctx['fitness']:.4f})",
         fontsize=FONT_TITLE, pad=10,
     )
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out)
 
 
@@ -271,7 +271,7 @@ def task14_scatter_plot(ctx, output_dir):
         handles=legend_handles,
         loc="upper right", fontsize=FONT_ANNOT, frameon=True, framealpha=0.9,
     )
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out)
 
 
@@ -336,7 +336,7 @@ def task14_flow_chart_and_table(ctx, output_dir):
         f"Violation Classification — {ctx['trace_label']}  (fitness {ctx['fitness']:.4f})",
         fontsize=FONT_TITLE, y=0.99,
     )
-    fig.tight_layout(rect=[0, 0.10, 1, 0.96])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out)
 
 
@@ -519,7 +519,7 @@ def task14_table_bar_chart(ctx, output_dir):
         f"(fitness {ctx['fitness']:.4f})",
         fontsize=FONT_TITLE, y=0.99,
     )
-    fig.tight_layout(rect=[0, 0, 1, 0.95])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out)
 
 
@@ -575,7 +575,7 @@ def task14_parallel_sets(ctx, output_dir):
         f"(fitness {ctx['fitness']:.4f})",
         fontsize=FONT_TITLE, pad=12,
     )
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out)
 
 

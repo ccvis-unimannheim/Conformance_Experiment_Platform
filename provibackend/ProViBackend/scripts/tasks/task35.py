@@ -403,7 +403,7 @@ def task35_flow_chart_elaborate_bpmn_table(activity_type, activity_totals, n_vio
 
     tbl_ax.set_title(f"Violation Breakdown per Activity  (top {n_rows})",
                      fontsize=FONT_TITLE, pad=14)
-    tbl_fig.tight_layout()
+    tbl_fig.tight_layout(pad=1.2)
     buf = _io.BytesIO()
     tbl_fig.savefig(buf, format="svg", bbox_inches="tight")
     plt.close(tbl_fig)

@@ -200,7 +200,7 @@ def task16_table(viol_df, s, output_dir):
     )
     ax.set_title("Violations by Activity", fontsize=FONT_TITLE, pad=10)
     _add_stats_footer(fig, s)
-    fig.tight_layout(rect=[0, 0.04, 1, 1])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
 
 
@@ -277,7 +277,7 @@ def task16_scatter_plot(trace_df, s, output_dir):
     ax.yaxis.grid(True, linestyle="--", alpha=0.3)
     ax.set_axisbelow(True)
     _add_stats_footer(fig, s)
-    fig.tight_layout(rect=[0, 0.10, 1, 1])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
 
 
@@ -349,7 +349,7 @@ def task16_flow_chart_table(alignments, fitness_df, s, output_dir):
         f"violations = {len(violations)}",
         fontsize=FONT_TITLE, y=0.99,
     )
-    fig.tight_layout(rect=[0, 0.07, 1, 0.97])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
 
 
@@ -610,7 +610,7 @@ def task16_parallel_sets(viol_df, s, output_dir):
         left_title="Activity (top violations)",
         right_title="Move Type",
     )
-    fig.tight_layout(rect=[0, 0.04, 1, 1])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
 
 

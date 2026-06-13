@@ -401,7 +401,7 @@ def task12_table(stats, output_dir):
     x = l
     for hdr, cw in zip(col_headers, col_widths):
         ax.add_patch(plt.Rectangle((x, t - row_h), cw * tw, row_h,
-                                   fc=_HDR_BG, ec="white", linewidth=0.5,
+                                   fc=_HDR_BG, ec="#333333", linewidth=0.5,
                                    transform=ax.transAxes, clip_on=False))
         ax.text(x + cw * tw * 0.5, t - row_h * 0.5, hdr,
                 ha="center", va="center", fontsize=FONT_ANNOT,
@@ -420,7 +420,7 @@ def task12_table(stats, output_dir):
 
         for j, (val, cw) in enumerate(zip(row, col_widths)):
             ax.add_patch(plt.Rectangle((x, y_top), cw * tw, row_h,
-                                       fc=bg, ec="#eeeeee", linewidth=0.4,
+                                       fc=bg, ec="#333333", linewidth=0.5,
                                        transform=ax.transAxes, clip_on=False))
             ha = "left" if j == 0 else "center"
             px = x + 0.008 if j == 0 else x + cw * tw * 0.5

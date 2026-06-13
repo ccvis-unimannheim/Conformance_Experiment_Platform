@@ -178,7 +178,7 @@ def task05_table(agg_df: pd.DataFrame, output_dir: str):
     )
     ax.set_title(f"Top-{len(cell_text)} Violation Patterns by Outcome Group",
                  fontsize=FONT_TITLE, pad=12)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task05_table.svg"))
 
 
@@ -223,7 +223,7 @@ def task05_table_and_bar_chart(agg_df: pd.DataFrame, output_dir: str):
     ax_bar.xaxis.grid(True, linestyle="--", alpha=0.5)
     ax_bar.set_axisbelow(True)
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task05_table_and_bar_chart.svg"))
 
 
@@ -245,7 +245,7 @@ def task05_matrix(agg_df: pd.DataFrame, output_dir: str):
     fig, ax = plt.subplots(figsize=(5, fig_h))
     draw_rate_matrix(fig, ax, data, patterns, groups, xlabel="Outcome Group")
     ax.set_title("Violation Rate Matrix (%)", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task05_matrix.svg"))
 
 
@@ -326,7 +326,7 @@ def task05_parallel_sets(agg_df: pd.DataFrame, viol_df: pd.DataFrame,
         right_title="Violation Pattern",
     )
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task05_parallel_sets.svg"))
 
 
@@ -387,7 +387,7 @@ def task05_box_plot(log, viol_df: pd.DataFrame, outcome_activity: str, output_di
     ax.set_title("Violations per Trace by Outcome Group\n"
                  "(% = traces in group with at least one violation)",
                  fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task05_box_plot.svg"))
 
 
@@ -404,7 +404,7 @@ def task05_heatmap(agg_df: pd.DataFrame, output_dir: str):
     draw_value_heatmap(fig, ax, data, patterns, _GROUPS, xlabel="Outcome Group",
                        cbar_label="Rate (%)", annotate=False)
     ax.set_title("Violation Rate Heatmap (%)", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task05_heatmap.svg"))
 
 

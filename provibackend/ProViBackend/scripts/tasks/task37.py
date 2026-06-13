@@ -512,7 +512,7 @@ def task37_table(data, output_dir):
     x = l_
     for hdr, cw in zip(col_headers, col_widths):
         ax.add_patch(plt.Rectangle((x, t_ - row_h), cw * tw, row_h,
-                                   fc=_HDR_BG, ec="white", linewidth=0.5,
+                                   fc=_HDR_BG, ec="#333333", linewidth=0.5,
                                    transform=ax.transAxes, clip_on=False))
         ax.text(x + cw * tw * 0.5, t_ - row_h * 0.5, hdr,
                 ha="center", va="center", fontsize=FONT_ANNOT,
@@ -525,7 +525,7 @@ def task37_table(data, output_dir):
         bg = "#f5f5f5" if i % 2 == 0 else "white"
         for j, (val, cw) in enumerate(zip(row, col_widths)):
             ax.add_patch(plt.Rectangle((x, y_top), cw * tw, row_h,
-                                       fc=bg, ec="#eeeeee", linewidth=0.4,
+                                       fc=bg, ec="#333333", linewidth=0.5,
                                        transform=ax.transAxes, clip_on=False))
             ha = "left" if j == 0 else "center"
             px = x + 0.008 if j == 0 else x + cw * tw * 0.5

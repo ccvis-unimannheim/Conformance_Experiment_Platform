@@ -383,7 +383,7 @@ def task13_bar_chart(attr_meta, evidence_df, output_dir):
         ax.set_axisbelow(True)
     axes[0][0].set_ylabel("Violation rate (%)", fontsize=FONT_LABEL)
     fig.suptitle("Guideline-Violation Rate by Candidate Attribute", fontsize=FONT_TITLE)
-    fig.tight_layout(rect=[0, 0, 1, 0.95])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 
@@ -441,7 +441,7 @@ def task13_scatter_plot(attr_meta, evidence_df, output_dir):
         loc="lower center", ncol=2, frameon=False, fontsize=FONT_ANNOT,
     )
     fig.suptitle("Attribute Value vs. Per-trace Violations", fontsize=FONT_TITLE)
-    fig.tight_layout(rect=[0, 0.06, 1, 0.95])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 
@@ -499,7 +499,7 @@ def task13_table_and_bar_chart(ranking, output_dir):
     ax_b.spines[["top", "right"]].set_visible(False)
     ax_b.set_title("Strength", fontsize=FONT_TITLE, pad=8)
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task13_table_and_bar_chart.svg"))
 
 
@@ -585,7 +585,7 @@ def task13_flow_chart_and_table(ctx, ranking, output_dir):
         cell_pad=0.08,
     )
     ax_tab.set_title("Attributes Explaining the Violations (ranked)", fontsize=FONT_TITLE, pad=6)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 
