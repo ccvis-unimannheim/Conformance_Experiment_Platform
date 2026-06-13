@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 IDIOMS = [
     "table", "bar_chart", "scatter_plot",
     "flow_chart_elaborate", "flow_chart_elaborate_table",
-    "tree", "table_bar_chart", "parallel_sets",
+    "table_bar_chart", "parallel_sets",
 ]
 
 import os
@@ -381,102 +381,6 @@ def task15_flow_chart_elaborate_table(act_totals, viol_df, s, model_path, output
 
 
 # ---------------------------------------------------------------------------
-# Idiom 6: tree — hierarchy: move type → activity → count
-# ---------------------------------------------------------------------------
-
-def _draw_tree_node(ax, x, y, lines, facecolor, textcolor, fontsize=9):
-    ax.text(x, y, "\n".join(lines), ha="center", va="center",
-            fontsize=fontsize, color=textcolor, linespacing=1.5,
-            bbox=dict(boxstyle="round,pad=0.4", facecolor=facecolor,
-                      edgecolor="#888888", linewidth=1.0),
-            zorder=5)
-
-
-def _draw_tree_edge(ax, x0, y0, x1, y1):
-    ax.annotate("",
-                xy=(x1, y1 + 0.05), xytext=(x0, y0 - 0.05),
-                arrowprops=dict(arrowstyle="-", color="#BBBBBB",
-                                linewidth=1.0, shrinkA=0, shrinkB=0),
-                zorder=2)
-
-
-def task15_tree(viol_df, fitness_df, s, output_dir):
-    out_path = os.path.join(output_dir, "task15_tree.svg")
-    if viol_df.empty:
-        render_empty_state_svg(out_path, "Violation Hierarchy", "No violations found.")
-        return
-
-    mt_totals = {
-        mt: int(viol_df[viol_df["move_type"] == mt]["count"].sum())
-        for mt in _MOVE_TYPES
-        if mt in viol_df["move_type"].values
-    }
-    present_mts = [mt for mt in _MOVE_TYPES if mt_totals.get(mt, 0) > 0]
-    n_mt = len(present_mts)
-    if n_mt == 0:
-        render_empty_state_svg(out_path, "Violation Hierarchy", "No violations found.")
-        return
-
-    top_per_mt = {}
-    for mt in present_mts:
-        sub = viol_df[viol_df["move_type"] == mt].nlargest(3, "count")
-        top_per_mt[mt] = [(row["activity"], int(row["count"])) for _, row in sub.iterrows()]
-
-    total_violations = int(viol_df["count"].sum())
-    n_traces = len(fitness_df)
-    mean_fit = float(fitness_df["fitness"].mean()) if n_traces else 0.0
-
-    mt_xs = [(i + 0.5) / n_mt for i in range(n_mt)]
-    max_leaves = max(len(top_per_mt[mt]) for mt in present_mts)
-    fig_w = max(11, n_mt * 5.5)
-    fig_h = 7.0 + max_leaves * 0.4
-
-    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
-    ax.axis("off")
-    ax.set_xlim(0, 1)
-    ax.set_ylim(-0.05, 1.1)
-
-    # Root
-    rx, ry = 0.5, 0.92
-    _draw_tree_node(ax, rx, ry,
-                    ["All Violations",
-                     f"total = {total_violations}",
-                     f"n traces = {n_traces}   mean fitness = {mean_fit:.3f}"],
-                    "#E8E8E8", "#222222", fontsize=9)
-
-    # Level 1: move types
-    my = 0.60
-    for mt, mx in zip(present_mts, mt_xs):
-        cnt = mt_totals[mt]
-        color = _MOVE_COLOR.get(mt, "#AAAAAA")
-        _draw_tree_edge(ax, rx, ry, mx, my)
-        _draw_tree_node(ax, mx, my,
-                        [mt, f"n = {cnt}"],
-                        color, "white", fontsize=8.5)
-
-        # Level 2: top activities
-        acts = top_per_mt[mt]
-        n_acts = len(acts)
-        leaf_gap = 0.36 / n_mt
-        lys = [0.28 - i * 0.14 for i in range(n_acts)]
-        lx_offsets = np.linspace(-leaf_gap * (n_acts - 1) / 2,
-                                  leaf_gap * (n_acts - 1) / 2, n_acts)
-        for (act, cnt_a), lx_off, ly in zip(acts, lx_offsets, lys):
-            lx = mx + lx_off
-            _draw_tree_edge(ax, mx, my, lx, ly)
-            label = act if len(act) <= 18 else act[:16] + "…"
-            _draw_tree_node(ax, lx, ly,
-                            [label, f"n = {cnt_a}"],
-                            "#F5F5F5", "#333333", fontsize=7.5)
-
-    ax.set_title("Violation Hierarchy: Move Type → Activity",
-                 fontsize=FONT_TITLE, pad=8)
-    _add_stats_footer(fig, s)
-    fig.tight_layout(rect=[0, 0.03, 1, 1])
-    save_svg(fig, out_path)
-
-
-# ---------------------------------------------------------------------------
 # Idiom 7: table_bar_chart — violation summary table + fitness band bar
 # ---------------------------------------------------------------------------
 
@@ -656,6 +560,5 @@ def generate(log, fitness_df, alignments, output_dir: str,
     task15_scatter_plot(fitness_df, s, output_dir)
     task15_flow_chart_elaborate(act_totals, s, model_path, output_dir)
     task15_flow_chart_elaborate_table(act_totals, viol_df, s, model_path, output_dir)
-    task15_tree(viol_df, fitness_df, s, output_dir)
     task15_table_bar_chart(viol_df, fitness_df, s, output_dir)
     task15_parallel_sets(viol_df, fitness_df, alignments, s, output_dir)

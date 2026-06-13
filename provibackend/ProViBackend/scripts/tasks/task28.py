@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 IDIOMS = ["flow_chart_basic", "flow_chart_table", "flow_chart_elaborate", "table",
           "bar_chart", "stacked_bar", "scatter_plot", "boxplot", "matrix",
-          "heatmap", "table_bar_chart", "network_diagram", "tree",
+          "heatmap", "table_bar_chart", "network_diagram",
           "flow_chart_elaborate_table"]
 
 import html
@@ -677,48 +677,6 @@ def task28_network_diagram(alignments, df, output_dir):
     save_svg(fig, out)
 
 
-# --- Idiom: tree — hierarchical breakdown (deviation type → activity) --------
-
-def task28_tree(df, output_dir):
-    out = os.path.join(output_dir, "task28_tree.svg")
-    if df.empty:
-        render_empty_state_svg(out, "Deviation Breakdown", "No deviations found.")
-        return
-    move_types = _present_move_types(df)
-    total = int(df["count"].sum())
-
-    # leaves: top activities within each move type
-    branches = []
-    for m in move_types:
-        sub = df[df["move_type"] == m]
-        acts = (sub.groupby("activity")["count"].sum().sort_values(ascending=False).head(6))
-        branches.append((m, int(sub["count"].sum()), list(acts.items())))
-
-    n_leaves = sum(len(a) for _, _, a in branches) or 1
-    fig, ax = plt.subplots(figsize=(11, max(5, n_leaves * 0.55 + 1.5)))
-    ax.axis("off"); ax.set_xlim(0, 10); ax.set_ylim(0, n_leaves + 1)
-
-    root_y = (n_leaves + 1) / 2
-    ax.text(0.4, root_y, f"All deviations\n({total})", ha="center", va="center",
-            fontsize=FONT_ANNOT, color="white",
-            bbox=dict(boxstyle="round,pad=0.4", fc="#333333", ec="none"))
-
-    leaf_i = n_leaves
-    for m, m_tot, acts in branches:
-        n = len(acts) or 1
-        mt_y = leaf_i - (n - 1) / 2
-        ax.plot([1.3, 3.2], [root_y, mt_y], color="#999999", linewidth=1.2, zorder=1)
-        ax.text(3.6, mt_y, f"{m}\n({m_tot})", ha="center", va="center",
-                fontsize=FONT_ANNOT - 1, color=contrasting_text_color(_move_color(m)),
-                bbox=dict(boxstyle="round,pad=0.35", fc=_move_color(m), ec="none"))
-        for act, c in acts:
-            ax.plot([4.4, 6.2], [mt_y, leaf_i], color="#BBBBBB", linewidth=1.0, zorder=1)
-            ax.text(6.4, leaf_i, f"{act}  ({int(c)})", ha="left", va="center",
-                    fontsize=FONT_ANNOT - 1, color="#222222")
-            leaf_i -= 1
-    ax.set_title("Explore: Deviation Breakdown (type → activity)", fontsize=FONT_TITLE)
-    fig.tight_layout()
-    save_svg(fig, out)
 
 
 # --- Idiom: flow_chart_elaborate_table — BPMN shaded by frequency + table ----
@@ -781,7 +739,6 @@ _LOG_FNAMES_TITLES = [
     ("task28_heatmap.svg",                    "Deviation Heatmap"),
     ("task28_table_bar_chart.svg",            "Deviation Patterns"),
     ("task28_network_diagram.svg",            "Deviation Co-occurrence"),
-    ("task28_tree.svg",                       "Deviation Breakdown"),
     ("task28_flow_chart_elaborate_table.svg", "Deviations on the Model"),
 ]
 
@@ -823,5 +780,4 @@ def generate(alignments, model_path: str, output_dir: str):
     task28_heatmap(df, output_dir)
     task28_table_bar_chart(df, output_dir)
     task28_network_diagram(alignments, df, output_dir)
-    task28_tree(df, output_dir)
     task28_flow_chart_elaborate_table(df, model_path, output_dir)

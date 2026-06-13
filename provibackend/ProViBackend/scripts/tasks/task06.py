@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 # backward compatibility but intentionally excluded here so /task-idioms reports the
 # validated set only).
 IDIOMS = ["tile_metric", "bar_chart", "scatter_plot", "table",
-          "flow_chart_elaborate", "decision_tree"]
+          "flow_chart_elaborate", "tree"]
 
 import os
 import numpy as np
@@ -209,12 +209,12 @@ def task06_flow_chart_elaborate_bpmn(alignments, model_path, output_dir: str):
 # Tree (Med) — decision tree explaining conformant vs non-conformant traces
 # ---------------------------------------------------------------------------
 
-def task06_decision_tree(log, alignments, output_dir: str):
+def task06_tree(log, alignments, output_dir: str):
     """Tree (Med): a Decision Tree predicting conformant vs non-conformant traces from
     case/event attributes — the explanatory companion (which attributes explain the
     fitness). Reuses task20's tree-building + rendering verbatim, then renames the
-    output to the task06 stem. Stem → canonical slug 'decision_tree'."""
-    path = os.path.join(output_dir, "task06_decision_tree.svg")
+    output to the task06 stem. Stem → canonical slug 'tree'."""
+    path = os.path.join(output_dir, "task06_tree.svg")
     if not log or not alignments:
         render_empty_state_svg(path, "Attributes Explaining Conformance",
                                "No log or alignments available.")
@@ -224,8 +224,8 @@ def task06_decision_tree(log, alignments, output_dir: str):
         render_empty_state_svg(path, "Attributes Explaining Conformance",
                                "No attribute split separates conformant from non-conformant traces.")
         return
-    task20.task20_decision_tree(tree, output_dir)
-    src = os.path.join(output_dir, "task20_decision_tree.svg")
+    task20.task20_tree(tree, output_dir)
+    src = os.path.join(output_dir, "task20_tree.svg")
     if os.path.exists(src):
         os.replace(src, path)
 
@@ -247,4 +247,4 @@ def generate(df, output_dir: str, log=None, alignments=None, model_path=None):
     task06_scatter_plot(df, output_dir)
     task06_table(df, output_dir)
     task06_flow_chart_elaborate_bpmn(alignments, model_path, output_dir)
-    task06_decision_tree(log, alignments, output_dir)
+    task06_tree(log, alignments, output_dir)
