@@ -8,6 +8,11 @@ import os
 import logging
 from fastapi import APIRouter, BackgroundTasks, UploadFile, HTTPException, Form
 from fastapi.responses import StreamingResponse, JSONResponse
+_logger = logging.getLogger(__name__)
+_scripts_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "scripts"))
+if _scripts_dir not in sys.path:
+    sys.path.insert(0, _scripts_dir)
+
 try:
     from ProViBackend.scripts.create_all_visualizations import (
         run_pipeline as run_visualization_pipeline,
@@ -15,14 +20,13 @@ try:
         _TASK_RENAME_SKIP,
     )
 except ImportError:
+    # The visualization pipeline pulls in heavy, optional deps (pm4py, etc.).
+    # Degrade gracefully so the rest of the admin API still works, but log the
+    # full traceback so the cause is never hidden.
+    _logger.exception("Could not import visualization pipeline; run_pipeline disabled")
     run_visualization_pipeline = None
     _FILE_RENAME = {}
     _TASK_RENAME_SKIP = {}
-
-_logger = logging.getLogger(__name__)
-_scripts_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "scripts"))
-if _scripts_dir not in sys.path:
-    sys.path.insert(0, _scripts_dir)
 
 try:
     from ProViBackend.scripts.tasks import (
@@ -46,9 +50,12 @@ try:
         "task32": task32, "task33": task33, "task34": task34,
         "task35": task35, "task36": task36, "task37": task37,
     }
-except ImportError as e:
-    _logger.error("Failed to import task modules for /task-idioms: %s", e)
-    _TASK_MODULES = {}
+except ImportError:
+    # These task modules are required for the task-idiom mapping. Failing fast
+    # here surfaces the problem in startup logs instead of silently returning an
+    # empty mapping (which makes the admin UI show every idiom for every task).
+    _logger.exception("Failed to import task modules required for /task-idioms")
+    raise
 from ProViBackend.utils import config, utils
 from ProViBackend.app.datamodels import data_schemas as ds
 import pathlib as pl

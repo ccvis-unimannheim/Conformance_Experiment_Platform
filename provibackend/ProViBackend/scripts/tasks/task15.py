@@ -36,7 +36,7 @@ from shared import (
     parse_bpmn_model, render_bpmn_annotated, compose_bpmn_panels,
     alignment_pairs_to_rows,
     render_empty_state_svg,
-    BLUE, RED, ORANGE, GREEN,
+    GREY_MED, GREY_DARK, GREY_LIGHT, GREY_LIGHTER,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
@@ -47,7 +47,7 @@ from shared import (
 _FIT_THRESHOLD = 0.8
 
 _MOVE_TYPES = ["Model Move", "Log Move", "Mismatch Move"]
-_MOVE_COLOR = {"Model Move": BLUE, "Log Move": RED, "Mismatch Move": ORANGE}
+_MOVE_COLOR = {"Model Move": GREY_MED, "Log Move": GREY_DARK, "Mismatch Move": GREY_LIGHT}
 
 _FITNESS_BANDS = [
     ("0.00–0.25", 0.00, 0.25, "#333333", "white"),
@@ -248,7 +248,7 @@ def task15_scatter_plot(fitness_df, s, output_dir):
     n = len(sorted_fits)
     x = np.arange(n)
 
-    colors = np.where(sorted_fits >= _FIT_THRESHOLD, GREEN, RED)
+    colors = np.where(sorted_fits >= _FIT_THRESHOLD, GREY_LIGHTER, GREY_DARK)
 
     fig, ax = plt.subplots(figsize=(12, 4.5))
     ax.scatter(x, sorted_fits, c=colors, s=6, alpha=0.55, linewidths=0)

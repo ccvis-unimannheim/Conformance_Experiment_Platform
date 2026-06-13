@@ -31,7 +31,7 @@ from matplotlib.patches import FancyBboxPatch
 from shared import (
     save_svg, make_table,
     alignment_pairs_to_rows,
-    BLUE, ORANGE, GREEN, RED,
+    GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT,
     contrasting_text_color,
     draw_chevron_strip, chevron_nodes_from_alignment_rows, chevron_figure_width,
@@ -47,10 +47,10 @@ from shared import (
 _MOVE_TYPES = ["Model Move", "Log Move", "Mismatch Move"]
 
 _TYPE_COLOR = {
-    "Model Move":      BLUE,
-    "Log Move":        RED,
-    "Mismatch Move":   ORANGE,
-    "Synchronous Move": GREEN,
+    "Model Move":      GREY_MED,
+    "Log Move":        GREY_DARK,
+    "Mismatch Move":   GREY_LIGHT,
+    "Synchronous Move": GREY_LIGHTER,
 }
 
 # Domain-agnostic descriptions for each violation type
@@ -322,10 +322,10 @@ def task14_flow_chart_and_table(ctx, output_dir):
     ax_tbl.set_title("Violation Classification", fontsize=FONT_TITLE, pad=7)
 
     legend_handles = [
-        mpatches.Patch(facecolor=GREEN,  label="Synchronous (Conformant)"),
-        mpatches.Patch(facecolor=BLUE,   label="Model Move"),
-        mpatches.Patch(facecolor=RED,    label="Log Move"),
-        mpatches.Patch(facecolor=ORANGE, label="Mismatch Move"),
+        mpatches.Patch(facecolor=GREY_LIGHTER,  label="Synchronous (Conformant)"),
+        mpatches.Patch(facecolor=GREY_MED,   label="Model Move"),
+        mpatches.Patch(facecolor=GREY_DARK,    label="Log Move"),
+        mpatches.Patch(facecolor=GREY_LIGHT, label="Mismatch Move"),
     ]
     fig.legend(
         handles=legend_handles,
@@ -626,7 +626,7 @@ def task14_parallel_sets(ctx, output_dir):
     for ci, mt in enumerate(active_types):
         matrix[1, ci + 1] = float(counts[mt])
 
-    left_colors  = [GREEN, "#777777"]
+    left_colors  = [GREY_LIGHTER, "#777777"]
     right_colors = ["#CCCCCC"] + [_TYPE_COLOR[mt] for mt in active_types]
 
     fig, ax = plt.subplots(figsize=(9, 5.5))

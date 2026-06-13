@@ -38,7 +38,7 @@ from shared import (
     alignment_pairs_to_rows,
     draw_chevron_strip, chevron_nodes_from_alignment_rows, chevron_figure_width,
     render_empty_state_svg,
-    BLUE, RED, ORANGE, GREEN,
+    GREY_MED, GREY_DARK, GREY_LIGHT, GREY_LIGHTER,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
@@ -48,7 +48,7 @@ from shared import (
 
 _FIT_THRESHOLD = 0.8
 _MOVE_TYPES    = ["Model Move", "Log Move", "Mismatch Move"]
-_MOVE_COLOR    = {"Model Move": BLUE, "Log Move": RED, "Mismatch Move": ORANGE}
+_MOVE_COLOR    = {"Model Move": GREY_MED, "Log Move": GREY_DARK, "Mismatch Move": GREY_LIGHT}
 _MISSING       = {"-", "None", "(skip)", ""}
 
 
@@ -257,15 +257,15 @@ def task16_scatter_plot(trace_df, s, output_dir):
         render_empty_state_svg(out_path, "Fitness vs. Violation Count", "No data.")
         return
 
-    colors = np.where(trace_df["conformant"], GREEN, RED)
+    colors = np.where(trace_df["conformant"], GREY_LIGHTER, GREY_DARK)
 
     fig, ax = plt.subplots(figsize=(10, 5))
     ax.scatter(trace_df["fitness"], trace_df["viol_count"],
                c=colors, s=10, alpha=0.45, linewidths=0)
 
     legend_handles = [
-        mpatches.Patch(facecolor=GREEN, label=f"Conformant (≥ {_FIT_THRESHOLD})"),
-        mpatches.Patch(facecolor=RED,   label=f"Non-conformant (< {_FIT_THRESHOLD})"),
+        mpatches.Patch(facecolor=GREY_LIGHTER, label=f"Conformant (≥ {_FIT_THRESHOLD})"),
+        mpatches.Patch(facecolor=GREY_DARK,   label=f"Non-conformant (< {_FIT_THRESHOLD})"),
     ]
     ax.legend(handles=legend_handles, frameon=False, fontsize=FONT_ANNOT,
               loc="upper center", bbox_to_anchor=(0.5, -0.14), ncol=2)
@@ -334,10 +334,10 @@ def task16_flow_chart_table(alignments, fitness_df, s, output_dir):
     ax_tbl.set_title("Violation Steps", fontsize=FONT_TITLE, pad=7)
 
     legend_handles = [
-        mpatches.Patch(facecolor=GREEN,  label="Synchronous Move"),
-        mpatches.Patch(facecolor=BLUE,   label="Model Move"),
-        mpatches.Patch(facecolor=RED,    label="Log Move"),
-        mpatches.Patch(facecolor=ORANGE, label="Mismatch Move"),
+        mpatches.Patch(facecolor=GREY_LIGHTER,  label="Synchronous Move"),
+        mpatches.Patch(facecolor=GREY_MED,   label="Model Move"),
+        mpatches.Patch(facecolor=GREY_DARK,    label="Log Move"),
+        mpatches.Patch(facecolor=GREY_LIGHT, label="Mismatch Move"),
     ]
     fig.legend(handles=legend_handles, loc="lower center",
                bbox_to_anchor=(0.5, 0.01), ncol=4,

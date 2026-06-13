@@ -432,7 +432,7 @@ def task31_bar_chart(df: pd.DataFrame, output_dir: str):
     fig, ax = plt.subplots(figsize=(8.5, 5.2))
     ax.set_facecolor("#fafbfc")
 
-    bars = ax.bar(x, agg["rate"].fillna(0), width=0.58, color=BLUE, zorder=3)
+    bars = ax.bar(x, agg["rate"].fillna(0), width=0.58, color=GREY_MED, zorder=3)
 
     # Annotate each non-empty bar with "rate% (n=N)" above bar
     max_rate = float(agg["rate"].fillna(0).max())
