@@ -193,19 +193,25 @@ def task10_pie_chart(range_df: pd.DataFrame, output_dir: str):
         active = range_df
 
     active_colors = [_task10_color_list(len(range_df))[i] for i in active.index]
-    fig, ax = plt.subplots(figsize=(7, 5.5))
-    wedges, texts, autotexts = ax.pie(
+    fig, ax = plt.subplots(figsize=(8, 6))
+    wedges, _texts, autotexts = ax.pie(
         active["count"],
-        labels=active["range"],
+        labels=None,
         colors=active_colors,
         startangle=90,
         autopct=lambda pct: f"{pct:.1f}%" if pct >= 1 else "",
-        pctdistance=0.75,
+        pctdistance=0.68,
         wedgeprops=dict(edgecolor="white", linewidth=2),
         textprops=dict(fontsize=FONT_ANNOT),
     )
     for color, autotext in zip(active_colors, autotexts):
         autotext.set_color(contrasting_text_color(color))
+    ax.legend(
+        wedges, list(active["range"]),
+        loc="lower center", bbox_to_anchor=(0.5, -0.08),
+        fontsize=FONT_ANNOT, frameon=True, framealpha=0.9,
+        ncol=min(len(active), 3),
+    )
     ax.set_title("Conformance Range Proportions", fontsize=FONT_TITLE)
     fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task10_pie_chart.svg"))
