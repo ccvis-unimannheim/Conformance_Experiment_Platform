@@ -4,29 +4,6 @@ import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { taskDescriptions, idiomDescriptions } from "./descriptions";
 
-/**
- * TaskAnswerPanel
- * Right panel — answer box for each task.
- *
- * Behaviour:
- *  - If options are provided  → show each as a selectable answer box
- *  - If no options            → show a free-text box (default)
- *
- * On submit: saves answer + response_time_ms to backend, then advances to next task.
- *
- * Props:
- *  - options            : [{ label, value }]  — if empty, free-text is shown
- *  - taskLabel          : string
- *  - taskId             : number/string
- *  - idiomId            : string
- *  - idiomKey           : string  — used to look up idiom description
- *  - datasetId          : string
- *  - trialIndex         : number
- *  - presentationOrder  : number
- *  - totalTasks         : total number of tasks
- *  - currentTaskIndex   : 0-based index
- *  - onAnswerSubmit     : callback fired after submit to advance to next task
- */
 const TaskAnswerPanel = ({
   options = [],
   taskLabel = "",
@@ -47,14 +24,12 @@ const TaskAnswerPanel = ({
   const [idiomExpanded, setIdiomExpanded] = useState(false);
   const [showTaskTooltip, setShowTaskTooltip] = useState(false);
 
-  // Track when the current task started
   const startTimeRef = useRef(Date.now());
 
   const hasOptions = options.length > 0;
   const isLastTask = currentTaskIndex >= totalTasks - 1;
 
-  // Look up descriptions
-  const taskDesc = taskDescriptions[taskId] ?? null;
+  const taskDesc = taskDescriptions[Number(taskId)] ?? null;
   const idiomDesc = idiomDescriptions[idiomKey] ?? null;
 
   useEffect(() => {
@@ -71,7 +46,6 @@ const TaskAnswerPanel = ({
     }
 
     setSubmitting(true);
-
     const response_time_ms = Date.now() - startTimeRef.current;
 
     const payload = {
@@ -115,8 +89,11 @@ const TaskAnswerPanel = ({
   };
 
   const headerStyle = {
-    fontSize: "0.7rem", fontWeight: 700, color: "#5a6061",
-    letterSpacing: "0.2em", textTransform: "uppercase",
+    fontSize: "0.7rem",
+    fontWeight: 700,
+    color: "#5a6061",
+    letterSpacing: "0.2em",
+    textTransform: "uppercase",
     margin: "0 0 1.5rem 0",
   };
 
@@ -140,7 +117,7 @@ const TaskAnswerPanel = ({
     <aside style={{ display: "flex", flexDirection: "column", gap: "1.5rem", position: "sticky", top: "5rem", maxHeight: "calc(100vh - 6rem)", overflowY: "auto", scrollbarWidth: "none" }}>
       <div style={cardStyle}>
 
-        {/* ── Task Label with hover tooltip ── */}
+        {/* Task Label with hover tooltip */}
         {taskLabel && (
           <div style={{ position: "relative", marginBottom: "1rem", paddingBottom: "1rem", borderBottom: "1px solid #f0f0f0" }}>
             <p
@@ -156,28 +133,8 @@ const TaskAnswerPanel = ({
               onMouseLeave={() => setShowTaskTooltip(false)}
             >
               {taskLabel}
-              {taskDesc && (
-                <span style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginLeft: "0.4rem",
-                  width: "1rem",
-                  height: "1rem",
-                  borderRadius: "50%",
-                  backgroundColor: "#e8edf5",
-                  color: "#3c5f90",
-                  fontSize: "0.65rem",
-                  fontWeight: 700,
-                  verticalAlign: "middle",
-                  cursor: "help",
-                }}>
-                  ?
-                </span>
-              )}
             </p>
 
-            {/* Tooltip */}
             {showTaskTooltip && taskDesc && (
               <div style={{
                 position: "absolute",
@@ -199,7 +156,7 @@ const TaskAnswerPanel = ({
           </div>
         )}
 
-        {/* ── Idiom expandable description ── */}
+        {/* Idiom expandable description */}
         {idiomDesc && (
           <div style={{
             marginBottom: "1.25rem",
@@ -247,11 +204,10 @@ const TaskAnswerPanel = ({
           </div>
         )}
 
-        {/* ── Answer section ── */}
+        {/* Answer section */}
         <h2 style={headerStyle}>Your Answer</h2>
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-
           {hasOptions ? (
             options.map((option, index) => {
               const isSelected = selectedAnswer === option.value;
@@ -274,14 +230,16 @@ const TaskAnswerPanel = ({
                     transition: "all 0.15s ease",
                   }}
                 >
-                  {/* Circle indicator */}
                   <div style={{
-                    width: "1.1rem", height: "1.1rem",
+                    width: "1.1rem",
+                    height: "1.1rem",
                     borderRadius: "50%",
                     border: `2px solid ${isSelected ? "#3c5f90" : "#adb3b4"}`,
                     backgroundColor: isSelected ? "#3c5f90" : "transparent",
                     flexShrink: 0,
-                    display: "flex", alignItems: "center", justifyContent: "center",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                     transition: "all 0.15s ease",
                   }}>
                     {isSelected && (
@@ -325,7 +283,6 @@ const TaskAnswerPanel = ({
             />
           )}
 
-          {/* Submit button */}
           <button type="submit" disabled={submitting} style={submitBtnStyle}>
             {submitting ? "Saving…" : isLastTask ? "Finish Experiment" : "Submit & Next →"}
           </button>
