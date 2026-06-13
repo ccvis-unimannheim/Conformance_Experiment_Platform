@@ -18,6 +18,50 @@ class AssignmentRequest(BaseModel):
     experiment_id: str
 
 
+# PARTICIPANT_TRIAL_CONTRACT.md "answer_format -> answer_type (widget) mapping"
+ANSWER_FORMAT_TO_ANSWER_TYPE = {
+    "mc-single": "single_choice",
+    "mc-multi": "multiple_choice",
+    "pct": "numeric",
+    "count": "numeric",
+    "decimal": "numeric",
+    "pct-set": "numeric_set",
+    "count-set": "numeric_set",
+    "rank": "rank",
+    "matrix": "matrix",
+    "free-text": "free_text",
+}
+
+# PARTICIPANT_TRIAL_CONTRACT.md "Fallback (task not yet authored - step 6 pending)"
+FALLBACK_ANSWER_FORMAT = "free-text"
+
+
+def _trial_contract_fields(task_instances_by_task_id: dict, task_id: str) -> dict:
+    """Derive the stable trial-contract fields for one task.
+
+    Reads `answer_format`/`ground_truth` from the experiment's task_instances
+    (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md step 7). Falls back to free-text/
+    free_text/[]/false when the task hasn't been authored yet
+    (PARTICIPANT_TRIAL_CONTRACT.md "Fallback").
+    """
+    ti = task_instances_by_task_id.get(task_id) or {}
+    answer_format = ti.get("answer_format") or FALLBACK_ANSWER_FORMAT
+    answer_type = ANSWER_FORMAT_TO_ANSWER_TYPE.get(answer_format, "free_text")
+
+    ground_truth = ti.get("ground_truth") or {}
+    options = [
+        {"label": opt.get("label", ""), "value": opt.get("value") or opt.get("label", "")}
+        for opt in ground_truth.get("options", [])
+    ]
+
+    return {
+        "answer_format": answer_format,
+        "answer_type": answer_type,
+        "decisive": bool(ground_truth.get("decisive", False)),
+        "options": options,
+    }
+
+
 def _resolve_svg_path(task_id: str, idiom_id: str, dataset_id: str, experiment_id: str | None = None):
     """Resolve DB IDs to a filesystem SVG path.
 
@@ -103,6 +147,8 @@ async def get_active_experiment():
     experiment_id = str(exp.get("_id", ""))
     trials = []
 
+    task_instances_by_task_id = {ti["task_id"]: ti for ti in exp.get("task_instances", [])}
+
     for tc in exp.get("task_configs", []):
         task_id    = tc.get("task_id", "")
         idiom_id   = tc.get("idiom_id", "")
@@ -118,6 +164,7 @@ async def get_active_experiment():
 
         svg_path, _ = _resolve_svg_path(task_id, idiom_id, dataset_id, experiment_id)
         svg_available = bool(svg_path and svg_path.exists())
+        contract = _trial_contract_fields(task_instances_by_task_id, task_id)
 
         trials.append({
             "task_id":       task_id,
@@ -127,7 +174,10 @@ async def get_active_experiment():
             "task_label":    task["label"],
             "idiom_key":     idiom["idiom_key"],
             "idiom_label":   idiom["label"],
-            "answer_type":   task["answer_type"],
+            "answer_format": contract["answer_format"],
+            "answer_type":   contract["answer_type"],
+            "decisive":      contract["decisive"],
+            "options":       contract["options"],
             "svg_available": svg_available,
         })
 
@@ -209,6 +259,9 @@ async def get_assigned_trials(
             detail="No assignment found. Call POST /participant/assignment first.",
         )
 
+    exp = dbc.get_document("Experiment", {"_id": experiment_id})
+    task_instances_by_task_id = {ti["task_id"]: ti for ti in (exp or {}).get("task_instances", [])}
+
     trials = []
     for idx, token in enumerate(assignment.get("trial_sequence", [])):
         try:
@@ -223,6 +276,7 @@ async def get_assigned_trials(
 
         svg_path, _ = _resolve_svg_path(task_id, idiom_id, dataset_id, experiment_id)
         svg_available = bool(svg_path and svg_path.exists())
+        contract = _trial_contract_fields(task_instances_by_task_id, task_id)
 
         trials.append({
             "trial_index":   idx,
@@ -233,7 +287,10 @@ async def get_assigned_trials(
             "task_label":    task["label"],
             "idiom_key":     idiom["idiom_key"],
             "idiom_label":   idiom["label"],
-            "answer_type":   task["answer_type"],
+            "answer_format": contract["answer_format"],
+            "answer_type":   contract["answer_type"],
+            "decisive":      contract["decisive"],
+            "options":       contract["options"],
             "svg_available": svg_available,
         })
 
