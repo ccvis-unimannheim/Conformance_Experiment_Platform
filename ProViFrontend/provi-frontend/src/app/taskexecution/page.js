@@ -124,10 +124,9 @@ export default function TaskExecutionPage() {
 
     const fetchSvg = async () => {
       try {
-        const response = await fetch(
-          `/api/participant/vis/${idiom.dataset_id}/${group.task_id}/${idiom.idiom_id}`,
-          { method: "GET", credentials: "include" }
-        );
+        const visUrl = `/api/participant/vis/${idiom.dataset_id}/${group.task_id}/${idiom.idiom_id}` +
+          (experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : "");
+        const response = await fetch(visUrl, { method: "GET", credentials: "include" });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const blob = await response.blob();
         objectUrl = URL.createObjectURL(blob);
@@ -142,7 +141,7 @@ export default function TaskExecutionPage() {
 
     fetchSvg();
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [currentGroupIndex, currentIdiomIndex, taskGroups]);
+  }, [currentGroupIndex, currentIdiomIndex, taskGroups, experimentId]);
 
   const handleAnswerSubmit = () => {
     const group = taskGroups[currentGroupIndex];
