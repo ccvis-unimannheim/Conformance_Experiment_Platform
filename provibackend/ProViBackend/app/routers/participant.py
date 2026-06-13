@@ -35,6 +35,33 @@ ANSWER_FORMAT_TO_ANSWER_TYPE = {
 # PARTICIPANT_TRIAL_CONTRACT.md "Fallback (task not yet authored - step 6 pending)"
 FALLBACK_ANSWER_FORMAT = "free-text"
 
+# Choice formats: the option `value` is the submittable token (safe to send).
+_CHOICE_FORMATS = {"mc-single", "mc-multi"}
+# Labelled-set formats: options are row labels; the `value` column holds the GT
+# number, which must NOT be sent to participants (PARTICIPANT_TRIAL_CONTRACT.md
+# "The frontend must never receive ... any other ground-truth value").
+_LABELLED_SET_FORMATS = {"pct-set", "count-set"}
+
+
+def _participant_options(answer_format: str, gt_options: list) -> list:
+    """Strip ground-truth from a task's option set per answer_format.
+
+    - choice (mc-single/mc-multi): send {label, value} (value = submit token).
+    - labelled-set (pct-set/count-set): send {label, value:label} only — the GT
+      number in `value` is withheld so the answer isn't leaked.
+    - everything else: no options.
+    (rank/matrix option-order leakage is a known TODO, not used by any authored
+    task yet.)
+    """
+    if answer_format in _CHOICE_FORMATS:
+        return [
+            {"label": opt.get("label", ""), "value": opt.get("value") or opt.get("label", "")}
+            for opt in gt_options
+        ]
+    if answer_format in _LABELLED_SET_FORMATS:
+        return [{"label": opt.get("label", ""), "value": opt.get("label", "")} for opt in gt_options]
+    return []
+
 
 def _trial_contract_fields(task_instances_by_task_id: dict, task_id: str) -> dict:
     """Derive the stable trial-contract fields for one task.
@@ -42,17 +69,15 @@ def _trial_contract_fields(task_instances_by_task_id: dict, task_id: str) -> dic
     Reads `answer_format`/`ground_truth` from the experiment's task_instances
     (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md step 7). Falls back to free-text/
     free_text/[]/false when the task hasn't been authored yet
-    (PARTICIPANT_TRIAL_CONTRACT.md "Fallback").
+    (PARTICIPANT_TRIAL_CONTRACT.md "Fallback"). Ground-truth values are stripped
+    from `options` so they never reach the participant.
     """
     ti = task_instances_by_task_id.get(task_id) or {}
     answer_format = ti.get("answer_format") or FALLBACK_ANSWER_FORMAT
     answer_type = ANSWER_FORMAT_TO_ANSWER_TYPE.get(answer_format, "free_text")
 
     ground_truth = ti.get("ground_truth") or {}
-    options = [
-        {"label": opt.get("label", ""), "value": opt.get("value") or opt.get("label", "")}
-        for opt in ground_truth.get("options", [])
-    ]
+    options = _participant_options(answer_format, ground_truth.get("options", []))
 
     return {
         "answer_format": answer_format,

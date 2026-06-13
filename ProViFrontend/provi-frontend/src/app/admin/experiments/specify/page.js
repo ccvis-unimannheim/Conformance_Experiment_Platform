@@ -280,7 +280,22 @@ function SpecifyContent() {
       if (!res.ok) throw new Error(await res.text());
 
       res = await fetch(`/api/admin/experiments/${experimentId}/generate`, { method: "POST" });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) {
+        // Backend rejects invalid parameters with { detail: { message, errors[] } }.
+        let msg = `HTTP ${res.status}`;
+        try {
+          const body = await res.json();
+          const detail = body?.detail;
+          if (detail?.errors?.length) {
+            msg = `${detail.message || "Invalid parameters."} ${detail.errors.join(" ")}`;
+          } else if (typeof detail === "string") {
+            msg = detail;
+          }
+        } catch {
+          // non-JSON error body — keep the status message
+        }
+        throw new Error(msg);
+      }
 
       // Reflect the "running" status immediately, then poll for completion.
       setTaskInstances(updatedInstances.map((ti) => ({ ...ti, generation_status: "running", generation_error: null })));
@@ -310,8 +325,9 @@ function SpecifyContent() {
         <div className="flex flex-col gap-1">
           <h1 className="font-h1 text-h1 text-primary mb-2">Specify &amp; Generate</h1>
           <p className="font-body-lg text-body-lg text-secondary max-w-2xl">
-            Set any task-specific hyperparameters, then generate the visualizations for the
-            selected idioms. Tasks with no parameters are ready to generate immediately.
+            Set any task-specific hyperparameters, then generate the visualizations and
+            compute ground truth for the selected idioms. Tasks with no parameters are ready
+            to generate immediately.
           </p>
         </div>
 
@@ -417,7 +433,7 @@ function SpecifyContent() {
               <span className={`material-symbols-outlined text-sm ${generating ? "animate-spin" : ""}`}>
                 {generating ? "autorenew" : "play_arrow"}
               </span>
-              {generating ? "Generating…" : "Generate Visualizations"}
+              {generating ? "Generating…" : "Generate Visualizations & Ground Truth"}
             </button>
             <button
               onClick={handleNext}

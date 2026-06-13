@@ -242,6 +242,195 @@ def _resolve_dataset_paths(dataset_dir: str, experiment_id: str | None = None):
 
 
 # ---------------------------------------------------------------------------
+# Per-task generator dispatch
+#
+# One callable per task_key, each reading its hyperparameters from a `params`
+# dict (falling back to the pipeline defaults). Centralising the per-task
+# generate() signatures here lets both the full CLI pipeline and the
+# per-experiment backend job (generate_for_task_instances) thread each
+# task_instance's parameters into generation (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md
+# §7, §15 step 3).
+# ---------------------------------------------------------------------------
+
+def make_task_generators(log, alignments, fitness_df, model_path, compare_attribute,
+                         params: dict | None = None) -> dict:
+    """Return {task_key: fn(output_dir)} with each task's params applied."""
+    p = params or {}
+
+    def outcome_activity():        return p.get("outcome_activity", "A_ACTIVATED")
+    def predominant_threshold():   return p.get("predominant_threshold", 0.8)
+    def high_cooccurrence():       return p.get("high_cooccurrence_threshold", 0.1)
+    def cmp_attr():                return p.get("compare_attribute", compare_attribute)
+
+    return {
+        "task01": lambda d: task01.generate(log, fitness_df, d, outcome_activity=outcome_activity()),
+        "task02": lambda d: task02.generate(fitness_df, d, predominant_threshold=predominant_threshold()),
+        "task03": lambda d: task03.generate(log, fitness_df, d),
+        "task04": lambda d: task04.generate(log, fitness_df, d),
+        "task05": lambda d: task05.generate(log, alignments, d, outcome_activity=outcome_activity()),
+        "task06": lambda d: task06.generate(fitness_df, d, log=log, alignments=alignments, model_path=model_path),
+        "task07": lambda d: task07.generate(log, fitness_df, d),
+        "task08": lambda d: task08.generate(log, alignments, d, high_cooccurrence_threshold=high_cooccurrence()),
+        "task09": lambda d: task09.generate(log, alignments, d, model_path=model_path),
+        "task10": lambda d: task10.generate(fitness_df, d, log=log),
+        "task11": lambda d: task11.generate(log, alignments, d, model_path=model_path),
+        "task12": lambda d: task12.generate(log, alignments, d),
+        "task13": lambda d: task13.generate(log, alignments, model_path, d),
+        "task14": lambda d: task14.generate(alignments, model_path, d),
+        "task15": lambda d: task15.generate(log, fitness_df, alignments, d, model_path=model_path),
+        "task16": lambda d: task16.generate(log, fitness_df, alignments, d, model_path=model_path),
+        "task17": lambda d: task17.generate(log, alignments, d, model_path=model_path),
+        "task18": lambda d: task18.generate(log, alignments, model_path, d),
+        "task19": lambda d: task19.generate(log, alignments, model_path, d, outcome_activity=outcome_activity()),
+        "task20": lambda d: task20.generate(log, alignments, d, model_path=model_path),
+        "task21": lambda d: task21.generate(log, alignments, model_path, d),
+        "task22": lambda d: task22.generate(log, fitness_df, alignments, d, model_path=model_path, compare_attribute=cmp_attr()),
+        "task23": lambda d: task23.generate(alignments, d, log=log),
+        "task24": lambda d: task24.generate(log, model_path, d),
+        "task25": lambda d: task25.generate(log, fitness_df, d, model_path=model_path),
+        "task26": lambda d: task26.generate(alignments, d, model_path=model_path),
+        "task27": lambda d: task27.generate(log, fitness_df, alignments, d, model_path=model_path),
+        "task28": lambda d: task28.generate(alignments, model_path, d),
+        "task29": lambda d: task29.generate(alignments, d),
+        "task30": lambda d: task30.generate(log, fitness_df, alignments, d, compare_attribute=cmp_attr()),
+        "task31": lambda d: task31.generate(log, alignments, d, outcome_activity=outcome_activity()),
+        "task32": lambda d: task32.generate(log, alignments, d, compare_attribute=cmp_attr()),
+        "task33": lambda d: task33.generate(log, fitness_df, d, compare_attribute=cmp_attr()),
+        "task34": lambda d: task34.generate(log, alignments, d, model_path=model_path),
+        "task35": lambda d: task35.generate(log, alignments, d, model_path=model_path),
+        "task36": lambda d: task36.generate(log, alignments, d, model_path=model_path),
+        "task37": lambda d: task37.generate(log, alignments, d, model_path=model_path),
+    }
+
+
+def _postprocess_task_dir(task_name: str, task_dir: str):
+    """Rename each task script's "taskNN_<idiom>.svg" to canonical "<idiom_key>.svg".
+
+    Only a real "taskNN_" prefix is stripped — already-canonical files (from a
+    previous run on the same output dir) pass through unchanged, otherwise
+    "bar_chart.svg" would degrade to "chart.svg" on re-runs.
+    """
+    import pathlib
+    skip = _TASK_RENAME_SKIP.get(task_name, set())
+    for f in pathlib.Path(task_dir).glob("*.svg"):
+        stem = f.stem
+        parts = stem.split("_", 1)
+        if len(parts) == 2 and re.fullmatch(r"task\d+", parts[0]):
+            idiom_key = parts[1]
+        else:
+            idiom_key = stem
+        if idiom_key not in skip:
+            idiom_key = _FILE_RENAME.get(idiom_key, idiom_key)
+        target = pathlib.Path(task_dir) / f"{idiom_key}.svg"
+        if f != target:
+            # replace() overwrites existing targets on all platforms (os.rename
+            # fails on Windows when re-running on a non-empty output directory).
+            f.replace(target)
+
+
+def get_log_activities(dataset_dir: str) -> list[str]:
+    """Sorted distinct activity names in the dataset's event log.
+
+    Powers the /specify "list all options" combobox for activity-picker params
+    (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §5, §14). For CSV logs this reads only the
+    activity column (fast); XES logs fall back to the full pm4py loader.
+    """
+    input_dir = os.path.join(dataset_dir, INPUT_SUBDIR)
+    if not os.path.isdir(input_dir):
+        raise FileNotFoundError(f"Input directory not found: {input_dir}")
+
+    log_path = None
+    for fname in os.listdir(input_dir):
+        if os.path.splitext(fname)[1].lower() in LOG_EXTENSIONS:
+            log_path = os.path.join(input_dir, fname)
+            break
+    if log_path is None:
+        raise FileNotFoundError(f"No event log found in {input_dir}")
+
+    ext = os.path.splitext(log_path)[1].lower()
+    if ext == ".csv":
+        import pandas as pd
+        df = pd.read_csv(log_path)
+        for col in ["concept:name", "activity", "Activity", "ActivityName", "task"]:
+            if col in df.columns:
+                return sorted({str(v) for v in df[col].dropna().unique()})
+        return []
+
+    log = load_event_log(log_path)
+    activities = {str(ev.get("concept:name", "")) for trace in log for ev in trace}
+    activities.discard("")
+    return sorted(activities)
+
+
+def generate_for_task_instances(dataset_dir: str, experiment_id: str,
+                                instances: list[dict]) -> dict:
+    """Render + compute ground truth for one dataset's task_instances.
+
+    `instances` items: {"task_key": str, "parameters": dict, "answer_format": str|None}.
+    Shared artefacts (log, Petri net, alignments, fitness_df) are computed once
+    and reused across this dataset's tasks (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7).
+
+    Returns {task_key: {"render_error": str|None, "gt_raw": dict|None,
+    "gt_error": str|None}}. GT assembly into a GroundTruthBlock happens in the
+    caller (admin.py), which owns the registry/schema.
+    """
+    log_path, model_path, output_dir = _resolve_dataset_paths(dataset_dir, experiment_id)
+    log         = load_event_log(log_path)
+    compare_attribute = _auto_detect_compare_attribute(log, "AMOUNT_REQ")
+    net, im, fm = load_model(model_path)
+    alignments  = run_alignments(log, net, im, fm)
+    fitness_df  = fitness_summary_dataframe(alignments)
+
+    _TASK_MODULE = {
+        "task01": task01, "task02": task02, "task03": task03, "task04": task04, "task05": task05,
+        "task06": task06, "task07": task07, "task08": task08, "task09": task09, "task10": task10,
+        "task11": task11, "task12": task12, "task13": task13, "task14": task14, "task15": task15,
+        "task16": task16, "task17": task17, "task18": task18, "task19": task19, "task20": task20,
+        "task21": task21, "task22": task22, "task23": task23, "task24": task24, "task25": task25,
+        "task26": task26, "task27": task27, "task28": task28, "task29": task29, "task30": task30,
+        "task31": task31, "task32": task32, "task33": task33, "task34": task34, "task35": task35,
+        "task36": task36, "task37": task37,
+    }
+
+    results: dict = {}
+    for inst in instances:
+        tk = inst["task_key"]
+        params = inst.get("parameters") or {}
+        answer_format = inst.get("answer_format")
+        entry = {"render_error": None, "gt_raw": None, "gt_error": None}
+
+        generators = make_task_generators(log, alignments, fitness_df, model_path,
+                                          compare_attribute, params)
+        gen_fn = generators.get(tk)
+        if gen_fn is None:
+            entry["render_error"] = f"No generator registered for '{tk}'."
+            results[tk] = entry
+            continue
+
+        task_dir = os.path.join(output_dir, tk)
+        os.makedirs(task_dir, exist_ok=True)
+        try:
+            gen_fn(task_dir)
+            _postprocess_task_dir(tk, task_dir)
+        except Exception as e:
+            logger.exception("Render failed for %s", tk)
+            entry["render_error"] = str(e)
+
+        compute = getattr(_TASK_MODULE.get(tk), "compute_ground_truth", None)
+        if compute is not None:
+            try:
+                entry["gt_raw"] = compute(log, alignments, fitness_df, model_path,
+                                          params, answer_format)
+            except Exception as e:
+                logger.exception("compute_ground_truth failed for %s", tk)
+                entry["gt_error"] = str(e)
+
+        results[tk] = entry
+
+    return results
+
+
+# ---------------------------------------------------------------------------
 # Public entry point – called by both the CLI and the FastAPI backend
 # ---------------------------------------------------------------------------
 
@@ -301,89 +490,28 @@ def run_pipeline(dataset_dir: str, experiment_id: str | None = None,
         os.makedirs(d, exist_ok=True)
         return d
 
-    generators = [
-        ("task01", lambda d: task01.generate(log, fitness_df,        d,
-                                             outcome_activity=outcome_activity)),
-        ("task02", lambda d: task02.generate(fitness_df,             d,
-                                             predominant_threshold=predominant_threshold)),
-        ("task03", lambda d: task03.generate(log, fitness_df,        d)),
-        ("task04", lambda d: task04.generate(log, fitness_df,        d)),
-        ("task05", lambda d: task05.generate(log, alignments,        d,
-                                             outcome_activity=outcome_activity)),
-        ("task06", lambda d: task06.generate(fitness_df,             d,
-                                             log=log, alignments=alignments, model_path=model_path)),
-        ("task07", lambda d: task07.generate(log, fitness_df,        d)),
-        ("task08", lambda d: task08.generate(log, alignments,        d,
-                                             high_cooccurrence_threshold=high_cooccurrence_threshold)),
-        ("task09", lambda d: task09.generate(log, alignments,        d, model_path=model_path)),
-        ("task10", lambda d: task10.generate(fitness_df,             d, log=log)),
-        ("task11", lambda d: task11.generate(log, alignments,        d, model_path=model_path)),
-        ("task12", lambda d: task12.generate(log, alignments,        d)),
-        ("task13", lambda d: task13.generate(log, alignments, model_path, d)),
-        ("task14", lambda d: task14.generate(alignments, model_path, d)),
-        ("task15", lambda d: task15.generate(log, fitness_df, alignments, d,
-                                             model_path=model_path)),
-        ("task16", lambda d: task16.generate(log, fitness_df, alignments, d,
-                                             model_path=model_path)),
-        ("task17", lambda d: task17.generate(log, alignments,        d,
-                                             model_path=model_path)),
-        ("task18", lambda d: task18.generate(log, alignments, model_path, d)),
-        ("task19", lambda d: task19.generate(log, alignments, model_path, d,
-                                             outcome_activity=outcome_activity)),
-        ("task20", lambda d: task20.generate(log, alignments,        d, model_path=model_path)),
-        ("task21", lambda d: task21.generate(log, alignments, model_path, d)),
-        ("task22", lambda d: task22.generate(log, fitness_df, alignments, d,
-                                             model_path=model_path,
-                                             compare_attribute=compare_attribute)),
-        ("task23", lambda d: task23.generate(alignments,             d, log=log)),
-        ("task24", lambda d: task24.generate(log, model_path,        d)),
-        ("task25", lambda d: task25.generate(log, fitness_df,        d, model_path=model_path)),
-        ("task26", lambda d: task26.generate(alignments,             d, model_path=model_path)),
-        ("task27", lambda d: task27.generate(log, fitness_df, alignments, d, model_path=model_path)),
-        ("task28", lambda d: task28.generate(alignments, model_path, d)),
-        ("task29", lambda d: task29.generate(alignments,             d)),
-        ("task30", lambda d: task30.generate(log, fitness_df, alignments, d,
-                                             compare_attribute=compare_attribute)),
-        ("task31", lambda d: task31.generate(log, alignments,        d,
-                                             outcome_activity=outcome_activity)),
-        ("task32", lambda d: task32.generate(log, alignments,        d,
-                                             compare_attribute=compare_attribute)),
-        ("task33", lambda d: task33.generate(log, fitness_df,        d,
-                                             compare_attribute=compare_attribute)),
-        ("task34", lambda d: task34.generate(log, alignments,        d, model_path=model_path)),
-        ("task35", lambda d: task35.generate(log, alignments,        d, model_path=model_path)),
-        ("task36", lambda d: task36.generate(log, alignments,        d, model_path=model_path)),
-        ("task37", lambda d: task37.generate(log, alignments,        d, model_path=model_path)),
-    ]
+    # Full-pipeline defaults are threaded through `params` so make_task_generators
+    # is the single source of per-task generate() signatures.
+    generators = make_task_generators(
+        log, alignments, fitness_df, model_path, compare_attribute,
+        params={
+            "outcome_activity": outcome_activity,
+            "predominant_threshold": predominant_threshold,
+            "high_cooccurrence_threshold": high_cooccurrence_threshold,
+            "compare_attribute": compare_attribute,
+        },
+    )
 
-    for task_name, gen_fn in generators:
+    for task_name in TASK_DIRS:
+        gen_fn = generators.get(task_name)
+        if gen_fn is None:
+            continue
         task_dir = out(task_name)
         try:
             gen_fn(task_dir)
         except Exception as e:
             logger.warning(f"{task_name} generation failed: {e}")
-
-        # Each task script writes "taskN_<idiom>.svg"; rename to canonical
-        # "<idiom_key>.svg" form, applying _FILE_RENAME aliases.
-        # Only strip a real "taskNN_" prefix — already-canonical files (from a
-        # previous run on the same output dir) must pass through unchanged,
-        # otherwise "bar_chart.svg" would degrade to "chart.svg" on re-runs.
-        skip = _TASK_RENAME_SKIP.get(task_name, set())
-        for f in pathlib.Path(task_dir).glob("*.svg"):
-            stem = f.stem
-            parts = stem.split("_", 1)
-            if len(parts) == 2 and re.fullmatch(r"task\d+", parts[0]):
-                idiom_key = parts[1]
-            else:
-                idiom_key = stem
-            if idiom_key not in skip:
-                idiom_key = _FILE_RENAME.get(idiom_key, idiom_key)
-            target = pathlib.Path(task_dir) / f"{idiom_key}.svg"
-            if f != target:
-                # replace() overwrites existing targets on all platforms
-                # (os.rename would fail on Windows when re-running on a
-                #  non-empty output directory)
-                f.replace(target)
+        _postprocess_task_dir(task_name, task_dir)
 
     logger.info("\nDone! SVGs written to:")
     for t in TASK_DIRS:

@@ -81,3 +81,13 @@ def get_rubric(task_key: str) -> Optional[str]:
 def get_compute_ground_truth(task_key: str) -> Optional[Callable]:
     """Optional `compute_ground_truth(...)` for AUTO/SEMI tasks (§4, §8)."""
     return getattr(_module(task_key), "compute_ground_truth", None)
+
+
+def get_validate_params(task_key: str) -> Optional[Callable]:
+    """Optional `validate_params(log, params) -> list[str]` semantic validator.
+
+    Returns task-specific error messages (e.g. a chosen condition that cannot
+    split the log) so /generate can reject illegal input with a hard error
+    (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §10). None if the task declares none.
+    """
+    return getattr(_module(task_key), "validate_params", None)

@@ -20,6 +20,63 @@ IDIOMS = ["bar_chart", "scatter_plot", "table", "table_and_bar_chart", "parallel
           "stacked_bar", "line_graph", "horizon_chart", "box_plot", "matrix",
           "heatmap", "calendar"]
 
+# ---------------------------------------------------------------------------
+# Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8; design doc §2 row 1)
+#
+# Task 1 (SEMI): compare conformance of two sub-logs split by an outcome
+# condition (an activity present in the trace = Positive group, absent =
+# Negative). The answer is one mean-fitness percentage per group (pct-set).
+# ---------------------------------------------------------------------------
+GT_TIER = "SEMI"
+
+PARAM_SPEC = [
+    {
+        "key": "outcome_activity",
+        "label": "Outcome condition (activity present in trace marks the Positive group)",
+        "widget": "activity-picker",
+        "source": "log.activities",
+        "default": "A_APPROVED",
+        "required": True,
+    },
+]
+
+ANSWER_FORMATS = [
+    {"key": "pct-set", "gt_shape": "labelled-set", "decisive_default": True},
+]
+
+
+def validate_params(log, params) -> list:
+    """Reject conditions that cannot split the log into two non-empty groups
+    (covers gibberish/typo'd activities — absent from every trace — and
+    activities present in every trace). See ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §10."""
+    act = params.get("outcome_activity")
+    if not act:
+        return ["An outcome activity is required."]
+    total = len(log)
+    present = sum(1 for trace in log if act in {str(e.get("concept:name", "")) for e in trace})
+    if present == 0:
+        return [f"Outcome activity '{act}' is not present in any trace of the event log."]
+    if present == total:
+        return [f"Outcome activity '{act}' is present in all {total} traces — it cannot split the log into two groups."]
+    return []
+
+
+def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
+    """Mean conformance (fitness) per outcome group, as a pct-set labelled set.
+
+    Returns the GroundTruthBlock-shaped fields the backend assembles
+    (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §3, §8): one row per group, value = the
+    group's mean fitness as an integer percent (e.g. "96%"), flagged correct.
+    """
+    df    = _task01_build_df(log, fitness_df, params.get("outcome_activity", "A_APPROVED"))
+    stats = _task01_group_stats(df)
+    options = [
+        {"label": row["group"], "value": f"{round(row['mean_fitness'] * 100)}%", "correct": True}
+        for _, row in stats.iterrows()
+    ]
+    return {"value": None, "options": options}
+
+
 import os
 import numpy as np
 import pandas as pd
