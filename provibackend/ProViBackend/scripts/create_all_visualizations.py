@@ -63,6 +63,7 @@ import tasks.task11 as task11
 import tasks.task12 as task12
 import tasks.task14 as task14
 import tasks.task15 as task15
+import tasks.task16 as task16
 import tasks.task17 as task17
 import tasks.task19 as task19
 import tasks.task20 as task20
@@ -99,7 +100,7 @@ INPUT_SUBDIR  = "input"
 OUTPUT_SUBDIR = "output"
 LOG_EXTENSIONS   = {".xes", ".csv"}
 MODEL_EXTENSIONS = {".bpmn"}
-TASK_DIRS     = ["task01", "task02", "task03", "task04", "task05", "task06", "task07", "task08", "task09", "task10", "task11", "task12", "task14", "task15", "task17", "task19", "task20", "task22", "task23", "task24", "task25", "task26", "task27", "task28", "task29", "task30", "task31", "task32", "task33", "task34", "task35", "task36", "task37"]
+TASK_DIRS     = ["task01", "task02", "task03", "task04", "task05", "task06", "task07", "task08", "task09", "task10", "task11", "task12", "task14", "task15", "task16", "task17", "task19", "task20", "task22", "task23", "task24", "task25", "task26", "task27", "task28", "task29", "task30", "task31", "task32", "task33", "task34", "task35", "task36", "task37"]
 
 # Aliases mapping task-script filename stems to canonical idiom_keys.
 # E.g. task06.py writes "task06_scatter_plot.svg"; we strip "task06_" then
@@ -120,6 +121,7 @@ _TASK_RENAME_SKIP: dict[str, set[str]] = {
     "task08": {"scatter_plot"},
     "task14": {"scatter_plot"},
     "task15": {"scatter_plot"},
+    "task16": {"scatter_plot"},
     "task19": {"scatter_plot"},
     "task22": {"scatter_plot"},
     "task28": {"scatter_plot"},
@@ -290,6 +292,8 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED",
         ("task12", lambda d: task12.generate(log, alignments,        d)),
         ("task14", lambda d: task14.generate(alignments, model_path, d)),
         ("task15", lambda d: task15.generate(log, fitness_df, alignments, d,
+                                             model_path=model_path)),
+        ("task16", lambda d: task16.generate(log, fitness_df, alignments, d,
                                              model_path=model_path)),
         ("task17", lambda d: task17.generate(log, alignments,        d,
                                              model_path=model_path)),

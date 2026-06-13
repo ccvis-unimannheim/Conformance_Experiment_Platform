@@ -18,7 +18,7 @@ try:
     from ProViBackend.scripts.tasks import (
         task01, task02, task03, task04, task05,
         task06, task07, task08, task09, task10, task11, task12,
-        task14, task15,
+        task14, task15, task16,
         task17, task19, task20,
         task22, task23, task24, task25, task26, task27,
         task28, task29, task30, task31,
@@ -29,7 +29,7 @@ try:
         "task01": task01, "task02": task02, "task03": task03, "task04": task04, "task05": task05,
         "task06": task06, "task07": task07, "task08": task08, "task09": task09,
         "task10": task10, "task11": task11, "task12": task12,
-        "task14": task14, "task15": task15,
+        "task14": task14, "task15": task15, "task16": task16,
         "task17": task17, "task19": task19, "task20": task20, "task22": task22,
         "task23": task23, "task24": task24, "task25": task25, "task26": task26, "task27": task27,
         "task28": task28, "task29": task29, "task30": task30, "task31": task31,

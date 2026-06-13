@@ -85,6 +85,12 @@ CANONICAL_TASKS = [
         "answer_type": "single_choice",
     },
     {
+        "task_key": "task16",
+        "label": "What is the reason for guideline violations?",
+        "description": "Identify and annotate the activities and move types responsible for violations across the event log.",
+        "answer_type": "single_choice",
+    },
+    {
         "task_key": "task37",
         "label": "How do fitness values of traces differ when applying two different techniques to compute them? What is the overall trend?",
         "description": "Compare alignment-based and token-based replay fitness per trace; visualize distribution, agreement, and trend.",
