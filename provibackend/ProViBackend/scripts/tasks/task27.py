@@ -81,17 +81,18 @@ def task27_bar_chart(vdf: pd.DataFrame, output_dir: str):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + ymax * 0.012,
                 f"{int(val)}", ha="center", va="bottom", fontsize=FONT_ANNOT - 1)
 
-    ax.legend(handles=_status_legend_handles(), frameon=False, fontsize=FONT_ANNOT,
-              loc="lower right", bbox_to_anchor=(1.0, -0.18), ncol=2)
+    ax.legend(handles=_status_legend_handles(),
+              loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=2, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.set_xlabel(f"Variant (ranked by frequency, top {len(top)} of {len(vdf)})",
                   fontsize=FONT_LABEL)
     ax.set_ylabel("Number of Traces", fontsize=FONT_LABEL)
     ax.set_title("Variant Frequency by Conformance Status", fontsize=FONT_TITLE)
     ax.set_ylim(0, ymax * 1.15)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.5)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task27_bar_chart.svg"))
 
 

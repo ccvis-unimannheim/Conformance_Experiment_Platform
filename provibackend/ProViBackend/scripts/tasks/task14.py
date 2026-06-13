@@ -206,12 +206,12 @@ def task14_bar_chart(ctx, output_dir):
         mpatches.Patch(facecolor=_TYPE_COLOR[mt], label=mt)
         for mt in _MOVE_TYPES if counts[mt] > 0
     ]
-    fig.legend(
+    ax.legend(
         handles=legend_handles,
-        loc="lower center", bbox_to_anchor=(0.5, -0.06),
-        ncol=1, frameon=False, fontsize=FONT_ANNOT,
+        loc="lower center", bbox_to_anchor=(0.5, -0.25),
+        ncol=3, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT,
     )
-    fig.tight_layout(rect=[0, 0.14, 1, 1])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out)
 
 

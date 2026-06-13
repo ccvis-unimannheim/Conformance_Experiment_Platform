@@ -67,9 +67,9 @@ def task06_bar_chart(df, output_dir: str):
     ax.set_title("Conform vs. Non-Conform Traces", fontsize=FONT_TITLE)
     ax.set_ylim(0, max(conform, non_conform) * 1.15)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.5)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task06_bar_chart.svg"))
 
 

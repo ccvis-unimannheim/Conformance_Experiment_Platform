@@ -84,8 +84,8 @@ def task04_bar_chart(vdf: pd.DataFrame, output_dir: str):
             mpatches.Patch(color=GREY_MED,   label="Conformant (fitness = 1.0)"),
             mpatches.Patch(color=GREY_LIGHT, label="Non-conformant (fitness < 1.0)"),
         ],
-        frameon=False, fontsize=FONT_ANNOT,
-        loc="lower right", bbox_to_anchor=(1.0, -0.18), ncol=2,
+        loc="lower center", bbox_to_anchor=(0.5, -0.25),
+        ncol=2, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT,
     )
     ax.set_xlabel(f"Variant (ranked by frequency, top {len(top)} of {len(vdf)})",
                   fontsize=FONT_LABEL)
@@ -93,9 +93,9 @@ def task04_bar_chart(vdf: pd.DataFrame, output_dir: str):
     ax.set_title("Conformance Fitness by Process Variant", fontsize=FONT_TITLE)
     ax.set_ylim(0, 1.15)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.5)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task04_bar_chart.svg"))
 
 

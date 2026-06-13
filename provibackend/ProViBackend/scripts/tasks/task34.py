@@ -293,7 +293,7 @@ def task34_bar_chart(ctx, output_dir):
         fontsize=FONT_TITLE, pad=8,
     )
     ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.3)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
 
     legend_handles = [
@@ -301,10 +301,11 @@ def task34_bar_chart(ctx, output_dir):
         mpatches.Patch(color=_C_MED,   label="Move on Log (dominant)"),
         mpatches.Patch(color=_C_DARK,  label="Mismatch Move (dominant)"),
     ]
-    ax.legend(handles=legend_handles, loc="lower right", fontsize=FONT_ANNOT,
-              frameon=True, fancybox=False, edgecolor="#cccccc")
+    ax.legend(handles=legend_handles,
+              loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=3, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task34_bar_chart.svg"))
 
 

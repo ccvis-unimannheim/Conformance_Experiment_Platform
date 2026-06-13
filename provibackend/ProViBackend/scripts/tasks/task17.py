@@ -146,12 +146,12 @@ def task17_bar_chart(df, output_dir):
     ax.set_ylim(0, counts.max() * 1.16 if len(counts) else 1)
     ax.set_title("How Often is Each Guideline Violated?", fontsize=FONT_TITLE)
     ax.legend(handles=[mpatches.Patch(color=_move_color(m), label=m) for m in move_types],
-              title="Deviation type", frameon=False, fontsize=FONT_ANNOT - 1,
-              title_fontsize=FONT_ANNOT, loc="upper right")
+              loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=len(move_types), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task17_bar_chart.svg"))
 
 

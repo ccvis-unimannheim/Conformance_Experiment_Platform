@@ -61,7 +61,9 @@ def _move_legend(ax, present_types):
     ax.legend(
         handles=[mpatches.Patch(color=_MOVE_COLORS[mt], label=mt)
                  for mt in _MOVE_ORDER if mt in present_types],
-        frameon=False, fontsize=FONT_ANNOT,
+        loc="lower center", bbox_to_anchor=(0.5, -0.25),
+        ncol=len([mt for mt in _MOVE_ORDER if mt in present_types]),
+        frameon=True, framealpha=0.9, fontsize=FONT_ANNOT,
     )
 
 
@@ -75,15 +77,16 @@ def task23_bar_chart(pat_df: pd.DataFrame, output_dir: str):
     colors = [_MOVE_COLORS.get(mt, GREY_MED) for mt in top["move_type"]]
     ymax   = max(int(top["count"].max()), 1)
 
-    fig, ax = plt.subplots(figsize=(max(9, len(top) * 1.1), 5.5))
+    fig, ax = plt.subplots(figsize=(max(9, len(top) * 1.6), 5.5))
     bars = ax.bar(range(len(top)), top["count"], color=colors,
                   edgecolor="white", width=0.65)
     for bar, val in zip(bars, top["count"]):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + ymax * 0.012,
                 f"{int(val)}", ha="center", va="bottom", fontsize=FONT_ANNOT - 1)
 
+    act_labels = [p.split(" (")[0] for p in top["pattern"]]
     ax.set_xticks(range(len(top)))
-    ax.set_xticklabels(top["pattern"], rotation=40, ha="right", fontsize=FONT_ANNOT - 1)
+    ax.set_xticklabels(act_labels, fontsize=FONT_ANNOT - 1)
     ax.set_ylabel("Occurrences", fontsize=FONT_LABEL)
     ax.set_title(f"Top-{len(top)} Violation Patterns by Frequency", fontsize=FONT_TITLE)
     ax.set_ylim(0, ymax * 1.16)
@@ -91,7 +94,7 @@ def task23_bar_chart(pat_df: pd.DataFrame, output_dir: str):
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task23_bar_chart.svg"))
 
 

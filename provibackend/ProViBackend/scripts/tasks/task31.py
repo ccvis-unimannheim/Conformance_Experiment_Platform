@@ -432,7 +432,7 @@ def task31_bar_chart(df: pd.DataFrame, output_dir: str):
     fig, ax = plt.subplots(figsize=(8.5, 5.2))
     ax.set_facecolor("#fafbfc")
 
-    bars = ax.bar(x, agg["rate"].fillna(0), width=0.58, color=GREY_MED, zorder=3)
+    bars = ax.bar(x, agg["rate"].fillna(0), width=0.58, color=GREY_MED, zorder=3, edgecolor="white")
 
     # Annotate each non-empty bar with "rate% (n=N)" above bar
     max_rate = float(agg["rate"].fillna(0).max())
@@ -453,7 +453,7 @@ def task31_bar_chart(df: pd.DataFrame, output_dir: str):
     ax.set_ylabel("Positive Outcome Rate (%)", fontsize=FONT_LABEL)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.5)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
     ax.set_title("Conformance Degree vs. Positive Outcome Rate", fontsize=FONT_TITLE, pad=10)
 

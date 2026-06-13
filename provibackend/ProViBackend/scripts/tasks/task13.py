@@ -375,11 +375,11 @@ def task13_bar_chart(attr_meta, evidence_df, output_dir):
             ax.text(p, rate + 1.5, f"{rate:.0f}%\n(n={c})", ha="center", va="bottom",
                     fontsize=FONT_ANNOT - 1, color="#333333")
         ax.set_xticks(pos)
-        ax.set_xticklabels(labels, rotation=30, ha="right", fontsize=FONT_ANNOT - 1)
+        ax.set_xticklabels(labels, fontsize=FONT_ANNOT - 1)
         ax.set_title(f"{m['label']} ({m['type']})", fontsize=FONT_LABEL)
         ax.set_ylim(0, 100)
         ax.spines[["top", "right"]].set_visible(False)
-        ax.yaxis.grid(True, linestyle="--", alpha=0.4)
+        ax.yaxis.grid(True, linestyle="--", alpha=0.45)
         ax.set_axisbelow(True)
     axes[0][0].set_ylabel("Violation rate (%)", fontsize=FONT_LABEL)
     fig.suptitle("Guideline-Violation Rate by Candidate Attribute", fontsize=FONT_TITLE)

@@ -174,9 +174,9 @@ def task22_bar_chart(trace_df, groups, attr, output_dir):
     ax.set_ylim(0, 1.15)
     ax.set_title(f"Conformance Explained by {attr}", fontsize=FONT_TITLE)
     ax.spines[["top", "right", "left"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.4)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task22_bar_chart.svg"))
 
 
