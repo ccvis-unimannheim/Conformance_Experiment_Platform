@@ -115,8 +115,9 @@ def assign_participant_to_experiment(user_id: str, experiment_id: str) -> dict:
             f"{task_id}::{chosen['idiom_id']}::{chosen['dataset_id']}"
         )
 
-    # Randomise the presentation order of tasks for this participant
-    random.shuffle(trial_sequence)
+    # Randomise the presentation order only when the experiment requests it
+    if experiment.get("within_sequence_mode", "fixed") == "random":
+        random.shuffle(trial_sequence)
 
     assignment_doc = {
         "_id": str(uuid.uuid4()),

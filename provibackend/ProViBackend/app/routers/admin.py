@@ -228,6 +228,26 @@ async def download_experiment_answers(experiment_id: str):
 
     # ── Clean up Task Answers columns ─────────────────────────────────────
     if not df_answers.empty:
+        # Resolve task_id → task_key + task_name
+        unique_task_ids = df_answers["task_id"].dropna().unique().tolist()
+        task_lookup = {}
+        for tid in unique_task_ids:
+            doc = dbc.get_document("Task", {"_id": tid})
+            if doc:
+                task_lookup[tid] = {"task_key": doc.get("task_key", ""), "task_name": doc.get("label", "")}
+        df_answers["task_key"] = df_answers["task_id"].map(lambda x: task_lookup.get(x, {}).get("task_key", ""))
+        df_answers["task_name"] = df_answers["task_id"].map(lambda x: task_lookup.get(x, {}).get("task_name", ""))
+
+        # Resolve idiom_id → idiom_key + idiom_name
+        unique_idiom_ids = df_answers["idiom_id"].dropna().unique().tolist()
+        idiom_lookup = {}
+        for iid in unique_idiom_ids:
+            doc = dbc.get_document("Idiom", {"_id": iid})
+            if doc:
+                idiom_lookup[iid] = {"idiom_key": doc.get("idiom_key", ""), "idiom_name": doc.get("label", "")}
+        df_answers["idiom_key"] = df_answers["idiom_id"].map(lambda x: idiom_lookup.get(x, {}).get("idiom_key", ""))
+        df_answers["idiom_name"] = df_answers["idiom_id"].map(lambda x: idiom_lookup.get(x, {}).get("idiom_name", ""))
+
         if "response_time_ms" in df_answers.columns:
             df_answers["response_time_s"] = (df_answers["response_time_ms"] / 1000).round(2)
             df_answers = df_answers.drop(columns=["response_time_ms"])

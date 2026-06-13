@@ -17,6 +17,8 @@ export default function NewExperimentPage() {
   const [loadingPairs, setLoadingPairs] = useState(true);
   const [pairsError, setPairsError] = useState(null);
 
+  const [randomizeOrder, setRandomizeOrder] = useState(true);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
 
@@ -71,7 +73,7 @@ export default function NewExperimentPage() {
           within_factors: [],
           stratification_fields: [],
           between_balance_mode: "random",
-          within_sequence_mode: "fixed",
+          within_sequence_mode: randomizeOrder ? "random" : "fixed",
           dataset_ids: Array.from(selectedIds),
           task_configs: [],
           created_by: "admin",
@@ -118,6 +120,19 @@ export default function NewExperimentPage() {
             isLoading={loadingPairs}
             error={pairsError}
           />
+        </div>
+
+        <div className="mt-8 flex items-center gap-3">
+          <input
+            id="randomize-order"
+            type="checkbox"
+            checked={randomizeOrder}
+            onChange={(e) => setRandomizeOrder(e.target.checked)}
+            className="w-4 h-4 accent-primary cursor-pointer"
+          />
+          <label htmlFor="randomize-order" className="text-body-sm text-on-surface cursor-pointer select-none">
+            Randomize question order for each participant
+          </label>
         </div>
 
         {submitError && (
