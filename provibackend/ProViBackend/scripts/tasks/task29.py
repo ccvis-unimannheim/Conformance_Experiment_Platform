@@ -22,7 +22,43 @@ import matplotlib.patches as mpatches
 from matplotlib.patches import Polygon
 from matplotlib import gridspec
 
-from shared import save_svg, make_table, alignment_pairs_to_rows, GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT, contrasting_text_color
+from shared import (
+    save_svg, make_table, alignment_pairs_to_rows, render_empty_state_svg,
+    build_violation_pattern_df, draw_value_heatmap, draw_parallel_sets,
+    GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    contrasting_text_color,
+)
+from tasks.task26 import _lighten, _squarify_layout
+
+
+# Move-type vocabulary + colours for the activity-level idioms (stacked_bar,
+# matrix, parallel_sets, tree_map, sunburst) — matches the move-type strings
+# produced by alignment_pairs_to_rows / build_violation_pattern_df.
+_VTYPES = ["Model Move", "Log Move", "Mismatch Move"]
+_VTYPE_COLOR = {
+    "Model Move":    GREY_MED,
+    "Log Move":      GREY_DARK,
+    "Mismatch Move": GREY_LIGHT,
+}
+
+# Top-N activities (by total violation count) shown in stacked_bar/matrix/parallel_sets
+_PIVOT_TOP_N = 15
+
+
+def _task29_activity_type_pivot(alignments, top_n: int = _PIVOT_TOP_N):
+    """(pivot, top_acts) for the activity-level idioms.
+
+    pivot    – {(activity, move_type): count}
+    top_acts – top-N activities by total violation count, descending
+    """
+    pat_df = build_violation_pattern_df(alignments)
+    if pat_df.empty:
+        return {}, []
+
+    pivot = {(row["activity"], row["move_type"]): int(row["count"]) for _, row in pat_df.iterrows()}
+    totals = pat_df.groupby("activity")["count"].sum().sort_values(ascending=False)
+    top_acts = totals.head(top_n).index.tolist()
+    return pivot, top_acts
 
 
 # ---------------------------------------------------------------------------
