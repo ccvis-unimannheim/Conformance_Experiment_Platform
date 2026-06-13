@@ -2,11 +2,73 @@
 
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../../components/Admin/Toast";
 
 function getId(obj) {
   return obj._id || obj.id;
+}
+
+const STATUS_STYLES = {
+  pending: { label: "Pending", icon: "schedule", className: "bg-surface-container text-on-surface-variant" },
+  running: { label: "Generating…", icon: "autorenew", className: "bg-yellow-100 text-yellow-800", spin: true },
+  ready: { label: "Ready", icon: "check_circle", className: "bg-green-100 text-green-800" },
+  failed: { label: "Failed", icon: "error", className: "bg-red-100 text-red-800" },
+};
+
+function StatusBadge({ status }) {
+  const s = STATUS_STYLES[status] || STATUS_STYLES.pending;
+  return (
+    <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${s.className}`}>
+      <span className={`material-symbols-outlined text-sm ${s.spin ? "animate-spin" : ""}`}>{s.icon}</span>
+      {s.label}
+    </span>
+  );
+}
+
+// Generic ground-truth summary — renders whatever the GT block currently
+// holds, regardless of gt_shape (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §8, §11).
+function GroundTruthSummary({ gt }) {
+  if (!gt) {
+    return <p className="text-xs text-on-surface-variant italic">Ground truth not yet configured.</p>;
+  }
+
+  const hasValue = gt.value !== null && gt.value !== undefined && gt.value !== "";
+  const hasOptions = (gt.options || []).length > 0;
+  const hasReference = !!(gt.reference && gt.reference.trim());
+
+  if (hasValue) {
+    return (
+      <p className="text-xs text-on-surface">
+        Value: <span className="font-semibold">{String(gt.value)}</span>
+      </p>
+    );
+  }
+
+  if (hasOptions) {
+    return (
+      <ul className="flex flex-wrap gap-2">
+        {gt.options.map((opt, i) => (
+          <li
+            key={i}
+            className={`text-xs px-2 py-1 rounded-full border ${
+              opt.correct ? "bg-green-50 border-green-300 text-green-800" : "border-border-subtle text-on-surface-variant"
+            }`}
+          >
+            {opt.label || opt.value}
+            {opt.correct && <span className="material-symbols-outlined text-[10px] ml-1 align-middle">check</span>}
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  if (hasReference) {
+    return <p className="text-xs text-on-surface-variant line-clamp-2">{gt.reference}</p>;
+  }
+
+  return <p className="text-xs text-on-surface-variant italic">No rubric written yet.</p>;
 }
 
 function ExperimentOverviewContent() {
@@ -17,6 +79,7 @@ function ExperimentOverviewContent() {
   const [experiment, setExperiment] = useState(null);
   const [idiomMap, setIdiomMap] = useState({});
   const [groupedTasks, setGroupedTasks] = useState([]);
+  const [taskInstancesByTask, setTaskInstancesByTask] = useState({});
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("draft");
 
@@ -66,6 +129,10 @@ function ExperimentOverviewContent() {
       const iMap = {};
       idioms.forEach((i) => { iMap[getId(i)] = i; });
       setIdiomMap(iMap);
+
+      const tiMap = {};
+      (exp.task_instances || []).forEach((ti) => { tiMap[ti.task_id] = ti; });
+      setTaskInstancesByTask(tiMap);
 
       // Group task_configs: one entry per unique task_id, collecting all idiom_ids
       const idiomsByTask = {};
@@ -125,8 +192,20 @@ function ExperimentOverviewContent() {
     }
   }
 
+  const taskInstancesList = Object.values(taskInstancesByTask);
+  const allReadyAndFormatted =
+    taskInstancesList.length > 0 &&
+    taskInstancesList.every((ti) => ti.generation_status === "ready" && !!ti.answer_format);
+
   async function publishExperiment() {
     if (publishing) return;
+    if (!allReadyAndFormatted) {
+      showToast(
+        "All tasks must finish generating (status: Ready) and have an answer format chosen before publishing.",
+        true
+      );
+      return;
+    }
     try {
       const res = await fetch(`/api/admin/experiments`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -257,6 +336,8 @@ function ExperimentOverviewContent() {
           <div className="flex flex-col gap-6">
             {groupedTasks.map(({ task, idiomIds }) => {
               const tid = getId(task);
+              const ti = taskInstancesByTask[tid];
+              const gtHref = `/admin/experiments/answer-format-groundtruth?experiment_id=${encodeURIComponent(experimentId)}`;
               return (
                 <div
                   key={tid}
@@ -321,51 +402,55 @@ function ExperimentOverviewContent() {
                       )}
                     </div>
 
-                    {/* Answer Type placeholder */}
+                    {/* Answer Format */}
                     <div className="p-5">
                       <div className="flex items-center justify-between mb-2">
                         <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
-                          Answer Type
+                          Answer Format
                         </p>
-                        <span className="text-[10px] bg-surface-container text-on-surface-variant font-semibold px-2 py-0.5 rounded-full border border-border-subtle uppercase tracking-wider">
-                          Coming Soon
-                        </span>
+                        <StatusBadge status={ti?.generation_status || "pending"} />
                       </div>
-                      <div className="border-2 border-dashed border-outline-variant rounded-lg p-4 flex items-center justify-between gap-4">
-                        <p className="text-xs text-on-surface-variant">
-                          Configure how participants will answer this task (e.g. single choice,
-                          numeric, free text).
-                        </p>
-                        <button
-                          disabled
-                          className="text-xs text-on-surface-variant border border-border-subtle px-3 py-1.5 rounded opacity-40 cursor-not-allowed flex-shrink-0"
+                      <div className="border border-border-subtle rounded-lg p-4 flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-2">
+                          {ti?.answer_format ? (
+                            <span className="text-xs font-semibold bg-blue-100 text-primary px-2.5 py-1 rounded-full">
+                              {ti.answer_format}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-on-surface-variant italic">Not set</span>
+                          )}
+                          <span
+                            className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                              ti?.ground_truth?.decisive
+                                ? "bg-green-100 text-green-800"
+                                : "bg-surface-container text-on-surface-variant"
+                            }`}
+                          >
+                            {ti?.ground_truth?.decisive ? "Decisive" : "Reference"}
+                          </span>
+                        </div>
+                        <Link
+                          href={gtHref}
+                          className="text-xs text-primary border border-primary/30 px-3 py-1.5 rounded hover:bg-blue-50 transition-colors flex-shrink-0"
                         >
                           Configure
-                        </button>
+                        </Link>
                       </div>
                     </div>
 
-                    {/* Ground Truth placeholder */}
+                    {/* Ground Truth */}
                     <div className="p-5">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
-                          Ground Truth
-                        </p>
-                        <span className="text-[10px] bg-surface-container text-on-surface-variant font-semibold px-2 py-0.5 rounded-full border border-border-subtle uppercase tracking-wider">
-                          Coming Soon
-                        </span>
-                      </div>
-                      <div className="border-2 border-dashed border-outline-variant rounded-lg p-4 flex items-center justify-between gap-4">
-                        <p className="text-xs text-on-surface-variant">
-                          Generate or upload a reference answer used to evaluate participant
-                          responses automatically.
-                        </p>
-                        <button
-                          disabled
-                          className="text-xs text-on-surface-variant border border-border-subtle px-3 py-1.5 rounded opacity-40 cursor-not-allowed flex-shrink-0"
+                      <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">
+                        Ground Truth
+                      </p>
+                      <div className="border border-border-subtle rounded-lg p-4 flex items-start justify-between gap-4">
+                        <GroundTruthSummary gt={ti?.ground_truth} />
+                        <Link
+                          href={gtHref}
+                          className="text-xs text-primary border border-primary/30 px-3 py-1.5 rounded hover:bg-blue-50 transition-colors flex-shrink-0"
                         >
-                          Generate
-                        </button>
+                          Edit
+                        </Link>
                       </div>
                     </div>
                   </div>
@@ -408,14 +493,21 @@ function ExperimentOverviewContent() {
                 <span className="material-symbols-outlined text-sm">save</span>
                 Save as Draft
               </button>
-              <button
-                onClick={publishExperiment}
-                disabled={publishing}
-                className="flex items-center gap-2 font-button text-button bg-primary text-on-primary px-8 py-2.5 rounded-lg hover:opacity-90 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <span className="material-symbols-outlined text-sm">publish</span>
-                {publishing ? "Publishing..." : "Publish Experiment"}
-              </button>
+              <div className="flex flex-col items-end gap-1">
+                <button
+                  onClick={publishExperiment}
+                  disabled={publishing || !allReadyAndFormatted}
+                  className="flex items-center gap-2 font-button text-button bg-primary text-on-primary px-8 py-2.5 rounded-lg hover:opacity-90 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <span className="material-symbols-outlined text-sm">publish</span>
+                  {publishing ? "Publishing..." : "Publish Experiment"}
+                </button>
+                {!allReadyAndFormatted && (
+                  <p className="text-[10px] text-on-surface-variant">
+                    All tasks need status Ready and an answer format chosen.
+                  </p>
+                )}
+              </div>
             </div>
           )}
         </div>
