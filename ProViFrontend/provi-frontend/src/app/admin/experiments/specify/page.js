@@ -298,7 +298,7 @@ function SpecifyContent() {
       showToast("All tasks must finish generating (status: Ready) before continuing.", true);
       return;
     }
-    router.push(`/admin/experiments/overview?experiment_id=${encodeURIComponent(experimentId)}`);
+    router.push(`/admin/experiments/answer-format-groundtruth?experiment_id=${encodeURIComponent(experimentId)}`);
   }
 
   return (
