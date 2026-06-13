@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt
 from shared import (
     save_svg, make_table, render_counts_tile_metric,
     build_variant_df, variant_table_data, render_bpmn_annotated, render_empty_state_svg,
-    BLUE, ORANGE, TEAL, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    GREY_MED, GREY_LIGHT, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 # Discovery-diff machinery is reused from task24 (no task35 module exists).
@@ -64,7 +64,7 @@ def task25_bar_chart(df, output_dir: str):
     bars = ax.bar(
         ["Conformant Traces", "Non-conformant Traces"],
         [conform, non_conform],
-        color=[BLUE, ORANGE], edgecolor="white", width=0.5,
+        color=[GREY_MED, GREY_LIGHT], edgecolor="white", width=0.5,
     )
     for bar, val in zip(bars, [conform, non_conform]):
         ax.text(
@@ -89,7 +89,7 @@ def task25_scatter_plot(df, output_dir: str):
     aggregate decorations and conformance colouring).
     """
     fig, ax = plt.subplots(figsize=(10, 4))
-    ax.scatter(df["trace_index"], df["fitness"], c=TEAL, s=15, alpha=0.6, linewidths=0)
+    ax.scatter(df["trace_index"], df["fitness"], c=GREY_MED, s=15, alpha=0.6, linewidths=0)
     ax.set_xlabel("Traces in Log ordered by time", fontsize=FONT_LABEL)
     ax.set_ylabel("Fitness (0–1)", fontsize=FONT_LABEL)
     ax.set_ylim(-0.05, 1.1)

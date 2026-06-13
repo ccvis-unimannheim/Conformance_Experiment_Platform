@@ -41,7 +41,7 @@ from matplotlib import gridspec
 
 from shared import (
     save_svg,
-    BLUE, GREEN, RED, ORANGE,
+    GREY_MED, GREY_LIGHTER, GREY_DARK, GREY_LIGHT,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT,
     chevron_figure_width, draw_chevron_strip,
     draw_value_heatmap,
@@ -61,13 +61,13 @@ def _chevron_nodes(rows):
     for r in rows:
         mt = r["moveType"]
         if mt == "Synchronous":
-            nodes.append({"label": r["log_move"],   "color": GREEN})
+            nodes.append({"label": r["log_move"],   "color": GREY_LIGHTER})
         elif mt == "Move on Model":
-            nodes.append({"label": r["model_move"], "color": BLUE})
+            nodes.append({"label": r["model_move"], "color": GREY_MED})
         elif mt == "Mismatch Move":
-            nodes.append({"label": f"{r['log_move']} / {r['model_move']}", "color": ORANGE})
+            nodes.append({"label": f"{r['log_move']} / {r['model_move']}", "color": GREY_LIGHT})
         else:  # Move on Log
-            nodes.append({"label": r["log_move"],   "color": RED})
+            nodes.append({"label": r["log_move"],   "color": GREY_DARK})
     return nodes
 
 
@@ -81,7 +81,7 @@ _CMAP    = "Greys"
 
 # Violation type → dot / bar color
 _MOVE_COLORS = {
-    "Synchronous":   "#CCCCCC",   # GREEN  — conformant
+    "Synchronous":   "#CCCCCC",   # GREY_LIGHTER  — conformant
     "Move on Model": _C_LIGHT,    # aaaaaa — skipped activity
     "Move on Log":   _C_MED,      # 666666 — extra activity
     "Mismatch Move": _C_DARK,     # 222222 — mismatch
@@ -414,11 +414,11 @@ def task34_flow_chart_table(ctx, output_dir):
     ax_bot.set_title("Trace Alignment", fontsize=FONT_TITLE, pad=7)
 
     legend_handles = [
-        mpatches.Patch(facecolor=GREEN, edgecolor="black", linewidth=0.75,
+        mpatches.Patch(facecolor=GREY_LIGHTER, edgecolor="black", linewidth=0.75,
                        label="Synchronous (conform)"),
-        mpatches.Patch(facecolor=BLUE,  edgecolor="black", linewidth=0.75,
+        mpatches.Patch(facecolor=GREY_MED,  edgecolor="black", linewidth=0.75,
                        label="Move on Model (skipped)"),
-        mpatches.Patch(facecolor=RED,   edgecolor="black", linewidth=0.75,
+        mpatches.Patch(facecolor=GREY_DARK,   edgecolor="black", linewidth=0.75,
                        label="Move on Log (extra)"),
     ]
     fig.legend(handles=legend_handles, loc="lower center",
@@ -651,11 +651,11 @@ def task34_flow_chart_basic(ctx, output_dir):
         fontsize=FONT_TITLE, pad=8,
     )
     legend_handles = [
-        mpatches.Patch(facecolor=GREEN, edgecolor="black", linewidth=0.75,
+        mpatches.Patch(facecolor=GREY_LIGHTER, edgecolor="black", linewidth=0.75,
                        label="Synchronous (conform)"),
-        mpatches.Patch(facecolor=BLUE,  edgecolor="black", linewidth=0.75,
+        mpatches.Patch(facecolor=GREY_MED,  edgecolor="black", linewidth=0.75,
                        label="Move on Model (skipped)"),
-        mpatches.Patch(facecolor=RED,   edgecolor="black", linewidth=0.75,
+        mpatches.Patch(facecolor=GREY_DARK,   edgecolor="black", linewidth=0.75,
                        label="Move on Log (extra)"),
     ]
     fig.legend(handles=legend_handles, loc="lower center",

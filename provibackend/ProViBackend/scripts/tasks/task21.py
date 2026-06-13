@@ -62,7 +62,7 @@ from shared import (
     save_svg, make_table, draw_parallel_sets, render_empty_state_svg, wrap_text,
     chevron_nodes_from_alignment_rows, draw_chevron_strip, chevron_figure_width,
     parse_bpmn_model, compose_bpmn_panels, alignment_violation_node_style,
-    BLUE, ORANGE, GREEN, RED, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 # This task is a composite — it depends on task13/task18 helpers. Fail loudly if
@@ -84,7 +84,7 @@ except ImportError as e:   # pragma: no cover - import-time guard
 TOP_N = 12   # unified candidate reasons kept
 
 # Neutral two-tone palette for the two candidate kinds (no kind is emphasised).
-_KIND_COLORS = {"attribute": BLUE, "event": ORANGE}
+_KIND_COLORS = {"attribute": GREY_MED, "event": GREY_LIGHT}
 
 _EMPTY_STEMS = [
     ("task21_bar_chart.svg",                       "Candidate Reason Ranking"),
@@ -180,7 +180,7 @@ def task21_bar_chart(candidates, output_dir):
         return
     labels = [c["reason"] for c in candidates][::-1]
     scores = [c["score"] for c in candidates][::-1]
-    colors = [_KIND_COLORS.get(c["kind"], BLUE) for c in candidates][::-1]
+    colors = [_KIND_COLORS.get(c["kind"], GREY_MED) for c in candidates][::-1]
 
     fig, ax = plt.subplots(figsize=(11, max(4.0, len(candidates) * 0.5 + 1.5)))
     y = np.arange(len(labels))
@@ -258,7 +258,7 @@ def task21_table_and_bar_chart(candidates, output_dir):
     ax_b = fig.add_subplot(gs[1])
     labels = [c["reason"] for c in candidates][::-1]
     scores = [c["score"] for c in candidates][::-1]
-    colors = [_KIND_COLORS.get(c["kind"], BLUE) for c in candidates][::-1]
+    colors = [_KIND_COLORS.get(c["kind"], GREY_MED) for c in candidates][::-1]
     y = np.arange(len(labels))
     ax_b.barh(y, scores, color=colors, edgecolor="white")
     ax_b.set_yticks(y)
@@ -308,10 +308,10 @@ def task21_parallel_sets(candidates, evidence_df, attr_meta, resp, output_dir):
     matrix = _parallel_matrix(bucket_per_trace, left_labels, violation)
     fig, ax = plt.subplots(figsize=(9, max(6, len(left_labels) * 0.5 + 2)))
     ax.axis("off")
-    left_colors = [BLUE if i % 2 == 0 else ORANGE for i in range(len(left_labels))]
+    left_colors = [GREY_MED if i % 2 == 0 else GREY_LIGHT for i in range(len(left_labels))]
     draw_parallel_sets(
         ax, left_labels, ["Violation", "No violation"], matrix, left_colors,
-        right_colors=[RED, GREEN],
+        right_colors=[GREY_DARK, GREY_LIGHTER],
         left_title=left_title, right_title="Guideline violation",
     )
     # Title above the column headers (which draw_parallel_sets places at y=1.08).
@@ -387,9 +387,9 @@ def task21_flow_chart_elaborate_bpmn_table(ctx, candidates, model_path, output_d
         path,
         title="Where Violations Sit (flow) & Candidate Reasons to Explore (table)",
         legend_items=[
-            (BLUE,    "#444444", 3, "Model move (skipped step)"),
-            (ORANGE,  "#444444", 3, "Mismatch move"),
-            (GREEN,   "#666666", 2, "Conform (synchronous)"),
+            (GREY_MED,    "#444444", 3, "Model move (skipped step)"),
+            (GREY_LIGHT,  "#444444", 3, "Mismatch move"),
+            (GREY_LIGHTER,   "#666666", 2, "Conform (synchronous)"),
             ("white", "#888888", 2, "Not on this trace"),
         ],
         table_rows=table_rows,

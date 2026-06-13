@@ -233,7 +233,9 @@ def _resolve_dataset_paths(dataset_dir: str):
 # ---------------------------------------------------------------------------
 
 def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED",
-                 compare_attribute: str = "AMOUNT_REQ") -> str:
+                 compare_attribute: str = "AMOUNT_REQ",
+                 predominant_threshold: float = 0.8,
+                 high_cooccurrence_threshold: float = 0.1) -> str:
     """Run the full visualization pipeline for one dataset directory.
 
     Parameters
@@ -249,6 +251,12 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED",
     compare_attribute : str
         Case-level data attribute used by Task 30 to split the log into
         sub-logs (numeric → median split, categorical → value groups).
+    predominant_threshold : float
+        Fitness level (0–1) above which Task 2 considers the overall behaviour
+        to "predominantly" follow the desired executions in the model.
+    high_cooccurrence_threshold : float
+        Share of traces (0–1) at/above which Task 8 marks a violation pair's
+        co-occurrence as "high" (drawn neutrally as a reference value).
 
     Returns
     -------
@@ -265,6 +273,8 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED",
     logger.info(f"Output directory  : {output_dir}")
     logger.info(f"Outcome activity  : {outcome_activity}")
     logger.info(f"Compare attribute : {compare_attribute}")
+    logger.info(f"Predominant thresh: {predominant_threshold}")
+    logger.info(f"High co-occ thresh: {high_cooccurrence_threshold}")
     log         = load_event_log(log_path)
     compare_attribute = _auto_detect_compare_attribute(log, compare_attribute)
     logger.info(f"Compare attribute (resolved): {compare_attribute}")
@@ -280,7 +290,8 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED",
     generators = [
         ("task01", lambda d: task01.generate(log, fitness_df,        d,
                                              outcome_activity=outcome_activity)),
-        ("task02", lambda d: task02.generate(fitness_df,             d)),
+        ("task02", lambda d: task02.generate(fitness_df,             d,
+                                             predominant_threshold=predominant_threshold)),
         ("task03", lambda d: task03.generate(log, fitness_df,        d)),
         ("task04", lambda d: task04.generate(log, fitness_df,        d)),
         ("task05", lambda d: task05.generate(log, alignments,        d,
@@ -288,7 +299,8 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED",
         ("task06", lambda d: task06.generate(fitness_df,             d,
                                              log=log, alignments=alignments, model_path=model_path)),
         ("task07", lambda d: task07.generate(log, fitness_df,        d)),
-        ("task08", lambda d: task08.generate(log, alignments,        d)),
+        ("task08", lambda d: task08.generate(log, alignments,        d,
+                                             high_cooccurrence_threshold=high_cooccurrence_threshold)),
         ("task09", lambda d: task09.generate(log, alignments,        d, model_path=model_path)),
         ("task10", lambda d: task10.generate(fitness_df,             d, log=log)),
         ("task11", lambda d: task11.generate(log, alignments,        d, model_path=model_path)),
@@ -386,6 +398,16 @@ def parse_args():
         help="Case attribute used by Task 30 to split the log into sub-logs "
              "(numeric: median split, categorical: value groups). Default: AMOUNT_REQ",
     )
+    parser.add_argument(
+        "--predominant-threshold", type=float, default=0.8,
+        help="Fitness level (0–1) above which Task 2 reports the behaviour as "
+             "predominantly following the model. Default: 0.8",
+    )
+    parser.add_argument(
+        "--high-cooccurrence-threshold", type=float, default=0.1,
+        help="Share of traces (0–1) at/above which Task 8 marks a violation "
+             "pair's co-occurrence as high (neutral reference). Default: 0.1",
+    )
     return parser.parse_args()
 
 
@@ -414,7 +436,9 @@ def main():
     args = parse_args()
     try:
         run_pipeline(args.dataset_dir, outcome_activity=args.outcome_activity,
-                     compare_attribute=args.compare_attribute)
+                     compare_attribute=args.compare_attribute,
+                     predominant_threshold=args.predominant_threshold,
+                     high_cooccurrence_threshold=args.high_cooccurrence_threshold)
     except (FileNotFoundError, ValueError) as e:
         logger.error(f"ERROR: {e}")
         sys.exit(1)
