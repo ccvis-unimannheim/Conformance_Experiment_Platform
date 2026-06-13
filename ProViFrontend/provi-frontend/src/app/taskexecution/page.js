@@ -32,7 +32,7 @@ function groupTrialsByTask(trials) {
       idiom_key:     trial.idiom_key,
       idiom_label:   trial.idiom_label,
       dataset_id:    trial.dataset_id,
-      trial_index:   trial.trial_index,  // comes directly from backend now
+      trial_index:   trial.trial_index,
       svg_available: trial.svg_available,
     });
   }
@@ -78,10 +78,7 @@ export default function TaskExecutionPage() {
   const [loadingTasks, setLoadingTasks]           = useState(true);
   const [loadingSvg, setLoadingSvg]               = useState(false);
 
-  // ── 3-step fetch on mount 
-  // Step 1: GET /participant/experiment/active → get experiment_id
-  // Step 2: POST /participant/assignment → create assignment for this participant
-  // Step 3: GET /participant/assignment/{experiment_id}/trials → get personalized trials
+  // ── 3-step fetch on mount
   useEffect(() => {
     const fetchTasks = async () => {
       try {
@@ -155,7 +152,7 @@ export default function TaskExecutionPage() {
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [currentGroupIndex, currentIdiomIndex, taskGroups]);
 
-  // ── Advance: idiom-first, then task 
+  // ── Advance: idiom-first, then task
   const handleAnswerSubmit = () => {
     const group = taskGroups[currentGroupIndex];
     if (!group) return;
@@ -167,7 +164,7 @@ export default function TaskExecutionPage() {
     }
   };
 
-  // ── Derived display values 
+  // ── Derived display values
   const currentGroup = taskGroups[currentGroupIndex];
   const currentIdiom = currentGroup?.idioms[currentIdiomIndex];
 
@@ -175,18 +172,17 @@ export default function TaskExecutionPage() {
   const currentStep     = currentGroupIndex + 1;
   const progressPercent = totalTasks > 0 ? (currentStep / totalTasks) * 100 : 0;
 
-  // Use trial_index from backend directly
   const currentTrialIndex = currentIdiom?.trial_index ?? 0;
   const totalTrials = taskGroups.reduce((sum, g) => sum + g.idioms.length, 0);
 
   const showSkeleton = loadingTasks;
 
-  // ── Render 
+  // ── Render
   return (
     <UITrackingProvider>
       <div style={{ backgroundColor: "#f9f9f9", color: "#2d3435", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
 
-        {/* ── Nav Bar  */}
+        {/* ── Nav Bar ── */}
         <nav style={{
           backgroundColor: "#ffffff",
           position: "fixed", top: 0, zIndex: 50, width: "100%",
@@ -233,6 +229,7 @@ export default function TaskExecutionPage() {
                 experimentId={experimentId}
                 taskId={currentGroup?.task_id ?? currentStep}
                 idiomId={currentIdiom?.idiom_id ?? ""}
+                idiomKey={currentIdiom?.idiom_key ?? ""}
                 datasetId={currentIdiom?.dataset_id ?? ""}
                 trialIndex={currentTrialIndex}
                 presentationOrder={currentTrialIndex}
