@@ -23,13 +23,8 @@ IDIOMS = ["flow_chart_elaborate_bpmn", "flow_chart_and_table"]
 import os
 from collections import Counter
 
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-
 from shared import (
-    save_svg, make_table, parse_bpmn_model, render_bpmn_annotated,
-    FONT_TITLE, FONT_ANNOT,
+    parse_bpmn_model, render_bpmn_annotated, compose_bpmn_panels,
 )
 
 # Minimum DFG edge frequency to count as real observed behaviour (raise to de-clutter)
@@ -117,15 +112,14 @@ def _compute_diff(log, model_path: str, noise_threshold: int = NOISE_THRESHOLD) 
 # Idiom 1 – Process graph with aggregate diff coloring
 # ---------------------------------------------------------------------------
 
-def task24_flow_chart_elaborate_bpmn(diff: dict, output_dir: str):
-    """BPMN model graph decorated with discovery-diff coloring (shared renderer).
+def _build_diff_panel(diff: dict) -> dict:
+    """Build the discovery-diff annotation (node/flow styling + summary + legend)
+    shared by flow_chart_elaborate_bpmn and flow_chart_and_table.
 
       missing task nodes         → faded fill + light stroke
       violation endpoint nodes   → dark border (endpoint of observed-not-in-model edge)
       flows from/to missing task → faded dashed line
     """
-    logger.info("      -> Fallback mode: observed-not-in-model edges shown via node highlighting.")
-
     elements    = diff["elements"];  seq_flows = diff["sequence_flows"]
     name_to_ids = diff["name_to_ids"]
     missing_activities    = diff["missing_activities"]
@@ -164,18 +158,33 @@ def task24_flow_chart_elaborate_bpmn(diff: dict, output_dir: str):
         if has_imno: parts.append(f"{len(diff['in_model_not_observed'])} model edge(s) not observed")
         summary = "; ".join(parts)
 
+    legend_items = [
+        ("white",   "#888888", 2, "Conform (in model and observed)"),
+        ("#EBEBEB", "#BBBBBB", 2, "In model, not observed"),
+        ("white",   "#444444", 3, "Endpoint of observed-not-in-model transition"),
+    ]
+
+    return {
+        "node_style_fn": _node_style,
+        "faded_flow_fn": _flow_faded,
+        "summary": summary,
+        "legend_items": legend_items,
+    }
+
+
+def task24_flow_chart_elaborate_bpmn(diff: dict, output_dir: str):
+    """BPMN model graph decorated with discovery-diff coloring (shared renderer)."""
+    logger.info("      -> Fallback mode: observed-not-in-model edges shown via node highlighting.")
+
+    panel = _build_diff_panel(diff)
     render_bpmn_annotated(
         diff,
         os.path.join(output_dir, "task24_flow_chart_elaborate_bpmn.svg"),
         title="Discovered vs. Desired Model — Differences",
-        summary=summary,
-        node_style_fn=_node_style,
-        faded_flow_fn=_flow_faded,
-        legend_items=[
-            ("white",   "#888888", 2, "Conform (in model and observed)"),
-            ("#EBEBEB", "#BBBBBB", 2, "In model, not observed"),
-            ("white",   "#444444", 3, "Endpoint of observed-not-in-model transition"),
-        ],
+        summary=panel["summary"],
+        node_style_fn=panel["node_style_fn"],
+        faded_flow_fn=panel["faded_flow_fn"],
+        legend_items=panel["legend_items"],
     )
 
 
@@ -184,7 +193,9 @@ def task24_flow_chart_elaborate_bpmn(diff: dict, output_dir: str):
 # ---------------------------------------------------------------------------
 
 def task24_flow_chart_and_table(diff: dict, output_dir: str):
-    """Difference table: Type | From / Activity | To | Observed Frequency."""
+    """Diff graph (same annotated BPMN as flow_chart_elaborate) on top, the
+    discovery-diff table — Type | From / Activity | To | Observed Frequency —
+    beneath it."""
     dfg_counts            = diff["dfg_counts"]
     observed_not_in_model = diff["observed_not_in_model"]
     in_model_not_observed = diff["in_model_not_observed"]
@@ -204,22 +215,20 @@ def task24_flow_chart_and_table(diff: dict, output_dir: str):
     if not rows:
         rows = [["(No structural differences detected)", "—", "—", "—"]]
 
-    fig_h = max(3.5, 1.4 + len(rows) * 0.42)
-    fig, ax = plt.subplots(figsize=(14, fig_h))
-    ax.axis("off")
-    make_table(
-        ax,
-        cell_text=rows,
-        col_labels=["Type", "From / Activity", "To", "Observed Frequency"],
-        bbox=[0.02, 0.05, 0.96, 0.88],
-        col_widths=[0.36, 0.26, 0.22, 0.16],
-        font_size=10,
-        scale_xy=(1, 1.7),
-        cell_pad=0.10,
+    panel = _build_diff_panel(diff)
+    compose_bpmn_panels(
+        [{
+            "parsed": diff,
+            "node_style_fn": panel["node_style_fn"],
+            "faded_flow_fn": panel["faded_flow_fn"],
+            "subtitle": panel["summary"],
+        }],
+        os.path.join(output_dir, "task24_flow_chart_and_table.svg"),
+        title="Guideline Violations — Discovery Diff",
+        legend_items=panel["legend_items"],
+        table_rows=rows,
+        table_cols=["Type", "From / Activity", "To", "Observed Frequency"],
     )
-    ax.set_title("Guideline Violations — Discovery Diff", fontsize=FONT_TITLE, pad=4)
-    fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task24_flow_chart_and_table.svg"))
 
 
 # ---------------------------------------------------------------------------
