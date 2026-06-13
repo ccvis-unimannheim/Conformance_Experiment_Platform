@@ -25,7 +25,8 @@ const DIFFICULTY_LABELS = ["Very Easy", "Easy", "Neutral", "Difficult", "Very Di
 
 export default function EndPage() {
   const [difficulty, setDifficulty] = useState(null);
-  const [finished, setFinished] = useState(false);
+  const [feedback, setFeedback]     = useState("");
+  const [finished, setFinished]     = useState(false);
   const [closeFailed, setCloseFailed] = useState(false);
 
   const canFinish = difficulty !== null;
@@ -38,7 +39,7 @@ export default function EndPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ difficulty }),
+        body: JSON.stringify({ difficulty, feedback: feedback.trim() || null }),
       });
     } catch {
       // best-effort
@@ -168,6 +169,40 @@ export default function EndPage() {
                 );
               })}
             </div>
+          </div>
+
+          {/* Feedback textarea */}
+          <div style={{ width: "100%", maxWidth: "32rem", marginBottom: "2rem", textAlign: "center" }}>
+            <p style={{
+              fontSize: "0.6875rem", fontWeight: 700, textTransform: "uppercase",
+              letterSpacing: "0.12em", color: C.onVariant, marginBottom: "1rem",
+            }}>
+              Any additional feedback?{" "}
+              <span style={{ fontWeight: 500, fontSize: "0.6875rem", color: C.outlineVar, letterSpacing: "0.08em" }}>
+                (optional)
+              </span>
+            </p>
+            <textarea
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              placeholder="Share any thoughts about the visualizations, tasks, or your experience…"
+              maxLength={1000}
+              rows={4}
+              style={{
+                width: "100%", padding: "0.875rem 1rem",
+                border: "1.5px solid #dde4e5", borderRadius: "0.625rem",
+                fontSize: "0.875rem", color: C.onSurface,
+                lineHeight: 1.6, resize: "vertical", outline: "none",
+                fontFamily: "inherit", background: C.white,
+                transition: "border-color 0.15s ease",
+                boxSizing: "border-box",
+              }}
+              onFocus={(e)  => { e.target.style.borderColor = "#3D4F7C"; }}
+              onBlur={(e)   => { e.target.style.borderColor = "#dde4e5"; }}
+            />
+            <p style={{ fontSize: "0.7rem", color: C.outlineVar, textAlign: "right", marginTop: "0.35rem" }}>
+              {feedback.length} / 1000
+            </p>
           </div>
 
           {/* Finish button */}
