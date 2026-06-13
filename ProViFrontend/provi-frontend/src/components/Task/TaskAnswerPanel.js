@@ -8,6 +8,7 @@ const TaskAnswerPanel = ({
   options = [],
   taskLabel = "",
   taskId,
+  taskKey = "",
   idiomId = "",
   idiomKey = "",
   datasetId = "",
@@ -29,7 +30,7 @@ const TaskAnswerPanel = ({
   const hasOptions = options.length > 0;
   const isLastTask = currentTaskIndex >= totalTasks - 1;
 
-  const taskDesc = taskDescriptions[Number(taskId)] ?? null;
+  const taskDesc = taskDescriptions[taskKey] ?? null;
   const idiomDesc = idiomDescriptions[idiomKey] ?? null;
 
   useEffect(() => {
@@ -112,10 +113,6 @@ const TaskAnswerPanel = ({
     boxShadow: "0 4px 14px rgba(0,48,94,0.2)",
     transition: "background-color 0.15s ease",
   };
-  
-  // temporary debug — remove after testing
-  console.log("taskId:", taskId, typeof taskId);
-  console.log("taskDesc:", taskDescriptions[Number(taskId)]);
 
   return (
     <aside style={{ display: "flex", flexDirection: "column", gap: "1.5rem", position: "sticky", top: "5rem", maxHeight: "calc(100vh - 6rem)", overflowY: "auto", scrollbarWidth: "none" }}>
