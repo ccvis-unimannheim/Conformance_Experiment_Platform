@@ -10,27 +10,26 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:1234";
 
 const ALL_IDIOMS = [
   { idiom_key: "bar_chart",            label: "Bar Chart",                             granularity: "log",   renderer_type: "echarts", active: true },
-  { idiom_key: "donut_chart",          label: "Donut Chart",                           granularity: "log",   renderer_type: "echarts", active: true },
   { idiom_key: "tile_metric",          label: "Tile Metric",                           granularity: "log",   renderer_type: "html",    active: true },
-  { idiom_key: "scatterplot",          label: "Scatterplot",                           granularity: "trace", renderer_type: "echarts", active: true },
+  { idiom_key: "scatterplot",          label: "Scatterplot (Dotted Chart)",            granularity: "trace", renderer_type: "echarts", active: true },
   { idiom_key: "table",                label: "Table",                                 granularity: "log",   renderer_type: "html",    active: true },
   { idiom_key: "heatmap",              label: "Heatmap",                               granularity: "log",   renderer_type: "echarts", active: true },
-  { idiom_key: "boxplot",              label: "Boxplot",                               granularity: "log",   renderer_type: "echarts", active: true },
-  { idiom_key: "flow_chart_basic",     label: "Flow Chart basic (Chevron Diagram)",    granularity: "trace", renderer_type: "svg",     active: true },
-  { idiom_key: "flow_chart_elaborate", label: "Flow Chart elaborate (BPMN Diagram)",   granularity: "trace", renderer_type: "bpmn",    active: true },
+  { idiom_key: "boxplot",              label: "Box and Whisker Plot",                  granularity: "log",   renderer_type: "echarts", active: true },
+  { idiom_key: "flow_chart_basic",     label: "Flow Chart (Chevron Diagram)",          granularity: "trace", renderer_type: "svg",     active: true },
+  { idiom_key: "flow_chart_elaborate", label: "Flow Chart+ (BPMN Diagram)",            granularity: "trace", renderer_type: "bpmn",    active: true },
   { idiom_key: "pie_chart",            label: "Pie Chart",                             granularity: "log",   renderer_type: "echarts", active: true },
-  { idiom_key: "decision_tree",        label: "Tree (Decision Tree)",                  granularity: "log",   renderer_type: "d3",      active: true },
+  { idiom_key: "tree",                  label: "Decision Tree",                         granularity: "log",   renderer_type: "d3",      active: true },
   { idiom_key: "flow_chart_table",     label: "Flow Chart & Table",                    granularity: "trace", renderer_type: "html",    active: true },
   { idiom_key: "table_bar_chart",      label: "Table & Bar Chart",                     granularity: "log",   renderer_type: "html",    active: true },
 ];
 
 const TASK_IDIOM_KEYS = {
-  "T-01": ["bar_chart", "donut_chart", "tile_metric", "scatterplot", "table", "heatmap", "boxplot"],
+  "T-01": ["bar_chart", "tile_metric", "scatterplot", "table", "heatmap", "boxplot"],
   "T-02": ["flow_chart_basic", "table", "flow_chart_table", "flow_chart_elaborate"],
   "T-03": ["bar_chart", "heatmap", "pie_chart", "flow_chart_table", "table", "table_bar_chart"],
-  "T-04": ["tile_metric", "decision_tree", "table"],
+  "T-04": ["tile_metric", "tree", "table"],
   "T-05": ["bar_chart", "pie_chart", "scatterplot", "heatmap", "table"],
-  "T-06": ["table", "decision_tree"],
+  "T-06": ["table", "tree"],
 };
 
 function getId(obj) {

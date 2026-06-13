@@ -11,7 +11,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["table", "decision_tree", "bar_chart", "stacked_bar", "scatter_plot", "matrix", "heatmap"]
+IDIOMS = ["table", "tree", "bar_chart", "stacked_bar", "scatter_plot", "matrix", "heatmap"]
 
 import os
 import numpy as np
@@ -394,8 +394,8 @@ def _task31_draw_decision_tree(ax, tree: dict, title=True):
     )
 
 
-def task31_decision_tree(tree: dict, output_dir: str):
-    """Standalone Task 6 decision tree."""
+def task31_tree(tree: dict, output_dir: str):
+    """Standalone Task 31 decision tree."""
     fig, ax = plt.subplots(figsize=(11.0, 6.6))
     _task31_draw_decision_tree(ax, tree)
     legend = [
@@ -404,7 +404,7 @@ def task31_decision_tree(tree: dict, output_dir: str):
     ]
     ax.legend(handles=legend, loc="lower center", bbox_to_anchor=(0.5, -0.03), ncol=2, frameon=False, fontsize=FONT_ANNOT)
     fig.tight_layout(rect=[0, 0.04, 1, 1])
-    save_svg(fig, os.path.join(output_dir, "task31_decision_tree.svg"))
+    save_svg(fig, os.path.join(output_dir, "task31_tree.svg"))
 
 
 # ---------------------------------------------------------------------------
@@ -912,7 +912,7 @@ def generate(log, alignments, output_dir: str, outcome_activity: str = "A_ACTIVA
     logger.info(f"      -> Definitive outcomes: {len(df)} cases  |  Excluded non-definitive: {excluded}")
     logger.info(f"      -> Positive outcome ({outcome_activity}): {int(df['positive_outcome'].sum())}/{len(df)} ({positive_rate:.2%})")
     task31_table(table, output_dir)
-    task31_decision_tree(tree, output_dir)
+    task31_tree(tree, output_dir)
     task31_bar_chart(df, output_dir)
     task31_stacked_bar(df, output_dir)
     task31_scatter_plot(df, log, output_dir)
