@@ -433,6 +433,23 @@ async def get_task_answer_formats(task_key: str):
     })
 
 
+@router.get("/tasks/{task_key}/rubric", tags=["admin"])
+async def get_task_rubric(task_key: str):
+    """Return this task's static grading rubric for /answer-format-groundtruth's
+    "Reset to default rubric" action (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §8, §11).
+
+    `rubric` is `null` if the task hasn't authored one yet (step 6) — the page
+    falls back to an empty editable reference.
+    """
+    if task_key not in _TASK_MODULES:
+        raise HTTPException(status_code=404, detail=f"Unknown task '{task_key}'.")
+    return JSONResponse(content={
+        "task_key": task_key,
+        "rubric": task_registry.get_rubric(task_key),
+        "gt_tier": task_registry.get_gt_tier(task_key),
+    })
+
+
 # ---------------------------------------------------------------------------
 # Question management
 # ---------------------------------------------------------------------------

@@ -304,7 +304,7 @@ def task26_pie_chart(pat_df: pd.DataFrame, output_dir: str):
     total = int(sev.sum())
     present = [s for s in SEVERITY_LEVELS if sev[s] > 0]
 
-    fig, ax = plt.subplots(figsize=(7, 5.5))
+    fig, ax = plt.subplots(figsize=(8, 6))
     if present:
         values = [sev[s] for s in present]
         colors = [SEVERITY_COLORS[s] for s in present]
@@ -314,14 +314,12 @@ def task26_pie_chart(pat_df: pd.DataFrame, output_dir: str):
             startangle=90,
             counterclock=False,
             autopct=lambda pct: f"{pct:.1f}%" if pct >= 1 else "",
-            pctdistance=0.78,
-            wedgeprops=dict(width=0.42, edgecolor="white", linewidth=2),
+            pctdistance=0.68,
+            wedgeprops=dict(edgecolor="white", linewidth=2),
             textprops=dict(fontsize=FONT_ANNOT),
         )
         for color, autotext in zip(colors, autotexts):
             autotext.set_color(contrasting_text_color(color))
-        ax.text(0, 0, "Violations\nby severity", ha="center", va="center",
-                fontsize=FONT_ANNOT, color="#555555")
     # legend keeps all classes (zero classes included) in fixed order
     ax.legend(
         handles=[mpatches.Patch(
@@ -330,7 +328,7 @@ def task26_pie_chart(pat_df: pd.DataFrame, output_dir: str):
                   else f"{s} (0)")
             for s in SEVERITY_LEVELS],
         loc="lower center", bbox_to_anchor=(0.5, -0.12), ncol=3,
-        frameon=False, fontsize=FONT_ANNOT,
+        frameon=True, framealpha=0.9, fontsize=FONT_ANNOT,
     )
     ax.set_title("Violation Share per Severity Class", fontsize=FONT_TITLE)
     fig.tight_layout()

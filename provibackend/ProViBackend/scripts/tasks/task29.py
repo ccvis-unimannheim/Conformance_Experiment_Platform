@@ -22,7 +22,43 @@ import matplotlib.patches as mpatches
 from matplotlib.patches import Polygon
 from matplotlib import gridspec
 
-from shared import save_svg, make_table, alignment_pairs_to_rows, GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT, contrasting_text_color
+from shared import (
+    save_svg, make_table, alignment_pairs_to_rows, render_empty_state_svg,
+    build_violation_pattern_df, draw_value_heatmap, draw_parallel_sets,
+    GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    contrasting_text_color,
+)
+from tasks.task26 import _lighten, _squarify_layout
+
+
+# Move-type vocabulary + colours for the activity-level idioms (stacked_bar,
+# matrix, parallel_sets, tree_map, sunburst) — matches the move-type strings
+# produced by alignment_pairs_to_rows / build_violation_pattern_df.
+_VTYPES = ["Model Move", "Log Move", "Mismatch Move"]
+_VTYPE_COLOR = {
+    "Model Move":    GREY_MED,
+    "Log Move":      GREY_DARK,
+    "Mismatch Move": GREY_LIGHT,
+}
+
+# Top-N activities (by total violation count) shown in stacked_bar/matrix/parallel_sets
+_PIVOT_TOP_N = 15
+
+
+def _task29_activity_type_pivot(alignments, top_n: int = _PIVOT_TOP_N):
+    """(pivot, top_acts) for the activity-level idioms.
+
+    pivot    – {(activity, move_type): count}
+    top_acts – top-N activities by total violation count, descending
+    """
+    pat_df = build_violation_pattern_df(alignments)
+    if pat_df.empty:
+        return {}, []
+
+    pivot = {(row["activity"], row["move_type"]): int(row["count"]) for _, row in pat_df.iterrows()}
+    totals = pat_df.groupby("activity")["count"].sum().sort_values(ascending=False)
+    top_acts = totals.head(top_n).index.tolist()
+    return pivot, top_acts
 
 
 # ---------------------------------------------------------------------------
@@ -195,21 +231,21 @@ def task29_heatmap(df: pd.DataFrame, output_dir: str):
 def task29_pie_chart(df: pd.DataFrame, output_dir: str):
     """Pie chart: proportion of violation move types."""
     colors = [GREY_MED if mt == "Model Move" else GREY_DARK if mt == "Log Move" else GREY_LIGHT for mt in df["move_type"]]
-    labels = [label.replace("\n", " ") for label in df["violation_type"]]
+    labels = list(df["move_type"])
 
-    fig, ax = plt.subplots(figsize=(7, 5.5))
-    wedges, texts, autotexts = ax.pie(
+    fig, ax = plt.subplots(figsize=(8, 6))
+    wedges, _texts, autotexts = ax.pie(
         df["count"],
         colors=colors,
-        startangle=110,
+        startangle=90,
         autopct=lambda pct: f"{pct:.1f}%" if pct >= 1 else "",
-        pctdistance=0.72,
+        pctdistance=0.68,
         wedgeprops=dict(edgecolor="white", linewidth=2),
         textprops=dict(fontsize=FONT_ANNOT),
     )
     for color, autotext in zip(colors, autotexts):
         autotext.set_color(contrasting_text_color(color))
-    ax.legend(wedges, labels, loc="lower center", bbox_to_anchor=(0.5, -0.10), ncol=1, frameon=False, fontsize=FONT_ANNOT)
+    ax.legend(wedges, labels, loc="lower center", bbox_to_anchor=(0.5, -0.08), ncol=len(labels), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.set_title("Violation Type Proportions", fontsize=FONT_TITLE)
     fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task29_pie_chart.svg"))

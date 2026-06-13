@@ -388,31 +388,49 @@ def task13_bar_chart(attr_meta, evidence_df, output_dir):
 
 
 def task13_scatter_plot(attr_meta, evidence_df, output_dir):
-    """Numeric attributes: one dot per trace, x = value, y = #violations,
-    colour = conformant / non-conformant. Small multiple if several numeric."""
+    """One subplot per candidate attribute, y = #violations per trace.
+    Numeric attributes: x = value (scatter). Categorical attributes: x = category
+    (jittered strip plot, top categories + 'Other'). Colour = conformant /
+    non-conformant. All candidate attributes are shown."""
     path = os.path.join(output_dir, "task13_scatter_plot.svg")
-    usable = []
+    panels = []
     for m in attr_meta:
-        if m["type"] != "numeric":
-            continue
-        v = pd.to_numeric(pd.Series(evidence_df[m["col"]]), errors="coerce")
-        if v.notna().sum() >= 2 and v.dropna().nunique() >= 2:
-            usable.append((m, v))
-    if not usable:
+        if m["type"] == "numeric":
+            v = pd.to_numeric(pd.Series(evidence_df[m["col"]]), errors="coerce")
+            if v.notna().sum() >= 2 and v.dropna().nunique() >= 2:
+                panels.append((m, v))
+        else:
+            vals = evidence_df[m["col"]].tolist()
+            if any(v is not None for v in vals):
+                panels.append((m, vals))
+    if not panels:
         render_empty_state_svg(path, "Attribute Value vs. Violations",
-                               "No numeric attribute with variance to plot.")
+                               "No candidate attribute with variance to plot.")
         return
 
     viol_count = evidence_df["violation_count"].to_numpy(dtype=float)
     nonconf = evidence_df["violation"].to_numpy()
     colors = np.where(nonconf, GREY_DARK, GREY_LIGHTER)
 
-    ncols = len(usable)
+    ncols = len(panels)
     fig, axes = plt.subplots(1, ncols, figsize=(max(5.0, ncols * 4.6), 5.0), squeeze=False)
-    for ax, (m, v) in zip(axes[0], usable):
-        ax.scatter(v.to_numpy(dtype=float), viol_count, c=colors, s=16, alpha=0.6, linewidths=0)
-        ax.set_xlabel(m["label"], fontsize=FONT_LABEL)
-        ax.set_title(m["label"], fontsize=FONT_LABEL)
+    rng = np.random.default_rng(0)
+    for ax, (m, data) in zip(axes[0], panels):
+        if m["type"] == "numeric":
+            ax.scatter(data.to_numpy(dtype=float), viol_count, c=colors, s=16, alpha=0.6, linewidths=0)
+            ax.set_xlabel(m["label"], fontsize=FONT_LABEL)
+        else:
+            mask = np.array([v is not None for v in data])
+            cats = _bucket_categories([v for v, k in zip(data, mask) if k], MAX_CATEGORIES)
+            order = [c for c in dict.fromkeys(cats) if c != "Other"] + (["Other"] if "Other" in cats else [])
+            index_of = {c: i for i, c in enumerate(order)}
+            x = np.array([index_of[c] for c in cats], dtype=float)
+            x = x + rng.uniform(-0.15, 0.15, size=len(x))
+            ax.scatter(x, viol_count[mask], c=colors[mask], s=16, alpha=0.6, linewidths=0)
+            ax.set_xticks(range(len(order)))
+            ax.set_xticklabels(order, rotation=30, ha="right", fontsize=FONT_ANNOT - 1)
+            ax.set_xlabel(m["label"], fontsize=FONT_LABEL)
+        ax.set_title(f"{m['label']} ({m['type']})", fontsize=FONT_LABEL)
         ax.spines[["top", "right"]].set_visible(False)
         ax.yaxis.grid(True, linestyle="--", alpha=0.4)
         ax.set_axisbelow(True)
@@ -486,38 +504,47 @@ def task13_table_and_bar_chart(ranking, output_dir):
 
 
 def task13_parallel_sets(evidence_df, ranking, output_dir):
-    """Two dimensions: bucket of the top-ranked attribute × violation present (yes/no).
-    Ribbon width = number of traces."""
+    """Small multiples: one parallel-sets diagram per candidate attribute, each
+    showing bucket of that attribute × violation present (yes/no). Ribbon width
+    = number of traces. All candidate attributes are shown, not just the
+    top-ranked one."""
     path = os.path.join(output_dir, "task13_parallel_sets.svg")
-    top = ranking[0]
-    res = _bucket_assign(evidence_df[top["col"]].tolist(), top["type"])
-    if res is None:
-        render_empty_state_svg(path, "Attribute Bucket vs. Violation",
-                               "Top-ranked attribute cannot be bucketed.")
-        return
-
-    bucket_per_trace, left_labels = res
     violation = evidence_df["violation"].to_numpy()
     right_labels = ["Violation", "No violation"]
-    matrix = np.zeros((len(left_labels), 2))
-    index_of = {lab: i for i, lab in enumerate(left_labels)}
-    for b, viol in zip(bucket_per_trace, violation):
-        if b is None:
-            continue
-        matrix[index_of[b], 0 if viol else 1] += 1
 
-    fig, ax = plt.subplots(figsize=(9, 6))
-    ax.axis("off")
-    left_colors = [_GREY_PALETTE[i % len(_GREY_PALETTE)] for i in range(len(left_labels))]
-    draw_parallel_sets(
-        ax, left_labels, right_labels, matrix, left_colors,
-        right_colors=[GREY_DARK, GREY_LIGHTER],
-        left_title=top["label"], right_title="Guideline violation",
-    )
+    panels = []
+    for r in ranking:
+        res = _bucket_assign(evidence_df[r["col"]].tolist(), r["type"])
+        if res is None:
+            continue
+        bucket_per_trace, left_labels = res
+        matrix = np.zeros((len(left_labels), 2))
+        index_of = {lab: i for i, lab in enumerate(left_labels)}
+        for b, viol in zip(bucket_per_trace, violation):
+            if b is None:
+                continue
+            matrix[index_of[b], 0 if viol else 1] += 1
+        panels.append((r, left_labels, matrix))
+
+    if not panels:
+        render_empty_state_svg(path, "Attribute Bucket vs. Violation",
+                               "No candidate attribute could be bucketed.")
+        return
+
+    ncols = len(panels)
+    fig, axes = plt.subplots(1, ncols, figsize=(max(7.0, ncols * 5.0), 6.0), squeeze=False)
+    for ax, (r, left_labels, matrix) in zip(axes[0], panels):
+        ax.axis("off")
+        left_colors = [_GREY_PALETTE[i % len(_GREY_PALETTE)] for i in range(len(left_labels))]
+        draw_parallel_sets(
+            ax, left_labels, right_labels, matrix, left_colors,
+            right_colors=[GREY_DARK, GREY_LIGHTER],
+            left_title=r["label"], right_title="Guideline violation",
+        )
     # Title above the column headers (which draw_parallel_sets places at y=1.08).
-    fig.suptitle(f"{top['label']} vs. Guideline Violation (top-ranked reason)",
+    fig.suptitle("Attribute Bucket vs. Guideline Violation (all candidate reasons)",
                  fontsize=FONT_TITLE, y=0.99)
-    fig.subplots_adjust(top=0.80)
+    fig.subplots_adjust(top=0.78, wspace=0.5)
     save_svg(fig, path)
 
 
