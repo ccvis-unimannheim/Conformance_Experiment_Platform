@@ -29,28 +29,8 @@ except ImportError:
     _TASK_RENAME_SKIP = {}
 
 try:
-    from ProViBackend.scripts.tasks import (
-        task01, task02, task03, task04, task05,
-        task06, task07, task08, task09, task10, task11, task12,
-        task13, task14, task15, task16,
-        task17, task18, task19, task20, task21,
-        task22, task23, task24, task25, task26, task27,
-        task28, task29, task30, task31,
-        task32, task33, task34,
-        task35, task36, task37,
-    )
-    _TASK_MODULES = {
-        "task01": task01, "task02": task02, "task03": task03, "task04": task04, "task05": task05,
-        "task06": task06, "task07": task07, "task08": task08, "task09": task09,
-        "task10": task10, "task11": task11, "task12": task12,
-        "task13": task13, "task14": task14, "task15": task15, "task16": task16,
-        "task17": task17, "task18": task18, "task19": task19, "task20": task20, "task21": task21,
-        "task22": task22,
-        "task23": task23, "task24": task24, "task25": task25, "task26": task26, "task27": task27,
-        "task28": task28, "task29": task29, "task30": task30, "task31": task31,
-        "task32": task32, "task33": task33, "task34": task34,
-        "task35": task35, "task36": task36, "task37": task37,
-    }
+    from ProViBackend.scripts.tasks import task_registry
+    _TASK_MODULES = task_registry.TASK_MODULES
 except ImportError:
     # These task modules are required for the task-idiom mapping. Failing fast
     # here surfaces the problem in startup logs instead of silently returning an
@@ -416,6 +396,40 @@ async def get_task_idioms():
                 canonical.append(idiom)
         result[task_key] = canonical
     return JSONResponse(content=result)
+
+
+@router.get("/tasks/{task_key}/param-spec", tags=["admin"])
+async def get_task_param_spec(task_key: str, dataset_id: str | None = None):
+    """Return this task's hyperparameter spec for /specify (col E, see
+    ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4-5, §9-10).
+
+    Unauthored or param-free tasks return `param_spec: []`, which /specify
+    renders as "No parameters required — ready to generate". `dataset_id` is
+    accepted for forward-compatibility: once a task declares PARAM_SPEC entries
+    with a `source` (e.g. "log.activities"), candidate values for that dataset
+    are populated here (§14, step 6).
+    """
+    if task_key not in _TASK_MODULES:
+        raise HTTPException(status_code=404, detail=f"Unknown task '{task_key}'.")
+    return JSONResponse(content={
+        "task_key": task_key,
+        "param_spec": task_registry.get_param_spec(task_key),
+    })
+
+
+@router.get("/tasks/{task_key}/answer-formats", tags=["admin"])
+async def get_task_answer_formats(task_key: str):
+    """Return this task's allowed answer formats for /answer-format-groundtruth
+    (col D, see ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4-5, §11).
+
+    Unauthored tasks fall back to a single generic `free-text` format.
+    """
+    if task_key not in _TASK_MODULES:
+        raise HTTPException(status_code=404, detail=f"Unknown task '{task_key}'.")
+    return JSONResponse(content={
+        "task_key": task_key,
+        "answer_formats": task_registry.get_answer_formats(task_key),
+    })
 
 
 # ---------------------------------------------------------------------------
