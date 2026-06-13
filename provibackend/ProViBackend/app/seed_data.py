@@ -79,6 +79,12 @@ CANONICAL_TASKS = [
         "answer_type": "multiple_choice",
     },
     {
+        "task_key": "task15",
+        "label": "How can the overall process conformance be explained?",
+        "description": "Relate per-trace conformance to case-level attribute groups and summarise the conformance distribution across groups.",
+        "answer_type": "single_choice",
+    },
+    {
         "task_key": "task37",
         "label": "How do fitness values of traces differ when applying two different techniques to compute them? What is the overall trend?",
         "description": "Compare alignment-based and token-based replay fitness per trace; visualize distribution, agreement, and trend.",
