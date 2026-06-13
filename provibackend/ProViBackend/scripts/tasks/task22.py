@@ -42,7 +42,7 @@ from shared import (
     save_svg, make_table, draw_parallel_sets,
     parse_bpmn_model, compose_bpmn_panels, alignment_pairs_to_rows,
     render_empty_state_svg, format_threshold,
-    BLUE, ORANGE, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    GREY_MED, GREY_LIGHT, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 # Reuse the proven sub-log split + attribute helpers from task30.
@@ -52,7 +52,7 @@ from tasks.task30 import split_by_attribute, _available_case_attributes
 # Constants
 # ---------------------------------------------------------------------------
 
-_GROUP_PALETTE = [BLUE, ORANGE, "#333333", "#CCCCCC", "#888888"]
+_GROUP_PALETTE = [GREY_MED, GREY_LIGHT, "#333333", "#CCCCCC", "#888888"]
 
 # Fitness bands: (label, lo, hi, fill_color, text_color) — shared look with task33
 _FITNESS_BANDS = [

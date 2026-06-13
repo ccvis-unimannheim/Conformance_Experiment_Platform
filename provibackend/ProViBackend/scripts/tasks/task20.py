@@ -41,7 +41,7 @@ from scipy import stats
 from shared import (
     save_svg, make_table, draw_decision_tree, alignment_pairs_to_rows,
     render_empty_state_svg, parse_bpmn_model, render_bpmn_annotated,
-    format_threshold, wrap_text, BLUE, ORANGE, GREEN, RED, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    format_threshold, wrap_text, GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 # Reuse the Reasons-triad siblings: task13 (attribute-evidence idioms) and task18
@@ -630,7 +630,7 @@ def _task20_draw_feature_importance(ax, tree: dict):
         ax.axis("off")
         ax.text(0.5, 0.5, "No split features", ha="center", va="center", fontsize=10)
         return
-    colors = [BLUE if val < 0.34 else ORANGE for val in importance["importance"]]
+    colors = [GREY_MED if val < 0.34 else GREY_LIGHT for val in importance["importance"]]
     ax.barh(importance["label"], importance["importance"], color=colors, alpha=0.88)
     ax.set_xlabel("Normalized split gain", fontsize=FONT_ANNOT)
     ax.set_xlim(0, max(importance["importance"].max() * 1.18, 0.05))
@@ -772,7 +772,7 @@ def task20_network_diagram(alignments, output_dir: str, top_n: int = 12):
     for p in nodes:
         x, y = pos[p]
         size = 200 + 1400 * (freq[p] / max_freq)
-        ax.scatter([x], [y], s=size, color=BLUE, edgecolors="#333333",
+        ax.scatter([x], [y], s=size, color=GREY_MED, edgecolors="#333333",
                    linewidths=1.0, alpha=0.9, zorder=2)
         ha = "left" if x >= 0 else "right"
         ax.annotate(f"{p}\n({freq[p]})", (x, y), xytext=(x * 1.18, y * 1.18),

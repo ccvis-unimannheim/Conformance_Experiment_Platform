@@ -23,7 +23,7 @@ import matplotlib.patches as mpatches
 from matplotlib import gridspec
 
 from shared import (
-    save_svg, BLUE, ORANGE, GREEN, RED, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    save_svg, GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
     chevron_figure_width, chevron_nodes_from_alignment_rows, draw_chevron_strip,
     alignment_pairs_to_rows,
 )
@@ -169,9 +169,9 @@ def _add_task28_table_heading(fig, ctx, *, x=0.055, y=0.86, compact=False):
 
 def _task28_move_legend_elements():
     return [
-        mpatches.Patch(facecolor=GREEN, edgecolor="black", linewidth=0.75, label="Synchronous move (Conform)"),
-        mpatches.Patch(facecolor=BLUE, edgecolor="black", linewidth=0.75, label="Model move only"),
-        mpatches.Patch(facecolor=RED, edgecolor="black", linewidth=0.75, label="Log move only"),
+        mpatches.Patch(facecolor=GREY_LIGHTER, edgecolor="black", linewidth=0.75, label="Synchronous move (Conform)"),
+        mpatches.Patch(facecolor=GREY_MED, edgecolor="black", linewidth=0.75, label="Model move only"),
+        mpatches.Patch(facecolor=GREY_DARK, edgecolor="black", linewidth=0.75, label="Log move only"),
     ]
 
 
@@ -371,7 +371,7 @@ def task28_flow_chart_elaborate_bpmn(ctx: dict, model_path: str, output_dir: str
         return count
 
     def log_move_route_candidates(rb, callout_x, callout_y):
-        """Generate red dashed routes that can leave a task from multiple sides."""
+        """Generate dashed routes that can leave a task from multiple sides."""
         _, center_y = node_center(rb)
         callout_cx = callout_x + callout_w / 2.0
         bend_y = callout_y - 26.0
@@ -667,14 +667,14 @@ def task28_flow_chart_elaborate_bpmn(ctx: dict, model_path: str, output_dir: str
     out.append("<defs>")
     _amw, _amh = 5.0, 5.0
     _tri = '<path d="M0,0 L10,5 L0,10 Z" fill="#888888"/>'
-    _tri_r = '<path d="M0,0 L10,5 L0,10 Z" fill="#444444"/>'
+    _tri_dark = '<path d="M0,0 L10,5 L0,10 Z" fill="#444444"/>'
     out.append(
         f'<marker id="arrow-grey" viewBox="0 0 10 10" refX="9" refY="5" '
         f'markerWidth="{_amw}" markerHeight="{_amh}" orient="auto" markerUnits="userSpaceOnUse">{_tri}</marker>'
     )
     out.append(
-        f'<marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" '
-        f'markerWidth="{_amw}" markerHeight="{_amh}" orient="auto" markerUnits="userSpaceOnUse">{_tri_r}</marker>'
+        f'<marker id="arrow-dark" viewBox="0 0 10 10" refX="9" refY="5" '
+        f'markerWidth="{_amw}" markerHeight="{_amh}" orient="auto" markerUnits="userSpaceOnUse">{_tri_dark}</marker>'
     )
     out.append("</defs>")
     out.append('<rect x="0" y="0" width="100%" height="100%" fill="white"/>')
@@ -750,7 +750,7 @@ def task28_flow_chart_elaborate_bpmn(ctx: dict, model_path: str, output_dir: str
         route_points = " ".join(f"{tx(px):.1f},{ty(py):.1f}" for px, py in callout["route"])
         out.append(
             f'<polyline points="{route_points}" fill="none" stroke="#444444" stroke-width="2.5" '
-            f'stroke-dasharray="7 5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-red)"/>'
+            f'stroke-dasharray="7 5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-dark)"/>'
         )
         out.append(f'<rect x="{x:.1f}" y="{y:.1f}" width="{callout_w:.1f}" height="{callout_h:.1f}" rx="7" ry="7" fill="#D8D8D8" stroke="#444444" stroke-width="3" stroke-dasharray="8 5"/>')
         lines = label_lines_for_box(callout["label"], callout_w, font_size=10)
@@ -760,7 +760,7 @@ def task28_flow_chart_elaborate_bpmn(ctx: dict, model_path: str, output_dir: str
 
     legend_y = height - 32
     legend_x = width / 2.0 - 280
-    legend_items = [(GREEN, "Synchronous move (Conform)"), (BLUE, "Model move only"), ("#444444", "Log move only")]
+    legend_items = [(GREY_LIGHTER, "Synchronous move (Conform)"), (GREY_MED, "Model move only"), ("#444444", "Log move only")]
     for i, (color, label) in enumerate(legend_items):
         x = legend_x + i * 205
         out.append(f'<rect x="{x:.1f}" y="{legend_y - 11:.1f}" width="22" height="12" fill="{color}" stroke="#888888" stroke-width="0.8"/>')

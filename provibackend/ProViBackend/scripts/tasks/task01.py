@@ -36,15 +36,15 @@ from shared import (
     save_svg, make_table, build_fitness_time_series,
     draw_composition_stacked_bars, draw_grouped_box_plot, draw_value_heatmap,
     calendar_small_multiples, render_empty_state_svg,
-    BLUE, ORANGE, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    GREY_MED, GREY_LIGHT, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 
 # ---------------------------------------------------------------------------
 # Group color constants
 # ---------------------------------------------------------------------------
-_COLOR_POSITIVE = BLUE    # medium-dark grey  — Positive outcome group
-_COLOR_NEGATIVE = ORANGE  # medium grey       — Negative outcome group
+_COLOR_POSITIVE = GREY_MED    # medium-dark grey  — Positive outcome group
+_COLOR_NEGATIVE = GREY_LIGHT  # medium grey       — Negative outcome group
 _GROUPS = ["Positive", "Negative"]
 _GROUP_COLORS = [_COLOR_POSITIVE, _COLOR_NEGATIVE]
 

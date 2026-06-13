@@ -21,7 +21,7 @@ import matplotlib.patches as mpatches
 from matplotlib.patches import Polygon
 from matplotlib import gridspec
 
-from shared import save_svg, make_table, alignment_pairs_to_rows, BLUE, ORANGE, GREEN, RED, FONT_TITLE, FONT_LABEL, FONT_ANNOT, contrasting_text_color
+from shared import save_svg, make_table, alignment_pairs_to_rows, GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT, contrasting_text_color
 
 
 # ---------------------------------------------------------------------------
@@ -141,7 +141,7 @@ def task29_violation_summary_dataframe(alignments):
 def task29_bar_chart(df: pd.DataFrame, output_dir: str):
     """Bar chart: occurrence count by violation type."""
     fig, ax = plt.subplots(figsize=(8.5, 5.2))
-    colors = [BLUE if mt == "Model Move" else RED if mt == "Log Move" else ORANGE for mt in df["move_type"]]
+    colors = [GREY_MED if mt == "Model Move" else GREY_DARK if mt == "Log Move" else GREY_LIGHT for mt in df["move_type"]]
     bars = ax.bar(df["violation_type"], df["count"], color=colors, edgecolor="white", width=0.55, alpha=0.88)
     ymax = max(df["count"].max(), 1)
     for bar, val in zip(bars, df["count"]):
@@ -193,7 +193,7 @@ def task29_heatmap(df: pd.DataFrame, output_dir: str):
 
 def task29_pie_chart(df: pd.DataFrame, output_dir: str):
     """Pie chart: proportion of violation move types."""
-    colors = [BLUE if mt == "Model Move" else RED if mt == "Log Move" else ORANGE for mt in df["move_type"]]
+    colors = [GREY_MED if mt == "Model Move" else GREY_DARK if mt == "Log Move" else GREY_LIGHT for mt in df["move_type"]]
     labels = [label.replace("\n", " ") for label in df["violation_type"]]
 
     fig, ax = plt.subplots(figsize=(7, 5.5))
@@ -268,7 +268,7 @@ def task29_table_and_bar_chart(df: pd.DataFrame, output_dir: str):
     ax_table.set_title("Table", fontsize=FONT_TITLE, pad=10)
 
     plot_df = df.sort_values("count", ascending=True)
-    colors = [BLUE if mt == "Model Move" else RED if mt == "Log Move" else ORANGE for mt in plot_df["move_type"]]
+    colors = [GREY_MED if mt == "Model Move" else GREY_DARK if mt == "Log Move" else GREY_LIGHT for mt in plot_df["move_type"]]
     ax_bar.barh(plot_df["violation_type"], plot_df["count"], color=colors, alpha=0.9)
     xmax = max(plot_df["count"].max(), 1)
     for y, val in enumerate(plot_df["count"]):
@@ -359,9 +359,9 @@ def _task29_build_activity_violation_nodes(alignments, max_nodes: int = 16):
 
     nodes = []
     for item in items:
-        color = (BLUE   if item["dominant_type"] == "Model Move"
-                 else RED    if item["dominant_type"] == "Log Move"
-                 else ORANGE)
+        color = (GREY_MED   if item["dominant_type"] == "Model Move"
+                 else GREY_DARK    if item["dominant_type"] == "Log Move"
+                 else GREY_LIGHT)
         label = _task29_wrap_label(item["activity"]) + f"\n×{item['total']}"
         nodes.append({"label": label, "color": color})
 
@@ -433,11 +433,11 @@ def task29_flow_chart_and_table(df: pd.DataFrame, alignments, output_dir: str):
 
     # ── Legend ──
     legend_handles = [
-        mpatches.Patch(facecolor=BLUE,   edgecolor="black", linewidth=0.75,
+        mpatches.Patch(facecolor=GREY_MED,   edgecolor="black", linewidth=0.75,
                        label=f"Model Move ({pct.get('Model Move', 0):.1f}%)"),
-        mpatches.Patch(facecolor=RED,    edgecolor="black", linewidth=0.75,
+        mpatches.Patch(facecolor=GREY_DARK,    edgecolor="black", linewidth=0.75,
                        label=f"Log Move ({pct.get('Log Move', 0):.1f}%)"),
-        mpatches.Patch(facecolor=ORANGE, edgecolor="black", linewidth=0.75,
+        mpatches.Patch(facecolor=GREY_LIGHT, edgecolor="black", linewidth=0.75,
                        label=f"Mismatch Move ({pct.get('Mismatch Move', 0):.1f}%)"),
     ]
     fig.legend(

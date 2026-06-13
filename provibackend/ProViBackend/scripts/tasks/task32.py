@@ -37,7 +37,7 @@ from shared import (
     save_svg, make_table, draw_parallel_sets,
     draw_value_heatmap, draw_rate_matrix, draw_grouped_box_plot,
     render_empty_state_svg, format_threshold,
-    BLUE, ORANGE, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    GREY_MED, GREY_LIGHT, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 # Reuse the proven sub-log split + violation classification from task30.
@@ -47,7 +47,7 @@ from tasks.task30 import (
 )
 
 TOP_N = 10
-_GROUP_PALETTE = [BLUE, ORANGE, "#333333", "#CCCCCC", "#888888"]
+_GROUP_PALETTE = [GREY_MED, GREY_LIGHT, "#333333", "#CCCCCC", "#888888"]
 _PARETO_BAR = "#9A9A9A"      # medium grey for frequency bars
 
 

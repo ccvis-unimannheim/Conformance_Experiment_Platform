@@ -70,7 +70,7 @@ from shared import (
     save_svg, make_table, draw_parallel_sets, render_empty_state_svg,
     chevron_nodes_from_alignment_rows, draw_chevron_strip, chevron_figure_width,
     parse_bpmn_model, compose_bpmn_panels, alignment_violation_node_style, format_threshold,
-    BLUE, ORANGE, GREEN, RED, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 # Reuse: violation label + per-trace numeric features (incl. throughput time).
@@ -97,7 +97,7 @@ CANDIDATE_ATTRIBUTES = ["AMOUNT_REQ", "org:resource", THROUGHPUT_KEY]
 NUMERIC_BUCKETS = 4   # quantile buckets for a numeric attribute's bar/parallel dim
 MAX_CATEGORIES  = 5   # top categories kept for a categorical attribute (rest -> "Other")
 
-_GREY_PALETTE = [BLUE, ORANGE, "#333333", "#CCCCCC", "#888888"]
+_GREY_PALETTE = [GREY_MED, GREY_LIGHT, "#333333", "#CCCCCC", "#888888"]
 
 # Stems + titles for the empty-state fallback (one per idiom).
 _EMPTY_STEMS = [
@@ -370,7 +370,7 @@ def task13_bar_chart(attr_meta, evidence_df, output_dir):
     fig, axes = plt.subplots(1, ncols, figsize=(max(5.0, ncols * 4.2), 5.0), squeeze=False)
     for ax, (m, (labels, rates, counts)) in zip(axes[0], panels):
         pos = np.arange(len(labels))
-        ax.bar(pos, rates, color=BLUE, edgecolor="white")
+        ax.bar(pos, rates, color=GREY_MED, edgecolor="white")
         for p, rate, c in zip(pos, rates, counts):
             ax.text(p, rate + 1.5, f"{rate:.0f}%\n(n={c})", ha="center", va="bottom",
                     fontsize=FONT_ANNOT - 1, color="#333333")
@@ -405,7 +405,7 @@ def task13_scatter_plot(attr_meta, evidence_df, output_dir):
 
     viol_count = evidence_df["violation_count"].to_numpy(dtype=float)
     nonconf = evidence_df["violation"].to_numpy()
-    colors = np.where(nonconf, RED, GREEN)
+    colors = np.where(nonconf, GREY_DARK, GREY_LIGHTER)
 
     ncols = len(usable)
     fig, axes = plt.subplots(1, ncols, figsize=(max(5.0, ncols * 4.6), 5.0), squeeze=False)
@@ -418,8 +418,8 @@ def task13_scatter_plot(attr_meta, evidence_df, output_dir):
         ax.set_axisbelow(True)
     axes[0][0].set_ylabel("# Violations per trace", fontsize=FONT_LABEL)
     fig.legend(
-        handles=[mpatches.Patch(color=GREEN, label="Conformant"),
-                 mpatches.Patch(color=RED, label="Non-conformant")],
+        handles=[mpatches.Patch(color=GREY_LIGHTER, label="Conformant"),
+                 mpatches.Patch(color=GREY_DARK, label="Non-conformant")],
         loc="lower center", ncol=2, frameon=False, fontsize=FONT_ANNOT,
     )
     fig.suptitle("Attribute Value vs. Per-trace Violations", fontsize=FONT_TITLE)
@@ -471,7 +471,7 @@ def task13_table_and_bar_chart(ranking, output_dir):
     labels = [r["label"] for r in ranking][::-1]
     strengths = [r["strength"] for r in ranking][::-1]
     y = np.arange(len(labels))
-    ax_b.barh(y, strengths, color=BLUE, edgecolor="white")
+    ax_b.barh(y, strengths, color=GREY_MED, edgecolor="white")
     ax_b.set_yticks(y)
     ax_b.set_yticklabels(labels, fontsize=FONT_ANNOT)
     ax_b.set_xlim(0, 1.0)
@@ -511,7 +511,7 @@ def task13_parallel_sets(evidence_df, ranking, output_dir):
     left_colors = [_GREY_PALETTE[i % len(_GREY_PALETTE)] for i in range(len(left_labels))]
     draw_parallel_sets(
         ax, left_labels, right_labels, matrix, left_colors,
-        right_colors=[RED, GREEN],
+        right_colors=[GREY_DARK, GREY_LIGHTER],
         left_title=top["label"], right_title="Guideline violation",
     )
     # Title above the column headers (which draw_parallel_sets places at y=1.08).
@@ -596,9 +596,9 @@ def task13_flow_chart_elaborate_bpmn_table(ctx, ranking, model_path, output_dir)
         path,
         title="Where Violations Sit (flow) & Which Attributes Explain Them (table)",
         legend_items=[
-            (BLUE,    "#444444", 3, "Model move (skipped step)"),
-            (ORANGE,  "#444444", 3, "Mismatch move"),
-            (GREEN,   "#666666", 2, "Conform (synchronous)"),
+            (GREY_MED,    "#444444", 3, "Model move (skipped step)"),
+            (GREY_LIGHT,  "#444444", 3, "Mismatch move"),
+            (GREY_LIGHTER,   "#666666", 2, "Conform (synchronous)"),
             ("white", "#888888", 2, "Not on this trace"),
         ],
         table_rows=table_rows,

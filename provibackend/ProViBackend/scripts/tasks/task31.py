@@ -23,7 +23,7 @@ import matplotlib.patches as mpatches
 
 from shared import (
     save_svg, make_table, draw_decision_tree, wrap_text,
-    format_threshold, BLUE, ORANGE, GREEN, RED, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    format_threshold, GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 from tasks.task20 import (
     task20_trace_feature_dataframe,

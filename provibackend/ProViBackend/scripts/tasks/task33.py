@@ -37,7 +37,7 @@ from shared import (
     save_svg, make_table,
     draw_value_heatmap, draw_rate_matrix, draw_grouped_box_plot,
     render_empty_state_svg, format_threshold,
-    BLUE, ORANGE, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 from tasks.task30 import split_by_attribute
@@ -46,7 +46,8 @@ from tasks.task30 import split_by_attribute
 # Constants
 # ---------------------------------------------------------------------------
 
-_GROUP_PALETTE = [BLUE, ORANGE, "#2CA02C", "#D62728", "#9467BD"]
+# Greyscale-only group shades (platform style is strictly greyscale).
+_GROUP_PALETTE = ["#333333", "#666666", "#999999", "#BBBBBB", "#DDDDDD"]
 
 # Fitness bands: (label, lo, hi, fill_color, text_color)
 _FITNESS_BANDS = [

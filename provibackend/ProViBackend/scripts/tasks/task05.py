@@ -32,13 +32,13 @@ from shared import (
     save_svg, make_table, draw_parallel_sets, alignment_pairs_to_rows,
     draw_grouped_rate_bars, draw_composition_stacked_bars, draw_rate_matrix,
     draw_grouped_box_plot, draw_value_heatmap, render_empty_state_svg,
-    BLUE, ORANGE, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    GREY_MED, GREY_LIGHT, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 TOP_N = 10
 
-_COLOR_POSITIVE = BLUE
-_COLOR_NEGATIVE = ORANGE
+_COLOR_POSITIVE = GREY_MED
+_COLOR_NEGATIVE = GREY_LIGHT
 _GROUP_COLORS   = {"Positive": _COLOR_POSITIVE, "Negative": _COLOR_NEGATIVE}
 
 _OUTCOME_ACTIVITY = "A_ACTIVATED"
@@ -251,27 +251,61 @@ def task05_matrix(agg_df: pd.DataFrame, output_dir: str):
 
 def task05_parallel_sets(agg_df: pd.DataFrame, viol_df: pd.DataFrame,
                           n_traces: dict, output_dir: str):
-    """Parallel Sets: Outcome Group × Violation Pattern (top-N + Other)."""
+    """Parallel Sets: Outcome Group × Violation Pattern (top-N + Other).
+
+    Ribbon width ∝ number of traces in the group that exhibit the pattern
+    (deduplicated per trace, consistent with the table/bar idioms). Both axes
+    are labelled with the count *and* its share of all flow, so the numbers on
+    the left match the ribbons leaving them and the participant can read a
+    percentage directly.
+    """
     groups   = ["Positive", "Negative"]
     patterns = agg_df["pattern"].tolist() if not agg_df.empty else []
 
-    # Build count matrix: [n_groups × n_patterns+1(Other)]
+    # Count matrix [n_groups × (n_patterns + Other)] at the TRACE level:
+    # matrix[g, p] = # traces in group g that exhibit pattern p.
     cats = patterns + (["Other"] if not viol_df.empty else [])
     matrix = np.zeros((len(groups), len(cats)), dtype=int)
 
-    if not viol_df.empty:
+    if not agg_df.empty:
+        matrix[0, :len(patterns)] = agg_df["Positive_count"].to_numpy(dtype=int)
+        matrix[1, :len(patterns)] = agg_df["Negative_count"].to_numpy(dtype=int)
+
+    if not viol_df.empty and len(cats) > len(patterns):
         top_set = set(patterns)
         for gi, g in enumerate(groups):
             sub = viol_df[viol_df["group"] == g]
-            for ci, pat in enumerate(patterns):
-                matrix[gi, ci] = int((sub["pattern"] == pat).sum())
-            other_count = int((~sub["pattern"].isin(top_set)).sum())
-            if len(cats) > len(patterns):
-                matrix[gi, -1] = other_count
+            # traces (deduped) with at least one non-top pattern
+            matrix[gi, -1] = int(
+                sub.loc[~sub["pattern"].isin(top_set), "trace_index"].nunique())
 
-    fig, ax = plt.subplots(figsize=(10, 5.5))
+    if matrix.sum() == 0:
+        render_empty_state_svg(os.path.join(output_dir, "task05_parallel_sets.svg"),
+                               "Parallel Sets: Outcome Group vs. Violation Pattern",
+                               "No violations found.")
+        return
+
+    total    = int(matrix.sum())
+    grp_tot  = matrix.sum(axis=1)
+    cat_tot  = matrix.sum(axis=0)
+
+    def _pct(x: float) -> float:
+        return (x / total * 100.0) if total else 0.0
+
+    # Left labels: group + flow count + % of all flow (matches the bar height).
+    left_labels = [
+        f"{g}\n{int(grp_tot[gi])} ({_pct(grp_tot[gi]):.0f}%)"
+        for gi, g in enumerate(groups)
+    ]
+    # Right labels: pattern + flow count + % of all flow.
+    right_labels = [
+        f"{c}  —  {int(cat_tot[ci])} ({_pct(cat_tot[ci]):.0f}%)"
+        for ci, c in enumerate(cats)
+    ]
+
+    fig, ax = plt.subplots(figsize=(11.5, 5.8))
     ax.axis("off")
-    ax.set_xlim(-0.05, 1.05)
+    ax.set_xlim(-0.16, 1.28)
     ax.set_ylim(-0.05, 1.15)
     ax.set_title("Parallel Sets: Outcome Group vs. Violation Pattern",
                  fontsize=FONT_TITLE, pad=12)
@@ -283,9 +317,8 @@ def task05_parallel_sets(agg_df: pd.DataFrame, viol_df: pd.DataFrame,
 
     draw_parallel_sets(
         ax,
-        left_labels=[f"Positive\n(n={n_traces.get('Positive', 0)})",
-                     f"Negative\n(n={n_traces.get('Negative', 0)})"],
-        right_labels=cats,
+        left_labels=left_labels,
+        right_labels=right_labels,
         matrix=matrix,
         left_colors=[_COLOR_POSITIVE, _COLOR_NEGATIVE],
         right_colors=right_colors,
@@ -305,7 +338,14 @@ _GROUPS = ["Positive", "Negative"]
 
 
 def task05_box_plot(log, viol_df: pd.DataFrame, outcome_activity: str, output_dir: str):
-    """Violations-per-trace distribution per outcome sub-log (zero-violation traces included)."""
+    """Violations-per-trace distribution per outcome sub-log (zero-violation traces included).
+
+    Individual per-trace points are overlaid as a jittered strip so the
+    distribution stays readable even when most traces have zero violations (a
+    plain box then collapses to a flat line). Each group is annotated with the
+    share of its traces that exhibit at least one violation — the percentage the
+    task is really asking for — plus the group size and mean.
+    """
     per_trace = viol_df.groupby("trace_index").size() if not viol_df.empty else pd.Series(dtype=int)
     data = {g: [] for g in _GROUPS}
     for i, trace in enumerate(log):
@@ -316,10 +356,37 @@ def task05_box_plot(log, viol_df: pd.DataFrame, outcome_activity: str, output_di
         render_empty_state_svg(os.path.join(output_dir, "task05_box_plot.svg"),
                                "Violations per Trace by Outcome", "No traces.")
         return
-    fig, ax = plt.subplots(figsize=(5.5, 6))
+
+    fig, ax = plt.subplots(figsize=(6.5, 6))
     draw_grouped_box_plot(ax, arrays, _GROUPS, [_COLOR_POSITIVE, _COLOR_NEGATIVE],
                           ylabel="Violations per trace", ylim=None)
-    ax.set_title("Violations per Trace by Outcome Group", fontsize=FONT_TITLE)
+
+    # Overlay individual traces as a jittered strip so a mostly-zero group is
+    # not reduced to a single line + outlier point.
+    rng = np.random.default_rng(42)
+    for xi, arr in enumerate(arrays, start=1):
+        if arr.size == 0:
+            continue
+        jitter = rng.uniform(-0.09, 0.09, arr.size)
+        ax.scatter(np.full(arr.size, xi) + jitter, arr,
+                   s=12, color=GREY_MED, alpha=0.30, linewidths=0, zorder=4)
+
+    # Per-group annotation: % of traces with >=1 violation (the answer unit),
+    # group size, and mean violations per trace.
+    y_max = max((int(a.max()) if a.size else 0) for a in arrays)
+    head_room = max(y_max * 0.18, 0.6)
+    for xi, (g, arr) in enumerate(zip(_GROUPS, arrays), start=1):
+        n = int(arr.size)
+        pct = (int(np.count_nonzero(arr)) / n * 100.0) if n else 0.0
+        mean = float(arr.mean()) if n else 0.0
+        ax.text(xi, y_max + head_room,
+                f"{pct:.1f}% with ≥1 violation\n(n={n} · mean {mean:.2f})",
+                ha="center", va="bottom", fontsize=FONT_ANNOT, color="#333333")
+
+    ax.set_ylim(-0.4, y_max + head_room * 2.4 + 0.6)
+    ax.set_title("Violations per Trace by Outcome Group\n"
+                 "(% = traces in group with at least one violation)",
+                 fontsize=FONT_TITLE)
     fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task05_box_plot.svg"))
 

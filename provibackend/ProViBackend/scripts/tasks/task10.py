@@ -36,7 +36,7 @@ from shared import (
     calendar_heatmap, draw_value_heatmap,
     conformance_category_series, conformance_category_counts,
     CONFORMANCE_BINS, CONFORMANCE_LABELS, CONFORMANCE_CATEGORY_NAMES,
-    BLUE, ORANGE, GREEN, RED, TEAL,
+    GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT, contrasting_text_color,
 )
 # Reuse: task07's line + horizon renderers for the time-based idioms.
@@ -305,12 +305,12 @@ def task10_box_plot(fitness_df: pd.DataFrame, output_dir: str):
     fig, ax = plt.subplots(figsize=(4, 6))
     ax.boxplot(
         vals, vert=True, patch_artist=True, widths=0.4,
-        boxprops=dict(facecolor=TEAL, color=TEAL, alpha=0.85),
+        boxprops=dict(facecolor=GREY_MED, color=GREY_MED, alpha=0.85),
         medianprops=dict(color="white", linewidth=2),
-        whiskerprops=dict(color=TEAL, linewidth=1.5),
-        capprops=dict(color=TEAL, linewidth=1.5),
-        flierprops=dict(marker="D", markerfacecolor=TEAL, markersize=5,
-                        linestyle="none", markeredgecolor=TEAL),
+        whiskerprops=dict(color=GREY_MED, linewidth=1.5),
+        capprops=dict(color=GREY_MED, linewidth=1.5),
+        flierprops=dict(marker="D", markerfacecolor=GREY_MED, markersize=5,
+                        linestyle="none", markeredgecolor=GREY_MED),
     )
     ax.set_xticks([1])
     ax.set_xticklabels(["Log"])

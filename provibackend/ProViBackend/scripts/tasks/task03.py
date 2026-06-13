@@ -1,8 +1,16 @@
 """
 tasks/task03.py – Task ID 3: Describe / Compare / Conformant vs. non-conformant traces.
 
-Compare behavioural patterns (activity presence, trace length, throughput time) between
-Conformant (fitness == 1.0) and Non-conformant (fitness < 1.0) trace groups.
+Every idiom contrasts the SAME attribute — the per-activity presence profile
+(% of a group's traces that contain each activity) — between the Conformant
+(fitness == 1.0) and Non-conformant (fitness < 1.0) trace groups. Only the
+visual encoding differs, so the idioms are comparable on their own quality:
+    * bar_chart, table, table_and_bar_chart, matrix – presence rate per activity
+    * heatmap        – presence rate per activity (all activities, continuous)
+    * scatter_plot   – one point per activity: x = Conformant %, y = Non-conformant %
+    * parallel_sets  – group → activity flow (traces exhibiting each activity)
+    * box_plot       – distribution of per-activity presence rates per group
+    * stacked_bar    – per-group composition of activity presence (share of total)
 
 Public API:
     generate(log, fitness_df, output_dir)
@@ -16,7 +24,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 IDIOMS = ["bar_chart", "scatter_plot", "table", "table_and_bar_chart", "parallel_sets",
-          "stacked_bar", "box_plot", "matrix", "heatmap", "gantt_chart", "calendar"]
+          "stacked_bar", "box_plot", "matrix", "heatmap"]
 
 import os
 import numpy as np
@@ -24,22 +32,21 @@ import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 from matplotlib import gridspec
 
 from shared import (
-    save_svg, make_table, draw_parallel_sets, build_variant_df,
+    save_svg, make_table, draw_parallel_sets,
     draw_composition_stacked_bars, draw_grouped_box_plot, draw_value_heatmap,
-    draw_gantt_strips, calendar_heatmap, render_empty_state_svg,
-    BLUE, ORANGE, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    render_empty_state_svg,
+    GREY_MED, GREY_LIGHT, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 # Top-N most differentiating activities to show in charts/tables
 TOP_N = 10
 
-_COLOR_CONFORM     = BLUE    # medium-dark grey
-_COLOR_NON_CONFORM = ORANGE  # medium grey
-_GROUP_COLORS = {"Conformant": _COLOR_CONFORM, "Non-conformant": _COLOR_NON_CONFORM}
+_COLOR_CONFORM     = GREY_MED    # medium-dark grey
+_COLOR_NON_CONFORM = GREY_LIGHT  # medium grey
+_GROUPS = ["Conformant", "Non-conformant"]
 
 
 # ---------------------------------------------------------------------------
@@ -47,7 +54,12 @@ _GROUP_COLORS = {"Conformant": _COLOR_CONFORM, "Non-conformant": _COLOR_NON_CONF
 # ---------------------------------------------------------------------------
 
 def _task03_build_trace_rows(log, fitness_df: pd.DataFrame) -> list:
-    """Pair each trace with its conformance label + behavioural features."""
+    """Pair each trace with its conformance label and the set of activities it contains.
+
+    Activity presence is the single attribute every Task 3 idiom compares between
+    the Conformant and Non-conformant groups, so trace_rows only needs the group
+    label and the activity set per trace.
+    """
     rows = []
     for i, trace in enumerate(log):
         if i >= len(fitness_df):
@@ -55,29 +67,13 @@ def _task03_build_trace_rows(log, fitness_df: pd.DataFrame) -> list:
         fitness = float(fitness_df.iloc[i]["fitness"])
         group   = "Conformant" if fitness >= 1.0 else "Non-conformant"
 
-        activities  = set()
-        timestamps  = []
-        for event in trace:
-            act = str(event.get("concept:name", ""))
-            if act:
-                activities.add(act)
-            ts = event.get("time:timestamp")
-            if ts is not None:
-                try:
-                    timestamps.append(pd.Timestamp(ts))
-                except Exception:
-                    pass
-
-        throughput_h = None
-        if len(timestamps) >= 2:
-            throughput_h = (max(timestamps) - min(timestamps)).total_seconds() / 3600
+        activities = {str(event.get("concept:name", "")) for event in trace}
+        activities.discard("")
 
         rows.append({
             "trace_index": i,
             "group":       group,
             "activities":  activities,
-            "n_events":    len(trace),
-            "throughput_h": throughput_h,
         })
     return rows
 
@@ -102,14 +98,6 @@ def _task03_activity_presence_df(trace_rows: list, top_n: int = TOP_N) -> pd.Dat
 
     df = pd.DataFrame(records).sort_values("difference", ascending=False).reset_index(drop=True)
     return df.head(top_n)
-
-
-def _task03_length_category(n_events: int, q33: float, q67: float) -> str:
-    if n_events <= q33:
-        return "Short"
-    if n_events <= q67:
-        return "Medium"
-    return "Long"
 
 
 # ---------------------------------------------------------------------------
@@ -150,27 +138,42 @@ def task03_bar_chart(presence_df: pd.DataFrame, output_dir: str):
 
 
 def task03_scatter_plot(trace_rows: list, output_dir: str):
-    """Scatter: x = trace length, y = throughput time; colour = conformance group.
-    Falls back to strip plot on trace length only when no timestamps are available.
+    """Scatter of activity presence: one point per activity, x = presence rate in
+    Conformant traces, y = presence rate in Non-conformant traces.
+
+    The y = x diagonal marks 'equally present in both groups'; points far from it
+    are the activities whose presence differs most between the groups. The top-N
+    differentiators are labelled.
     """
-    df = pd.DataFrame(trace_rows)
-    has_time = df["throughput_h"].notna().any()
+    full = _task03_activity_presence_df(trace_rows, top_n=10**9)
+    if full.empty:
+        render_empty_state_svg(os.path.join(output_dir, "task03_scatter_plot.svg"),
+                               "Activity Presence: Conformant vs. Non-conformant",
+                               "No activities found.")
+        return
 
-    fig, ax = plt.subplots(figsize=(9, 5))
-    for group, color in _GROUP_COLORS.items():
-        sub = df[df["group"] == group]
-        if sub.empty:
-            continue
-        y = sub["throughput_h"] if has_time else sub["trace_index"]
-        ax.scatter(sub["n_events"], y, c=color, s=14, alpha=0.55,
-                   linewidths=0, label=group)
+    fig, ax = plt.subplots(figsize=(7.5, 7))
+    ax.plot([0, 100], [0, 100], color="#999999", linestyle="--", linewidth=1.0, zorder=1)
+    ax.text(99, 99, "equal presence", rotation=45, rotation_mode="anchor",
+            ha="right", va="bottom", fontsize=FONT_ANNOT - 1, color="#888888")
 
-    ax.set_xlabel("Trace length (# events)", fontsize=FONT_LABEL)
-    ax.set_ylabel("Throughput time (hours)" if has_time else "Trace index", fontsize=FONT_LABEL)
-    ax.set_title("Trace Length vs. Throughput Time by Conformance Group", fontsize=FONT_TITLE)
-    ax.legend(frameon=False, fontsize=FONT_ANNOT)
+    ax.scatter(full["Conformant"], full["Non-conformant"],
+               c=GREY_MED, s=36, alpha=0.7, linewidths=0, zorder=3)
+
+    # Label the strongest differentiators (largest |Conformant − Non-conformant|).
+    for _, row in full.head(TOP_N).iterrows():
+        ax.annotate(row["activity"], (row["Conformant"], row["Non-conformant"]),
+                    xytext=(4, 4), textcoords="offset points",
+                    fontsize=FONT_ANNOT - 2, color="#333333")
+
+    ax.set_xlim(-3, 103)
+    ax.set_ylim(-3, 103)
+    ax.set_aspect("equal", adjustable="box")
+    ax.set_xlabel("Presence rate in Conformant traces (%)", fontsize=FONT_LABEL)
+    ax.set_ylabel("Presence rate in Non-conformant traces (%)", fontsize=FONT_LABEL)
+    ax.set_title("Activity Presence: Conformant vs. Non-conformant", fontsize=FONT_TITLE)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.4)
+    ax.grid(True, linestyle="--", alpha=0.4)
     ax.set_axisbelow(True)
     fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task03_scatter_plot.svg"))
@@ -251,109 +254,148 @@ def task03_table_and_bar_chart(presence_df: pd.DataFrame, output_dir: str):
     save_svg(fig, os.path.join(output_dir, "task03_table_and_bar_chart.svg"))
 
 
-def task03_parallel_sets(trace_rows: list, output_dir: str):
-    """Parallel Sets: Conformance Group × Trace-Length Category (Short/Medium/Long)."""
-    df = pd.DataFrame(trace_rows)
-    lengths = df["n_events"].values
-    q33, q67 = np.percentile(lengths, [33, 67])
-    df["len_cat"] = df["n_events"].apply(lambda n: _task03_length_category(n, q33, q67))
+def task03_parallel_sets(trace_rows: list, presence_df: pd.DataFrame, output_dir: str):
+    """Parallel Sets: Conformance Group × Activity (top-N differentiators + Other).
 
-    groups  = ["Conformant", "Non-conformant"]
-    cats    = ["Short", "Medium", "Long"]
-    matrix  = np.zeros((len(groups), len(cats)), dtype=int)
+    Ribbon width = number of traces in the group that contain the activity, so the
+    two group bars contrast which activities each group's traces exhibit. Both axes
+    are labelled with count + share of all flow, so the numbers match the ribbons.
+    """
+    groups   = _GROUPS
+    acts     = presence_df["activity"].tolist() if not presence_df.empty else []
+    if not acts:
+        render_empty_state_svg(os.path.join(output_dir, "task03_parallel_sets.svg"),
+                               "Parallel Sets: Conformance Group vs. Activity",
+                               "No activities found.")
+        return
+
+    top_set  = set(acts)
+    cats     = acts + ["Other"]
+    matrix   = np.zeros((len(groups), len(cats)), dtype=int)
     for gi, g in enumerate(groups):
-        for ci, c in enumerate(cats):
-            matrix[gi, ci] = int(((df["group"] == g) & (df["len_cat"] == c)).sum())
+        grp = [r for r in trace_rows if r["group"] == g]
+        for ci, a in enumerate(acts):
+            matrix[gi, ci] = sum(1 for r in grp if a in r["activities"])
+        # 'Other' = traces in the group that contain at least one non-top activity.
+        matrix[gi, -1] = sum(1 for r in grp if (r["activities"] - top_set))
 
-    fig, ax = plt.subplots(figsize=(9, 5.5))
+    if matrix.sum() == 0:
+        render_empty_state_svg(os.path.join(output_dir, "task03_parallel_sets.svg"),
+                               "Parallel Sets: Conformance Group vs. Activity",
+                               "No activity presence to display.")
+        return
+
+    total   = int(matrix.sum())
+    grp_tot = matrix.sum(axis=1)
+    cat_tot = matrix.sum(axis=0)
+
+    def _pct(x: float) -> float:
+        return (x / total * 100.0) if total else 0.0
+
+    left_labels  = [f"{g}\n{int(grp_tot[gi])} ({_pct(grp_tot[gi]):.0f}%)"
+                    for gi, g in enumerate(groups)]
+    right_labels = [f"{c}  —  {int(cat_tot[ci])} ({_pct(cat_tot[ci]):.0f}%)"
+                    for ci, c in enumerate(cats)]
+
+    n_cats = len(cats)
+    grey_scale = ["#CCCCCC", "#AAAAAA", "#999999", "#888888", "#777777",
+                  "#666666", "#555555", "#444444", "#333333", "#222222", "#BBBBBB"]
+    right_colors = [grey_scale[i % len(grey_scale)] for i in range(n_cats)]
+
+    fig, ax = plt.subplots(figsize=(11.5, 5.8))
     ax.axis("off")
-    ax.set_xlim(-0.05, 1.05)
+    ax.set_xlim(-0.16, 1.28)
     ax.set_ylim(-0.05, 1.15)
-    ax.set_title("Parallel Sets: Conformance Group vs. Trace-Length Category",
+    ax.set_title("Parallel Sets: Conformance Group vs. Activity",
                  fontsize=FONT_TITLE, pad=12)
 
     draw_parallel_sets(
         ax,
-        left_labels=[f"Conformant\n(n={int((df['group']=='Conformant').sum())})",
-                     f"Non-conformant\n(n={int((df['group']=='Non-conformant').sum())})"],
-        right_labels=cats,
+        left_labels=left_labels,
+        right_labels=right_labels,
         matrix=matrix,
         left_colors=[_COLOR_CONFORM, _COLOR_NON_CONFORM],
-        right_colors=["#DDDDDD", "#AAAAAA", "#666666"],
+        right_colors=right_colors,
         left_title="Conformance Group",
-        right_title="Trace Length",
+        right_title="Activity",
     )
 
     fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task03_parallel_sets.svg"))
 
 
-# ---------------------------------------------------------------------------
-# Medium idioms
-# ---------------------------------------------------------------------------
+def task03_stacked_bar(trace_rows: list, output_dir: str):
+    """100%-stacked activity-presence composition per conformance group.
 
-_GROUPS = ["Conformant", "Non-conformant"]
-
-
-def _trace_event_times(trace) -> list:
-    """Sorted event timestamps (pd.Timestamp) of a PM4Py trace."""
-    times = []
-    for e in trace:
-        ts = e.get("time:timestamp")
-        if ts is not None:
-            try:
-                times.append(pd.Timestamp(ts))
-            except Exception:
-                pass
-    return sorted(times)
-
-
-def task03_stacked_bar(log, fitness_df, output_dir: str):
-    """Per conformance group, composition of top-5 variants + 'Other' (trace counts)."""
-    vdf = build_variant_df(log, fitness_df, warn_prefix="task03")
-    if vdf.empty:
+    Per group, each segment is one activity's share of the group's TOTAL activity
+    presence (presence_rate_activity / Σ presence_rates). Each bar sums to 100%, so
+    comparing the two bars reveals how the activity mix differs between Conformant
+    and Non-conformant traces. Shows the top-N differentiating activities + 'Other'.
+    """
+    full = _task03_activity_presence_df(trace_rows, top_n=10**9)
+    if full.empty:
         render_empty_state_svg(os.path.join(output_dir, "task03_stacked_bar.svg"),
-                               "Variant Composition per Group", "No variant data.")
+                               "Activity-Presence Composition per Group", "No activities found.")
         return
-    top = vdf.head(5)
-    seg_labels = top["label"].tolist() + (["Other"] if len(vdf) > 5 else [])
-    counts = np.zeros((len(seg_labels), len(_GROUPS)))
-    for vi, (_, row) in enumerate(top.iterrows()):
-        gi = 0 if row["fitness"] >= 1.0 else 1
-        counts[vi, gi] = row["count"]
-    if len(vdf) > 5:
-        for _, row in vdf.iloc[5:].iterrows():
-            gi = 0 if row["fitness"] >= 1.0 else 1
-            counts[-1, gi] += row["count"]
 
-    greys = ["#444444", "#666666", "#888888", "#AAAAAA", "#CCCCCC", "#DDDDDD"]
+    top = full.head(TOP_N)
+    seg_labels = top["activity"].tolist() + (["Other"] if len(full) > len(top) else [])
+
+    # rates[segment, group] = activity's share (%) of the group's total presence mass.
+    rates = np.zeros((len(seg_labels), len(_GROUPS)))
+    for gi, g in enumerate(_GROUPS):
+        tot = float(full[g].sum())
+        if tot <= 0:
+            continue
+        for si, (_, row) in enumerate(top.iterrows()):
+            rates[si, gi] = row[g] / tot * 100
+        if len(seg_labels) > len(top):
+            rates[-1, gi] = float(full[g].sum() - top[g].sum()) / tot * 100
+
     fig, ax = plt.subplots(figsize=(6, 5.5))
-    draw_composition_stacked_bars(ax, _GROUPS, seg_labels, counts, segment_colors=greys)
-    ax.set_ylabel("Number of Traces", fontsize=FONT_LABEL)
-    ax.set_title("Top-5 Variant Composition per Conformance Group", fontsize=FONT_TITLE)
+    draw_composition_stacked_bars(ax, _GROUPS, seg_labels, rates)
+    ax.set_ylabel("% of group's total activity presence", fontsize=FONT_LABEL)
+    ax.set_ylim(0, 100)
+    ax.set_title("Activity-Presence Composition per Conformance Group", fontsize=FONT_TITLE)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
     ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1.0), frameon=False,
-              fontsize=FONT_ANNOT - 1, title="Variant", title_fontsize=FONT_ANNOT)
+              fontsize=FONT_ANNOT - 1, title="Activity", title_fontsize=FONT_ANNOT)
     fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task03_stacked_bar.svg"))
 
 
 def task03_box_plot(trace_rows: list, output_dir: str):
-    """Throughput-time distribution per conformance group."""
-    df = pd.DataFrame(trace_rows)
-    has_time = df["throughput_h"].notna().any()
-    if not has_time:
+    """Distribution of per-activity presence rates per conformance group.
+
+    One box per group over the presence rates of ALL activities (the same numbers
+    the matrix/heatmap show, summarised as a distribution): it contrasts how the
+    two groups' activity-presence profiles are spread. Individual activities are
+    overlaid as a jittered strip so the distribution stays readable.
+    """
+    full = _task03_activity_presence_df(trace_rows, top_n=10**9)
+    if full.empty:
         render_empty_state_svg(os.path.join(output_dir, "task03_box_plot.svg"),
-                               "Throughput Time per Group", "No timestamp data.")
+                               "Activity Presence Rate per Group", "No activities found.")
         return
-    data = [df.loc[(df["group"] == g) & df["throughput_h"].notna(), "throughput_h"].values
-            for g in _GROUPS]
-    fig, ax = plt.subplots(figsize=(5.5, 6))
+
+    data = [full[g].to_numpy(dtype=float) for g in _GROUPS]
+    fig, ax = plt.subplots(figsize=(6, 6))
     draw_grouped_box_plot(ax, data, _GROUPS, [_COLOR_CONFORM, _COLOR_NON_CONFORM],
-                          ylabel="Throughput time (hours)", ylim=None)
-    ax.set_title("Throughput Time Distribution per Conformance Group", fontsize=FONT_TITLE)
+                          ylabel="Activity presence rate (%)", ylim=(0, 100))
+
+    # Overlay one point per activity so the distribution is visible per group.
+    rng = np.random.default_rng(42)
+    for xi, arr in enumerate(data, start=1):
+        if arr.size == 0:
+            continue
+        jitter = rng.uniform(-0.09, 0.09, arr.size)
+        ax.scatter(np.full(arr.size, xi) + jitter, arr,
+                   s=14, color="#333333", alpha=0.30, linewidths=0, zorder=4)
+
+    ax.set_title("Activity Presence Rate Distribution per Conformance Group",
+                 fontsize=FONT_TITLE)
     fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task03_box_plot.svg"))
 
@@ -390,70 +432,6 @@ def task03_heatmap(trace_rows: list, output_dir: str):
     save_svg(fig, os.path.join(output_dir, "task03_heatmap.svg"))
 
 
-def task03_gantt_chart(log, fitness_df, output_dir: str):
-    """Representative traces (≤3 per group, from the most frequent variants)."""
-    vdf = build_variant_df(log, fitness_df, warn_prefix="task03")
-    if vdf.empty:
-        render_empty_state_svg(os.path.join(output_dir, "task03_gantt_chart.svg"),
-                               "Representative Trace Timelines", "No variant data.")
-        return
-    rows = []
-    for g, color in [("Conformant", _COLOR_CONFORM), ("Non-conformant", _COLOR_NON_CONFORM)]:
-        sub = vdf[(vdf["fitness"] >= 1.0)] if g == "Conformant" else vdf[vdf["fitness"] < 1.0]
-        for _, vrow in sub.head(3).iterrows():
-            idx = int(vrow["rep_trace_index"])
-            try:
-                times = _trace_event_times(log[idx])
-            except Exception:
-                times = []
-            if not times:
-                continue
-            rows.append({"label": f"{vrow['label']} · {g[:7]} (n={int(vrow['count'])})",
-                         "color": color, "times": times})
-    if not rows:
-        render_empty_state_svg(os.path.join(output_dir, "task03_gantt_chart.svg"),
-                               "Representative Trace Timelines", "No timestamped traces.")
-        return
-    fig, ax = plt.subplots(figsize=(13, max(3, 0.5 * len(rows) + 1.6)))
-    draw_gantt_strips(ax, rows)
-    ax.set_xlabel("Time", fontsize=FONT_LABEL)
-    ax.set_title("Representative Trace Timelines by Conformance Group", fontsize=FONT_TITLE)
-    ax.legend(handles=[mpatches.Patch(color=_COLOR_CONFORM, label="Conformant"),
-                       mpatches.Patch(color=_COLOR_NON_CONFORM, label="Non-conformant")],
-              frameon=False, fontsize=FONT_ANNOT, loc="lower right")
-    fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task03_gantt_chart.svg"))
-
-
-def task03_calendar(log, trace_rows: list, output_dir: str):
-    """Single calendar: daily share of non-conformant case starts."""
-    group_of = {r["trace_index"]: r["group"] for r in trace_rows}
-    accum = {}  # date -> [total, nonconf]
-    for idx, g in group_of.items():
-        try:
-            trace = log[idx]
-        except Exception:
-            continue
-        if not trace:
-            continue
-        ts = trace[0].get("time:timestamp")
-        if ts is None:
-            continue
-        d = pd.Timestamp(ts).normalize()
-        cell = accum.setdefault(d, [0, 0])
-        cell[0] += 1
-        if g == "Non-conformant":
-            cell[1] += 1
-    if not accum:
-        render_empty_state_svg(os.path.join(output_dir, "task03_calendar.svg"),
-                               "Daily Non-conformance Share", "No timestamped case starts.")
-        return
-    daily = {d: (nc / tot if tot else 0.0) for d, (tot, nc) in accum.items()}
-    calendar_heatmap(daily, os.path.join(output_dir, "task03_calendar.svg"),
-                     title="Daily Share of Non-conformant Case Starts",
-                     cbar_label="Share non-conformant", vmin=0.0, vmax=1.0)
-
-
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
@@ -480,11 +458,9 @@ def generate(log, fitness_df, output_dir: str):
     task03_scatter_plot(trace_rows, output_dir)
     task03_table(presence_df, output_dir)
     task03_table_and_bar_chart(presence_df, output_dir)
-    task03_parallel_sets(trace_rows, output_dir)
+    task03_parallel_sets(trace_rows, presence_df, output_dir)
 
-    task03_stacked_bar(log, fitness_df, output_dir)
+    task03_stacked_bar(trace_rows, output_dir)
     task03_box_plot(trace_rows, output_dir)
     task03_matrix(presence_df, output_dir)
     task03_heatmap(trace_rows, output_dir)
-    task03_gantt_chart(log, fitness_df, output_dir)
-    task03_calendar(log, trace_rows, output_dir)

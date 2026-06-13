@@ -26,13 +26,13 @@ from matplotlib.patches import FancyBboxPatch
 import numpy as np
 
 # ---------------------------------------------------------------------------
-# Color palette  – greyscale throughout all visualizations
+# Greyscale palette  – greyscale only, throughout all visualizations.
+# Named by shade (dark → lighter), not by hue.
 # ---------------------------------------------------------------------------
-BLUE   = "#666666"   # medium-dark grey  (model moves, primary category)
-ORANGE = "#999999"   # medium grey       (mismatch / secondary category)
-TEAL   = "#666666"   # same as BLUE      (single-category neutral)
-GREEN  = "#CCCCCC"   # light grey        (synchronous / conformant)
-RED    = "#333333"   # dark grey         (log moves / strongest deviation)
+GREY_DARK    = "#333333"   # dark grey    (strongest emphasis / deviation)
+GREY_MED     = "#666666"   # medium grey  (primary category / model moves)
+GREY_LIGHT   = "#999999"   # light grey   (secondary category / mismatch)
+GREY_LIGHTER = "#CCCCCC"   # lighter grey (conformant / synchronous)
 
 # ---------------------------------------------------------------------------
 # Color utilities
@@ -495,16 +495,31 @@ def _draw_tile_box(ax):
     ))
 
 
-def render_fitness_tile_metric(avg_fitness_pct: float, out_path: str):
-    """Render a single-value tile showing overall conformance rate and save to out_path."""
+def render_fitness_tile_metric(avg_fitness_pct: float, out_path: str,
+                               threshold_pct: float = None):
+    """Render a single-value tile showing overall conformance rate and save to out_path.
+
+    When ``threshold_pct`` is given (a percentage, e.g. 80.0), the predominant
+    threshold is shown neutrally as a reference subline — no pass/fail verdict,
+    so the reader judges for themselves. When omitted the tile keeps its
+    original threshold-free appearance (task06). Colours stay greyscale.
+    """
     fig, ax = plt.subplots(figsize=(4, 3))
     _draw_tile_box(ax)
-    ax.text(0.5, 0.68, "Conformance Rate",
+    ax.text(0.5, 0.72 if threshold_pct is not None else 0.68, "Conformance Rate",
             transform=ax.transAxes, ha="center", va="center",
             fontsize=FONT_TITLE, color="#555555")
-    ax.text(0.5, 0.38, f"{avg_fitness_pct:.2f}%",
+
+    value_y = 0.45 if threshold_pct is not None else 0.38
+    ax.text(0.5, value_y, f"{avg_fitness_pct:.2f}%",
             transform=ax.transAxes, ha="center", va="center",
             fontsize=32, color="#333333")
+
+    if threshold_pct is not None:
+        ax.text(0.5, 0.20,
+                f"Predominant threshold: {threshold_pct:.0f}%",
+                transform=ax.transAxes, ha="center", va="center",
+                fontsize=FONT_LABEL, color="#555555")
     fig.tight_layout()
     save_svg(fig, out_path)
 
@@ -1681,19 +1696,19 @@ def chevron_nodes_from_alignment_rows(rows):
     """Map alignment rows (alignment_pairs_to_rows output) to chevron nodes.
 
     Colors follow the established move-type palette:
-    sync = GREEN, model move = BLUE, mismatch = ORANGE, log move = RED.
+    sync = GREY_LIGHTER, model move = GREY_MED, mismatch = GREY_LIGHT, log move = GREY_DARK.
     """
     nodes = []
     for row in rows:
         if row["moveType"] == "Synchronous Move":
             label = row["log_move"] if str(row["log_move"]) not in _CHEVRON_MISSING_TOKENS else row["model_move"]
-            nodes.append({"label": str(label), "color": GREEN})
+            nodes.append({"label": str(label), "color": GREY_LIGHTER})
         elif row["moveType"] == "Model Move":
-            nodes.append({"label": str(row["model_move"]), "color": BLUE})
+            nodes.append({"label": str(row["model_move"]), "color": GREY_MED})
         elif row["moveType"] == "Mismatch Move":
-            nodes.append({"label": f"{row['log_move']} / {row['model_move']}", "color": ORANGE})
+            nodes.append({"label": f"{row['log_move']} / {row['model_move']}", "color": GREY_LIGHT})
         else:
-            nodes.append({"label": str(row["log_move"]), "color": RED})
+            nodes.append({"label": str(row["log_move"]), "color": GREY_DARK})
     return nodes
 
 
@@ -1701,8 +1716,8 @@ def alignment_violation_node_style(rep_rows):
     """Return a BPMN node_style_fn marking a trace's deviating / conform tasks.
 
     Maps the alignment rows (alignment_pairs_to_rows output) of one representative
-    trace onto the desired model: model moves -> BLUE (skipped step), mismatch
-    moves -> ORANGE, synchronous moves -> GREEN, everything else -> white. Shared
+    trace onto the desired model: model moves -> GREY_MED (skipped step), mismatch
+    moves -> GREY_LIGHT, synchronous moves -> GREY_LIGHTER, everything else -> white. Shared
     by the "Reasons" family (task13/task18/task21) so the elaborate flow idiom
     annotates violations identically. node_style_fn(eid, elem) ->
     (fill, stroke, stroke_width, text_color)."""
@@ -1722,11 +1737,11 @@ def alignment_violation_node_style(rep_rows):
         name = elem.get("name", "")
         if elem.get("kind") == "task":
             if name in skipped:
-                return (BLUE, "#444444", 3, contrasting_text_color(BLUE))
+                return (GREY_MED, "#444444", 3, contrasting_text_color(GREY_MED))
             if name in mismatch:
-                return (ORANGE, "#444444", 3, contrasting_text_color(ORANGE))
+                return (GREY_LIGHT, "#444444", 3, contrasting_text_color(GREY_LIGHT))
             if name in conform:
-                return (GREEN, "#666666", 2, contrasting_text_color(GREEN))
+                return (GREY_LIGHTER, "#666666", 2, contrasting_text_color(GREY_LIGHTER))
         return ("white", "#888888", 2, "#333333")
     return _style
 
