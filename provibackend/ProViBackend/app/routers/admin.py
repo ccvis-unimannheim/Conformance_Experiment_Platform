@@ -3,6 +3,9 @@ import io
 import csv
 import re
 import shutil
+import sys
+import os
+import logging
 from fastapi import APIRouter, BackgroundTasks, UploadFile, HTTPException, Form
 from fastapi.responses import StreamingResponse, JSONResponse
 try:
@@ -15,6 +18,11 @@ except ImportError:
     run_visualization_pipeline = None
     _FILE_RENAME = {}
     _TASK_RENAME_SKIP = {}
+
+_logger = logging.getLogger(__name__)
+_scripts_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "scripts"))
+if _scripts_dir not in sys.path:
+    sys.path.insert(0, _scripts_dir)
 
 try:
     from ProViBackend.scripts.tasks import (
@@ -38,7 +46,8 @@ try:
         "task32": task32, "task33": task33, "task34": task34,
         "task35": task35, "task36": task36, "task37": task37,
     }
-except ImportError:
+except ImportError as e:
+    _logger.error("Failed to import task modules for /task-idioms: %s", e)
     _TASK_MODULES = {}
 from ProViBackend.utils import config, utils
 from ProViBackend.app.datamodels import data_schemas as ds
