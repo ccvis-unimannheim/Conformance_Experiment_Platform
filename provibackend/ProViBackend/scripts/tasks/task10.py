@@ -213,7 +213,7 @@ def task10_pie_chart(range_df: pd.DataFrame, output_dir: str):
         ncol=min(len(active), 3),
     )
     ax.set_title("Conformance Range Proportions", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task10_pie_chart.svg"))
 
 
@@ -240,7 +240,7 @@ def task10_table(range_df: pd.DataFrame, output_dir: str):
         highlight_last_row=True,
     )
     ax.set_title("Conformance Range Summary", fontsize=FONT_TITLE, pad=12)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task10_table.svg"))
 
 
@@ -272,9 +272,9 @@ def task10_stacked_bar(range_df: pd.DataFrame, output_dir: str):
     ax.spines[["top", "right", "left"]].set_visible(False)
     ax.legend(handles=[mpatches.Patch(color=c, label=l)
                        for c, l in zip(colors, range_df["range"])],
-              loc="upper center", bbox_to_anchor=(0.5, -0.30),
-              ncol=min(len(range_df), 5), frameon=False, fontsize=FONT_ANNOT - 1)
-    fig.tight_layout()
+              loc="lower center", bbox_to_anchor=(0.5, -0.30),
+              ncol=min(len(range_df), 5), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 
@@ -324,9 +324,9 @@ def task10_box_plot(fitness_df: pd.DataFrame, output_dir: str):
     ax.set_ylim(-0.05, 1.1)
     ax.set_title("Per-trace Conformance Distribution", fontsize=FONT_TITLE)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.5)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 
@@ -352,7 +352,7 @@ def task10_heatmap(time_df: pd.DataFrame, output_dir: str):
                        month_labels, xlabel="Month", cbar_label="# Traces",
                        cell_fmt="{:.0f}", rotate_xticks=30)
     ax.set_title("Conformance Category Distribution over Months", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 
@@ -387,9 +387,9 @@ def task10_scatter_plot(fitness_df: pd.DataFrame, output_dir: str):
     ax.legend(frameon=False, fontsize=FONT_ANNOT - 1, title="Category",
               title_fontsize=FONT_ANNOT - 1, loc="lower right")
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.4)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 
@@ -419,7 +419,7 @@ def task10_table_bar_chart(range_df: pd.DataFrame, output_dir: str):
     ax_b.set_xlabel("# Traces", fontsize=FONT_LABEL)
     ax_b.spines[["top", "right"]].set_visible(False)
     ax_b.set_title("Traces per category", fontsize=FONT_TITLE, pad=8)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 

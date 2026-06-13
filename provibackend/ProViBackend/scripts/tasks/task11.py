@@ -197,7 +197,7 @@ def task11_pie_chart(type_totals, n_violations, output_dir):
         ncol=min(len(types), 3),
     )
     ax.set_title("Guideline Violations by Type", fontsize=FONT_TITLE, pad=16)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task11_pie_chart.svg"))
 
 
@@ -281,7 +281,7 @@ def task11_heatmap(activity_type, activity_totals, type_totals, n_violations, ou
     for spine in ax.spines.values():
         spine.set_visible(False)
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task11_heatmap.svg"))
 
 
@@ -367,7 +367,7 @@ def task11_table(activity_totals, type_totals, n_violations, output_dir):
         f"Guideline Violation Frequency — Pareto Ranking  (top {n_rows})",
         fontsize=FONT_TITLE, pad=14,
     )
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task11_table.svg"))
 
 
@@ -451,7 +451,7 @@ def task11_table_bar_chart(activity_totals, type_totals, n_violations, output_di
         f"Violation Frequency Ranking  (top {n})  ·  {n_violations:,} total violations",
         fontsize=FONT_TITLE + 1, y=1.01,
     )
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task11_table_bar_chart.svg"))
 
 
@@ -507,18 +507,18 @@ def task11_stacked_bar(activity_type, activity_totals, output_dir):
         fontsize=FONT_TITLE,
     )
     ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.25)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
     ax.legend(
-        loc="upper center",
-        bbox_to_anchor=(0.5, -0.08),
+        loc="lower center",
+        bbox_to_anchor=(0.5, -0.25),
         ncol=3,
         fontsize=FONT_ANNOT,
         frameon=True,
         framealpha=0.9,
     )
 
-    fig.tight_layout(rect=[0, 0.06, 1, 1])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task11_stacked_bar.svg"))
 
 
@@ -629,7 +629,7 @@ def task11_flow_chart_elaborate_bpmn_table(activity_totals, type_totals, n_viola
         f"Violation Frequency Ranking  (top {n_rows})  ·  {n_violations:,} total  ({type_summary})",
         fontsize=FONT_TITLE, pad=14,
     )
-    tbl_fig.tight_layout()
+    tbl_fig.tight_layout(pad=1.2)
 
     buf = _io.BytesIO()
     tbl_fig.savefig(buf, format="svg", bbox_inches="tight")

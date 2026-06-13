@@ -361,9 +361,10 @@ def task03_stacked_bar(trace_rows: list, output_dir: str):
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
-    ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1.0), frameon=False,
-              fontsize=FONT_ANNOT - 1, title="Activity", title_fontsize=FONT_ANNOT)
-    fig.tight_layout()
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=max(1, len(handles)), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task03_stacked_bar.svg"))
 
 

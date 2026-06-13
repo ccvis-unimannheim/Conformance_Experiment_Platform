@@ -192,12 +192,12 @@ def task33_stacked_bar(trace_df, groups, attr, output_dir):
     ax.set_ylim(0, 105)
     ax.set_title(f"Fitness Band Composition per Sub-log ({attr})", fontsize=FONT_TITLE)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.4)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    ax.legend(title="Fitness band", frameon=False, fontsize=FONT_ANNOT - 1,
-              title_fontsize=FONT_ANNOT,
-              loc="upper left", bbox_to_anchor=(1.01, 1), borderaxespad=0)
-    fig.tight_layout()
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=max(1, len(handles)), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task33_stacked_bar.svg"))
 
 
@@ -243,9 +243,9 @@ def task33_scatter_plot(trace_df, groups, meta, attr, output_dir):
     ax.legend(frameon=False, fontsize=FONT_ANNOT, title="Sub-log",
               title_fontsize=FONT_ANNOT, loc="lower right")
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.4)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task33_scatter_plot.svg"))
 
 
@@ -280,7 +280,7 @@ def task33_boxplot(trace_df, groups, attr, output_dir):
                 transform=ax.transAxes, ha="right", va="bottom",
                 fontsize=FONT_ANNOT - 2, color="#999999")
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task33_boxplot.svg"))
 
 
@@ -315,7 +315,7 @@ def task33_table(stats_df, attr, output_dir):
         scale_xy=(1, 1.4),
     )
     ax.set_title(f"Fitness Statistics per Sub-log ({attr})", fontsize=FONT_TITLE, pad=10)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task33_table.svg"))
 
 
@@ -393,7 +393,7 @@ def task33_matrix(trace_df, groups, attr, output_dir):
     draw_rate_matrix(fig, ax, data, band_names, groups,
                      xlabel=f"Sub-log ({attr})", cbar_label="% of sub-log traces")
     ax.set_title("Fitness Band Distribution Matrix (%)", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task33_matrix.svg"))
 
 
@@ -413,7 +413,7 @@ def task33_heatmap(trace_df, groups, attr, output_dir):
                        cbar_label="% of sub-log traces",
                        annotate=False, rotate_xticks=0)
     ax.set_title("Fitness Distribution Heatmap (fine bins)", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task33_heatmap.svg"))
 
 

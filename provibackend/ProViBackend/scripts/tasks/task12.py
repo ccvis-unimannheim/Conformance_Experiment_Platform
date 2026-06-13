@@ -160,7 +160,7 @@ def task12_tile_metric(stats, output_dir):
                 transform=ax.transAxes)
 
     fig.suptitle("Process Conformance Summary", fontsize=FONT_TITLE + 1, y=1.02)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task12_tile_metric.svg"))
 
 
@@ -211,7 +211,7 @@ def task12_pie_chart(stats, output_dir):
         ncol=2,
     )
     ax.set_title("Conformant vs Deviating Traces", fontsize=FONT_TITLE, pad=16)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task12_pie_chart.svg"))
 
 
@@ -332,18 +332,18 @@ def task12_stacked_bar(stats, output_dir):
         fontsize=FONT_TITLE,
     )
     ax.spines[["top", "right", "left"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.25)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
     ax.legend(
         handles=patches,
-        loc="upper center",
-        bbox_to_anchor=(0.5, -0.20),
+        loc="lower center",
+        bbox_to_anchor=(0.5, -0.25),
         ncol=3,
         fontsize=FONT_ANNOT,
         frameon=True, framealpha=0.9,
     )
 
-    fig.tight_layout(rect=[0, 0.10, 1, 1])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task12_stacked_bar.svg"))
 
 
@@ -434,7 +434,7 @@ def task12_table(stats, output_dir):
         f"Process Conformance Breakdown  ·  {n_t:,} total traces",
         fontsize=FONT_TITLE, pad=14,
     )
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task12_table.svg"))
 
 
@@ -514,7 +514,7 @@ def task12_table_bar_chart(stats, output_dir):
         f"Process Conformance Breakdown  ·  {n_t:,} total traces",
         fontsize=FONT_TITLE + 1, y=1.01,
     )
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task12_table_bar_chart.svg"))
 
 

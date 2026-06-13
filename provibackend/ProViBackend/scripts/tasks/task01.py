@@ -181,9 +181,9 @@ def task01_scatter_plot(df: pd.DataFrame, output_dir: str):
     ax.set_title("Conformance Rate per Trace by Outcome Group", fontsize=FONT_TITLE)
     ax.legend(frameon=False, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.4)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task01_scatter_plot.svg"))
 
 
@@ -213,7 +213,7 @@ def task01_table(stats_df: pd.DataFrame, output_dir: str):
         cell_pad=0.12,
     )
     ax.set_title("Conformance Comparison by Outcome Group", fontsize=FONT_TITLE, pad=12)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task01_table.svg"))
 
 
@@ -266,7 +266,7 @@ def task01_table_and_bar_chart(stats_df: pd.DataFrame, output_dir: str):
     ax_bar.yaxis.grid(True, linestyle="--", alpha=0.5)
     ax_bar.set_axisbelow(True)
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task01_table_and_bar_chart.svg"))
 
 
@@ -380,7 +380,7 @@ def task01_parallel_sets(df: pd.DataFrame, output_dir: str):
     ax.text(x_right, 1.08, "Conformance Category", ha="center", va="bottom",
             fontsize=FONT_LABEL, fontweight="bold")
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task01_parallel_sets.svg"))
 
 
@@ -402,11 +402,12 @@ def task01_stacked_bar(df: pd.DataFrame, output_dir: str):
     ax.set_ylabel("Number of Traces", fontsize=FONT_LABEL)
     ax.set_title("Conformance-Category Composition per Outcome Group", fontsize=FONT_TITLE)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.5)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1.0), frameon=False,
-              fontsize=FONT_ANNOT, title="Conformance", title_fontsize=FONT_ANNOT)
-    fig.tight_layout()
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=max(1, len(handles)), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task01_stacked_bar.svg"))
 
 
@@ -432,9 +433,9 @@ def task01_line_graph(ts_df: pd.DataFrame, output_dir: str):
     ax.tick_params(axis="x", labelrotation=30, labelsize=FONT_ANNOT)
     ax.legend(frameon=False, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.4)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task01_line_graph.svg"))
 
 
@@ -465,7 +466,7 @@ def task01_horizon_chart(ts_df: pd.DataFrame, output_dir: str):
     axes[-1, 0].tick_params(axis="x", labelrotation=30, labelsize=FONT_ANNOT)
     fig.suptitle("Monthly Conformance Horizon by Outcome Group (vs. own mean)",
                  fontsize=FONT_TITLE, y=0.99)
-    fig.tight_layout(rect=[0, 0, 1, 0.96])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task01_horizon_chart.svg"))
 
 
@@ -476,7 +477,7 @@ def task01_box_plot(df: pd.DataFrame, output_dir: str):
     draw_grouped_box_plot(ax, data, _GROUPS, _GROUP_COLORS,
                           ylabel="Conformance Rate (0.0 – 1.0)")
     ax.set_title("Fitness Distribution per Outcome Group", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task01_box_plot.svg"))
 
 
@@ -491,7 +492,7 @@ def task01_matrix(df: pd.DataFrame, output_dir: str):
                        xlabel="Conformance Category", cbar_label="Traces",
                        cell_fmt="{:.0f}", annotate=True, rotate_xticks=15)
     ax.set_title("Outcome Group × Conformance Category (trace counts)", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task01_matrix.svg"))
 
 
@@ -516,7 +517,7 @@ def task01_heatmap(ts_df: pd.DataFrame, output_dir: str):
                        cbar_label="Mean fitness", cell_fmt="{:.2f}",
                        annotate=False, rotate_xticks=30)
     ax.set_title("Mean Fitness by Outcome Group and Month", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task01_heatmap.svg"))
 
 
