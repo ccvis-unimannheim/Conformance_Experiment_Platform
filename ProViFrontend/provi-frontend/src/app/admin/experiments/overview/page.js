@@ -29,14 +29,17 @@ function StatusBadge({ status }) {
 
 // Generic ground-truth summary — renders whatever the GT block currently
 // holds, regardless of gt_shape (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §8, §11).
-function GroundTruthSummary({ gt }) {
+function GroundTruthSummary({ gt, rubric }) {
   if (!gt) {
     return <p className="text-xs text-on-surface-variant italic">Ground truth not yet configured.</p>;
   }
 
   const hasValue = gt.value !== null && gt.value !== undefined && gt.value !== "";
   const hasOptions = (gt.options || []).length > 0;
-  const hasReference = !!(gt.reference && gt.reference.trim());
+  // Rubric is task-level (read-only); prefer any computed reference text, else
+  // fall back to the task's static rubric.
+  const refText = (gt.reference && gt.reference.trim()) ? gt.reference : (rubric || "");
+  const hasReference = !!refText.trim();
 
   if (hasValue) {
     return (
@@ -65,7 +68,7 @@ function GroundTruthSummary({ gt }) {
   }
 
   if (hasReference) {
-    return <p className="text-xs text-on-surface-variant line-clamp-2">{gt.reference}</p>;
+    return <p className="text-xs text-on-surface-variant line-clamp-2">{refText}</p>;
   }
 
   return <p className="text-xs text-on-surface-variant italic">No rubric written yet.</p>;
@@ -80,6 +83,7 @@ function ExperimentOverviewContent() {
   const [idiomMap, setIdiomMap] = useState({});
   const [groupedTasks, setGroupedTasks] = useState([]);
   const [taskInstancesByTask, setTaskInstancesByTask] = useState({});
+  const [rubricsByTask, setRubricsByTask] = useState({});
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("draft");
 
@@ -153,6 +157,25 @@ function ExperimentOverviewContent() {
           idiomIds: idiomsByTask[tid] || [],
         }))
       );
+
+      // Load each task's static, task-level rubric for read-only display.
+      const rubrics = {};
+      await Promise.all(
+        taskOrder.map(async (tid) => {
+          const taskKey = tMap[tid]?.task_key;
+          if (!taskKey) return;
+          try {
+            const res = await fetch(`/api/admin/tasks/${encodeURIComponent(taskKey)}/rubric`);
+            if (res.ok) {
+              const data = await res.json();
+              rubrics[tid] = data.rubric ?? null;
+            }
+          } catch {
+            // leave undefined; summary falls back gracefully
+          }
+        })
+      );
+      setRubricsByTask(rubrics);
     } catch (e) {
       showToast(`Could not load experiment: ${e.message}`, true);
     } finally {
@@ -444,7 +467,7 @@ function ExperimentOverviewContent() {
                         Ground Truth
                       </p>
                       <div className="border border-border-subtle rounded-lg p-4 flex items-start justify-between gap-4">
-                        <GroundTruthSummary gt={ti?.ground_truth} />
+                        <GroundTruthSummary gt={ti?.ground_truth} rubric={rubricsByTask[tid]} />
                         <Link
                           href={gtHref}
                           className="text-xs text-primary border border-primary/30 px-3 py-1.5 rounded hover:bg-blue-50 transition-colors flex-shrink-0"

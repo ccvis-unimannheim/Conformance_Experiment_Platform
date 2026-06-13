@@ -33,15 +33,17 @@ function decisiveDefaultFor(formatKey, answerFormats) {
   return findFormat(formatKey, answerFormats)?.decisive_default ?? false;
 }
 
-function seedGroundTruth(formatKey, answerFormats, rubric, gtTier) {
+function seedGroundTruth(formatKey, answerFormats, gtTier) {
   const shape = shapeFor(formatKey, answerFormats);
+  // The grading rubric is task-level and read-only (served by
+  // /tasks/{task_key}/rubric); it is never seeded into the per-instance GT.
   return {
     tier: gtTier || "MANUAL",
     format: formatKey,
     decisive: decisiveDefaultFor(formatKey, answerFormats),
     value: shape === "scalar" ? "" : null,
     options: [],
-    reference: shape === "reference" ? (rubric || "") : null,
+    reference: null,
     artefact_path: null,
   };
 }
@@ -254,7 +256,7 @@ function MatrixEditor({ gt, onChange }) {
   );
 }
 
-function ReferenceEditor({ gt, rubricInfo, onChange, onReset }) {
+function ReferenceEditor({ gt, rubricInfo }) {
   return (
     <div className="flex flex-col gap-3">
       <div>
@@ -273,34 +275,27 @@ function ReferenceEditor({ gt, rubricInfo, onChange, onReset }) {
         )}
       </div>
       <div className="flex flex-col gap-1">
-        <div className="flex items-center justify-between">
-          <label className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
-            Grading rubric
-          </label>
-          <button
-            onClick={onReset}
-            className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
-          >
-            <span className="material-symbols-outlined text-sm">restart_alt</span> Reset to default rubric
-          </button>
-        </div>
-        <textarea
-          rows={5}
-          value={gt.reference ?? ""}
-          onChange={(e) => onChange({ ...gt, reference: e.target.value })}
-          placeholder={
-            rubricInfo?.rubric
-              ? undefined
-              : "No default rubric authored for this task yet — write one here, or leave blank."
-          }
-          className="w-full text-sm border border-border-subtle rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 resize-y"
-        />
+        <label className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
+          Grading rubric
+        </label>
+        {rubricInfo?.rubric ? (
+          <p className="text-sm text-on-surface whitespace-pre-wrap bg-surface-container-low rounded-lg px-3 py-2">
+            {rubricInfo.rubric}
+          </p>
+        ) : (
+          <p className="text-xs text-on-surface-variant italic bg-surface-container-low rounded-lg px-3 py-2">
+            No rubric authored for this task yet — add a RUBRIC constant to this task to display one here.
+          </p>
+        )}
+        <p className="text-[11px] text-on-surface-variant italic">
+          The rubric is defined per task and shared across all experiments; it is read-only here.
+        </p>
       </div>
     </div>
   );
 }
 
-function GroundTruthEditor({ gt, format, answerFormats, rubricInfo, groupName, onChange, onResetRubric }) {
+function GroundTruthEditor({ gt, format, answerFormats, rubricInfo, groupName, onChange }) {
   const shape = shapeFor(format, answerFormats);
   switch (shape) {
     case "scalar":
@@ -314,7 +309,7 @@ function GroundTruthEditor({ gt, format, answerFormats, rubricInfo, groupName, o
     case "matrix":
       return <MatrixEditor gt={gt} onChange={onChange} />;
     default:
-      return <ReferenceEditor gt={gt} rubricInfo={rubricInfo} onChange={onChange} onReset={onResetRubric} />;
+      return <ReferenceEditor gt={gt} rubricInfo={rubricInfo} />;
   }
 }
 
@@ -358,7 +353,7 @@ function seedInstances(instances, formatsByTask, rubricsByTask) {
 
     let groundTruth = ti.ground_truth;
     if (answerFormat && (!groundTruth || groundTruth.format !== answerFormat)) {
-      groundTruth = seedGroundTruth(answerFormat, taskFormats, rubricInfo.rubric, rubricInfo.gt_tier);
+      groundTruth = seedGroundTruth(answerFormat, taskFormats, rubricInfo.gt_tier);
     }
 
     return { ...ti, answer_format: answerFormat ?? null, ground_truth: groundTruth ?? null };
@@ -470,7 +465,7 @@ function GroundTruthContent() {
     setTaskInstances((prev) =>
       prev.map((ti) =>
         ti.task_id === taskId
-          ? { ...ti, answer_format: formatKey, ground_truth: seedGroundTruth(formatKey, taskFormats, rubricInfo.rubric, rubricInfo.gt_tier) }
+          ? { ...ti, answer_format: formatKey, ground_truth: seedGroundTruth(formatKey, taskFormats, rubricInfo.gt_tier) }
           : ti
       )
     );
@@ -483,17 +478,6 @@ function GroundTruthContent() {
   function handleDecisiveChange(taskId, decisive) {
     setTaskInstances((prev) =>
       prev.map((ti) => (ti.task_id === taskId ? { ...ti, ground_truth: { ...(ti.ground_truth || {}), decisive } } : ti))
-    );
-  }
-
-  function handleResetRubric(taskId) {
-    const rubricInfo = rubricsByTask[taskId] || { rubric: null };
-    setTaskInstances((prev) =>
-      prev.map((ti) =>
-        ti.task_id === taskId
-          ? { ...ti, ground_truth: { ...(ti.ground_truth || {}), reference: rubricInfo.rubric || "" } }
-          : ti
-      )
     );
   }
 
@@ -622,7 +606,6 @@ function GroundTruthContent() {
                         rubricInfo={rubricInfo}
                         groupName={ti.task_id}
                         onChange={(gt) => handleGtChange(ti.task_id, gt)}
-                        onResetRubric={() => handleResetRubric(ti.task_id)}
                       />
                     ) : (
                       <p className="text-xs text-on-surface-variant italic">

@@ -479,11 +479,12 @@ async def get_task_answer_formats(task_key: str):
 
 @router.get("/tasks/{task_key}/rubric", tags=["admin"])
 async def get_task_rubric(task_key: str):
-    """Return this task's static grading rubric for /answer-format-groundtruth's
-    "Reset to default rubric" action (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §8, §11).
+    """Return this task's static, task-level grading rubric for read-only display
+    on /answer-format-groundtruth and /overview (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §8, §11).
 
-    `rubric` is `null` if the task hasn't authored one yet (step 6) — the page
-    falls back to an empty editable reference.
+    The rubric is a single source of truth per task (the task's RUBRIC constant);
+    it is never copied into or editable on a per-experiment instance. `rubric` is
+    `null` if the task hasn't authored one yet (step 6).
     """
     if task_key not in _TASK_MODULES:
         raise HTTPException(status_code=404, detail=f"Unknown task '{task_key}'.")
@@ -659,18 +660,21 @@ def _resolve_answer_format(task_key: str, ti: dict) -> str | None:
 
 def _build_gt_block(task_key: str, answer_format: str, gt_raw: dict) -> dict:
     """Assemble a GroundTruthBlock from compute_ground_truth's raw output, filling
-    tier/format/decisive/reference defaults from the task's contract (§3, §8)."""
+    tier/format/decisive defaults from the task's contract (§3, §8).
+
+    The grading rubric is a static, task-level property (served by
+    /tasks/{task_key}/rubric) and is intentionally NOT copied into the
+    per-instance ground truth — `reference` only ever holds reference text that
+    compute_ground_truth explicitly returns."""
     formats = task_registry.get_answer_formats(task_key)
     fmt = next((f for f in formats if f.get("key") == answer_format), None) or (formats[0] if formats else {})
-    shape = fmt.get("gt_shape", "reference")
-    rubric = task_registry.get_rubric(task_key)
     return {
         "tier": task_registry.get_gt_tier(task_key),
         "format": answer_format,
         "decisive": bool(gt_raw.get("decisive", fmt.get("decisive_default", False))),
         "value": gt_raw.get("value"),
         "options": gt_raw.get("options", []),
-        "reference": gt_raw.get("reference", rubric if shape == "reference" else None),
+        "reference": gt_raw.get("reference"),
         "artefact_path": gt_raw.get("artefact_path"),
     }
 

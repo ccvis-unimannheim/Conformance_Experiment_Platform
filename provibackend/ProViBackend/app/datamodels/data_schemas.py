@@ -176,7 +176,7 @@ class GroundTruthBlock(BaseModel):
     decisive: bool = False             # derived from format, admin-overridable
     value: Optional[Any] = None        # scalar / set / rank / matrix per format
     options: List[OptionItem] = []     # MC: full closed set incl. distractors
-    reference: Optional[str] = None    # free-text rubric (seeded from task RUBRIC, editable)
+    reference: Optional[str] = None    # optional reference text from compute_ground_truth; the grading rubric is task-level (served by /tasks/{task_key}/rubric), not stored here
     artefact_path: Optional[str] = None
 
 class TaskInstance(BaseModel):
