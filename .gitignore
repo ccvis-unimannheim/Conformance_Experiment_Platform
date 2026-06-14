@@ -15,3 +15,21 @@ provibackend/ProVibackend/output/
 provibackend/ProVibackend/data/
 provibackend/ProViBackend/scripts/generate_all_local.py
 check_idioms.py
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+
+# Next.js / Node
+.next/
+node_modules/
+npm-debug.log*
