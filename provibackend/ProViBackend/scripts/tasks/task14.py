@@ -15,7 +15,9 @@ logger = logging.getLogger(__name__)
 
 IDIOMS = [
     "table", "bar_chart", "scatter_plot",
-    "flow_chart_table", "flow_chart_elaborate", "flow_chart_elaborate_table",
+    "flow_chart_table",
+    # "flow_chart_elaborate",  # commented out
+    "flow_chart_elaborate_table",
     "table_bar_chart", "parallel_sets",
 ]
 
@@ -366,7 +368,7 @@ def task14_flow_chart_and_table(ctx, output_dir):
         ax_tbl,
         cell_text=cell_text,
         col_labels=["Step", "Activity", "Violation Type"],
-        bbox=[0.01, 0.04, 0.98, 0.82],
+        bbox=[0.0, 0.0, 1.0, 1.0],
         col_widths=[0.10, 0.50, 0.40],
         font_size=9,
         scale_xy=(1, 1.5),
@@ -660,7 +662,7 @@ def generate(alignments, model_path: str, output_dir: str):
     task14_bar_chart(ctx, output_dir)
     task14_scatter_plot(ctx, output_dir)
     task14_flow_chart_and_table(ctx, output_dir)
-    task14_flow_chart_elaborate(ctx, model_path, output_dir)
+    # task14_flow_chart_elaborate(ctx, model_path, output_dir)  # commented out
     task14_flow_chart_elaborate_table(ctx, model_path, output_dir)
     task14_table_bar_chart(ctx, output_dir)
     task14_parallel_sets(ctx, output_dir)
