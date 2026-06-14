@@ -41,19 +41,9 @@ GT_TIER = "AUTO"
 PARAM_SPEC = []
 
 ANSWER_FORMATS = [
-    {"key": "pct",       "gt_shape": "scalar",    "decisive_default": True},
-    {"key": "mc-single", "gt_shape": "mc-single",  "decisive_default": True},
-    {"key": "free-text", "gt_shape": "reference",  "decisive_default": False},
+    {"key": "pct",       "gt_shape": "scalar",   "decisive_default": True},
+    {"key": "mc-single", "gt_shape": "mc-single", "decisive_default": True},
 ]
-
-RUBRIC = (
-    "A complete answer states the overall log fitness as a percentage (0–100 %) "
-    "and interprets it: values at or near 100 % indicate strong conformance; values "
-    "well below 100 % indicate systematic deviations from the process model. "
-    "Award full marks for the correct value (±2 pp) with a correct qualitative "
-    "interpretation. Award partial marks for a correct directional interpretation "
-    "without the precise numeric value."
-)
 
 
 def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
@@ -88,7 +78,6 @@ def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer
         rng.shuffle(options)
         return {"value": None, "options": options}
 
-    # free-text: no computed value — admin fills in rubric from RUBRIC seed
     return {"value": None, "options": []}
 
 import os
