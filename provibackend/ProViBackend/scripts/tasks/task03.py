@@ -254,7 +254,6 @@ def task03_bar_chart(presence_df: pd.DataFrame, throughput_buckets, variant_df: 
     ax.set_title(f"Activity Presence (top-{len(acts)})", fontsize=FONT_LABEL)
     if len(acts):
         ax.set_ylim(0, min(115, presence_df[["Conformant", "Non-conformant"]].values.max() * 1.18))
-    ax.legend(frameon=False, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
@@ -271,7 +270,6 @@ def task03_bar_chart(presence_df: pd.DataFrame, throughput_buckets, variant_df: 
         ax.set_xticks(x)
         ax.set_xticklabels(labels, rotation=35, ha="right", fontsize=FONT_ANNOT - 1)
         ax.set_ylabel("# traces", fontsize=FONT_LABEL)
-        ax.legend(frameon=False, fontsize=FONT_ANNOT)
     else:
         ax.text(0.5, 0.5, "No throughput-time variance", ha="center", va="center",
                 transform=ax.transAxes, fontsize=FONT_ANNOT)
@@ -294,13 +292,17 @@ def task03_bar_chart(presence_df: pd.DataFrame, throughput_buckets, variant_df: 
     ax.set_title(f"Variant Composition (top-{len(variants)} by |Δ|)", fontsize=FONT_LABEL)
     if len(variants):
         ax.set_ylim(0, min(115, variant_df[["Conformant", "Non-conformant"]].values.max() * 1.18))
-    ax.legend(frameon=False, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
 
+    # Shared legend below all panels (outside chart area)
+    handles, lbls = axes[0].get_legend_handles_labels()
+    fig.legend(handles, lbls, loc="lower center", bbox_to_anchor=(0.5, 0),
+               ncol=2, frameon=False, fontsize=FONT_ANNOT)
+
     fig.suptitle("Conformant vs. Non-conformant: Behavioral Factor Composition", fontsize=FONT_TITLE)
-    fig.tight_layout(rect=[0, 0, 1, 0.93])
+    fig.tight_layout(rect=[0, 0.08, 1, 0.93])
     save_svg(fig, os.path.join(output_dir, "task03_bar_chart.svg"))
 
 
