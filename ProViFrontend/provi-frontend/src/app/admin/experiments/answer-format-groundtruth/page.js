@@ -357,6 +357,10 @@ function seedInstances(instances, formatsByTask, rubricsByTask) {
     if (!answerFormat && taskFormats.length === 1) {
       answerFormat = taskFormats[0].key;
     }
+    // If GT was computed during generation, use its format as the initial selection
+    if (!answerFormat && ti.ground_truth?.format) {
+      answerFormat = ti.ground_truth.format;
+    }
 
     const groundTruth = answerFormat
       ? pickGroundTruth(ti, answerFormat, taskFormats, rubricInfo)

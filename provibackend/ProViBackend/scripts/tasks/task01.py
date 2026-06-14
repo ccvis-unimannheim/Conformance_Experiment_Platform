@@ -32,7 +32,7 @@ GT_TIER = "SEMI"
 PARAM_SPEC = [
     {
         "key": "outcome_activity",
-        "label": "Outcome condition (activity present in trace marks the Positive group)",
+        "label": "Log split condition (activity present in trace marks the Positive group)",
         "widget": "activity-picker",
         "source": "log.activities",
         "default": "A_APPROVED",
@@ -104,6 +104,13 @@ _COLOR_POSITIVE = GREY_MED    # medium-dark grey  — Positive outcome group
 _COLOR_NEGATIVE = GREY_LIGHT  # medium grey       — Negative outcome group
 _GROUPS = ["Positive", "Negative"]
 _GROUP_COLORS = [_COLOR_POSITIVE, _COLOR_NEGATIVE]
+
+
+def _group_suffix(outcome_activity: str) -> str:
+    """Title suffix that surfaces the chosen split activity and documents what the
+    Positive/Negative groups mean, so each idiom's title varies with the activity
+    while the on-chart group/legend labels stay 'Positive'/'Negative'."""
+    return f"(Positive = '{outcome_activity}' present)"
 
 # Conformance categories used in Parallel Sets (ordered light → dark)
 _PSET_LABELS = ["Major deviation\n(< 0.8)", "Minor deviation\n(0.8 – <1.0)", "Conformant\n(= 1.0)"]
@@ -181,7 +188,7 @@ def _task01_conformance_category(fitness: float) -> str:
 # Visualizations
 # ---------------------------------------------------------------------------
 
-def task01_bar_chart(stats_df: pd.DataFrame, output_dir: str):
+def task01_bar_chart(stats_df: pd.DataFrame, output_dir: str, outcome_activity: str):
     """Two bars: mean conformance rate for Positive vs Negative group."""
     groups = stats_df["group"].tolist()
     means  = stats_df["mean_fitness"].tolist()
@@ -197,15 +204,16 @@ def task01_bar_chart(stats_df: pd.DataFrame, output_dir: str):
             ha="center", va="bottom", fontsize=FONT_ANNOT,
         )
     ax.set_ylabel("Mean Conformance Rate (0–1)", fontsize=FONT_LABEL)
-    ax.set_title("Mean Conformance Rate by Outcome Group", fontsize=FONT_TITLE)
+    ax.set_title(f"Mean Conformance Rate by Group {_group_suffix(outcome_activity)}",
+                 fontsize=FONT_TITLE)
     ax.set_ylim(0, 1.15)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
     ax.legend(
         handles=[
-            mpatches.Patch(color=_COLOR_POSITIVE, label="Positive outcome"),
-            mpatches.Patch(color=_COLOR_NEGATIVE, label="Negative outcome"),
+            mpatches.Patch(color=_COLOR_POSITIVE, label="Positive"),
+            mpatches.Patch(color=_COLOR_NEGATIVE, label="Negative"),
         ],
         loc="lower center", bbox_to_anchor=(0.5, -0.25),
         ncol=2, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT,
@@ -214,7 +222,7 @@ def task01_bar_chart(stats_df: pd.DataFrame, output_dir: str):
     save_svg(fig, os.path.join(output_dir, "task01_bar_chart.svg"))
 
 
-def task01_scatter_plot(df: pd.DataFrame, output_dir: str):
+def task01_scatter_plot(df: pd.DataFrame, output_dir: str, outcome_activity: str):
     """One dot per trace; x = trace index, y = fitness; color = outcome group."""
     pos_mask = df["outcome_group"] == "Positive"
     neg_mask = ~pos_mask
@@ -224,18 +232,19 @@ def task01_scatter_plot(df: pd.DataFrame, output_dir: str):
         ax.scatter(
             df.loc[pos_mask, "trace_index"], df.loc[pos_mask, "fitness"],
             c=_COLOR_POSITIVE, s=15, alpha=0.6, linewidths=0,
-            label="Positive outcome",
+            label="Positive",
         )
     if neg_mask.any():
         ax.scatter(
             df.loc[neg_mask, "trace_index"], df.loc[neg_mask, "fitness"],
             c=_COLOR_NEGATIVE, s=15, alpha=0.6, linewidths=0,
-            label="Negative outcome",
+            label="Negative",
         )
     ax.set_xlabel("Traces in Log ordered by time", fontsize=FONT_LABEL)
     ax.set_ylabel("Conformance Rate", fontsize=FONT_LABEL)
     ax.set_ylim(-0.05, 1.1)
-    ax.set_title("Conformance Rate per Trace by Outcome Group", fontsize=FONT_TITLE)
+    ax.set_title(f"Conformance Rate per Trace by Group {_group_suffix(outcome_activity)}",
+                 fontsize=FONT_TITLE)
     ax.legend(frameon=False, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
@@ -244,7 +253,7 @@ def task01_scatter_plot(df: pd.DataFrame, output_dir: str):
     save_svg(fig, os.path.join(output_dir, "task01_scatter_plot.svg"))
 
 
-def task01_table(stats_df: pd.DataFrame, output_dir: str):
+def task01_table(stats_df: pd.DataFrame, output_dir: str, outcome_activity: str):
     """Group | #Traces | #Conformant | % Conformant | Mean Fitness."""
     cell_text = [
         [
@@ -269,12 +278,13 @@ def task01_table(stats_df: pd.DataFrame, output_dir: str):
         scale_xy=(1, 1.9),
         cell_pad=0.12,
     )
-    ax.set_title("Conformance Comparison by Outcome Group", fontsize=FONT_TITLE, pad=12)
+    ax.set_title(f"Conformance Comparison by Group {_group_suffix(outcome_activity)}",
+                 fontsize=FONT_TITLE, pad=12)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task01_table.svg"))
 
 
-def task01_table_and_bar_chart(stats_df: pd.DataFrame, output_dir: str):
+def task01_table_and_bar_chart(stats_df: pd.DataFrame, output_dir: str, outcome_activity: str):
     """Table (left) + bar chart of mean fitness (right) in one figure."""
     fig = plt.figure(figsize=(12, 4.5))
     gs  = gridspec.GridSpec(1, 2, width_ratios=[1.6, 1.0], wspace=0.35)
@@ -302,7 +312,8 @@ def task01_table_and_bar_chart(stats_df: pd.DataFrame, output_dir: str):
         scale_xy=(1, 1.85),
         cell_pad=0.10,
     )
-    ax_tbl.set_title("Conformance Comparison by Outcome Group", fontsize=FONT_TITLE, pad=10)
+    ax_tbl.set_title(f"Conformance Comparison by Group {_group_suffix(outcome_activity)}",
+                     fontsize=FONT_TITLE, pad=10)
 
     # Right: bar chart
     ax_bar = fig.add_subplot(gs[1])
@@ -327,7 +338,7 @@ def task01_table_and_bar_chart(stats_df: pd.DataFrame, output_dir: str):
     save_svg(fig, os.path.join(output_dir, "task01_table_and_bar_chart.svg"))
 
 
-def task01_parallel_sets(df: pd.DataFrame, output_dir: str):
+def task01_parallel_sets(df: pd.DataFrame, output_dir: str, outcome_activity: str):
     """Parallel Sets: Outcome Group (left) × Conformance Category (right).
 
     Ribbon width proportional to number of traces. Implemented with matplotlib
@@ -351,7 +362,8 @@ def task01_parallel_sets(df: pd.DataFrame, output_dir: str):
         fig, ax = plt.subplots(figsize=(9, 5))
         ax.axis("off")
         ax.text(0.5, 0.5, "No data available.", ha="center", va="center", fontsize=12)
-        ax.set_title("Parallel Sets: Outcome Group vs. Conformance Category", fontsize=FONT_TITLE)
+        ax.set_title(f"Parallel Sets: Group vs. Conformance Category {_group_suffix(outcome_activity)}",
+                     fontsize=FONT_TITLE)
         save_svg(fig, os.path.join(output_dir, "task01_parallel_sets.svg"))
         return
 
@@ -359,7 +371,7 @@ def task01_parallel_sets(df: pd.DataFrame, output_dir: str):
     ax.axis("off")
     ax.set_xlim(-0.05, 1.05)
     ax.set_ylim(-0.05, 1.15)
-    ax.set_title("Parallel Sets: Outcome Group vs. Conformance Category",
+    ax.set_title(f"Parallel Sets: Group vs. Conformance Category {_group_suffix(outcome_activity)}",
                  fontsize=FONT_TITLE, pad=12)
 
     bar_w   = 0.10
@@ -432,7 +444,7 @@ def task01_parallel_sets(df: pd.DataFrame, output_dir: str):
             ))
 
     # Column labels
-    ax.text(x_left,  1.08, "Outcome Group",        ha="center", va="bottom",
+    ax.text(x_left,  1.08, "Group",                ha="center", va="bottom",
             fontsize=FONT_LABEL, fontweight="bold")
     ax.text(x_right, 1.08, "Conformance Category", ha="center", va="bottom",
             fontsize=FONT_LABEL, fontweight="bold")
@@ -445,7 +457,7 @@ def task01_parallel_sets(df: pd.DataFrame, output_dir: str):
 # Medium idioms
 # ---------------------------------------------------------------------------
 
-def task01_stacked_bar(df: pd.DataFrame, output_dir: str):
+def task01_stacked_bar(df: pd.DataFrame, output_dir: str, outcome_activity: str):
     """Per outcome group, composition by conformance category (counts)."""
     counts = np.zeros((len(_CAT_LABELS), len(_GROUPS)))
     for gi, g in enumerate(_GROUPS):
@@ -457,7 +469,8 @@ def task01_stacked_bar(df: pd.DataFrame, output_dir: str):
     draw_composition_stacked_bars(ax, _GROUPS, _CAT_LABELS, counts,
                                   segment_colors=_PSET_COLORS)
     ax.set_ylabel("Number of Traces", fontsize=FONT_LABEL)
-    ax.set_title("Conformance-Category Composition per Outcome Group", fontsize=FONT_TITLE)
+    ax.set_title(f"Conformance-Category Composition per Group {_group_suffix(outcome_activity)}",
+                 fontsize=FONT_TITLE)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
@@ -468,7 +481,7 @@ def task01_stacked_bar(df: pd.DataFrame, output_dir: str):
     save_svg(fig, os.path.join(output_dir, "task01_stacked_bar.svg"))
 
 
-def task01_line_graph(ts_df: pd.DataFrame, output_dir: str):
+def task01_line_graph(ts_df: pd.DataFrame, output_dir: str, outcome_activity: str):
     """Mean per-trace fitness per calendar month, one line per outcome group."""
     if ts_df.empty:
         render_empty_state_svg(os.path.join(output_dir, "task01_line_graph.svg"),
@@ -486,7 +499,8 @@ def task01_line_graph(ts_df: pd.DataFrame, output_dir: str):
     ax.yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1.0))
     ax.set_ylabel("Mean Conformance Rate", fontsize=FONT_LABEL)
     ax.set_xlabel("Month", fontsize=FONT_LABEL)
-    ax.set_title("Mean Conformance per Month by Outcome Group", fontsize=FONT_TITLE)
+    ax.set_title(f"Mean Conformance per Month by Group {_group_suffix(outcome_activity)}",
+                 fontsize=FONT_TITLE)
     ax.tick_params(axis="x", labelrotation=30, labelsize=FONT_ANNOT)
     ax.legend(frameon=False, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
@@ -496,7 +510,7 @@ def task01_line_graph(ts_df: pd.DataFrame, output_dir: str):
     save_svg(fig, os.path.join(output_dir, "task01_line_graph.svg"))
 
 
-def task01_horizon_chart(ts_df: pd.DataFrame, output_dir: str):
+def task01_horizon_chart(ts_df: pd.DataFrame, output_dir: str, outcome_activity: str):
     """Monthly mean-fitness series as a horizon strip per outcome group."""
     if ts_df.empty:
         render_empty_state_svg(os.path.join(output_dir, "task01_horizon_chart.svg"),
@@ -521,24 +535,25 @@ def task01_horizon_chart(ts_df: pd.DataFrame, output_dir: str):
         ax.spines[["top", "right"]].set_visible(False)
     axes[-1, 0].set_xlabel("Month", fontsize=FONT_LABEL)
     axes[-1, 0].tick_params(axis="x", labelrotation=30, labelsize=FONT_ANNOT)
-    fig.suptitle("Monthly Conformance Horizon by Outcome Group (vs. own mean)",
+    fig.suptitle(f"Monthly Conformance Horizon by Group {_group_suffix(outcome_activity)}",
                  fontsize=FONT_TITLE, y=0.99)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task01_horizon_chart.svg"))
 
 
-def task01_box_plot(df: pd.DataFrame, output_dir: str):
+def task01_box_plot(df: pd.DataFrame, output_dir: str, outcome_activity: str):
     """Per-trace fitness distribution per outcome group."""
     data = [df.loc[df["outcome_group"] == g, "fitness"].values for g in _GROUPS]
     fig, ax = plt.subplots(figsize=(5.5, 6))
     draw_grouped_box_plot(ax, data, _GROUPS, _GROUP_COLORS,
                           ylabel="Conformance Rate (0.0 – 1.0)")
-    ax.set_title("Fitness Distribution per Outcome Group", fontsize=FONT_TITLE)
+    ax.set_title(f"Fitness Distribution per Group {_group_suffix(outcome_activity)}",
+                 fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task01_box_plot.svg"))
 
 
-def task01_matrix(df: pd.DataFrame, output_dir: str):
+def task01_matrix(df: pd.DataFrame, output_dir: str, outcome_activity: str):
     """Outcome group × conformance category, annotated trace counts."""
     counts = np.zeros((len(_GROUPS), len(_CAT_LABELS)))
     for gi, g in enumerate(_GROUPS):
@@ -548,12 +563,13 @@ def task01_matrix(df: pd.DataFrame, output_dir: str):
     draw_value_heatmap(fig, ax, counts, _GROUPS, _CAT_LABELS,
                        xlabel="Conformance Category", cbar_label="Traces",
                        cell_fmt="{:.0f}", annotate=True, rotate_xticks=15)
-    ax.set_title("Outcome Group × Conformance Category (trace counts)", fontsize=FONT_TITLE)
+    ax.set_title(f"Group × Conformance Category, trace counts {_group_suffix(outcome_activity)}",
+                 fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task01_matrix.svg"))
 
 
-def task01_heatmap(ts_df: pd.DataFrame, output_dir: str):
+def task01_heatmap(ts_df: pd.DataFrame, output_dir: str, outcome_activity: str):
     """Outcome group × month, mean fitness, continuous colour."""
     if ts_df.empty:
         render_empty_state_svg(os.path.join(output_dir, "task01_heatmap.svg"),
@@ -573,12 +589,13 @@ def task01_heatmap(ts_df: pd.DataFrame, output_dir: str):
     draw_value_heatmap(fig, ax, data, _GROUPS, month_labels,
                        cbar_label="Mean fitness", cell_fmt="{:.2f}",
                        annotate=False, rotate_xticks=30)
-    ax.set_title("Mean Fitness by Outcome Group and Month", fontsize=FONT_TITLE)
+    ax.set_title(f"Mean Fitness by Group and Month {_group_suffix(outcome_activity)}",
+                 fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task01_heatmap.svg"))
 
 
-def task01_calendar(ts_df: pd.DataFrame, output_dir: str):
+def task01_calendar(ts_df: pd.DataFrame, output_dir: str, outcome_activity: str):
     """Small-multiple calendar (one per group): daily mean fitness."""
     if ts_df.empty:
         render_empty_state_svg(os.path.join(output_dir, "task01_calendar.svg"),
@@ -594,7 +611,7 @@ def task01_calendar(ts_df: pd.DataFrame, output_dir: str):
         per_group[g] = {d: float(v) for d, v in daily.items()}
     calendar_small_multiples(
         per_group, os.path.join(output_dir, "task01_calendar.svg"),
-        title="Daily Mean Fitness by Outcome Group",
+        title=f"Daily Mean Fitness by Group {_group_suffix(outcome_activity)}",
         cbar_label="Mean fitness", vmin=0.0, vmax=1.0,
     )
 
@@ -620,17 +637,17 @@ def generate(log, fitness_df, output_dir: str, outcome_activity: str = "A_ACTIVA
     if n_neg == 0:
         logger.warning("      All traces are Positive — no Negative group.")
 
-    task01_bar_chart(stats_df, output_dir)
-    task01_scatter_plot(df, output_dir)
-    task01_table(stats_df, output_dir)
-    task01_table_and_bar_chart(stats_df, output_dir)
-    task01_parallel_sets(df, output_dir)
+    task01_bar_chart(stats_df, output_dir, outcome_activity)
+    task01_scatter_plot(df, output_dir, outcome_activity)
+    task01_table(stats_df, output_dir, outcome_activity)
+    task01_table_and_bar_chart(stats_df, output_dir, outcome_activity)
+    task01_parallel_sets(df, output_dir, outcome_activity)
 
     ts_df = _task01_group_month_df(log, fitness_df, df)
-    task01_stacked_bar(df, output_dir)
-    task01_line_graph(ts_df, output_dir)
-    task01_horizon_chart(ts_df, output_dir)
-    task01_box_plot(df, output_dir)
-    task01_matrix(df, output_dir)
-    task01_heatmap(ts_df, output_dir)
-    task01_calendar(ts_df, output_dir)
+    task01_stacked_bar(df, output_dir, outcome_activity)
+    task01_line_graph(ts_df, output_dir, outcome_activity)
+    task01_horizon_chart(ts_df, output_dir, outcome_activity)
+    task01_box_plot(df, output_dir, outcome_activity)
+    task01_matrix(df, output_dir, outcome_activity)
+    task01_heatmap(ts_df, output_dir, outcome_activity)
+    task01_calendar(ts_df, output_dir, outcome_activity)

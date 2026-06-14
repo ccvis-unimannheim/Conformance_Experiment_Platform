@@ -1016,6 +1016,27 @@ def build_fitness_time_series(log, fitness_df):
 TIME_GRANULARITY_FREQ = {"year": "Y", "month": "M", "day": "D"}
 DEFAULT_TIME_GRANULARITY = "month"
 
+# Per-granularity x-axis tick formatting for the conformance-over-time charts.
+TIME_GRANULARITY_LABEL = {"year": "year", "month": "month", "day": "day"}
+
+
+def apply_time_axis(ax, time_granularity: str = DEFAULT_TIME_GRANULARITY):
+    """Set a date locator + formatter on ax.xaxis that matches the chosen bin
+    granularity, so day/month/year bins are actually labelled as such instead of
+    matplotlib's auto (always month-ish) ticks. Returns the normalised granularity."""
+    import matplotlib.dates as mdates
+    g = str(time_granularity).lower()
+    if g == "day":
+        loc, fmt = mdates.AutoDateLocator(), mdates.DateFormatter("%Y-%m-%d")
+    elif g == "year":
+        loc, fmt = mdates.YearLocator(), mdates.DateFormatter("%Y")
+    else:  # month (default / fallback)
+        g = "month"
+        loc, fmt = mdates.MonthLocator(), mdates.DateFormatter("%b '%y")
+    ax.xaxis.set_major_locator(loc)
+    ax.xaxis.set_major_formatter(fmt)
+    return g
+
 
 def bin_fitness_time_series(df, time_granularity: str = DEFAULT_TIME_GRANULARITY):
     """Aggregate per-trace fitness into fixed-granularity time bins.
@@ -1065,9 +1086,10 @@ def render_conformance_line_graph(df, out_path, *,
     ax.axhline(overall_mean, color=GREY_LIGHT, linewidth=1.2,
                linestyle="--", label=f"Overall mean: {overall_mean:.2f}")
 
+    g = apply_time_axis(ax, time_granularity)
     ax.set_ylim(-0.05, 1.1)
     ax.set_ylabel("Average Conformance Rate", fontsize=FONT_LABEL)
-    ax.set_xlabel("Time", fontsize=FONT_LABEL)
+    ax.set_xlabel(f"Time (binned by {g})", fontsize=FONT_LABEL)
     ax.set_title(title, fontsize=FONT_TITLE)
     ax.tick_params(axis="x", labelrotation=30, labelsize=FONT_ANNOT)
     ax.yaxis.set_major_formatter(_mticker.PercentFormatter(xmax=1.0))
@@ -1120,8 +1142,9 @@ def render_conformance_horizon_chart(df, out_path, *,
     ax.set_ylim(max(0.0, y.min() - y_pad), min(1.0, y.max() + y_pad))
     ax.yaxis.set_major_formatter(_mticker.PercentFormatter(xmax=1.0))
 
+    g = apply_time_axis(ax, time_granularity)
     ax.set_ylabel("Conformance Rate", fontsize=FONT_LABEL)
-    ax.set_xlabel("Time", fontsize=FONT_LABEL)
+    ax.set_xlabel(f"Time (binned by {g})", fontsize=FONT_LABEL)
     ax.set_title(title, fontsize=FONT_TITLE)
     ax.tick_params(axis="x", labelrotation=30, labelsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)

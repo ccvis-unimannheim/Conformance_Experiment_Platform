@@ -32,6 +32,7 @@ import matplotlib.colors as mcolors
 from shared import (
     save_svg, build_fitness_time_series, bin_fitness_time_series,
     render_conformance_line_graph, render_conformance_horizon_chart,
+    apply_time_axis,
     DEFAULT_TIME_GRANULARITY, TIME_GRANULARITY_FREQ,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
@@ -167,13 +168,15 @@ def task07_horizon_chart(df: pd.DataFrame, output_dir: str,
 # Idiom 3: Gantt Chart
 # ---------------------------------------------------------------------------
 
-def task07_gantt_chart(df: pd.DataFrame, output_dir: str):
+def task07_gantt_chart(df: pd.DataFrame, output_dir: str,
+                       time_granularity: str = DEFAULT_TIME_GRANULARITY):
     """Gantt chart: one row per trace, bar spanning start→end time.
 
     Bar shade encodes fitness via a white→black greyscale colormap scaled to
     the actual data range.
-    X-axis shows month/year labels; outlier traces clipped at 95th-pct end time.
-    Capped at _GANTT_MAX_TRACES rows for readability.
+    X-axis tick labels follow the chosen granularity (day/month/year); outlier
+    traces clipped at 95th-pct end time. Capped at _GANTT_MAX_TRACES rows for
+    readability.
     """
     if df is None or df.empty:
         _save_empty(output_dir, "task07_gantt_chart.svg", "No timestamp data available")
@@ -237,10 +240,9 @@ def task07_gantt_chart(df: pd.DataFrame, output_dir: str):
     ax.tick_params(axis="y", length=0)
     ax.invert_yaxis()
 
-    # X-axis: month/year labels
+    # X-axis: tick labels follow the chosen granularity (day/month/year)
     ax.xaxis_date()
-    ax.xaxis.set_major_locator(mdates.MonthLocator())
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%b '%y"))
+    apply_time_axis(ax, time_granularity)
     ax.tick_params(axis="x", labelrotation=30, labelsize=FONT_ANNOT)
 
     ax.xaxis.grid(True, linestyle="--", alpha=0.25, color="#bbbbbb")
@@ -295,4 +297,4 @@ def generate(log, fitness_df, output_dir: str,
 
     task07_line_graph(df, output_dir, time_granularity)
     task07_horizon_chart(df, output_dir, time_granularity)
-    task07_gantt_chart(df, output_dir)
+    task07_gantt_chart(df, output_dir, time_granularity)
