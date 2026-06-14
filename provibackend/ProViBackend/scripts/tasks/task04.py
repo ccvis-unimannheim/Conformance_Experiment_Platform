@@ -16,7 +16,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 IDIOMS = ["bar_chart", "scatter_plot", "table",
-          "stacked_bar", "line_graph", "box_plot", "table_bar_chart",
+          "stacked_bar", "line_graph", "table_bar_chart",
           "matrix", "heatmap"]
 
 # ---------------------------------------------------------------------------
@@ -124,9 +124,13 @@ def _task04_build_variant_df(log, fitness_df: pd.DataFrame) -> pd.DataFrame:
 # Visualizations
 # ---------------------------------------------------------------------------
 
-def task04_bar_chart(vdf: pd.DataFrame, output_dir: str):
-    """Bar chart: top-N variants × fitness; bars coloured by conformant / non-conformant."""
-    top = vdf.head(TOP_N)
+def task04_bar_chart(vdf: pd.DataFrame, output_dir: str, total_variants: int = 0):
+    """Bar chart: top-N variants × fitness; bars coloured by conformant / non-conformant.
+
+    ``vdf`` is already sliced to the admin-configured top_n; ``total_variants``
+    is the full count (for the x-axis label).
+    """
+    top = vdf
     colors = [GREY_MED if f >= 1.0 else GREY_LIGHT for f in top["fitness"]]
 
     fig, ax = plt.subplots(figsize=(max(7, len(top) * 0.75), 5))
@@ -149,7 +153,8 @@ def task04_bar_chart(vdf: pd.DataFrame, output_dir: str):
         loc="lower center", bbox_to_anchor=(0.5, -0.25),
         ncol=2, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT,
     )
-    ax.set_xlabel(f"Variant (ranked by frequency, top {len(top)} of {len(vdf)})",
+    n_total = total_variants or len(top)
+    ax.set_xlabel(f"Variant (ranked by frequency, top {len(top)} of {n_total})",
                   fontsize=FONT_LABEL)
     ax.set_ylabel("Fitness (0–1)", fontsize=FONT_LABEL)
     ax.set_title("Conformance Fitness by Process Variant", fontsize=FONT_TITLE)
@@ -161,10 +166,14 @@ def task04_bar_chart(vdf: pd.DataFrame, output_dir: str):
     save_svg(fig, os.path.join(output_dir, "task04_bar_chart.svg"))
 
 
-def task04_table(vdf: pd.DataFrame, output_dir: str):
-    """Table: Rank | #Traces | Coverage% | Fitness | Length for top-N variants."""
+def task04_table(vdf: pd.DataFrame, output_dir: str, total_variants: int = 0):
+    """Table: Rank | #Traces | Coverage% | Fitness | Length for top-N variants.
+
+    ``vdf`` is already sliced to the admin-configured top_n.
+    """
+    n = len(vdf)
     cell_text, col_labels, col_widths = variant_table_data(
-        vdf, TOP_N, include_length=True, rank_header="Variant",
+        vdf, n, include_length=True, rank_header="Variant",
     )
     fig_h = max(3.5, 1.3 + len(cell_text) * 0.46)
     fig, ax = plt.subplots(figsize=(9, fig_h))
@@ -179,8 +188,9 @@ def task04_table(vdf: pd.DataFrame, output_dir: str):
         scale_xy=(1, 1.75),
         cell_pad=0.11,
     )
+    n_total = total_variants or n
     ax.set_title(
-        f"Top-{len(cell_text)} Process Variants by Frequency (of {len(vdf)} total)",
+        f"Top-{len(cell_text)} Process Variants by Frequency (of {n_total} total)",
         fontsize=FONT_TITLE, pad=3,
     )
     fig.tight_layout(pad=1.2)
@@ -288,23 +298,17 @@ def task04_line_graph(vdf: pd.DataFrame, output_dir: str):
     save_svg(fig, os.path.join(output_dir, "task04_line_graph.svg"))
 
 
-def task04_box_plot(vdf: pd.DataFrame, fitness_df: pd.DataFrame, output_dir: str):
-    """Two boxes: variant-level fitness vs trace-level fitness (log/trace duality)."""
-    data = [vdf["fitness"].values, fitness_df["fitness"].values]
-    fig, ax = plt.subplots(figsize=(5.5, 6))
-    draw_grouped_box_plot(ax, data, ["Variant-level", "Trace-level"], [GREY_MED, GREY_LIGHT],
-                          ylabel="Fitness (0.0 – 1.0)")
-    ax.set_title("Variant-level vs. Trace-level Fitness", fontsize=FONT_TITLE)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task04_box_plot.svg"))
 
+def task04_table_bar_chart(vdf: pd.DataFrame, output_dir: str, total_variants: int = 0):
+    """Variant table (left) + adjacent fitness bar per variant (right).
 
-def task04_table_bar_chart(vdf: pd.DataFrame, output_dir: str):
-    """Variant table (left) + adjacent fitness bar per variant (right)."""
+    ``vdf`` is already sliced to the admin-configured top_n.
+    """
     from matplotlib import gridspec
-    top = vdf.head(TOP_N)
+    top = vdf
+    n = len(top)
     cell_text, col_labels, col_widths = variant_table_data(
-        vdf, TOP_N, include_length=True, rank_header="Variant")
+        vdf, n, include_length=True, rank_header="Variant")
 
     fig = plt.figure(figsize=(15, max(4.5, 1.2 + len(top) * 0.45)))
     gs = gridspec.GridSpec(1, 2, width_ratios=[1.5, 1.0], wspace=0.30)
@@ -348,8 +352,11 @@ def _variant_metric_grid(vdf: pd.DataFrame):
 
 
 def task04_matrix(vdf: pd.DataFrame, output_dir: str):
-    """Top-N variants × normalized metrics; colour = normalized, annotate raw values."""
-    top = vdf.head(TOP_N)
+    """Top-N variants × normalized metrics; colour = normalized, annotate raw values.
+
+    ``vdf`` is already sliced to the admin-configured top_n.
+    """
+    top = vdf
     raw, norm, metrics, labels = _variant_metric_grid(top)
     cmap = LinearSegmentedColormap.from_list("task04_mat", ["#F8F8F8", "#444444"])
     fmts = ["{:.3f}", "{:.1f}%", "{:.0f}"]
@@ -389,8 +396,14 @@ def task04_heatmap(vdf: pd.DataFrame, output_dir: str):
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def generate(log, fitness_df, output_dir: str):
-    """Generate all Task ID 4 SVGs into output_dir."""
+def generate(log, fitness_df, output_dir: str, top_n: int = TOP_N):
+    """Generate all Task ID 4 SVGs into output_dir.
+
+    ``top_n`` is the admin-configured number of variants (from PARAM_SPEC
+    "top_n"). Idioms that compare the selected variants are sliced to top_n;
+    overview idioms (scatter_plot, line_graph, box_plot, heatmap) always show
+    all variants so participants have full context.
+    """
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 4 visualizations ---")
 
@@ -399,17 +412,22 @@ def generate(log, fitness_df, output_dir: str):
         logger.warning("      Skipped Task 4: no trace data available.")
         return
 
-    logger.info(f"      -> {len(vdf)} unique variants; showing top-{min(TOP_N, len(vdf))}.")
-    if len(vdf) == 1:
+    n_total = len(vdf)
+    top_n   = min(top_n, n_total)
+    top_vdf = vdf.head(top_n)
+
+    logger.info(f"      -> {n_total} unique variants; showing top-{top_n}.")
+    if n_total == 1:
         logger.warning("      Only one variant found — charts will show a single entry.")
 
-    task04_bar_chart(vdf, output_dir)
-    task04_table(vdf, output_dir)
-    task04_scatter_plot(vdf, output_dir)
+    # Comparison idioms: sliced to top_n (match what GT was computed for)
+    task04_bar_chart(top_vdf, output_dir, total_variants=n_total)
+    task04_table(top_vdf, output_dir, total_variants=n_total)
+    task04_table_bar_chart(top_vdf, output_dir, total_variants=n_total)
+    task04_matrix(top_vdf, output_dir)
 
+    # Overview idioms: always all variants (context for the participant)
+    task04_scatter_plot(vdf, output_dir)
     task04_stacked_bar(vdf, output_dir)
     task04_line_graph(vdf, output_dir)
-    task04_box_plot(vdf, fitness_df, output_dir)
-    task04_table_bar_chart(vdf, output_dir)
-    task04_matrix(vdf, output_dir)
     task04_heatmap(vdf, output_dir)

@@ -258,7 +258,7 @@ function NumericSet({ options, value, onChange, answerFormat }) {
   );
 }
 
-function RankList({ value, onChange, options }) {
+function RankList({ value, onChange, options, answerFormat }) {
   const dragIndex = useRef(null);
   // value is the ordered list of tokens; map token -> display label
   const labelOf = useMemo(() => {
@@ -307,7 +307,9 @@ function RankList({ value, onChange, options }) {
           </span>
         </div>
       ))}
-      <p style={hintStyle}>Drag, or use ▲▼, to order from most (top) to least (bottom).</p>
+      <p style={hintStyle}>
+        Drag, or use ▲▼, to rank from most conformant (highest fitness) at top to least conformant at bottom.
+      </p>
     </>
   );
 }
@@ -422,7 +424,7 @@ export default function AnswerInput({ answerType, answerFormat, options = [], va
     case "numeric_set":
       return <NumericSet options={options} value={value} onChange={onChange} answerFormat={answerFormat} />;
     case "rank":
-      return <RankList options={options} value={value} onChange={onChange} />;
+      return <RankList options={options} value={value} onChange={onChange} answerFormat={answerFormat} />;
     case "matrix":
       return <MatrixGrid options={options} value={value} onChange={onChange} />;
     case "free_text":
