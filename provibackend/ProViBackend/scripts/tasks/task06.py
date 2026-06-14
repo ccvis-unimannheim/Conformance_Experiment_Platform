@@ -30,6 +30,67 @@ logger = logging.getLogger(__name__)
 IDIOMS = ["tile_metric", "bar_chart", "scatter_plot", "table",
           "flow_chart_elaborate", "tree"]
 
+# ---------------------------------------------------------------------------
+# Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8)
+#
+# Task 6 (AUTO): no hyperparameters needed — log fitness is computed directly
+# from the alignment output as mean per-trace fitness × 100, rounded.
+# ---------------------------------------------------------------------------
+GT_TIER = "AUTO"
+
+PARAM_SPEC = []
+
+ANSWER_FORMATS = [
+    {"key": "pct",       "gt_shape": "scalar",    "decisive_default": True},
+    {"key": "mc-single", "gt_shape": "mc-single",  "decisive_default": True},
+    {"key": "free-text", "gt_shape": "reference",  "decisive_default": False},
+]
+
+RUBRIC = (
+    "A complete answer states the overall log fitness as a percentage (0–100 %) "
+    "and interprets it: values at or near 100 % indicate strong conformance; values "
+    "well below 100 % indicate systematic deviations from the process model. "
+    "Award full marks for the correct value (±2 pp) with a correct qualitative "
+    "interpretation. Award partial marks for a correct directional interpretation "
+    "without the precise numeric value."
+)
+
+
+def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
+    """Mean per-trace fitness × 100, rounded to the nearest integer percentage.
+
+    For pct: returns a scalar string e.g. "87%".
+    For mc-single: correct option + 3 deterministic distractors (±10, ±20, ±30 pp,
+    clamped to [0, 100], shuffled by the correct value as seed).
+    """
+    mean_fit = float(fitness_df["fitness"].mean()) if len(fitness_df) > 0 else 0.0
+    pct = round(mean_fit * 100)
+
+    if answer_format == "pct":
+        return {"value": f"{pct}%", "options": []}
+
+    if answer_format == "mc-single":
+        distractors = []
+        for delta in [10, 20, 30]:
+            for sign in (1, -1):
+                candidate = max(0, min(100, pct + sign * delta))
+                if candidate != pct and candidate not in distractors:
+                    distractors.append(candidate)
+                if len(distractors) == 3:
+                    break
+            if len(distractors) == 3:
+                break
+        import random as _rnd
+        rng = _rnd.Random(pct)
+        options = [{"label": f"{pct}%", "value": f"{pct}%", "correct": True}] + [
+            {"label": f"{d}%", "value": f"{d}%", "correct": False} for d in distractors[:3]
+        ]
+        rng.shuffle(options)
+        return {"value": None, "options": options}
+
+    # free-text: no computed value — admin fills in rubric from RUBRIC seed
+    return {"value": None, "options": []}
+
 import os
 import numpy as np
 import matplotlib.pyplot as plt
