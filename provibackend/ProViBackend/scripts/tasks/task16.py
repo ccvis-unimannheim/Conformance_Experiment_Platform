@@ -634,7 +634,7 @@ _ALL_FNAMES_TITLES = [
 def generate(log, fitness_df, alignments, output_dir: str,
              model_path: str = None, compare_attribute: str = "AMOUNT_REQ"):
     os.makedirs(output_dir, exist_ok=True)
-    logger.info("\n--- Generating Task ID 16 visualizations ---")
+    logger.info("\n--- Generating Task 16 visualizations ---")
 
     viol_df   = _build_violation_df(alignments)
     act_totals = _activity_total_violations(viol_df)

@@ -31,7 +31,7 @@ from shared import (
     GREY_MED, GREY_LIGHT, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
-# Discovery-diff machinery is reused from task24 (no task35 module exists).
+# Discovery-diff machinery is reused from task24.
 try:
     from tasks.task24 import _compute_diff as _task24_compute_diff
 except ImportError:  # when imported from inside the scripts/ dir
@@ -163,9 +163,8 @@ def _task25_diff_styles(diff):
     return _node_style, _faded
 
 
-def task25_flow_chart_elaborate(log, model_path, output_dir):
+def task25_flow_chart_elaborate(diff, output_dir):
     """Desired model annotated with aggregated deviation marks — no fitness number."""
-    diff = _task24_compute_diff(log, model_path)
     node_style, faded = _task25_diff_styles(diff)
     render_bpmn_annotated(
         diff,
@@ -183,9 +182,8 @@ def task25_flow_chart_elaborate(log, model_path, output_dir):
     )
 
 
-def task25_flow_chart_table(log, model_path, output_dir):
+def task25_flow_chart_table(diff, output_dir):
     """Per-activity deviation table (raw counts; NO total/percentage row)."""
-    diff = _task24_compute_diff(log, model_path)
     dfg = diff["dfg_counts"]
     extra   = diff["extra_activities"]
     missing = diff["missing_activities"]
@@ -271,10 +269,10 @@ def generate(log, fitness_df, output_dir: str, model_path: str = None):
     aggregated deviations); when absent those two idioms are skipped.
     """
     os.makedirs(output_dir, exist_ok=True)
-    logger.info("\n--- Generating Task ID 25 visualizations ---")
+    logger.info("\n--- Generating Task 25 visualizations ---")
 
     if fitness_df is None or fitness_df.empty:
-        logger.warning("      Skipped Task ID 25: empty fitness DataFrame.")
+        logger.warning("      Skipped Task 25: empty fitness DataFrame.")
         return
 
     conform = int(fitness_df["is_fit"].sum())
@@ -296,8 +294,11 @@ def generate(log, fitness_df, output_dir: str, model_path: str = None):
 
     if model_path:
         try:
-            task25_flow_chart_elaborate(log, model_path, output_dir)
-            task25_flow_chart_table(log, model_path, output_dir)
+            # Compute the discovery diff once (silently — task24 logs its own
+            # summary under its own section) and reuse it for both idioms.
+            diff = _task24_compute_diff(log, model_path, log_summary=False)
+            task25_flow_chart_elaborate(diff, output_dir)
+            task25_flow_chart_table(diff, output_dir)
         except Exception as e:
             logger.warning(f"      task25: flow-chart idioms skipped ({e}).")
     else:

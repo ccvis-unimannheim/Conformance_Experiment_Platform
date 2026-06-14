@@ -415,7 +415,7 @@ def task05_heatmap(agg_df: pd.DataFrame, output_dir: str):
 def generate(log, alignments, output_dir: str, outcome_activity: str = "A_ACTIVATED"):
     """Generate all Task ID 5 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
-    logger.info("\n--- Generating Task ID 5 visualizations ---")
+    logger.info("\n--- Generating Task 5 visualizations ---")
 
     # Outcome group counts
     n_traces = {"Positive": 0, "Negative": 0}

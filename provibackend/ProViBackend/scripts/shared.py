@@ -927,19 +927,36 @@ CONFORMANCE_LABELS = ["0.0 – 0.2", "0.2 – 0.4", "0.4 – 0.6", "0.6 – 0.8"
 CONFORMANCE_CATEGORY_NAMES = ["Very Low", "Low", "Medium", "High", "Very High"]
 
 
-def conformance_category_index(fitness_value) -> int:
-    """Index 0..4 of the fixed conformance category for one fitness value."""
+def make_conformance_labels(bins) -> list:
+    """Human-readable "lo – hi" range labels for a list of conformance bin edges.
+
+    The final upper edge is clamped to 1.0 for display (the canonical bins use a
+    1.01 upper edge so fitness == 1.0 lands in the last left-closed bucket).
+    """
+    labels = []
+    for lo, hi in zip(bins[:-1], bins[1:]):
+        labels.append(f"{lo:.1f} – {min(float(hi), 1.0):.1f}")
+    return labels
+
+
+def conformance_category_index(fitness_value, bins=None) -> int:
+    """Index of the conformance category for one fitness value.
+
+    bins defaults to the canonical CONFORMANCE_BINS; pass a custom edge list to
+    categorize against configurable buckets (n categories == len(bins) - 1).
+    """
+    b = bins if bins is not None else CONFORMANCE_BINS
     f = float(fitness_value)
-    for i in range(len(CONFORMANCE_LABELS)):
-        if CONFORMANCE_BINS[i] <= f < CONFORMANCE_BINS[i + 1]:
+    for i in range(len(b) - 1):
+        if b[i] <= f < b[i + 1]:
             return i
-    return len(CONFORMANCE_LABELS) - 1
+    return len(b) - 2
 
 
-def conformance_category_series(fitness):
-    """Per-value category index (0..4) over the FIXED conformance buckets."""
+def conformance_category_series(fitness, bins=None):
+    """Per-value category index over the conformance buckets (canonical or custom)."""
     import pandas as pd
-    return pd.Series([conformance_category_index(x) for x in fitness], dtype=int)
+    return pd.Series([conformance_category_index(x, bins) for x in fitness], dtype=int)
 
 
 def conformance_category_counts(fitness):
@@ -983,6 +1000,133 @@ def build_fitness_time_series(log, fitness_df):
         return pd.DataFrame()
     df = pd.DataFrame(rows)
     return df.dropna(subset=["start_time"]).sort_values("start_time").reset_index(drop=True)
+
+
+# ---------------------------------------------------------------------------
+# Shared conformance-over-time renderers (used by task07 and task10)
+# ---------------------------------------------------------------------------
+
+# Time-bin granularity -> pandas period frequency. All three share one code path
+# (bin_fitness_time_series); only the date truncation differs.
+TIME_GRANULARITY_FREQ = {"year": "Y", "month": "M", "day": "D"}
+DEFAULT_TIME_GRANULARITY = "month"
+
+
+def bin_fitness_time_series(df, time_granularity: str = DEFAULT_TIME_GRANULARITY):
+    """Aggregate per-trace fitness into fixed-granularity time bins.
+
+    df: DataFrame with start_time + fitness columns (from build_fitness_time_series).
+    time_granularity: "year" | "month" | "day" (falls back to month if unknown).
+    Returns a DataFrame [time_bin, avg_fitness, n_traces].
+    """
+    freq = TIME_GRANULARITY_FREQ.get(str(time_granularity).lower(),
+                                     TIME_GRANULARITY_FREQ[DEFAULT_TIME_GRANULARITY])
+    df2 = df.copy()
+    df2["time_bin"] = df2["start_time"].dt.to_period(freq).dt.to_timestamp()
+    binned = (
+        df2.groupby("time_bin")["fitness"]
+        .agg(["mean", "count"])
+        .rename(columns={"mean": "avg_fitness", "count": "n_traces"})
+        .reset_index()
+    )
+    return binned
+
+
+def render_conformance_line_graph(df, out_path, *,
+                                  time_granularity: str = DEFAULT_TIME_GRANULARITY,
+                                  title: str = "Process Conformance Over Time"):
+    """Line graph of mean conformance per time bin (granularity-aware)."""
+    import matplotlib.ticker as _mticker
+
+    if df is None or df.empty:
+        render_empty_state_svg(out_path, title, "No timestamp data available")
+        return
+
+    binned = bin_fitness_time_series(df, time_granularity)
+    if len(binned) < 2:
+        render_empty_state_svg(out_path, title,
+                               "Insufficient time range for trend line "
+                               "(fewer than 2 time bins)")
+        return
+
+    fig, ax = plt.subplots(figsize=(12, 5))
+    x = binned["time_bin"]
+    y = binned["avg_fitness"]
+
+    ax.fill_between(x, y, alpha=0.18, color=GREY_MED)
+    ax.plot(x, y, color=GREY_MED, linewidth=1.8, marker="o", markersize=4)
+
+    overall_mean = df["fitness"].mean()
+    ax.axhline(overall_mean, color=GREY_LIGHT, linewidth=1.2,
+               linestyle="--", label=f"Overall mean: {overall_mean:.2f}")
+
+    ax.set_ylim(-0.05, 1.1)
+    ax.set_ylabel("Average Conformance Rate", fontsize=FONT_LABEL)
+    ax.set_xlabel("Time", fontsize=FONT_LABEL)
+    ax.set_title(title, fontsize=FONT_TITLE)
+    ax.tick_params(axis="x", labelrotation=30, labelsize=FONT_ANNOT)
+    ax.yaxis.set_major_formatter(_mticker.PercentFormatter(xmax=1.0))
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.4)
+    ax.set_axisbelow(True)
+    ax.legend(frameon=False, fontsize=FONT_ANNOT)
+
+    fig.tight_layout()
+    save_svg(fig, out_path)
+
+
+def render_conformance_horizon_chart(df, out_path, *,
+                                     time_granularity: str = DEFAULT_TIME_GRANULARITY,
+                                     title: str = "Process Conformance Over Time"):
+    """Horizon chart: filled area above/below the overall mean (granularity-aware).
+
+    Area above mean -> dark grey (higher conformance); below -> light grey.
+    """
+    import matplotlib.ticker as _mticker
+
+    if df is None or df.empty:
+        render_empty_state_svg(out_path, title, "No timestamp data available")
+        return
+
+    binned = bin_fitness_time_series(df, time_granularity)
+    if len(binned) < 2:
+        render_empty_state_svg(out_path, title,
+                               "Insufficient time range for horizon chart "
+                               "(fewer than 2 time bins)")
+        return
+
+    mean_val = df["fitness"].mean()
+    x = binned["time_bin"]
+    y = binned["avg_fitness"]
+
+    fig, ax = plt.subplots(figsize=(14, 5))
+
+    ax.fill_between(x, mean_val, y, where=(y >= mean_val), interpolate=True,
+                    color=GREY_DARK, alpha=0.75, label="Above mean (higher conformance)")
+    ax.fill_between(x, mean_val, y, where=(y <= mean_val), interpolate=True,
+                    color=GREY_LIGHTER, alpha=0.75, label="Below mean (lower conformance)")
+    ax.plot(x, y, color="#444444", linewidth=0.9, alpha=0.5)
+    ax.axhline(mean_val, color="#555555", linewidth=1.2, linestyle="--")
+    ax.annotate(f"Mean: {mean_val:.0%}", xy=(1.01, mean_val),
+                xycoords=("axes fraction", "data"),
+                fontsize=FONT_ANNOT, color="#555555", va="center")
+
+    y_pad = max((y.max() - y.min()) * 0.15, 0.01)
+    ax.set_ylim(max(0.0, y.min() - y_pad), min(1.0, y.max() + y_pad))
+    ax.yaxis.set_major_formatter(_mticker.PercentFormatter(xmax=1.0))
+
+    ax.set_ylabel("Conformance Rate", fontsize=FONT_LABEL)
+    ax.set_xlabel("Time", fontsize=FONT_LABEL)
+    ax.set_title(title, fontsize=FONT_TITLE)
+    ax.tick_params(axis="x", labelrotation=30, labelsize=FONT_ANNOT)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.3)
+    ax.set_axisbelow(True)
+    ax.legend(frameon=False, fontsize=FONT_ANNOT, loc="lower left")
+
+    fig.tight_layout()
+    save_svg(fig, out_path)
+
 
 # ---------------------------------------------------------------------------
 # Shared calendar heatmap  (GitHub-style weekday × week grid of a daily metric)

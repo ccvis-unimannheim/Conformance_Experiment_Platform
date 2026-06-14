@@ -330,11 +330,11 @@ def task04_heatmap(vdf: pd.DataFrame, output_dir: str):
 def generate(log, fitness_df, output_dir: str):
     """Generate all Task ID 4 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
-    logger.info("\n--- Generating Task ID 4 visualizations ---")
+    logger.info("\n--- Generating Task 4 visualizations ---")
 
     vdf = _task04_build_variant_df(log, fitness_df)
     if vdf.empty:
-        logger.warning("      Skipped Task ID 4: no trace data available.")
+        logger.warning("      Skipped Task 4: no trace data available.")
         return
 
     logger.info(f"      -> {len(vdf)} unique variants; showing top-{min(TOP_N, len(vdf))}.")

@@ -301,7 +301,7 @@ def generate(df, output_dir: str, log=None, alignments=None, model_path=None):
     The four df-only idioms always render; flow_chart_elaborate + decision_tree need
     the central log/alignments/model_path (absent → empty-state)."""
     os.makedirs(output_dir, exist_ok=True)
-    logger.info("\n--- Generating Task ID 6 visualizations ---")
+    logger.info("\n--- Generating Task 6 visualizations ---")
 
     task06_tile_metric(df, output_dir)
     task06_bar_chart(df, output_dir)

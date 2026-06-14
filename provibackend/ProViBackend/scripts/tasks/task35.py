@@ -679,7 +679,7 @@ def task35_flow_chart_elaborate_dfg(activity_type, activity_totals, log, output_
 
 def generate(log, alignments, output_dir, model_path=None):
     os.makedirs(output_dir, exist_ok=True)
-    logger.info("--- Generating Task 35 visualizations (Guideline violations in model) ---")
+    logger.info("\n--- Generating Task 35 visualizations (Guideline violations in model) ---")
 
     activity_type, activity_totals, type_totals, n_violations = _extract_data(alignments)
 

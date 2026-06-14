@@ -63,6 +63,66 @@ _VTYPE_SHORT = {
 
 _TOP_N = 12
 
+# Accepts full names or short codes (MoM/MoL/MM) when parsing a target spec.
+_VTYPE_FROM_TOKEN = {
+    "mom": "Move on Model", "move on model": "Move on Model",
+    "mol": "Move on Log",   "move on log":   "Move on Log",
+    "mm":  "Mismatch Move", "mismatch move": "Mismatch Move",
+}
+
+
+# ── Target-violation selection ────────────────────────────────────────────────
+
+def _resolve_target(target_violation, activity_type):
+    """Normalise a target-violation spec to an (activity, vtype) key that exists in
+    activity_type, or None if it cannot be matched.
+
+    Accepts a 2-tuple/list (activity, move_type) or a string "activity|move_type"
+    (also "activity::move_type"); the move_type may be a full name or a short code
+    (MoM / MoL / MM).
+    """
+    if target_violation is None:
+        return None
+    if isinstance(target_violation, (tuple, list)) and len(target_violation) == 2:
+        act, vt = str(target_violation[0]).strip(), str(target_violation[1]).strip()
+    else:
+        s = str(target_violation).strip()
+        if "|" in s:
+            act, vt = s.rsplit("|", 1)
+        elif "::" in s:
+            act, vt = s.rsplit("::", 1)
+        else:
+            return None
+        act, vt = act.strip(), vt.strip()
+    vt = _VTYPE_FROM_TOKEN.get(vt.lower(), vt)
+    key = (act, vt)
+    return key if key in activity_type else None
+
+
+def _available_pairs_str(activity_type, limit=40):
+    """Human-readable list of available (activity | move_type) pairs, most frequent first."""
+    pairs = sorted(activity_type.items(), key=lambda kv: -kv[1])
+    shown = ", ".join(f"({a} | {vt}: {c})" for (a, vt), c in pairs[:limit])
+    more = "" if len(pairs) <= limit else f"  … (+{len(pairs) - limit} more)"
+    return shown + more
+
+
+def _focus_caption(target, target_count, target_pct):
+    """Single-line caption naming the focus violation and its frequency / %."""
+    if not target:
+        return ""
+    act, vt = target
+    return (f"Focus violation:  {_short_label(act, 30)}  ·  {vt}   →   "
+            f"{target_count:,} occurrences  ({target_pct:.1f}% of all violations)")
+
+
+def _add_focus_caption(fig, target, target_count, target_pct):
+    """Draw the focus caption along the bottom of a figure (no-op without a target)."""
+    cap = _focus_caption(target, target_count, target_pct)
+    if cap:
+        fig.text(0.5, 0.012, cap, ha="center", va="bottom",
+                 fontsize=FONT_ANNOT, color=_C_DARK, fontweight="bold")
+
 
 # ── Data extraction (identical logic to task09) ───────────────────────────────
 
@@ -109,13 +169,18 @@ def _no_violations(output_dir, name):
 
 # ── Idiom 1: Bar Chart — per-activity total violation count ───────────────────
 
-def task11_bar_chart(activity_totals, n_violations, output_dir):
-    """Horizontal bar per activity, sorted by total violations."""
+def task11_bar_chart(activity_totals, n_violations, output_dir,
+                     target=None, target_count=0, target_pct=0.0):
+    """Horizontal bar per activity, sorted by total violations; the target
+    violation's activity is highlighted and its frequency / % captioned."""
     if not activity_totals:
         _no_violations(output_dir, "bar_chart")
         return
 
     top_acts = _top_activities(activity_totals, _TOP_N)
+    # Make sure the focus activity is visible even if it falls outside the top-N.
+    if target and target[0] not in top_acts:
+        top_acts = top_acts + [target[0]]
     counts   = [activity_totals[a] for a in top_acts]
     pcts     = [c / n_violations * 100 if n_violations > 0 else 0 for c in counts]
 
@@ -129,10 +194,14 @@ def task11_bar_chart(activity_totals, n_violations, output_dir):
     ax.set_facecolor("#fafbfc")
 
     for i, (act, cnt, pct, shade) in enumerate(zip(top_acts, counts, pcts, shades)):
-        ax.barh(i, cnt, color=shade, edgecolor="white", linewidth=0.6, height=0.65)
+        is_target = bool(target and act == target[0])
+        ax.barh(i, cnt, color=shade,
+                edgecolor=(_C_DARK if is_target else "white"),
+                linewidth=(2.6 if is_target else 0.6), height=0.65)
         ax.text(cnt + max_c * 0.012, i,
-                f"{cnt:,}  ({pct:.1f}%)",
-                va="center", fontsize=FONT_ANNOT, color=_C_DARK)
+                f"{cnt:,}  ({pct:.1f}%)" + ("  ◀ focus" if is_target else ""),
+                va="center", fontsize=FONT_ANNOT,
+                color=_C_DARK, fontweight=("bold" if is_target else "normal"))
 
     ax.set_yticks(range(n))
     ax.set_yticklabels([_short_label(a, 32) for a in top_acts], fontsize=FONT_ANNOT)
@@ -148,21 +217,36 @@ def task11_bar_chart(activity_totals, n_violations, output_dir):
     ax.set_axisbelow(True)
     ax.set_xlim(0, max_c * 1.32)
 
-    fig.tight_layout(pad=1.2)
+    _add_focus_caption(fig, target, target_count, target_pct)
+    fig.tight_layout(rect=[0, 0.05, 1, 1])
     save_svg(fig, os.path.join(output_dir, "task11_bar_chart.svg"))
 
 
 # ── Idiom 2: Pie Chart — violation type proportions ───────────────────────────
 
-def task11_pie_chart(type_totals, n_violations, output_dir):
-    """3-slice pie: Move on Model / Move on Log / Mismatch Move."""
-    if not type_totals:
+def task11_pie_chart(type_totals, n_violations, output_dir,
+                     target=None, target_count=0, target_pct=0.0):
+    """2-slice pie: the focus violation vs. all other violations — directly showing
+    what share of all violations the target accounts for."""
+    if not n_violations:
         _no_violations(output_dir, "pie_chart")
         return
-
-    types  = [t for t in _VTYPES if type_totals.get(t, 0) > 0]
-    counts = [type_totals[t] for t in types]
-    colors = [_VTYPE_COLOR[t] for t in types]
+    if not target:
+        # No focus selected (no violations): fall back to a type breakdown.
+        types  = [t for t in _VTYPES if type_totals.get(t, 0) > 0]
+        if not types:
+            _no_violations(output_dir, "pie_chart")
+            return
+        counts = [type_totals[t] for t in types]
+        colors = [_VTYPE_COLOR[t] for t in types]
+        labels = types
+    else:
+        act, vt = target
+        other = max(n_violations - target_count, 0)
+        counts = [target_count, other]
+        colors = [_C_DARK, _C_XLIGHT]
+        labels = [f"{_short_label(act, 22)} · {_VTYPE_SHORT.get(vt, vt)}",
+                  "All other violations"]
 
     def _autopct(pct):
         cnt = int(round(pct / 100 * n_violations))
@@ -174,8 +258,9 @@ def task11_pie_chart(type_totals, n_violations, output_dir):
         labels=None,
         colors=colors,
         autopct=_autopct,
-        startangle=90,
-        pctdistance=0.68,
+        startangle=140,
+        pctdistance=0.72,
+        explode=([0.06, 0.0] if target else None),
         wedgeprops={"edgecolor": "white", "linewidth": 2},
     )
     for atext, clr in zip(autotexts, colors):
@@ -183,33 +268,37 @@ def task11_pie_chart(type_totals, n_violations, output_dir):
         r = int(clr[1:3], 16)
         atext.set_color("white" if r < 150 else _C_DARK)
 
-    _VTYPE_DISPLAY = {
-        "Move on Model": "Model Move",
-        "Move on Log":   "Log Move",
-        "Mismatch Move": "Mismatch Move",
-    }
     ax.legend(
-        wedges, [f"{_VTYPE_DISPLAY.get(t, t)}  ({type_totals[t]:,})" for t in types],
+        wedges, [f"{lbl}  ({c:,})" for lbl, c in zip(labels, counts)],
         loc="lower center",
         bbox_to_anchor=(0.5, -0.08),
         fontsize=FONT_ANNOT,
         frameon=True, framealpha=0.9,
-        ncol=min(len(types), 3),
+        ncol=min(len(labels), 2),
     )
-    ax.set_title("Guideline Violations by Type", fontsize=FONT_TITLE, pad=16)
-    fig.tight_layout(pad=1.2)
+    title = ("Focus Violation vs. All Other Violations"
+             if target else "Guideline Violations by Type")
+    ax.set_title(f"{title}\n{n_violations:,} total violations",
+                 fontsize=FONT_TITLE, pad=16)
+    _add_focus_caption(fig, target, target_count, target_pct)
+    fig.tight_layout(rect=[0, 0.05, 1, 1])
     save_svg(fig, os.path.join(output_dir, "task11_pie_chart.svg"))
 
 
 # ── Idiom 3: Heatmap — activity × type with marginal totals ──────────────────
 
-def task11_heatmap(activity_type, activity_totals, type_totals, n_violations, output_dir):
-    """Activity × violation-type heatmap with row/column marginals and % annotations."""
+def task11_heatmap(activity_type, activity_totals, type_totals, n_violations, output_dir,
+                   target=None, target_count=0, target_pct=0.0):
+    """Activity × violation-type heatmap (colour = count) with row/column marginal
+    totals; the target (activity, move_type) cell is boxed. Cells carry no numbers,
+    matching the other tasks' heatmaps."""
     if not activity_totals:
         _no_violations(output_dir, "heatmap")
         return
 
     top_acts    = _top_activities(activity_totals, _TOP_N)
+    if target and target[0] not in top_acts:
+        top_acts = top_acts + [target[0]]
     short_labels = [_short_label(a, 30) for a in top_acts]
     n           = len(top_acts)
 
@@ -235,19 +324,9 @@ def task11_heatmap(activity_type, activity_totals, type_totals, n_violations, ou
     ax.set_yticks(range(n))
     ax.set_yticklabels(short_labels, fontsize=FONT_ANNOT)
 
-    # Cell annotations: count + (% of row total)
-    for i in range(n):
-        for j, vt in enumerate(_VTYPES):
-            val = int(mat[i, j])
-            if val > 0:
-                row_t = int(row_totals[i])
-                pct   = val / row_t * 100 if row_t > 0 else 0
-                brightness = im.norm(val)
-                txt_color  = "white" if brightness > 0.52 else _C_DARK
-                ax.text(j, i, f"{val:,}\n({pct:.0f}%)",
-                        ha="center", va="center",
-                        fontsize=max(FONT_ANNOT - 1.5, 6),
-                        color=txt_color, linespacing=1.3)
+    # Cells are not annotated with numbers, for consistency with the heatmaps in
+    # the other tasks — colour intensity encodes the count, marginals give totals,
+    # and the focus cell is boxed below.
 
     # Colorbar
     cbar = fig.colorbar(im, ax=ax, fraction=0.025, pad=0.01)
@@ -270,35 +349,42 @@ def task11_heatmap(activity_type, activity_totals, type_totals, n_violations, ou
                 ha="center", va="top",
                 fontsize=FONT_ANNOT - 1, color=_C_MED)
 
+    # The focus cell is named in the caption below; no in-cell frame (it cluttered
+    # the heatmap). The focus violation's count/% is carried by the caption.
+
     ax.set_xlim(-0.5, len(_VTYPES) - 0.5)
     ax.set_ylim(n - 0.5, -0.5)
     ax.set_title(
         f"Violation Frequency: Activity × Type  (top {n})\n"
-        f"Cell: count (% of row total)",
+        f"Colour = violation count  ·  row/column totals at the margins",
         fontsize=FONT_TITLE,
     )
     ax.tick_params(axis="both", length=0)
     for spine in ax.spines.values():
         spine.set_visible(False)
 
-    fig.tight_layout(pad=1.2)
+    _add_focus_caption(fig, target, target_count, target_pct)
+    fig.tight_layout(rect=[0, 0.05, 1, 1])
     save_svg(fig, os.path.join(output_dir, "task11_heatmap.svg"))
 
 
 # ── Idiom 4: Table — Pareto ranked table with cumulative % ───────────────────
 
-def task11_table(activity_totals, type_totals, n_violations, output_dir):
-    """Ranked table: Rank | Activity | MoM | MoL | MM | Total | %Total | Cum%."""
+def task11_table(activity_totals, type_totals, n_violations, output_dir,
+                 target=None, target_count=0, target_pct=0.0):
+    """Ranked table: Rank | Activity | MoM | MoL | MM | Total | %Total | Cum%.
+    The target violation's activity row is highlighted."""
     if not activity_totals:
         _no_violations(output_dir, "table")
         return
 
     top_acts = _top_activities(activity_totals, _TOP_N)
+    if target and target[0] not in top_acts:
+        top_acts = top_acts + [target[0]]
+    target_row_idx = top_acts.index(target[0]) if target and target[0] in top_acts else -1
     rows     = []
     cum      = 0.0
     for rank, act in enumerate(top_acts, 1):
-        from collections import Counter as _C
-        # activity_totals is passed, need the per-type from caller — rebuild here
         total = activity_totals[act]
         pct   = total / n_violations * 100 if n_violations > 0 else 0
         cum  += pct
@@ -332,24 +418,28 @@ def task11_table(activity_totals, type_totals, n_violations, output_dir):
     for i, row in enumerate(rows):
         y_top = t - (i + 2) * row_h
         x     = l
-        bg    = "#f5f5f5" if i % 2 == 0 else "white"
+        is_target_row = (i == target_row_idx)
+        bg    = "#cfcfcf" if is_target_row else ("#f5f5f5" if i % 2 == 0 else "white")
         # Highlight the cumulative column when it crosses 50% / 80%
         cum_val = float(row[-1].replace("%", ""))
         for j, (val, cw) in enumerate(zip(row, col_widths)):
             cell_bg = bg
-            if j == 4:  # Cumulative %
+            if j == 4 and not is_target_row:  # Cumulative %
                 if cum_val <= 50.0:
                     cell_bg = "#e8e8e8"
                 elif cum_val <= 80.0:
                     cell_bg = "#f0f0f0"
             ax.add_patch(plt.Rectangle((x, y_top), cw * tw, row_h,
-                                       fc=cell_bg, ec="#333333", linewidth=0.5,
+                                       fc=cell_bg,
+                                       ec=(_C_DARK if is_target_row else "#cccccc"),
+                                       linewidth=(1.4 if is_target_row else 0.6),
                                        transform=ax.transAxes, clip_on=False))
             ha = "left" if j == 1 else "center"
             px = x + 0.008 if j == 1 else x + cw * tw * 0.5
             ax.text(px, y_top + row_h * 0.5, str(val),
                     ha=ha, va="center", fontsize=FONT_ANNOT,
-                    color=_C_DARK, transform=ax.transAxes)
+                    color=_C_DARK, fontweight=("bold" if is_target_row else "normal"),
+                    transform=ax.transAxes)
             x += cw * tw
 
     # Footer: type totals
@@ -367,19 +457,25 @@ def task11_table(activity_totals, type_totals, n_violations, output_dir):
         f"Guideline Violation Frequency — Pareto Ranking  (top {n_rows})",
         fontsize=FONT_TITLE, pad=14,
     )
-    fig.tight_layout(pad=1.2)
+    _add_focus_caption(fig, target, target_count, target_pct)
+    fig.tight_layout(rect=[0, 0.05, 1, 1])
     save_svg(fig, os.path.join(output_dir, "task11_table.svg"))
 
 
 # ── Idiom 5: Table & Bar Chart — Pareto table + gradient horizontal bars ──────
 
-def task11_table_bar_chart(activity_totals, type_totals, n_violations, output_dir):
-    """Left: compact Pareto table. Right: gradient horizontal bars sorted by count."""
+def task11_table_bar_chart(activity_totals, type_totals, n_violations, output_dir,
+                           target=None, target_count=0, target_pct=0.0):
+    """Left: compact Pareto table. Right: gradient horizontal bars sorted by count.
+    The target violation's activity row and bar are highlighted."""
     if not activity_totals:
         _no_violations(output_dir, "table_bar_chart")
         return
 
     top_acts = _top_activities(activity_totals, _TOP_N)
+    if target and target[0] not in top_acts:
+        top_acts = top_acts + [target[0]]
+    target_row_idx = top_acts.index(target[0]) if target and target[0] in top_acts else -1
     counts   = [activity_totals[a] for a in top_acts]
     n        = len(top_acts)
     max_c    = max(counts) if counts else 1
@@ -417,25 +513,34 @@ def task11_table_bar_chart(activity_totals, type_totals, n_violations, output_di
     for i, row in enumerate(rows):
         y_top = t - (i + 2) * row_h
         x     = 0.015
-        bg    = "#f5f5f5" if i % 2 == 0 else "white"
+        is_target_row = (i == target_row_idx)
+        bg    = "#cfcfcf" if is_target_row else ("#f5f5f5" if i % 2 == 0 else "white")
         for j, (val, cw) in enumerate(zip(row, col_widths)):
             ax_tbl.add_patch(plt.Rectangle((x, y_top), cw * tw, row_h,
-                                           fc=bg, ec="#eeeeee", linewidth=0.4,
+                                           fc=bg,
+                                           ec=(_C_DARK if is_target_row else "#cccccc"),
+                                           linewidth=(1.4 if is_target_row else 0.6),
                                            transform=ax_tbl.transAxes, clip_on=False))
             ha = "left" if j == 0 else "center"
             px = x + 0.008 if j == 0 else x + cw * tw * 0.5
             ax_tbl.text(px, y_top + row_h * 0.5, str(val),
                         ha=ha, va="center", fontsize=FONT_ANNOT,
-                        color=_C_DARK, transform=ax_tbl.transAxes)
+                        color=_C_DARK, fontweight=("bold" if is_target_row else "normal"),
+                        transform=ax_tbl.transAxes)
             x += cw * tw
 
     # ── Right: gradient bars (darker = more violations) ───────────────────────
     ax_bar.set_facecolor("#fafbfc")
     for i, (act, cnt) in enumerate(zip(top_acts, counts)):
         shade = str(round(1 - (cnt / max_c) * 0.72, 3))
-        ax_bar.barh(i, cnt, color=shade, edgecolor="white", linewidth=0.6, height=0.65)
-        ax_bar.text(cnt + max_c * 0.012, i, f"{cnt:,}",
-                    va="center", fontsize=FONT_ANNOT, color=_C_DARK)
+        is_target_row = (i == target_row_idx)
+        ax_bar.barh(i, cnt, color=shade,
+                    edgecolor=(_C_DARK if is_target_row else "white"),
+                    linewidth=(2.6 if is_target_row else 0.6), height=0.65)
+        ax_bar.text(cnt + max_c * 0.012, i,
+                    f"{cnt:,}" + ("  ◀ focus" if is_target_row else ""),
+                    va="center", fontsize=FONT_ANNOT, color=_C_DARK,
+                    fontweight=("bold" if is_target_row else "normal"))
 
     ax_bar.set_yticks(range(n))
     ax_bar.set_yticklabels([_short_label(a, 24) for a in top_acts], fontsize=FONT_ANNOT)
@@ -451,19 +556,25 @@ def task11_table_bar_chart(activity_totals, type_totals, n_violations, output_di
         f"Violation Frequency Ranking  (top {n})  ·  {n_violations:,} total violations",
         fontsize=FONT_TITLE + 1, y=1.01,
     )
-    fig.tight_layout(pad=1.2)
+    _add_focus_caption(fig, target, target_count, target_pct)
+    fig.tight_layout(rect=[0, 0.05, 1, 1])
     save_svg(fig, os.path.join(output_dir, "task11_table_bar_chart.svg"))
 
 
 # ── Idiom 6: Stacked Bar — 100% normalized type distribution ─────────────────
 
-def task11_stacked_bar(activity_type, activity_totals, output_dir):
-    """100% normalized stacked bar: type proportion within each activity."""
+def task11_stacked_bar(activity_type, activity_totals, output_dir,
+                       target=None, target_count=0, target_pct=0.0):
+    """100% normalized stacked bar: type proportion within each activity.
+    The target violation's segment (activity row × move_type) is outlined."""
     if not activity_totals:
         _no_violations(output_dir, "stacked_bar")
         return
 
     top_acts     = _top_activities(activity_totals, _TOP_N)
+    if target and target[0] not in top_acts:
+        top_acts = top_acts + [target[0]]
+    target_row_idx = top_acts.index(target[0]) if target and target[0] in top_acts else -1
     short_labels = [_short_label(a, 30) for a in top_acts]
     n            = len(top_acts)
 
@@ -485,15 +596,20 @@ def task11_stacked_bar(activity_type, activity_totals, output_dir):
         bars = ax.barh(range(n), vals, left=lefts,
                        color=_VTYPE_COLOR[vt], label=vt,
                        edgecolor="white", linewidth=0.5, height=0.65)
-        # Annotate segments > 8%
+        # Annotate segments > 8%; outline the focus segment
         for i, (bar, pct) in enumerate(zip(bars, vals)):
+            if target and vt == target[1] and i == target_row_idx:
+                bar.set_edgecolor(_C_DARK)
+                bar.set_linewidth(2.6)
+                bar.set_zorder(5)
             if pct > 8:
                 cx = bar.get_x() + bar.get_width() / 2
                 bv = int(_VTYPE_COLOR[vt][1:3], 16)
                 tc = "white" if bv < 150 else _C_DARK
+                # zorder above the (possibly raised) focus bar so the % stays visible
                 ax.text(cx, i, f"{pct:.0f}%",
                         ha="center", va="center",
-                        fontsize=max(FONT_ANNOT - 1, 6.5), color=tc)
+                        fontsize=max(FONT_ANNOT - 1, 6.5), color=tc, zorder=6)
         lefts += vals
 
     ax.set_yticks(range(n))
@@ -518,7 +634,8 @@ def task11_stacked_bar(activity_type, activity_totals, output_dir):
         framealpha=0.9,
     )
 
-    fig.tight_layout(pad=1.2)
+    _add_focus_caption(fig, target, target_count, target_pct)
+    fig.tight_layout(rect=[0, 0.06, 1, 1])
     save_svg(fig, os.path.join(output_dir, "task11_stacked_bar.svg"))
 
 
@@ -569,8 +686,10 @@ def task11_flow_chart_elaborate_bpmn(activity_totals, model_path, output_dir):
 
 # ── Idiom 8: Flow Chart Elaborate BPMN & Table ────────────────────────────────
 
-def task11_flow_chart_elaborate_bpmn_table(activity_totals, type_totals, n_violations, model_path, output_dir):
-    """Composite SVG: BPMN heatmap (top) + Pareto table (bottom)."""
+def task11_flow_chart_elaborate_bpmn_table(activity_totals, type_totals, n_violations, model_path, output_dir,
+                                           target=None, target_count=0, target_pct=0.0):
+    """Composite SVG: BPMN heatmap (top) + Pareto table (bottom).
+    The table title names the focus violation and its frequency / %."""
     if not activity_totals:
         _no_violations(output_dir, "flow_chart_elaborate_bpmn_table")
         return
@@ -625,11 +744,12 @@ def task11_flow_chart_elaborate_bpmn_table(activity_totals, type_totals, n_viola
         f"{_VTYPE_SHORT[vt]}: {type_totals.get(vt, 0):,}"
         for vt in _VTYPES if type_totals.get(vt, 0) > 0
     )
-    tbl_ax.set_title(
-        f"Violation Frequency Ranking  (top {n_rows})  ·  {n_violations:,} total  ({type_summary})",
-        fontsize=FONT_TITLE, pad=14,
-    )
-    tbl_fig.tight_layout(pad=1.2)
+    _title = f"Violation Frequency Ranking  (top {n_rows})  ·  {n_violations:,} total  ({type_summary})"
+    _cap = _focus_caption(target, target_count, target_pct)
+    if _cap:
+        _title += "\n" + _cap
+    tbl_ax.set_title(_title, fontsize=FONT_TITLE, pad=14)
+    tbl_fig.tight_layout()
 
     buf = _io.BytesIO()
     tbl_fig.savefig(buf, format="svg", bbox_inches="tight")
@@ -684,8 +804,17 @@ def task11_flow_chart_elaborate_bpmn_table(activity_totals, type_totals, n_viola
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
-def generate(log, alignments, output_dir, model_path=None):
-    """Generate all Task 11 SVGs into output_dir."""
+def generate(log, alignments, output_dir, model_path=None, target_violation=None):
+    """Generate all Task 11 SVGs into output_dir.
+
+    target_violation: the specific guideline violation to focus on, as an
+    (activity, move_type) pair or "activity|move_type" string (move_type may be a
+    full name or a short code MoM/MoL/MM). When omitted, the most frequent
+    violation in the log is auto-selected (and logged). Every idiom then displays
+    that violation's frequency / % of all violations. If the specified violation
+    is absent from the log, a clear error lists the available pairs and empty-state
+    SVGs are written instead of crashing.
+    """
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 11 visualizations (Summarize guideline violations) ---")
 
@@ -698,11 +827,41 @@ def generate(log, alignments, output_dir, model_path=None):
                         "No guideline violations found in this log.")
         return
 
-    task11_bar_chart(activity_totals, n_violations, output_dir)
-    task11_pie_chart(type_totals, n_violations, output_dir)
-    task11_heatmap(activity_type, activity_totals, type_totals, n_violations, output_dir)
-    task11_table(activity_totals, type_totals, n_violations, output_dir)
-    task11_table_bar_chart(activity_totals, type_totals, n_violations, output_dir)
-    task11_stacked_bar(activity_type, activity_totals, output_dir)
+    # Resolve the focus (target) violation.
+    if target_violation is not None:
+        target = _resolve_target(target_violation, activity_type)
+        if target is None:
+            logger.error(
+                f"      task11: target violation '{target_violation}' not found in the log. "
+                f"Available (activity | move_type) pairs: "
+                f"{_available_pairs_str(activity_type)}"
+            )
+            for name in IDIOMS:
+                _save_empty(output_dir, f"task11_{name}.svg",
+                            f"Target violation '{target_violation}' not found in this log.")
+            return
+    else:
+        target = max(activity_type.items(), key=lambda kv: kv[1])[0]
+        logger.info(
+            f"      task11: no target violation specified — auto-selected most frequent: "
+            f"({target[0]} | {target[1]}) with {activity_type[target]} occurrence(s)."
+        )
+
+    target_count = activity_type.get(target, 0)
+    target_pct = target_count / n_violations * 100 if n_violations else 0.0
+    logger.info(f"      -> Focus violation: ({target[0]} | {target[1]})  "
+                f"{target_count} occ.  ({target_pct:.1f}% of {n_violations} total)")
+
+    task11_bar_chart(activity_totals, n_violations, output_dir, target, target_count, target_pct)
+    task11_pie_chart(type_totals, n_violations, output_dir, target, target_count, target_pct)
+    task11_heatmap(activity_type, activity_totals, type_totals, n_violations, output_dir,
+                   target, target_count, target_pct)
+    task11_table(activity_totals, type_totals, n_violations, output_dir,
+                 target, target_count, target_pct)
+    task11_table_bar_chart(activity_totals, type_totals, n_violations, output_dir,
+                           target, target_count, target_pct)
+    task11_stacked_bar(activity_type, activity_totals, output_dir,
+                       target, target_count, target_pct)
     task11_flow_chart_elaborate_bpmn(activity_totals, model_path, output_dir)
-    task11_flow_chart_elaborate_bpmn_table(activity_totals, type_totals, n_violations, model_path, output_dir)
+    task11_flow_chart_elaborate_bpmn_table(activity_totals, type_totals, n_violations, model_path, output_dir,
+                                           target, target_count, target_pct)

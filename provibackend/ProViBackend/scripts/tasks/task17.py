@@ -602,7 +602,7 @@ _ALL_FNAMES_TITLES = [
 def generate(log, alignments, output_dir: str, model_path: str = None):
     """Generate all Task ID 17 SVGs into output_dir (frequency only)."""
     os.makedirs(output_dir, exist_ok=True)
-    logger.info("\n--- Generating Task ID 17 visualizations ---")
+    logger.info("\n--- Generating Task 17 visualizations ---")
 
     df = _build_df(alignments)
     if df.empty:

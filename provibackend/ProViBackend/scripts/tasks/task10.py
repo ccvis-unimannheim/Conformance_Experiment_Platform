@@ -12,8 +12,12 @@ reused here and by task01 / task25 / task27 / task33.
 
 Public API:
     generate(df, output_dir, log=None)
-        df  – fitness summary DataFrame (trace_index, fitness, is_fit)
-        log – PM4Py log; needed for the time-based idioms (line/horizon/heatmap/calendar)
+        df               – fitness summary DataFrame (trace_index, fitness, is_fit)
+        log              – PM4Py log; needed for the time-based idioms (line/horizon/heatmap/calendar)
+        conformance_bins – optional list of conformance interval boundaries
+            (e.g. [0.0, 0.5, 0.9, 1.01]). Defaults to the canonical CONFORMANCE_BINS in
+            shared.py — the single source of truth shared with task01/25/27/33. Range
+            labels are derived automatically via make_conformance_labels.
 """
 
 import logging
@@ -34,13 +38,13 @@ from matplotlib.colors import LinearSegmentedColormap
 from shared import (
     save_svg, make_table, render_empty_state_svg, build_fitness_time_series,
     calendar_heatmap, draw_value_heatmap,
+    render_conformance_line_graph, render_conformance_horizon_chart,
     conformance_category_series, conformance_category_counts,
+    make_conformance_labels,
     CONFORMANCE_BINS, CONFORMANCE_LABELS, CONFORMANCE_CATEGORY_NAMES,
     GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT, contrasting_text_color,
 )
-# Reuse: task07's line + horizon renderers for the time-based idioms.
-import tasks.task07 as task07
 
 # ---------------------------------------------------------------------------
 # Range definitions (buckets extracted to shared.py — single source of truth)
@@ -79,12 +83,16 @@ def _build_high_fitness_range_df(fitness: pd.Series) -> pd.DataFrame:
     return result
 
 
-def _build_quantile_range_df(fitness: pd.Series, max_bins: int = 5) -> pd.DataFrame:
-    """Use quantile bins when the distribution is not well served by fixed ranges."""
+def _build_quantile_range_df(fitness: pd.Series, max_bins: int = 5):
+    """Use quantile bins when the distribution is not well served by fixed ranges.
+
+    Returns (range_df, edges); range_df is empty and edges is None when the
+    distribution collapses to fewer than two distinct quantile edges.
+    """
     quantiles = np.linspace(0, 1, max_bins + 1)
     edges = np.unique(np.quantile(fitness, quantiles))
     if len(edges) <= 2:
-        return pd.DataFrame()
+        return pd.DataFrame(), None
     edges[0] = max(0.0, edges[0])
     edges[-1] = min(1.0, edges[-1])
     labels = []
@@ -97,58 +105,68 @@ def _build_quantile_range_df(fitness: pd.Series, max_bins: int = 5) -> pd.DataFr
         labels.append(f"{lo:.2f} – {hi:.2f}")
         counts.append(int(mask.sum()))
     total = len(fitness)
-    return pd.DataFrame({
+    range_df = pd.DataFrame({
         "range": labels,
         "count": counts,
         "percentage": [count / total * 100 if total else 0.0 for count in counts],
     })
+    return range_df, edges
 
 
-def _build_range_df(df) -> pd.DataFrame:
-    """Count and percentage of traces per adaptive conformance range."""
+# Edge list equivalent to the high-fitness ranges (last bucket is exactly 1.0),
+# so per-trace idioms can categorise identically via conformance_category_series.
+HIGH_FITNESS_CATEGORY_BINS = [0.80, 0.85, 0.90, 0.95, 1.0, 1.01]
+
+
+def _resolve_ranges(df, bins=None, labels=None):
+    """Resolve the conformance ranges used by *every* Task 10 idiom.
+
+    Returns (range_df, used_bins, used_labels). The interval definition is adaptive
+    (canonical buckets, narrow high-fitness buckets, or quantile buckets), and the
+    returned (used_bins, used_labels) describe exactly that choice so the heatmap
+    and scatter plot categorise per trace with the SAME intervals as the count
+    idioms — otherwise they would silently diverge.
+
+    bins / labels default to the canonical conformance buckets (CONFORMANCE_BINS /
+    CONFORMANCE_LABELS in shared.py); pass a custom edge list to override them.
+    """
+    bins = list(bins) if bins is not None else DEFAULT_BINS
+    labels = list(labels) if labels is not None else DEFAULT_LABELS
+
     fitness = df["fitness"].astype(float)
     if fitness.empty:
-        return pd.DataFrame(columns=["range", "count", "percentage"])
+        return pd.DataFrame(columns=["range", "count", "percentage"]), bins, labels
 
     if fitness.min() >= 0.8:
-        return _build_high_fitness_range_df(fitness)
+        return (_build_high_fitness_range_df(fitness),
+                list(HIGH_FITNESS_CATEGORY_BINS), list(HIGH_FITNESS_LABELS))
 
     default_buckets = pd.cut(
-        fitness,
-        bins=DEFAULT_BINS,
-        labels=DEFAULT_LABELS,
-        right=False,
-        include_lowest=True,
+        fitness, bins=bins, labels=labels, right=False, include_lowest=True,
     )
-    default_counts = default_buckets.value_counts().reindex(DEFAULT_LABELS, fill_value=0)
+    default_counts = default_buckets.value_counts().reindex(labels, fill_value=0)
     active_default_bins = int((default_counts > 0).sum())
     if active_default_bins >= 3:
         total = len(fitness)
-        return pd.DataFrame({
-            "range": DEFAULT_LABELS,
+        result = pd.DataFrame({
+            "range": labels,
             "count": default_counts.values,
-            "percentage": default_counts.values / total * 100 if total else [0.0] * len(DEFAULT_LABELS),
+            "percentage": default_counts.values / total * 100 if total else [0.0] * len(labels),
         })
+        return result, bins, labels
 
-    quantile_df = _build_quantile_range_df(fitness)
+    quantile_df, quantile_edges = _build_quantile_range_df(fitness)
     if not quantile_df.empty:
-        return quantile_df
+        return quantile_df, list(quantile_edges), list(quantile_df["range"])
 
-    buckets = pd.cut(
-        fitness,
-        bins=DEFAULT_BINS,
-        labels=DEFAULT_LABELS,
-        right=False,
-        include_lowest=True,
-    )
-    counts = buckets.value_counts().reindex(DEFAULT_LABELS, fill_value=0)
+    counts = default_buckets.value_counts().reindex(labels, fill_value=0)
     total  = len(df)
     result = pd.DataFrame({
-        "range":      DEFAULT_LABELS,
+        "range":      labels,
         "count":      counts.values,
-        "percentage": counts.values / total * 100 if total else [0.0] * len(DEFAULT_LABELS),
+        "percentage": counts.values / total * 100 if total else [0.0] * len(labels),
     })
-    return result
+    return result, bins, labels
 
 
 # ---------------------------------------------------------------------------
@@ -279,29 +297,17 @@ def task10_stacked_bar(range_df: pd.DataFrame, output_dir: str):
 
 
 def task10_line_graph(time_df: pd.DataFrame, output_dir: str):
-    """HIGH: mean conformance per time bin (reuses task07's line renderer)."""
-    path = os.path.join(output_dir, "task10_line_graph.svg")
-    if time_df is None or time_df.empty:
-        render_empty_state_svg(path, "Conformance Distribution Over Time",
-                               "No timestamp data available.")
-        return
-    task07.task07_line_graph(time_df, output_dir)
-    src = os.path.join(output_dir, "task07_line_graph.svg")
-    if os.path.exists(src):
-        os.replace(src, path)
+    """HIGH: mean conformance per time bin (shared conformance-time renderer)."""
+    render_conformance_line_graph(
+        time_df, os.path.join(output_dir, "task10_line_graph.svg"),
+        title="Conformance Distribution Over Time")
 
 
 def task10_horizon_chart(time_df: pd.DataFrame, output_dir: str):
-    """HIGH: the monthly conformance series as horizon strips (reuses task07)."""
-    path = os.path.join(output_dir, "task10_horizon_chart.svg")
-    if time_df is None or time_df.empty:
-        render_empty_state_svg(path, "Conformance Distribution Over Time",
-                               "No timestamp data available.")
-        return
-    task07.task07_horizon_chart(time_df, output_dir)
-    src = os.path.join(output_dir, "task07_horizon_chart.svg")
-    if os.path.exists(src):
-        os.replace(src, path)
+    """HIGH: the conformance series as a horizon area chart (shared renderer)."""
+    render_conformance_horizon_chart(
+        time_df, os.path.join(output_dir, "task10_horizon_chart.svg"),
+        title="Conformance Distribution Over Time")
 
 
 def task10_box_plot(fitness_df: pd.DataFrame, output_dir: str):
@@ -330,27 +336,41 @@ def task10_box_plot(fitness_df: pd.DataFrame, output_dir: str):
     save_svg(fig, path)
 
 
-def task10_heatmap(time_df: pd.DataFrame, output_dir: str):
-    """HIGH: month × conformance category, trace count (continuous heatmap)."""
+def task10_heatmap(time_df: pd.DataFrame, output_dir: str, bins=None, labels=None,
+                   category_names=None):
+    """HIGH: month × conformance category, trace count.
+
+    Continuous colour intensity encodes the per-cell trace count; cells are not
+    annotated with numbers, for consistency with the heatmaps in the other tasks.
+    The intervals (bins/labels) are the ones resolved for the whole task, so the
+    rows match the ranges shown by the other idioms.
+    """
     path = os.path.join(output_dir, "task10_heatmap.svg")
     if time_df is None or time_df.empty:
         render_empty_state_svg(path, "Conformance Category over Months",
                                "No timestamp data available.")
         return
+    labels = list(labels) if labels is not None else CONFORMANCE_LABELS
+    # Only show the named conformance categories (Very Low … Very High) when the
+    # canonical buckets are in use; for adaptive/custom intervals the range labels
+    # alone identify the rows.
+    if category_names is not None and len(category_names) == len(labels):
+        row_labels = [f"{n}\n({r})" for n, r in zip(category_names, labels)]
+    else:
+        row_labels = list(labels)
     tdf = time_df.copy()
     tdf["month"] = tdf["start_time"].dt.to_period("M").dt.to_timestamp()
-    tdf["cat"] = conformance_category_series(tdf["fitness"]).values
+    tdf["cat"] = conformance_category_series(tdf["fitness"], bins).values
     months = sorted(tdf["month"].unique())
     month_labels = [pd.Timestamp(m).strftime("%b '%y") for m in months]
-    data = np.zeros((len(CONFORMANCE_CATEGORY_NAMES), len(months)))
-    for ci in range(len(CONFORMANCE_CATEGORY_NAMES)):
+    data = np.zeros((len(labels), len(months)))
+    for ci in range(len(labels)):
         for mj, m in enumerate(months):
             data[ci, mj] = int(((tdf["cat"] == ci) & (tdf["month"] == m)).sum())
     fig, ax = plt.subplots(figsize=(max(8, len(months) * 0.7 + 3), 4.6))
-    draw_value_heatmap(fig, ax, data,
-                       [f"{n}\n({r})" for n, r in zip(CONFORMANCE_CATEGORY_NAMES, CONFORMANCE_LABELS)],
+    draw_value_heatmap(fig, ax, data, row_labels,
                        month_labels, xlabel="Month", cbar_label="# Traces",
-                       cell_fmt="{:.0f}", rotate_xticks=30)
+                       cell_fmt="{:.0f}", annotate=False, rotate_xticks=30)
     ax.set_title("Conformance Category Distribution over Months", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, path)
@@ -369,13 +389,14 @@ def task10_calendar(time_df: pd.DataFrame, output_dir: str):
                      vmin=0.0, vmax=1.0)
 
 
-def task10_scatter_plot(fitness_df: pd.DataFrame, output_dir: str):
+def task10_scatter_plot(fitness_df: pd.DataFrame, output_dir: str, bins=None, labels=None):
     """MED: per-trace fitness, x = trace index, y = fitness, colour = category."""
     path = os.path.join(output_dir, "task10_scatter_plot.svg")
-    cats = conformance_category_series(fitness_df["fitness"]).values
-    colors = _task10_color_list(len(CONFORMANCE_LABELS))
+    labels = list(labels) if labels is not None else CONFORMANCE_LABELS
+    cats = conformance_category_series(fitness_df["fitness"], bins).values
+    colors = _task10_color_list(len(labels))
     fig, ax = plt.subplots(figsize=(11, 4.5))
-    for i, label in enumerate(CONFORMANCE_LABELS):
+    for i, label in enumerate(labels):
         m = cats == i
         if m.any():
             ax.scatter(fitness_df["trace_index"].values[m], fitness_df["fitness"].values[m],
@@ -427,16 +448,30 @@ def task10_table_bar_chart(range_df: pd.DataFrame, output_dir: str):
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def generate(df, output_dir: str, log=None):
+def generate(df, output_dir: str, log=None, conformance_bins=None):
     """Generate all Task ID 10 SVGs into output_dir.
 
     The category idioms use the fitness summary df; the time-based idioms
     (line/horizon/heatmap/calendar) need the log for timestamps (absent → empty
-    state). Legacy extras are still rendered (see `# LEGACY` notes above)."""
+    state)."""
     os.makedirs(output_dir, exist_ok=True)
-    logger.info("\n--- Generating Task ID 10 visualizations ---")
-    range_df = _build_range_df(df)
+    logger.info("\n--- Generating Task 10 visualizations ---")
+
+    if conformance_bins:
+        bins = list(conformance_bins)
+        labels = make_conformance_labels(bins)
+        logger.info(f"      -> Custom conformance bins: {bins}")
+    else:
+        bins, labels = CONFORMANCE_BINS, CONFORMANCE_LABELS
+
+    # Resolve the ranges ONCE so every idiom (incl. heatmap & scatter) uses the
+    # same — possibly adaptive — interval definition.
+    range_df, used_bins, used_labels = _resolve_ranges(df, bins, labels)
+    canonical = (used_bins == list(CONFORMANCE_BINS))
+    category_names = CONFORMANCE_CATEGORY_NAMES if canonical else None
     logger.info(f"      -> Range counts: {dict(zip(range_df['range'], range_df['count']))}")
+    if not canonical:
+        logger.info(f"      -> Adaptive conformance intervals in use: {used_labels}")
     time_df = build_fitness_time_series(log, df) if log is not None else pd.DataFrame()
 
     # Validated mapping idioms
@@ -444,10 +479,10 @@ def generate(df, output_dir: str, log=None):
     task10_line_graph(time_df, output_dir)
     task10_horizon_chart(time_df, output_dir)
     task10_box_plot(df, output_dir)
-    task10_heatmap(time_df, output_dir)
+    task10_heatmap(time_df, output_dir, used_bins, used_labels, category_names)
     task10_calendar(time_df, output_dir)
     task10_bar_chart(range_df, output_dir)
-    task10_scatter_plot(df, output_dir)
+    task10_scatter_plot(df, output_dir, used_bins, used_labels)
     task10_table(range_df, output_dir)
     task10_table_bar_chart(range_df, output_dir)
     task10_pie_chart(range_df, output_dir)
