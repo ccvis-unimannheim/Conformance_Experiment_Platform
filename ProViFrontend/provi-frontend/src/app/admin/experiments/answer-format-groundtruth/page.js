@@ -341,6 +341,13 @@ function FormatSelector({ formats, value, onChange }) {
   );
 }
 
+function pickGroundTruth(ti, formatKey, taskFormats, rubricInfo) {
+  const precomputed = ti.ground_truth_by_format?.[formatKey];
+  if (precomputed) return precomputed;
+  if (ti.ground_truth && ti.ground_truth.format === formatKey) return ti.ground_truth;
+  return seedGroundTruth(formatKey, taskFormats, rubricInfo.gt_tier);
+}
+
 function seedInstances(instances, formatsByTask, rubricsByTask) {
   return instances.map((ti) => {
     const taskFormats = formatsByTask[ti.task_id] || FALLBACK_ANSWER_FORMATS;
@@ -351,12 +358,11 @@ function seedInstances(instances, formatsByTask, rubricsByTask) {
       answerFormat = taskFormats[0].key;
     }
 
-    let groundTruth = ti.ground_truth;
-    if (answerFormat && (!groundTruth || groundTruth.format !== answerFormat)) {
-      groundTruth = seedGroundTruth(answerFormat, taskFormats, rubricInfo.gt_tier);
-    }
+    const groundTruth = answerFormat
+      ? pickGroundTruth(ti, answerFormat, taskFormats, rubricInfo)
+      : (ti.ground_truth ?? null);
 
-    return { ...ti, answer_format: answerFormat ?? null, ground_truth: groundTruth ?? null };
+    return { ...ti, answer_format: answerFormat ?? null, ground_truth: groundTruth };
   });
 }
 
@@ -465,7 +471,11 @@ function GroundTruthContent() {
     setTaskInstances((prev) =>
       prev.map((ti) =>
         ti.task_id === taskId
-          ? { ...ti, answer_format: formatKey, ground_truth: seedGroundTruth(formatKey, taskFormats, rubricInfo.gt_tier) }
+          ? {
+              ...ti,
+              answer_format: formatKey,
+              ground_truth: pickGroundTruth(ti, formatKey, taskFormats, rubricInfo),
+            }
           : ti
       )
     );
