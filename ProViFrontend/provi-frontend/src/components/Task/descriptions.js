@@ -14,7 +14,7 @@ export const taskDescriptions = {
   "task11": "Counts how often each type of violation occurs across the log. Useful for identifying the most frequent deviations at a glance.",
   "task12": "Reports the percentage of traces that contain at least one violation. A simple summary metric for overall process health.",
   "task13": "Explores potential correlations between process attributes and violations without a prior hypothesis. Helps generate explanations for why violations occur.",
-  "task14": "Classifies the type of violation occurring in a specific trace and provides a textual description. Requires domain knowledge to interpret the classification.",
+  "task14": "Classifies the type of violation occurring in a specific trace using three categories: Model Move (a required step was skipped), Log Move (an unexpected step was recorded), and Mismatch Move (a recorded step conflicts with the model). Violations are shown directly in the visualization.",
   "task15": "Uses preexisting domain knowledge to explain why the overall conformance level is what it is. The fitness value serves as an anchor for the interpretation.",
   "task16": "Applies domain knowledge to explain why specific violations occur in the process context. Violations are not shown directly — the analyst interprets them based on prior understanding.",
   "task17": "Assesses how serious each violation is based on its frequency and a predefined severity scale. Helps prioritize which violations are worth addressing.",
