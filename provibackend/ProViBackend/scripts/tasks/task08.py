@@ -35,6 +35,49 @@ IDIOMS = [
     "table_bar_chart",
 ]
 
+# ---------------------------------------------------------------------------
+# Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8)
+#
+# Task 8 (SEMI): admin specifies the share-of-traces threshold above which a
+# violation pair counts as "highly co-occurring"; GT = off-diagonal cells of
+# the top-N co-occurrence matrix flagged correct when count ≥ threshold×n_traces.
+# ---------------------------------------------------------------------------
+DEFAULT_HIGH_COOCCURRENCE_THRESHOLD = 0.1
+
+GT_TIER = "SEMI"
+
+PARAM_SPEC = [
+    {
+        "key": "high_cooccurrence_threshold",
+        "label": "High co-occurrence threshold (share of traces 0–1 at/above which a violation pair counts as highly co-occurring)",
+        "widget": "threshold",
+        "default": DEFAULT_HIGH_COOCCURRENCE_THRESHOLD,
+        "required": False,
+        "min": 0.01,
+        "max": 1.0,
+        "step": 0.01,
+    },
+]
+
+ANSWER_FORMATS = [
+    {"key": "matrix", "gt_shape": "matrix", "decisive_default": True},
+]
+
+
+def validate_params(log, params) -> list:
+    """Reject an out-of-range threshold; param is optional (defaults to 0.1)."""
+    raw = params.get("high_cooccurrence_threshold")
+    if raw is None or raw == "":
+        return []
+    try:
+        thr = float(raw)
+    except (TypeError, ValueError):
+        return [f"High co-occurrence threshold '{raw}' is not a number."]
+    if not (0.0 < thr <= 1.0):
+        return ["High co-occurrence threshold must be between 0 and 1."]
+    return []
+
+
 import os
 from collections import Counter
 from itertools import combinations
@@ -64,10 +107,6 @@ _CMAP_SEQ = "Greys"     # sequential: white → black
 _TOP_N = 12
 # Min co-occurrence count for network edges / scatter points
 _MIN_COOCCUR = 1
-# Default share of traces at/above which a pair's co-occurrence counts as "high".
-# Neutral reference only — no pair is flagged pass/fail. Overridable via
-# generate(high_cooccurrence_threshold=...).
-DEFAULT_HIGH_COOCCURRENCE_THRESHOLD = 0.1
 
 SKIP_TOKENS = {">>", None}
 
@@ -640,6 +679,34 @@ def task08_table_bar_chart(violation_freq, cooccurrence, n_traces, output_dir,
     save_svg(fig, os.path.join(output_dir, "task08_table_bar_chart.svg"))
 
 
+
+
+# ---------------------------------------------------------------------------
+# Ground-truth computation (SEMI tier)
+# ---------------------------------------------------------------------------
+
+def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
+    """Violation-pair co-occurrence grid: each off-diagonal cell of the top-N
+    violation matrix, with high-co-occurrence pairs (≥ threshold × n_traces)
+    flagged correct (design doc §2 row 8, SEMI tier).
+    """
+    if answer_format != "matrix":
+        return {"options": []}
+    threshold = float(params.get("high_cooccurrence_threshold", DEFAULT_HIGH_COOCCURRENCE_THRESHOLD))
+    n_traces  = len(log) if log is not None else 0
+    thr_count = threshold * n_traces
+    _, violation_freq, cooccurrence = _extract_violation_data(alignments)
+    top = _top_violations(violation_freq, min(_TOP_N, 10))
+    options = []
+    for a, b in combinations(top, 2):
+        pair = tuple(sorted((a, b)))
+        cnt  = cooccurrence.get(pair, 0)
+        options.append({
+            "label":   f"{a} × {b}",
+            "value":   f"{pair[0]}__{pair[1]}",
+            "correct": cnt > 0 and cnt >= thr_count,
+        })
+    return {"options": options}
 
 
 # ---------------------------------------------------------------------------
