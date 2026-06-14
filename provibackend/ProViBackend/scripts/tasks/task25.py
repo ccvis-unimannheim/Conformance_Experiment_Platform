@@ -33,23 +33,65 @@ GT_TIER = "AUTO"
 PARAM_SPEC = []
 
 ANSWER_FORMATS = [
-    {"key": "pct",   "gt_shape": "scalar", "decisive_default": True},
-    {"key": "count", "gt_shape": "scalar", "decisive_default": True},
+    {"key": "mc-single", "gt_shape": "mc", "decisive_default": True},
+    {"key": "mc-multi",  "gt_shape": "mc", "decisive_default": True},
 ]
 
 
 def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
-    """Overall log fitness (mean per-trace fitness × 100, rounded) for pct format;
-    conformant trace count as a scalar for count format."""
+    """MC options derived from actual per-trace fitness statistics."""
+    import random
+
     mean_fit = float(fitness_df["fitness"].mean()) if len(fitness_df) > 0 else 0.0
     pct = round(mean_fit * 100)
+    total = len(fitness_df)
+    conform = int(fitness_df["is_fit"].sum())
+    non_conform = total - conform
 
-    if answer_format == "count":
-        conform = int(fitness_df["is_fit"].sum())
-        return {"value": str(conform)}
+    if answer_format == "mc-single":
+        # 4 percentage buckets; exactly one is correct.
+        buckets = [
+            ("Below 25%",    0,  25),
+            ("25% – 50%",   25,  50),
+            ("50% – 75%",   50,  75),
+            ("75% or above", 75, 100),
+        ]
+        options = []
+        for label, lo, hi in buckets:
+            correct = lo <= pct < hi or (hi == 100 and pct == 100)
+            options.append({"label": label, "value": label, "correct": correct})
+        return {"options": options}
 
-    # pct (default)
-    return {"value": f"{pct}%"}
+    # mc-multi: statements that may each be objectively true or false.
+    statements = [
+        {
+            "label": "More than half of all traces conform to the process model.",
+            "value": "majority_conform",
+            "correct": conform > non_conform,
+        },
+        {
+            "label": "The overall conformance rate exceeds 75%.",
+            "value": "above_75",
+            "correct": pct > 75,
+        },
+        {
+            "label": "Fewer than 25% of traces deviate from the model.",
+            "value": "low_deviation",
+            "correct": (non_conform / total * 100 < 25) if total > 0 else False,
+        },
+        {
+            "label": "There are more non-conformant than conformant traces.",
+            "value": "majority_nonconform",
+            "correct": non_conform > conform,
+        },
+        {
+            "label": "All traces fully conform to the process model.",
+            "value": "all_conform",
+            "correct": non_conform == 0,
+        },
+    ]
+    random.shuffle(statements)
+    return {"options": statements}
 
 
 import os

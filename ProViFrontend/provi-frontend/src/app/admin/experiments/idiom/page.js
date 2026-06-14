@@ -107,6 +107,15 @@ function IdiomSelectionContent() {
     0
   );
 
+  function handleSelectAll() {
+    const newMap = {};
+    selectedTasks.forEach((task) => {
+      const tid = getId(task);
+      newMap[tid] = getIdiomsForTask(task).map((i) => getId(i));
+    });
+    setTaskIdiomMap((prev) => ({ ...prev, ...newMap }));
+  }
+
   async function handleNext() {
     const unassigned = selectedTasks.filter(
       (t) => (taskIdiomMap[getId(t)] || []).length === 0
@@ -164,6 +173,15 @@ function IdiomSelectionContent() {
               </span>
             )}
           </h2>
+          {selectedTasks.length > 0 && (
+            <button
+              onClick={handleSelectAll}
+              className="flex items-center gap-1.5 text-sm font-medium text-primary border border-primary/30 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-lg transition-all active:scale-95"
+            >
+              <span className="material-symbols-outlined text-[16px]">select_all</span>
+              Select All Idioms
+            </button>
+          )}
         </div>
 
         {/* Task cards with idiom allocation */}

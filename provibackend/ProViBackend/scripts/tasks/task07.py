@@ -16,7 +16,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["line_graph", "horizon_chart", "gantt_chart"]
+IDIOMS = ["line_graph", "horizon_chart"]
 
 import os
 import numpy as np
@@ -292,9 +292,7 @@ def generate(log, fitness_df, output_dir: str,
         logger.warning("      Skipped Task 7: no usable timestamp data in event log.")
         _save_empty(output_dir, "task07_line_graph.svg",    "No timestamp data available")
         _save_empty(output_dir, "task07_horizon_chart.svg", "No timestamp data available")
-        _save_empty(output_dir, "task07_gantt_chart.svg",   "No timestamp data available")
         return
 
     task07_line_graph(df, output_dir, time_granularity)
     task07_horizon_chart(df, output_dir, time_granularity)
-    task07_gantt_chart(df, output_dir, time_granularity)

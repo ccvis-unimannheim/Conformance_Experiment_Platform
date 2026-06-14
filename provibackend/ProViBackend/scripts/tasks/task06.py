@@ -27,8 +27,8 @@ logger = logging.getLogger(__name__)
 # Validated mapping (the legacy box_plot/donut_chart/heatmap are still rendered for
 # backward compatibility but intentionally excluded here so /task-idioms reports the
 # validated set only).
-IDIOMS = ["tile_metric", "bar_chart", "scatter_plot", "table",
-          "flow_chart_elaborate", "tree"]
+IDIOMS = ["tile_metric", "bar_chart", "donut_chart", "scatter_plot",
+          "table", "heatmap", "box_plot"]
 
 # ---------------------------------------------------------------------------
 # Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8)
@@ -41,8 +41,8 @@ GT_TIER = "AUTO"
 PARAM_SPEC = []
 
 ANSWER_FORMATS = [
-    {"key": "pct",       "gt_shape": "scalar",   "decisive_default": True},
-    {"key": "mc-single", "gt_shape": "mc-single", "decisive_default": True},
+    {"key": "pct",       "gt_shape": "scalar", "decisive_default": True},
+    {"key": "mc-single", "gt_shape": "mc",     "decisive_default": True},
 ]
 
 
@@ -50,35 +50,60 @@ def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer
     """Mean per-trace fitness × 100, rounded to the nearest integer percentage.
 
     For pct: returns a scalar string e.g. "87%".
-    For mc-single: correct option + 3 deterministic distractors (±10, ±20, ±30 pp,
-    clamped to [0, 100], shuffled by the correct value as seed).
+    For mc-single: correct option + 3 distractors spread across low / high / mid
+    zones relative to the true value, snapped to 5-pp multiples, clamped to [0, 100].
     """
+    import random as _rnd
+
     mean_fit = float(fitness_df["fitness"].mean()) if len(fitness_df) > 0 else 0.0
     pct = round(mean_fit * 100)
 
     if answer_format == "pct":
-        return {"value": f"{pct}%", "options": []}
+        return {"value": f"{pct}%"}
 
     if answer_format == "mc-single":
-        distractors = []
-        for delta in [10, 20, 30]:
-            for sign in (1, -1):
-                candidate = max(0, min(100, pct + sign * delta))
-                if candidate != pct and candidate not in distractors:
-                    distractors.append(candidate)
-                if len(distractors) == 3:
-                    break
-            if len(distractors) == 3:
-                break
-        import random as _rnd
-        rng = _rnd.Random(pct)
-        options = [{"label": f"{pct}%", "value": f"{pct}%", "correct": True}] + [
-            {"label": f"{d}%", "value": f"{d}%", "correct": False} for d in distractors[:3]
-        ]
-        rng.shuffle(options)
-        return {"value": None, "options": options}
+        # Three distractors from distinct directional zones so they spread across the
+        # scale rather than clustering on one side.
+        # Snap all values to the nearest 5-pp multiple so options look natural.
+        def snap5(v):
+            return max(0, min(100, round(v / 5) * 5))
 
-    return {"value": None, "options": []}
+        # Zone targets: one clearly below, one clearly above, one moderately offset.
+        zone_offsets = [-25, +25, -15 if pct >= 50 else +15]
+        seen = {pct}
+        distractors = []
+        for base_delta in zone_offsets:
+            candidate = snap5(pct + base_delta)
+            # If snapping collides, nudge by ±5 until we find a free slot.
+            step = 5
+            while candidate in seen or candidate == pct:
+                candidate = snap5(candidate + step)
+                step = -(abs(step) + 5) if step > 0 else abs(step) + 5
+                if abs(step) > 50:
+                    break
+            if candidate not in seen and 0 <= candidate <= 100:
+                seen.add(candidate)
+                distractors.append(candidate)
+
+        # Fallback: fill remaining slots with simple ±10 pp offsets.
+        for delta in range(10, 60, 10):
+            if len(distractors) >= 3:
+                break
+            for sign in (+1, -1):
+                c = snap5(pct + sign * delta)
+                if c not in seen and 0 <= c <= 100:
+                    seen.add(c)
+                    distractors.append(c)
+                    break
+
+        options = [{"label": f"{pct}%", "value": f"{pct}%", "correct": True}] + [
+            {"label": f"{d}%", "value": f"{d}%", "correct": False}
+            for d in distractors[:3]
+        ]
+        _rnd.Random(pct).shuffle(options)
+        return {"options": options}
+
+    return {"options": []}
 
 import os
 import numpy as np
@@ -98,24 +123,27 @@ import tasks.task20 as task20
 
 
 def task06_bar_chart(df, output_dir: str):
-    conform     = int(df["is_fit"].sum())
-    non_conform = len(df) - conform
+    """Bar chart showing mean fitness value for conformant vs non-conformant trace groups."""
+    conform_df     = df[df["is_fit"] == True]
+    nonconform_df  = df[df["is_fit"] == False]
+
+    mean_fit_conform    = float(conform_df["fitness"].mean())    if len(conform_df)    > 0 else 0.0
+    mean_fit_nonconform = float(nonconform_df["fitness"].mean()) if len(nonconform_df) > 0 else 0.0
+
+    labels = ["Conformant Traces", "Non-Conformant Traces"]
+    values = [mean_fit_conform, mean_fit_nonconform]
 
     fig, ax = plt.subplots(figsize=(6, 5))
-    bars = ax.bar(
-        ["Conform Traces", "Non-Conform Traces"],
-        [conform, non_conform],
-        color=[GREY_MED, GREY_LIGHT], edgecolor="white", width=0.5,
-    )
-    for bar, val in zip(bars, [conform, non_conform]):
+    bars = ax.bar(labels, values, color=[GREY_MED, GREY_LIGHT], edgecolor="white", width=0.5)
+    for bar, val in zip(bars, values):
         ax.text(
             bar.get_x() + bar.get_width() / 2,
-            bar.get_height() + max(conform, non_conform) * 0.015,
-            str(val), ha="center", va="bottom", fontsize=FONT_ANNOT,
+            bar.get_height() + 0.015,
+            f"{val:.2f}", ha="center", va="bottom", fontsize=FONT_ANNOT,
         )
-    ax.set_ylabel("Number of Traces", fontsize=FONT_LABEL)
-    ax.set_title("Conform vs. Non-Conform Traces", fontsize=FONT_TITLE)
-    ax.set_ylim(0, max(conform, non_conform) * 1.15)
+    ax.set_ylabel("Mean Fitness Value (0–1)", fontsize=FONT_LABEL)
+    ax.set_title("Mean Fitness: Conformant vs. Non-Conformant Traces", fontsize=FONT_TITLE)
+    ax.set_ylim(0, 1.15)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
@@ -182,6 +210,69 @@ def task06_table(df, output_dir: str):
 def task06_tile_metric(df, output_dir: str):
     avg = float(df["fitness"].mean()) * 100
     render_fitness_tile_metric(avg, os.path.join(output_dir, "task06_tile_metric.svg"))
+
+
+def task06_donut_chart(df, output_dir: str):
+    """Donut chart: conformant vs non-conformant trace counts."""
+    conform     = int(df["is_fit"].sum())
+    non_conform = len(df) - conform
+
+    fig, ax = plt.subplots(figsize=(6, 5))
+    wedges, texts = ax.pie(
+        [conform, non_conform],
+        labels=[f"{conform:,}", f"{non_conform:,}"],
+        colors=[GREY_MED, GREY_LIGHT],
+        startangle=90,
+        wedgeprops=dict(width=0.5),
+    )
+    for t in texts:
+        t.set_fontsize(FONT_ANNOT)
+    ax.set_title("Conform vs. non-conform cases", fontsize=FONT_TITLE)
+    fig.tight_layout(pad=1.2)
+    save_svg(fig, os.path.join(output_dir, "task06_donut_chart.svg"))
+
+
+def task06_heatmap(df, output_dir: str):
+    """Single-cell heatmap showing overall conformance rate (0–100), light→dark grey."""
+    pct = float(df["fitness"].mean()) * 100
+
+    cmap = LinearSegmentedColormap.from_list("grey_scale", [GREY_LIGHTER, GREY_DARK])
+    fig, ax = plt.subplots(figsize=(5, 4))
+    im = ax.imshow([[pct]], cmap=cmap, vmin=0, vmax=100, aspect="auto")
+    ax.text(0, 0, f"{pct:.2f}", ha="center", va="center",
+            fontsize=22, fontweight="bold",
+            color="white" if pct > 55 else GREY_DARK)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    cbar = fig.colorbar(im, ax=ax, orientation="vertical", fraction=0.046, pad=0.04)
+    cbar.set_label("Conformance Rate", fontsize=FONT_LABEL)
+    cbar.set_ticks([0, 25, 50, 75, 100])
+    ax.set_title("Overall Conformance Rate", fontsize=FONT_TITLE)
+    fig.tight_layout(pad=1.2)
+    save_svg(fig, os.path.join(output_dir, "task06_heatmap.svg"))
+
+
+def task06_box_plot(df, output_dir: str):
+    """Boxplot of per-trace fitness values across the log."""
+    fig, ax = plt.subplots(figsize=(5, 5))
+    ax.boxplot(
+        df["fitness"].values,
+        labels=["Log"],
+        widths=0.4,
+        medianprops=dict(color="#333333", linewidth=2),
+        boxprops=dict(color="#555555"),
+        whiskerprops=dict(color="#555555"),
+        capprops=dict(color="#555555"),
+        flierprops=dict(marker="o", markerfacecolor=GREY_MED, markersize=4, alpha=0.5),
+    )
+    ax.set_ylabel("Conformance Rate", fontsize=FONT_LABEL)
+    ax.set_title("Distribution of Fitness Values", fontsize=FONT_TITLE)
+    ax.set_ylim(-0.05, 1.1)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.4)
+    ax.set_axisbelow(True)
+    fig.tight_layout(pad=1.2)
+    save_svg(fig, os.path.join(output_dir, "task06_box_plot.svg"))
 
 
 # ---------------------------------------------------------------------------
@@ -294,7 +385,8 @@ def generate(df, output_dir: str, log=None, alignments=None, model_path=None):
 
     task06_tile_metric(df, output_dir)
     task06_bar_chart(df, output_dir)
+    task06_donut_chart(df, output_dir)
     task06_scatter_plot(df, output_dir)
     task06_table(df, output_dir)
-    task06_flow_chart_elaborate_bpmn(alignments, model_path, output_dir)
-    task06_tree(log, alignments, output_dir)
+    task06_heatmap(df, output_dir)
+    task06_box_plot(df, output_dir)
