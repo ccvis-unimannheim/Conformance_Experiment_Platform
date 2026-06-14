@@ -206,14 +206,28 @@ def task03_scatter_plot(trace_rows: list, output_dir: str):
     ax.scatter(full["Conformant"], full["Non-conformant"],
                c=GREY_MED, s=36, alpha=0.7, linewidths=0, zorder=3)
 
-    # Label the strongest differentiators (largest |Conformant − Non-conformant|).
-    for _, row in full.head(TOP_N).iterrows():
-        ax.annotate(row["activity"], (row["Conformant"], row["Non-conformant"]),
-                    xytext=(4, 4), textcoords="offset points",
-                    fontsize=FONT_ANNOT - 2, color="#333333")
+    # Label the strongest differentiators; use adjustText to avoid overlaps.
+    top = full.head(TOP_N)
+    texts = [
+        ax.text(row["Conformant"], row["Non-conformant"], row["activity"],
+                fontsize=FONT_ANNOT - 2, color="#333333")
+        for _, row in top.iterrows()
+    ]
+    try:
+        from adjustText import adjust_text
+        adjust_text(
+            texts, ax=ax,
+            arrowprops=dict(arrowstyle="-", color="#aaaaaa", lw=0.6),
+            expand=(2.0, 2.5),
+            force_text=(1.0, 1.5),
+            force_points=(1.2, 1.8),
+            lim=500,
+        )
+    except Exception:
+        pass  # fall back to raw placement if adjustText fails
 
-    ax.set_xlim(-3, 103)
-    ax.set_ylim(-3, 103)
+    ax.set_xlim(-5, 115)
+    ax.set_ylim(-5, 115)
     ax.set_aspect("equal", adjustable="box")
     ax.set_xlabel("Presence rate in Conformant traces (%)", fontsize=FONT_LABEL)
     ax.set_ylabel("Presence rate in Non-conformant traces (%)", fontsize=FONT_LABEL)
