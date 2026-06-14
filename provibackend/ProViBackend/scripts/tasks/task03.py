@@ -26,6 +26,50 @@ logger = logging.getLogger(__name__)
 IDIOMS = ["bar_chart", "scatter_plot", "table", "table_and_bar_chart", "parallel_sets",
           "stacked_bar", "box_plot", "matrix", "heatmap"]
 
+# ---------------------------------------------------------------------------
+# Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8)
+#
+# Task 3 (SEMI): split traces into Conformant / Non-conformant at a threshold
+# chosen by the admin, then compare activity presence rates between the groups.
+# ---------------------------------------------------------------------------
+GT_TIER = "SEMI"
+
+PARAM_SPEC = [
+    {
+        "key": "conformant_threshold",
+        "label": "Conformance threshold (traces with fitness ≥ this value are Conformant)",
+        "widget": "threshold",
+        "default": 1.0,
+        "required": False,
+    },
+]
+
+ANSWER_FORMATS = [
+    {"key": "mc-multi",  "gt_shape": "mc",        "decisive_default": True},
+    {"key": "free-text", "gt_shape": "reference",  "decisive_default": False},
+]
+
+RUBRIC = (
+    "A complete answer identifies at least two specific activities that clearly distinguish "
+    "conformant from non-conformant traces and states the direction of the difference "
+    "(e.g. 'Activity X appears in 90% of conformant traces but only 40% of non-conformant "
+    "traces'). Award full marks for correctly naming the top differentiating activities with "
+    "approximate presence rates for both groups. Award partial marks for correctly identifying "
+    "the direction without specific rates. Deduct marks for incorrect directions."
+)
+
+
+def validate_params(log, params) -> list:
+    """Ensure conformant_threshold is a number in (0, 1]."""
+    raw = params.get("conformant_threshold", 1.0)
+    try:
+        thr = float(raw)
+    except (TypeError, ValueError):
+        return [f"conformant_threshold must be a number between 0 and 1, got: {raw!r}"]
+    if not (0.0 < thr <= 1.0):
+        return [f"conformant_threshold must be in (0, 1], got {thr}."]
+    return []
+
 import os
 import numpy as np
 import pandas as pd
@@ -53,7 +97,8 @@ _GROUPS = ["Conformant", "Non-conformant"]
 # Data helpers
 # ---------------------------------------------------------------------------
 
-def _task03_build_trace_rows(log, fitness_df: pd.DataFrame) -> list:
+def _task03_build_trace_rows(log, fitness_df: pd.DataFrame,
+                             conformant_threshold: float = 1.0) -> list:
     """Pair each trace with its conformance label and the set of activities it contains.
 
     Activity presence is the single attribute every Task 3 idiom compares between
@@ -65,7 +110,7 @@ def _task03_build_trace_rows(log, fitness_df: pd.DataFrame) -> list:
         if i >= len(fitness_df):
             break
         fitness = float(fitness_df.iloc[i]["fitness"])
-        group   = "Conformant" if fitness >= 1.0 else "Non-conformant"
+        group   = "Conformant" if fitness >= conformant_threshold else "Non-conformant"
 
         activities = {str(event.get("concept:name", "")) for event in trace}
         activities.discard("")
@@ -438,15 +483,50 @@ def task03_heatmap(trace_rows: list, output_dir: str):
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def generate(log, fitness_df, output_dir: str):
+def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
+    """Top-3 most-differentiating activities as mc-multi options.
+
+    For each activity: one correct statement (dominant group) + one incorrect
+    (groups swapped), shuffled deterministically → 6 options, 3 correct.
+    """
+    threshold = float(params.get("conformant_threshold", 1.0))
+    trace_rows = _task03_build_trace_rows(log, fitness_df, conformant_threshold=threshold)
+    presence_df = _task03_activity_presence_df(trace_rows, top_n=TOP_N)
+
+    if answer_format == "mc-multi":
+        options = []
+        for _, row in presence_df.head(3).iterrows():
+            act = row["activity"]
+            dominant = "Conformant" if row["Conformant"] >= row["Non-conformant"] else "Non-conformant"
+            other    = "Non-conformant" if dominant == "Conformant" else "Conformant"
+            options.append({
+                "label":   f"'{act}' has higher presence in {dominant} traces",
+                "value":   f"{act}::{dominant}",
+                "correct": True,
+            })
+            options.append({
+                "label":   f"'{act}' has higher presence in {other} traces",
+                "value":   f"{act}::{other}",
+                "correct": False,
+            })
+        import random as _rnd
+        _rnd.Random(round(threshold * 100)).shuffle(options)
+        return {"options": options}
+
+    return {"options": []}
+
+
+def generate(log, fitness_df, output_dir: str, conformant_threshold: float = 1.0):
     """Generate all Task ID 3 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task ID 3 visualizations ---")
 
-    trace_rows = _task03_build_trace_rows(log, fitness_df)
+    trace_rows = _task03_build_trace_rows(log, fitness_df,
+                                          conformant_threshold=conformant_threshold)
     n_c  = sum(1 for r in trace_rows if r["group"] == "Conformant")
     n_nc = len(trace_rows) - n_c
-    logger.info(f"      -> Conformant: {n_c}  |  Non-conformant: {n_nc}")
+    logger.info(f"      -> Conformant: {n_c}  |  Non-conformant: {n_nc}"
+                f"  (threshold={conformant_threshold})")
 
     if n_c == 0:
         logger.warning("      No conformant traces — Conformant group is empty.")
