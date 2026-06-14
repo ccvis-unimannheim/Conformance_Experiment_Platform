@@ -118,38 +118,61 @@ const TaskAnswerPanel = ({
     <aside style={{ display: "flex", flexDirection: "column", gap: "1.5rem", position: "sticky", top: "5rem", maxHeight: "calc(100vh - 6rem)", overflowY: "auto", scrollbarWidth: "none" }}>
       <div style={cardStyle}>
 
-        {/* Task Label with hover tooltip */}
+        {/* Task Label with toggle info */}
         {taskLabel && (
-          <div style={{ position: "relative", marginBottom: "1rem", paddingBottom: "1rem", borderBottom: "1px solid #f0f0f0" }}>
-            <p
-              style={{
-                fontSize: "1.05rem",
-                fontWeight: 700,
-                color: "#00305e",
-                lineHeight: 1.5,
-                margin: 0,
-                cursor: taskDesc ? "help" : "default",
-              }}
-              onMouseEnter={() => setShowTaskTooltip(true)}
-              onMouseLeave={() => setShowTaskTooltip(false)}
-            >
-              {taskLabel}
-            </p>
+          <div style={{ marginBottom: "1rem", paddingBottom: "1rem", borderBottom: "1px solid #f0f0f0" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem" }}>
+              <p
+                style={{
+                  fontSize: "1.05rem",
+                  fontWeight: 700,
+                  color: "#00305e",
+                  lineHeight: 1.5,
+                  margin: 0,
+                  flex: 1,
+                }}
+              >
+                {taskLabel}
+              </p>
+              {taskDesc && (
+                <button
+                  type="button"
+                  onClick={() => setShowTaskTooltip(v => !v)}
+                  title="About this task"
+                  style={{
+                    flexShrink: 0,
+                    background: "none",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "50%",
+                    width: "1.4rem",
+                    height: "1.4rem",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "0.72rem",
+                    fontWeight: 700,
+                    color: showTaskTooltip ? "white" : "#5a6061",
+                    backgroundColor: showTaskTooltip ? "#00305e" : "transparent",
+                    cursor: "pointer",
+                    marginTop: "0.15rem",
+                    transition: "background-color 0.15s, color 0.15s",
+                  }}
+                >
+                  i
+                </button>
+              )}
+            </div>
 
             {showTaskTooltip && taskDesc && (
               <div style={{
-                position: "absolute",
-                top: "calc(100% + 0.5rem)",
-                left: 0,
-                right: 0,
-                zIndex: 100,
-                backgroundColor: "#00305e",
-                color: "white",
-                padding: "0.875rem 1rem",
-                borderRadius: "0.5rem",
+                marginTop: "0.75rem",
+                backgroundColor: "#f0f4f8",
+                color: "#2d3435",
+                padding: "0.75rem 0.875rem",
+                borderRadius: "0.4rem",
                 fontSize: "0.8rem",
                 lineHeight: 1.6,
-                boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                borderLeft: "3px solid #00305e",
               }}>
                 {taskDesc}
               </div>
