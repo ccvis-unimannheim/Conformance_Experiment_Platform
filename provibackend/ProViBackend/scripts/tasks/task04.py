@@ -167,13 +167,13 @@ def task04_bar_chart(vdf: pd.DataFrame, output_dir: str, total_variants: int = 0
 
 
 def task04_table(vdf: pd.DataFrame, output_dir: str, total_variants: int = 0):
-    """Table: Rank | #Traces | Coverage% | Fitness | Length for top-N variants.
+    """Table: Rank | #Traces | Fitness for top-N variants.
 
     ``vdf`` is already sliced to the admin-configured top_n.
     """
     n = len(vdf)
     cell_text, col_labels, col_widths = variant_table_data(
-        vdf, n, include_length=True, rank_header="Variant",
+        vdf, n, include_length=False, include_coverage=False, rank_header="Variant",
     )
     fig_h = max(3.5, 1.3 + len(cell_text) * 0.46)
     fig, ax = plt.subplots(figsize=(9, fig_h))
@@ -308,7 +308,7 @@ def task04_table_bar_chart(vdf: pd.DataFrame, output_dir: str, total_variants: i
     top = vdf
     n = len(top)
     cell_text, col_labels, col_widths = variant_table_data(
-        vdf, n, include_length=True, rank_header="Variant")
+        vdf, n, include_length=False, include_coverage=False, rank_header="Variant")
 
     fig = plt.figure(figsize=(15, max(4.5, 1.2 + len(top) * 0.45)))
     gs = gridspec.GridSpec(1, 2, width_ratios=[1.5, 1.0], wspace=0.30)
@@ -336,18 +336,13 @@ def task04_table_bar_chart(vdf: pd.DataFrame, output_dir: str, total_variants: i
 
 
 def _variant_metric_grid(vdf: pd.DataFrame):
-    """(raw, norm, metric_labels, row_labels) for variant × normalized metrics."""
-    metrics = ["Fitness", "Coverage %", "Length"]
-    raw = np.column_stack([
-        vdf["fitness"].values.astype(float),
-        vdf["coverage"].values.astype(float),
-        vdf["length"].values.astype(float),
-    ])
+    """(raw, norm, metric_labels, row_labels) for variant × Fitness."""
+    metrics = ["Fitness"]
+    raw = vdf["fitness"].values.astype(float).reshape(-1, 1)
+    col = raw[:, 0]
+    lo, hi = col.min(), col.max()
     norm = np.zeros_like(raw)
-    for ci in range(raw.shape[1]):
-        col = raw[:, ci]
-        lo, hi = col.min(), col.max()
-        norm[:, ci] = (col - lo) / (hi - lo) if hi - lo > 1e-12 else 0.5
+    norm[:, 0] = (col - lo) / (hi - lo) if hi - lo > 1e-12 else 0.5
     return raw, norm, metrics, vdf["label"].tolist()
 
 
@@ -359,10 +354,10 @@ def task04_matrix(vdf: pd.DataFrame, output_dir: str):
     top = vdf
     raw, norm, metrics, labels = _variant_metric_grid(top)
     cmap = LinearSegmentedColormap.from_list("task04_mat", ["#F8F8F8", "#444444"])
-    fmts = ["{:.3f}", "{:.1f}%", "{:.0f}"]
+    fmts = ["{:.3f}"]
 
     fig_h = max(3.5, 0.5 * len(labels) + 1.4)
-    fig, ax = plt.subplots(figsize=(6, fig_h))
+    fig, ax = plt.subplots(figsize=(3.5, fig_h))
     im = ax.imshow(norm, cmap=cmap, vmin=0, vmax=1, aspect="auto")
     ax.set_xticks(range(len(metrics)))
     ax.set_xticklabels(metrics, fontsize=FONT_ANNOT)
@@ -374,8 +369,8 @@ def task04_matrix(vdf: pd.DataFrame, output_dir: str):
             ax.text(ci, ri, fmts[ci].format(raw[ri, ci]), ha="center", va="center",
                     fontsize=FONT_ANNOT - 1, color=tc)
     cbar = fig.colorbar(im, ax=ax, fraction=0.04, pad=0.02)
-    cbar.set_label("Normalized (per metric)", fontsize=FONT_ANNOT)
-    ax.set_title(f"Variant Metrics Matrix (top-{len(labels)})", fontsize=FONT_TITLE)
+    cbar.set_label("Normalized fitness", fontsize=FONT_ANNOT)
+    ax.set_title(f"Variant Fitness Matrix (top-{len(labels)})", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task04_matrix.svg"))
 
@@ -426,8 +421,7 @@ def generate(log, fitness_df, output_dir: str, top_n: int = TOP_N):
     task04_table_bar_chart(top_vdf, output_dir, total_variants=n_total)
     task04_matrix(top_vdf, output_dir)
 
-    # Overview idioms: always all variants (context for the participant)
-    task04_scatter_plot(vdf, output_dir)
+    task04_scatter_plot(top_vdf, output_dir)
     task04_stacked_bar(vdf, output_dir)
-    task04_line_graph(vdf, output_dir)
-    task04_heatmap(vdf, output_dir)
+    task04_line_graph(top_vdf, output_dir)
+    task04_heatmap(top_vdf, output_dir)

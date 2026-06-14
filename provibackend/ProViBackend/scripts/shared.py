@@ -689,16 +689,23 @@ def build_variant_df(log, fitness_df, warn_prefix: str = "shared"):
 
 
 def variant_table_data(vdf, top_n: int, include_length: bool = False,
+                       include_coverage: bool = True,
                        include_status: bool = False, rank_header: str = "Variant"):
     """Build (cell_text, col_labels, col_widths) for the shared variant table.
 
-    Base columns: <rank_header> | #Traces | Coverage (%) | Fitness.
+    Base columns: <rank_header> | #Traces | [Coverage (%)] | Fitness.
+    include_coverage (default True) keeps the Coverage (%) column.
     include_length adds a Length column, include_status a Conformant/
     Non-conformant status column (✓ / ✗).
     """
     top = vdf.head(top_n)
-    cell_text, col_labels = [], [rank_header, "#Traces", "Coverage (%)", "Fitness"]
-    col_widths = [0.14, 0.18, 0.22, 0.24]
+    cell_text, col_labels = [], [rank_header, "#Traces"]
+    col_widths = [0.16, 0.20]
+    if include_coverage:
+        col_labels.append("Coverage (%)")
+        col_widths.append(0.22)
+    col_labels.append("Fitness")
+    col_widths.append(0.26)
     if include_length:
         col_labels.append("Length (#act.)")
         col_widths.append(0.22)
@@ -710,12 +717,10 @@ def variant_table_data(vdf, top_n: int, include_length: bool = False,
     col_widths = [w / s for w in col_widths]
 
     for _, row in top.iterrows():
-        cells = [
-            row["label"],
-            str(int(row["count"])),
-            f"{row['coverage']:.1f}%",
-            f"{row['fitness']:.4f}",
-        ]
+        cells = [row["label"], str(int(row["count"]))]
+        if include_coverage:
+            cells.append(f"{row['coverage']:.1f}%")
+        cells.append(f"{row['fitness']:.4f}")
         if include_length:
             cells.append(str(int(row["length"])))
         if include_status:
