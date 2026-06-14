@@ -164,6 +164,12 @@ export default function TaskExecutionPage() {
   const currentTrialIndex = currentIdiom?.trial_index ?? 0;
   const totalTrials = taskGroups.reduce((sum, g) => sum + g.idioms.length, 0);
 
+  // Linear position in the actual UI traversal order (not the shuffled trial_index from DB).
+  // Used to correctly detect the last trial regardless of shuffle order.
+  const linearTrialPosition =
+    taskGroups.slice(0, currentGroupIndex).reduce((sum, g) => sum + g.idioms.length, 0) +
+    currentIdiomIndex;
+
   const showSkeleton = loadingTasks;
 
   return (
@@ -220,7 +226,7 @@ export default function TaskExecutionPage() {
                 trialIndex={currentTrialIndex}
                 presentationOrder={currentTrialIndex}
                 totalTasks={totalTrials}
-                currentTaskIndex={currentTrialIndex}
+                currentTaskIndex={linearTrialPosition}
                 onAnswerSubmit={handleAnswerSubmit}
               />
             </div>
