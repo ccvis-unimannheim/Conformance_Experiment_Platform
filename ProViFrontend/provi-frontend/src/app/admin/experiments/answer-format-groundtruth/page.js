@@ -167,9 +167,6 @@ function ChoiceSetEditor({ gt, format, groupName, onChange }) {
 function RankEditor({ gt, onChange }) {
   const options = gt.options || [];
 
-  function updateRow(i, field, val) {
-    onChange({ ...gt, options: options.map((o, idx) => (idx === i ? { ...o, [field]: val } : o)) });
-  }
   function move(i, dir) {
     const j = i + dir;
     if (j < 0 || j >= options.length) return;
@@ -195,17 +192,13 @@ function RankEditor({ gt, onChange }) {
           <span className="text-xs font-semibold text-on-surface-variant w-5">{i + 1}.</span>
           <input
             type="text"
-            placeholder="Label"
+            placeholder="Item name"
             value={opt.label}
-            onChange={(e) => updateRow(i, "label", e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value;
+              onChange({ ...gt, options: options.map((o, idx) => idx === i ? { ...o, label: v, value: v } : o) });
+            }}
             className="flex-1 text-sm border border-border-subtle rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
-          />
-          <input
-            type="text"
-            placeholder="Value"
-            value={opt.value}
-            onChange={(e) => updateRow(i, "value", e.target.value)}
-            className="w-24 text-sm border border-border-subtle rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
           <button onClick={() => move(i, -1)} disabled={i === 0} className="text-on-surface-variant hover:text-primary disabled:opacity-30">
             <span className="material-symbols-outlined text-sm">arrow_upward</span>
