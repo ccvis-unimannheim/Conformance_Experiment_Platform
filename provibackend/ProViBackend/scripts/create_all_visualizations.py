@@ -259,7 +259,7 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
 
     def outcome_activity():        return p.get("outcome_activity", "A_ACTIVATED")
     def predominant_threshold():   return p.get("predominant_threshold", 0.8)
-    def high_cooccurrence():       return p.get("high_cooccurrence_threshold", 0.1)
+    def high_cooccurrence():       return float(p.get("high_cooccurrence_threshold", 0.1))
     def cmp_attr():                return p.get("compare_attribute", compare_attribute)
     def time_granularity():        return p.get("time_granularity", "month")
     def conformance_bins():        return p.get("conformance_bins", None)
