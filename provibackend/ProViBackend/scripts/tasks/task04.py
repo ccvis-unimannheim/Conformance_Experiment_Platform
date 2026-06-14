@@ -19,6 +19,68 @@ IDIOMS = ["bar_chart", "scatter_plot", "table",
           "stacked_bar", "line_graph", "box_plot", "table_bar_chart",
           "matrix", "heatmap"]
 
+# ---------------------------------------------------------------------------
+# Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8; design doc §2 row 4)
+#
+# Task 4 (SEMI): compare conformance of the top-N trace variants (ranked by
+# frequency). The admin specifies how many variants to include; the answer
+# is either one mean-fitness percentage per variant (pct-set) or the variants
+# ordered from most to least conformant (rank).
+# ---------------------------------------------------------------------------
+GT_TIER = "SEMI"
+
+PARAM_SPEC = [
+    {
+        "key": "top_n",
+        "label": "Number of top variants to compare (ranked by frequency)",
+        "widget": "number",
+        "default": 10,
+        "required": True,
+    },
+]
+
+ANSWER_FORMATS = [
+    {"key": "pct-set", "gt_shape": "labelled-set", "decisive_default": True},
+    {"key": "rank",    "gt_shape": "rank",          "decisive_default": True},
+]
+
+
+def validate_params(log, params) -> list:
+    """Reject invalid top_n values (must be a positive integer)."""
+    raw = params.get("top_n")
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        return ["'top_n' must be a positive integer."]
+    if n < 1:
+        return ["'top_n' must be at least 1."]
+    return []
+
+
+def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
+    """Fitness per top-N variant as pct-set (labelled-set) or rank (ordered by fitness desc)."""
+    top_n = int(params.get("top_n", 10))
+    vdf = _task04_build_variant_df(log, fitness_df)
+    if vdf.empty:
+        return {"value": None, "options": []}
+    top = vdf.head(top_n)
+    if answer_format == "rank":
+        ranked = top.sort_values("fitness", ascending=False).reset_index(drop=True)
+        return {
+            "options": [
+                {"label": row["label"], "value": row["label"]}
+                for _, row in ranked.iterrows()
+            ]
+        }
+    return {
+        "value": None,
+        "options": [
+            {"label": row["label"], "value": f"{round(row['fitness'] * 100)}%", "correct": True}
+            for _, row in top.iterrows()
+        ],
+    }
+
+
 import os
 import numpy as np
 import pandas as pd
