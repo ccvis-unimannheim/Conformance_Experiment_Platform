@@ -16,7 +16,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 IDIOMS = ["bar_chart", "scatter_plot", "table",
-          "stacked_bar", "line_graph", "table_bar_chart",
+          "line_graph", "table_bar_chart",
           "matrix", "heatmap"]
 
 # ---------------------------------------------------------------------------
@@ -91,25 +91,12 @@ from matplotlib.colors import LinearSegmentedColormap
 
 from shared import (
     save_svg, make_table, build_variant_df, variant_table_data,
-    draw_composition_stacked_bars, draw_grouped_box_plot, draw_value_heatmap,
+    draw_value_heatmap,
     render_empty_state_svg,
     GREY_MED, GREY_LIGHT, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 TOP_N = 15
-
-# Conformance bands used by the stacked-bar composition (fixed per-variant bands)
-_BAND_LABELS = ["Major dev. (<0.8)", "Minor dev. (0.8–<1.0)", "Conformant (=1.0)"]
-_BAND_COLORS = ["#CCCCCC", "#999999", "#555555"]
-
-
-def _band_index(fitness: float) -> int:
-    if fitness >= 1.0:
-        return 2
-    if fitness >= 0.8:
-        return 1
-    return 0
-
 
 # ---------------------------------------------------------------------------
 # Data helpers
@@ -252,36 +239,6 @@ def task04_scatter_plot(vdf: pd.DataFrame, output_dir: str):
 
 
 # ---------------------------------------------------------------------------
-# Medium idioms
-# ---------------------------------------------------------------------------
-
-def task04_stacked_bar(vdf: pd.DataFrame, output_dir: str):
-    """Per conformance band, composition by top-5 variants + 'Other' (trace counts)."""
-    top = vdf.head(5)
-    seg_labels = top["label"].tolist() + (["Other"] if len(vdf) > 5 else [])
-    counts = np.zeros((len(seg_labels), len(_BAND_LABELS)))
-    for vi, (_, row) in enumerate(top.iterrows()):
-        counts[vi, _band_index(row["fitness"])] += row["count"]
-    if len(vdf) > 5:
-        for _, row in vdf.iloc[5:].iterrows():
-            counts[-1, _band_index(row["fitness"])] += row["count"]
-
-    greys = ["#333333", "#555555", "#777777", "#999999", "#BBBBBB", "#DDDDDD"]
-    fig, ax = plt.subplots(figsize=(7, 5.5))
-    draw_composition_stacked_bars(ax, _BAND_LABELS, seg_labels, counts, segment_colors=greys)
-    ax.set_ylabel("Number of Traces", fontsize=FONT_LABEL)
-    ax.set_title("Which Variants Fill Each Conformance Band", fontsize=FONT_TITLE)
-    ax.tick_params(axis="x", labelrotation=10)
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.5)
-    ax.set_axisbelow(True)
-    handles, labels = ax.get_legend_handles_labels()
-    ax.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, -0.25),
-              ncol=max(1, len(handles)), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task04_stacked_bar.svg"))
-
-
 def task04_line_graph(vdf: pd.DataFrame, output_dir: str):
     """Fitness profile across frequency-ranked variants (x = rank, y = fitness)."""
     fig, ax = plt.subplots(figsize=(11, 5))
@@ -396,7 +353,7 @@ def generate(log, fitness_df, output_dir: str, top_n: int = TOP_N):
 
     ``top_n`` is the admin-configured number of variants (from PARAM_SPEC
     "top_n"). Idioms that compare the selected variants are sliced to top_n;
-    overview idioms (scatter_plot, line_graph, box_plot, heatmap) always show
+    overview idioms (scatter_plot, line_graph, heatmap) always show
     all variants so participants have full context.
     """
     os.makedirs(output_dir, exist_ok=True)
@@ -422,6 +379,5 @@ def generate(log, fitness_df, output_dir: str, top_n: int = TOP_N):
     task04_matrix(top_vdf, output_dir)
 
     task04_scatter_plot(top_vdf, output_dir)
-    task04_stacked_bar(vdf, output_dir)
     task04_line_graph(top_vdf, output_dir)
     task04_heatmap(top_vdf, output_dir)
