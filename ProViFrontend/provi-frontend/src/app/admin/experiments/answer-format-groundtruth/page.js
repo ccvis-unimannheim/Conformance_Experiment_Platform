@@ -594,7 +594,7 @@ function GroundTruthContent() {
                           checked={!!ti.ground_truth?.decisive}
                           onChange={(e) => handleDecisiveChange(ti.task_id, e.target.checked)}
                         />
-                        Decisive (auto-graded)
+                        Closed-form answer
                       </label>
                     </div>
 

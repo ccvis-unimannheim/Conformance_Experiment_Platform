@@ -365,6 +365,69 @@ def get_log_activities(dataset_dir: str) -> list[str]:
     return sorted(activities)
 
 
+def get_log_time_granularities(dataset_dir: str) -> list[str]:
+    """Time-bin granularities that yield >=2 bins for this dataset's timestamp span.
+
+    Powers task07's /specify granularity dropdown: only granularities that
+    actually produce a multi-point trend on THIS dataset are offered (a
+    too-coarse choice would collapse to one bin and fail validation). Candidates
+    and ordering (finest -> coarsest) are derived from shared.TIME_GRANULARITY_FREQ,
+    so adding a granularity there flows through here automatically (extensibility).
+    Bins are counted on trace START timestamps to match task07.validate_params /
+    shared.bin_fitness_time_series. Falls back to the full ordered list if the
+    timestamps cannot be read.
+    """
+    from shared import TIME_GRANULARITY_FREQ
+
+    # Finest -> coarsest; any granularity not in this hint keeps registry order.
+    _ORDER = ["day", "month", "year"]
+    ordered = ([g for g in _ORDER if g in TIME_GRANULARITY_FREQ]
+               + [g for g in TIME_GRANULARITY_FREQ if g not in _ORDER])
+
+    try:
+        import pandas as pd
+
+        input_dir = os.path.join(dataset_dir, INPUT_SUBDIR)
+        log_path = None
+        if os.path.isdir(input_dir):
+            for fname in os.listdir(input_dir):
+                if os.path.splitext(fname)[1].lower() in LOG_EXTENSIONS:
+                    log_path = os.path.join(input_dir, fname)
+                    break
+        if log_path is None:
+            return ordered
+
+        ext = os.path.splitext(log_path)[1].lower()
+        if ext == ".csv":
+            df = pd.read_csv(log_path)
+            ts_col = next((c for c in ["time:timestamp", "timestamp", "Timestamp",
+                                       "time", "Time", "Complete Timestamp"]
+                           if c in df.columns), None)
+            if ts_col is None:
+                return ordered
+            case_col = next((c for c in ["case:concept:name", "case", "Case ID",
+                                         "case_id", "caseid", "CaseID"]
+                             if c in df.columns), None)
+            df["_ts"] = pd.to_datetime(df[ts_col], errors="coerce", utc=True)
+            df = df.dropna(subset=["_ts"])
+            starts = df.groupby(case_col)["_ts"].min() if case_col else df["_ts"]
+        else:
+            log = load_event_log(log_path)
+            raw = [trace[0].get("time:timestamp")
+                   for trace in log if len(trace) and trace[0].get("time:timestamp") is not None]
+            starts = pd.to_datetime(pd.Series(raw), errors="coerce", utc=True).dropna()
+
+        if starts is None or len(starts) == 0:
+            return ordered
+
+        usable = [g for g in ordered
+                  if starts.dt.to_period(TIME_GRANULARITY_FREQ[g]).nunique() >= 2]
+        return usable or ordered
+    except Exception:
+        logger.exception("Failed to enumerate time granularities for %s", dataset_dir)
+        return ordered
+
+
 def generate_for_task_instances(dataset_dir: str, experiment_id: str,
                                 instances: list[dict]) -> dict:
     """Render + compute ground truth for one dataset's task_instances.

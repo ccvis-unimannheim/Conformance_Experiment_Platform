@@ -18,6 +18,7 @@ try:
         run_pipeline as run_visualization_pipeline,
         generate_for_task_instances,
         get_log_activities,
+        get_log_time_granularities,
         _FILE_RENAME,
         _TASK_RENAME_SKIP,
     )
@@ -29,6 +30,7 @@ except ImportError:
     run_visualization_pipeline = None
     generate_for_task_instances = None
     get_log_activities = None
+    get_log_time_granularities = None
     _FILE_RENAME = {}
     _TASK_RENAME_SKIP = {}
 
@@ -67,6 +69,8 @@ GUIDELINE_FILENAME = "Guideline.bpmn"
 # candidate enumeration doesn't reload the event log on every page render
 # (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §5). Keyed by dataset_id.
 _LOG_ACTIVITIES_CACHE: dict[str, list[str]] = {}
+# Cache of dataset-meaningful time-bin granularities (task07), same rationale.
+_LOG_TIME_GRANULARITIES_CACHE: dict[str, list[str]] = {}
 
 
 def _dataset_activities(dataset_id: str) -> list[str]:
@@ -80,10 +84,23 @@ def _dataset_activities(dataset_id: str) -> list[str]:
     return activities
 
 
+def _dataset_time_granularities(dataset_id: str) -> list[str]:
+    """Time-bin granularities that yield >=2 bins for this dataset (cached)."""
+    if dataset_id in _LOG_TIME_GRANULARITIES_CACHE:
+        return _LOG_TIME_GRANULARITIES_CACHE[dataset_id]
+    if get_log_time_granularities is None:
+        return []
+    grans = get_log_time_granularities(str(DATA_DIRECTORY / dataset_id))
+    _LOG_TIME_GRANULARITIES_CACHE[dataset_id] = grans
+    return grans
+
+
 # Maps a PARAM_SPEC entry's `source` to the dataset-candidate enumerator.
 def _param_candidates(source: str, dataset_id: str) -> list[str]:
     if source == "log.activities":
         return _dataset_activities(dataset_id)
+    if source == "log.time_granularities":
+        return _dataset_time_granularities(dataset_id)
     return []
 
 
