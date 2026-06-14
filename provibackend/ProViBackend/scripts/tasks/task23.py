@@ -448,7 +448,7 @@ def generate(alignments, output_dir: str, log=None):
     log is optional and only used by the calendar idiom (daily violation count).
     """
     os.makedirs(output_dir, exist_ok=True)
-    logger.info("\n--- Generating Task ID 23 visualizations ---")
+    logger.info("\n--- Generating Task 23 visualizations ---")
 
     pat_df = _task23_build_pattern_df(alignments)
 

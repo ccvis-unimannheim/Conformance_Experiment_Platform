@@ -504,7 +504,7 @@ def generate(log, fitness_df, alignments, output_dir: str,
              model_path: str = None, compare_attribute: str = "AMOUNT_REQ"):
     """Generate all Task ID 22 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
-    logger.info("\n--- Generating Task ID 22 visualizations ---")
+    logger.info("\n--- Generating Task 22 visualizations ---")
 
     groups, assignment, meta = split_by_attribute(log, compare_attribute)
     if groups is None:

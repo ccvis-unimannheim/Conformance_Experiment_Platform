@@ -5,9 +5,11 @@ Visualizations: Line Graph, Horizon Chart, Gantt Chart.
 
 Public API:
     generate(log, fitness_df, output_dir)
-        log        – PM4Py event log (used for trace timestamps)
-        fitness_df – per-trace fitness DataFrame from io_helpers.fitness_summary_dataframe
-        output_dir – directory where SVGs are written
+        log              – PM4Py event log (used for trace timestamps)
+        fitness_df       – per-trace fitness DataFrame from io_helpers.fitness_summary_dataframe
+        output_dir       – directory where SVGs are written
+        time_granularity – ("year" | "month" | "day") controls the time-axis 
+                aggregation of the line graph and horizon chart (default: month).
 """
 
 import logging
@@ -29,7 +31,9 @@ import matplotlib.colors as mcolors
 
 from shared import (
     save_svg, build_fitness_time_series,
-    GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    render_conformance_line_graph, render_conformance_horizon_chart,
+    DEFAULT_TIME_GRANULARITY,
+    FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 # Maximum traces shown in the Gantt chart (readability + cognitive load)
@@ -45,31 +49,6 @@ def _build_time_series_df(log, fitness_df) -> pd.DataFrame:
     return build_fitness_time_series(log, fitness_df)
 
 
-def _auto_bin_freq(df: pd.DataFrame) -> str:
-    """Choose time-bin frequency from the actual span of the data."""
-    span_days = (df["start_time"].max() - df["start_time"].min()).days
-    if span_days < 30:
-        return "D"    # daily
-    elif span_days < 365:
-        return "W"    # weekly
-    else:
-        return "ME"   # monthly
-
-
-def _bin_time_series(df: pd.DataFrame) -> pd.DataFrame:
-    """Aggregate per-trace fitness into time bins; return binned DataFrame."""
-    freq = _auto_bin_freq(df)
-    df2 = df.copy()
-    df2["time_bin"] = df2["start_time"].dt.to_period(freq).dt.to_timestamp()
-    binned = (
-        df2.groupby("time_bin")["fitness"]
-        .agg(["mean", "count"])
-        .rename(columns={"mean": "avg_fitness", "count": "n_traces"})
-        .reset_index()
-    )
-    return binned
-
-
 def _save_empty(output_dir: str, filename: str, message: str = "No data available"):
     fig, ax = plt.subplots(figsize=(8, 4))
     ax.axis("off")
@@ -82,110 +61,24 @@ def _save_empty(output_dir: str, filename: str, message: str = "No data availabl
 # Idiom 1: Line Graph
 # ---------------------------------------------------------------------------
 
-def task07_line_graph(df: pd.DataFrame, output_dir: str):
-    if df is None or df.empty:
-        _save_empty(output_dir, "task07_line_graph.svg", "No timestamp data available")
-        return
-
-    binned = _bin_time_series(df)
-    if len(binned) < 2:
-        _save_empty(output_dir, "task07_line_graph.svg",
-                    "Insufficient time range for trend line (fewer than 2 time bins)")
-        return
-
-    fig, ax = plt.subplots(figsize=(12, 5))
-
-    x = binned["time_bin"]
-    y = binned["avg_fitness"]
-
-    ax.fill_between(x, y, alpha=0.18, color=GREY_MED)
-    ax.plot(x, y, color=GREY_MED, linewidth=1.8, marker="o", markersize=4)
-
-    # Overall mean reference line
-    overall_mean = df["fitness"].mean()
-    ax.axhline(overall_mean, color=GREY_LIGHT, linewidth=1.2,
-               linestyle="--", label=f"Overall mean: {overall_mean:.2f}")
-
-    ax.set_ylim(-0.05, 1.1)
-    ax.set_ylabel("Average Conformance Rate", fontsize=FONT_LABEL)
-    ax.set_xlabel("Time", fontsize=FONT_LABEL)
-    ax.set_title("Process Conformance Over Time", fontsize=FONT_TITLE)
-    ax.tick_params(axis="x", labelrotation=30, labelsize=FONT_ANNOT)
-    ax.yaxis.set_major_formatter(matplotlib.ticker.PercentFormatter(xmax=1.0))
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.4)
-    ax.set_axisbelow(True)
-    ax.legend(frameon=False, fontsize=FONT_ANNOT)
-
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task07_line_graph.svg"))
+def task07_line_graph(df: pd.DataFrame, output_dir: str,
+                      time_granularity: str = DEFAULT_TIME_GRANULARITY):
+    """Mean conformance per time bin (shared renderer, granularity-aware)."""
+    render_conformance_line_graph(
+        df, os.path.join(output_dir, "task07_line_graph.svg"),
+        time_granularity=time_granularity)
 
 
 # ---------------------------------------------------------------------------
 # Idiom 2: Horizon Chart
 # ---------------------------------------------------------------------------
 
-def task07_horizon_chart(df: pd.DataFrame, output_dir: str):
-    """Horizon chart: continuous area chart showing conformance relative to overall mean.
-
-    Area above mean → dark grey (higher conformance).
-    Area below mean → light grey (lower conformance).
-    Y-axis shows actual conformance rate; mean line is the visual baseline.
-    """
-    if df is None or df.empty:
-        _save_empty(output_dir, "task07_horizon_chart.svg", "No timestamp data available")
-        return
-
-    binned = _bin_time_series(df)
-    if len(binned) < 2:
-        _save_empty(output_dir, "task07_horizon_chart.svg",
-                    "Insufficient time range for horizon chart (fewer than 2 time bins)")
-        return
-
-    mean_val = df["fitness"].mean()
-    x = binned["time_bin"]
-    y = binned["avg_fitness"]
-
-    fig, ax = plt.subplots(figsize=(14, 5))
-
-    # Continuous filled areas relative to mean baseline
-    ax.fill_between(x, mean_val, y,
-                    where=(y >= mean_val), interpolate=True,
-                    color=GREY_DARK, alpha=0.75, label="Above mean (higher conformance)")
-    ax.fill_between(x, mean_val, y,
-                    where=(y <= mean_val), interpolate=True,
-                    color=GREY_LIGHTER, alpha=0.75, label="Below mean (lower conformance)")
-
-    # Thin line connecting data points for readability
-    ax.plot(x, y, color="#444444", linewidth=0.9, alpha=0.5)
-
-    # Mean reference line
-    ax.axhline(mean_val, color="#555555", linewidth=1.2, linestyle="--")
-
-    # Mean annotation — placed outside plot area to avoid overlapping data
-    ax.annotate(
-        f"Mean: {mean_val:.0%}",
-        xy=(1.01, mean_val),
-        xycoords=("axes fraction", "data"),
-        fontsize=FONT_ANNOT, color="#555555", va="center",
-    )
-
-    # Y-axis: show actual conformance range with small padding
-    y_pad = max((y.max() - y.min()) * 0.15, 0.01)
-    ax.set_ylim(max(0.0, y.min() - y_pad), min(1.0, y.max() + y_pad))
-    ax.yaxis.set_major_formatter(matplotlib.ticker.PercentFormatter(xmax=1.0))
-
-    ax.set_ylabel("Conformance Rate", fontsize=FONT_LABEL)
-    ax.set_xlabel("Time", fontsize=FONT_LABEL)
-    ax.set_title("Process Conformance Over Time", fontsize=FONT_TITLE)
-    ax.tick_params(axis="x", labelrotation=30, labelsize=FONT_ANNOT)
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.3)
-    ax.set_axisbelow(True)
-    ax.legend(frameon=False, fontsize=FONT_ANNOT, loc="lower left")
-
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task07_horizon_chart.svg"))
+def task07_horizon_chart(df: pd.DataFrame, output_dir: str,
+                         time_granularity: str = DEFAULT_TIME_GRANULARITY):
+    """Conformance relative to the overall mean as a filled area (shared renderer)."""
+    render_conformance_horizon_chart(
+        df, os.path.join(output_dir, "task07_horizon_chart.svg"),
+        time_granularity=time_granularity)
 
 
 # ---------------------------------------------------------------------------
@@ -298,10 +191,16 @@ def task07_gantt_chart(df: pd.DataFrame, output_dir: str):
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def generate(log, fitness_df, output_dir: str):
-    """Generate all Task 7 SVGs (line graph, horizon chart, gantt chart) into output_dir."""
+def generate(log, fitness_df, output_dir: str,
+             time_granularity: str = DEFAULT_TIME_GRANULARITY):
+    """Generate all Task 7 SVGs (line graph, horizon chart, gantt chart) into output_dir.
+
+    time_granularity ("year" | "month" | "day") controls the time-axis aggregation
+    of the line graph and horizon chart (default: month).
+    """
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 7 visualizations (Process conformance over time) ---")
+    logger.info(f"      Time granularity: {time_granularity}")
 
     df = _build_time_series_df(log, fitness_df)
 
@@ -312,6 +211,6 @@ def generate(log, fitness_df, output_dir: str):
         _save_empty(output_dir, "task07_gantt_chart.svg",   "No timestamp data available")
         return
 
-    task07_line_graph(df, output_dir)
-    task07_horizon_chart(df, output_dir)
+    task07_line_graph(df, output_dir, time_granularity)
+    task07_horizon_chart(df, output_dir, time_granularity)
     task07_gantt_chart(df, output_dir)

@@ -606,7 +606,7 @@ def task01_calendar(ts_df: pd.DataFrame, output_dir: str):
 def generate(log, fitness_df, output_dir: str, outcome_activity: str = "A_ACTIVATED"):
     """Generate all Task ID 1 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
-    logger.info("\n--- Generating Task ID 1 visualizations ---")
+    logger.info("\n--- Generating Task 1 visualizations ---")
 
     df       = _task01_build_df(log, fitness_df, outcome_activity)
     stats_df = _task01_group_stats(df)

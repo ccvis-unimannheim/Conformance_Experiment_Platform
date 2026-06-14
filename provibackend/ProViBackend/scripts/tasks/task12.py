@@ -21,6 +21,36 @@ IDIOMS = [
     "stacked_bar", "table", "table_bar_chart",
 ]
 
+# ---------------------------------------------------------------------------
+# Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8; design doc §2 row 12)
+#
+# Task 12 (AUTO): no admin parameter needed — GT is fully computable.
+# The answer is the percentage of traces whose alignment fitness < 1 (deviating).
+# ---------------------------------------------------------------------------
+GT_TIER = "AUTO"
+
+PARAM_SPEC = []
+
+ANSWER_FORMATS = [
+    {"key": "pct",       "gt_shape": "scalar", "decisive_default": True},
+    {"key": "mc-single", "gt_shape": "mc",     "decisive_default": True},
+]
+
+
+def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
+    """Percentage of traces with fitness < 1 (i.e. at least one violation).
+
+    Returns the GroundTruthBlock-shaped fields the backend assembles
+    (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §3, §8): a single scalar value, e.g. "38%".
+    """
+    n_total = len(fitness_df)
+    if n_total == 0:
+        return {"value": "0%"}
+    n_deviating = int((fitness_df["fitness"] < 1.0).sum())
+    pct = round(n_deviating / n_total * 100)
+    return {"value": f"{pct}%"}
+
+
 import os
 from collections import Counter
 
