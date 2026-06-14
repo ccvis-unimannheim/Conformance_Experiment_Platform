@@ -74,6 +74,30 @@ function ParamField({ entry, value, onChange }) {
     );
   }
 
+  if (entry.widget === "activity-picker" || entry.widget === "attribute-picker") {
+    if (options.length > 0) {
+      return (
+        <select
+          value={value ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full text-sm border border-border-subtle rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+        >
+          <option value="">Select…</option>
+          {options.map((opt) => {
+            const optValue = typeof opt === "string" ? opt : opt.value;
+            const optLabel = typeof opt === "string" ? opt : opt.label ?? opt.value;
+            return (
+              <option key={optValue} value={optValue}>
+                {optLabel}
+              </option>
+            );
+          })}
+        </select>
+      );
+    }
+    // No candidates loaded yet — fall through to text input below
+  }
+
   if (entry.widget === "number" || entry.widget === "threshold") {
     return (
       <input
@@ -208,6 +232,14 @@ function SpecifyContent() {
         const vals = { ...existing };
         paramSpec.forEach((entry) => {
           if (vals[entry.key] === undefined) vals[entry.key] = entry.default ?? "";
+          // If the entry has dataset-backed candidates and the stored value is no longer
+          // valid for the current dataset, reset to default so the user re-selects.
+          if (entry.options?.length > 0) {
+            const validValues = entry.options.map((o) => (typeof o === "string" ? o : o.value));
+            if (vals[entry.key] && !validValues.includes(vals[entry.key])) {
+              vals[entry.key] = entry.default ?? "";
+            }
+          }
         });
         values[ti.task_id] = vals;
       })
