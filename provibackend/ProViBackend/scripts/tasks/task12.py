@@ -32,9 +32,8 @@ GT_TIER = "AUTO"
 PARAM_SPEC = []
 
 ANSWER_FORMATS = [
-    {"key": "pct",       "gt_shape": "scalar",    "decisive_default": True},
-    {"key": "mc-single", "gt_shape": "mc",         "decisive_default": True},
-    {"key": "free-text", "gt_shape": "reference",  "decisive_default": False},
+    {"key": "pct",       "gt_shape": "scalar", "decisive_default": True},
+    {"key": "mc-single", "gt_shape": "mc",     "decisive_default": True},
 ]
 
 
