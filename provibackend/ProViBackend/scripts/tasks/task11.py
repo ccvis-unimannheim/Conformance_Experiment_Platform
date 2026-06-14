@@ -213,7 +213,7 @@ def task11_bar_chart(activity_totals, n_violations, output_dir,
         fontsize=FONT_TITLE,
     )
     ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.3)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
     ax.set_xlim(0, max_c * 1.32)
 
@@ -252,8 +252,8 @@ def task11_pie_chart(type_totals, n_violations, output_dir,
         cnt = int(round(pct / 100 * n_violations))
         return f"{pct:.1f}%\n({cnt:,})"
 
-    fig, ax = plt.subplots(figsize=(9, 6))
-    wedges, texts, autotexts = ax.pie(
+    fig, ax = plt.subplots(figsize=(8, 6))
+    wedges, _texts, autotexts = ax.pie(
         counts,
         labels=None,
         colors=colors,
@@ -408,7 +408,7 @@ def task11_table(activity_totals, type_totals, n_violations, output_dir,
     x = l
     for hdr, cw in zip(col_headers, col_widths):
         ax.add_patch(plt.Rectangle((x, t - row_h), cw * tw, row_h,
-                                   fc=_HDR_BG, ec="white", linewidth=0.5,
+                                   fc=_HDR_BG, ec="#333333", linewidth=0.5,
                                    transform=ax.transAxes, clip_on=False))
         ax.text(x + cw * tw * 0.5, t - row_h * 0.5, hdr,
                 ha="center", va="center", fontsize=FONT_ANNOT,
@@ -623,11 +623,11 @@ def task11_stacked_bar(activity_type, activity_totals, output_dir,
         fontsize=FONT_TITLE,
     )
     ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.25)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
     ax.legend(
-        loc="upper center",
-        bbox_to_anchor=(0.5, -0.08),
+        loc="lower center",
+        bbox_to_anchor=(0.5, -0.25),
         ncol=3,
         fontsize=FONT_ANNOT,
         frameon=True,

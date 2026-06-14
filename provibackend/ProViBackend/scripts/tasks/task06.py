@@ -28,7 +28,68 @@ logger = logging.getLogger(__name__)
 # backward compatibility but intentionally excluded here so /task-idioms reports the
 # validated set only).
 IDIOMS = ["tile_metric", "bar_chart", "scatter_plot", "table",
-          "flow_chart_elaborate", "decision_tree"]
+          "flow_chart_elaborate", "tree"]
+
+# ---------------------------------------------------------------------------
+# Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8)
+#
+# Task 6 (AUTO): no hyperparameters needed — log fitness is computed directly
+# from the alignment output as mean per-trace fitness × 100, rounded.
+# ---------------------------------------------------------------------------
+GT_TIER = "AUTO"
+
+PARAM_SPEC = []
+
+ANSWER_FORMATS = [
+    {"key": "pct",       "gt_shape": "scalar",    "decisive_default": True},
+    {"key": "mc-single", "gt_shape": "mc-single",  "decisive_default": True},
+    {"key": "free-text", "gt_shape": "reference",  "decisive_default": False},
+]
+
+RUBRIC = (
+    "A complete answer states the overall log fitness as a percentage (0–100 %) "
+    "and interprets it: values at or near 100 % indicate strong conformance; values "
+    "well below 100 % indicate systematic deviations from the process model. "
+    "Award full marks for the correct value (±2 pp) with a correct qualitative "
+    "interpretation. Award partial marks for a correct directional interpretation "
+    "without the precise numeric value."
+)
+
+
+def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
+    """Mean per-trace fitness × 100, rounded to the nearest integer percentage.
+
+    For pct: returns a scalar string e.g. "87%".
+    For mc-single: correct option + 3 deterministic distractors (±10, ±20, ±30 pp,
+    clamped to [0, 100], shuffled by the correct value as seed).
+    """
+    mean_fit = float(fitness_df["fitness"].mean()) if len(fitness_df) > 0 else 0.0
+    pct = round(mean_fit * 100)
+
+    if answer_format == "pct":
+        return {"value": f"{pct}%", "options": []}
+
+    if answer_format == "mc-single":
+        distractors = []
+        for delta in [10, 20, 30]:
+            for sign in (1, -1):
+                candidate = max(0, min(100, pct + sign * delta))
+                if candidate != pct and candidate not in distractors:
+                    distractors.append(candidate)
+                if len(distractors) == 3:
+                    break
+            if len(distractors) == 3:
+                break
+        import random as _rnd
+        rng = _rnd.Random(pct)
+        options = [{"label": f"{pct}%", "value": f"{pct}%", "correct": True}] + [
+            {"label": f"{d}%", "value": f"{d}%", "correct": False} for d in distractors[:3]
+        ]
+        rng.shuffle(options)
+        return {"value": None, "options": options}
+
+    # free-text: no computed value — admin fills in rubric from RUBRIC seed
+    return {"value": None, "options": []}
 
 import os
 import numpy as np
@@ -67,9 +128,9 @@ def task06_bar_chart(df, output_dir: str):
     ax.set_title("Conform vs. Non-Conform Traces", fontsize=FONT_TITLE)
     ax.set_ylim(0, max(conform, non_conform) * 1.15)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.5)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task06_bar_chart.svg"))
 
 
@@ -89,7 +150,7 @@ def task06_scatter_plot(df, output_dir: str):
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.4)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task06_scatter_plot.svg"))
 
 
@@ -125,7 +186,7 @@ def task06_table(df, output_dir: str):
         cell_pad=0.14,
     )
     ax.set_title("Conformance Summary", fontsize=FONT_TITLE, pad=12)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task06_table.svg"))
 
 
@@ -209,12 +270,12 @@ def task06_flow_chart_elaborate_bpmn(alignments, model_path, output_dir: str):
 # Tree (Med) — decision tree explaining conformant vs non-conformant traces
 # ---------------------------------------------------------------------------
 
-def task06_decision_tree(log, alignments, output_dir: str):
+def task06_tree(log, alignments, output_dir: str):
     """Tree (Med): a Decision Tree predicting conformant vs non-conformant traces from
     case/event attributes — the explanatory companion (which attributes explain the
     fitness). Reuses task20's tree-building + rendering verbatim, then renames the
-    output to the task06 stem. Stem → canonical slug 'decision_tree'."""
-    path = os.path.join(output_dir, "task06_decision_tree.svg")
+    output to the task06 stem. Stem → canonical slug 'tree'."""
+    path = os.path.join(output_dir, "task06_tree.svg")
     if not log or not alignments:
         render_empty_state_svg(path, "Attributes Explaining Conformance",
                                "No log or alignments available.")
@@ -224,8 +285,8 @@ def task06_decision_tree(log, alignments, output_dir: str):
         render_empty_state_svg(path, "Attributes Explaining Conformance",
                                "No attribute split separates conformant from non-conformant traces.")
         return
-    task20.task20_decision_tree(tree, output_dir)
-    src = os.path.join(output_dir, "task20_decision_tree.svg")
+    task20.task20_tree(tree, output_dir)
+    src = os.path.join(output_dir, "task20_tree.svg")
     if os.path.exists(src):
         os.replace(src, path)
 
@@ -247,4 +308,4 @@ def generate(df, output_dir: str, log=None, alignments=None, model_path=None):
     task06_scatter_plot(df, output_dir)
     task06_table(df, output_dir)
     task06_flow_chart_elaborate_bpmn(alignments, model_path, output_dir)
-    task06_decision_tree(log, alignments, output_dir)
+    task06_tree(log, alignments, output_dir)

@@ -81,17 +81,18 @@ def task27_bar_chart(vdf: pd.DataFrame, output_dir: str):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + ymax * 0.012,
                 f"{int(val)}", ha="center", va="bottom", fontsize=FONT_ANNOT - 1)
 
-    ax.legend(handles=_status_legend_handles(), frameon=False, fontsize=FONT_ANNOT,
-              loc="lower right", bbox_to_anchor=(1.0, -0.18), ncol=2)
+    ax.legend(handles=_status_legend_handles(),
+              loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=2, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.set_xlabel(f"Variant (ranked by frequency, top {len(top)} of {len(vdf)})",
                   fontsize=FONT_LABEL)
     ax.set_ylabel("Number of Traces", fontsize=FONT_LABEL)
     ax.set_title("Variant Frequency by Conformance Status", fontsize=FONT_TITLE)
     ax.set_ylim(0, ymax * 1.15)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.5)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task27_bar_chart.svg"))
 
 
@@ -111,9 +112,9 @@ def task27_scatter_plot(fitness_df: pd.DataFrame, output_dir: str):
     ax.set_title("Conformance Status per Trace", fontsize=FONT_TITLE)
     ax.legend(frameon=False, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.4)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task27_scatter_plot.svg"))
 
 
@@ -139,7 +140,7 @@ def task27_table(vdf: pd.DataFrame, output_dir: str):
         f"Conformance Status of the Top-{len(cell_text)} Variants (of {len(vdf)} total)",
         fontsize=FONT_TITLE, pad=3,
     )
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task27_table.svg"))
 
 
@@ -186,7 +187,7 @@ def task27_table_and_bar_chart(vdf: pd.DataFrame, output_dir: str):
     ax_bar.xaxis.grid(True, linestyle="--", alpha=0.5)
     ax_bar.set_axisbelow(True)
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task27_table_and_bar_chart.svg"))
 
 
@@ -235,7 +236,7 @@ def task27_parallel_sets(vdf: pd.DataFrame, output_dir: str):
         right_title="Status",
     )
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task27_parallel_sets.svg"))
 
 
@@ -330,7 +331,7 @@ def task27_matrix(vdf: pd.DataFrame, alignments, output_dir: str):
         loc="upper center", bbox_to_anchor=(0.5, -0.32), ncol=4,
         frameon=False, fontsize=FONT_ANNOT - 1,
     )
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task27_matrix.svg"))
 
 
@@ -417,7 +418,7 @@ def task27_flow_chart_and_table(vdf: pd.DataFrame, alignments, output_dir: str):
         ncol=4, fontsize=FONT_ANNOT, frameon=True, fancybox=False,
         edgecolor="#cccccc",
     )
-    fig.tight_layout(rect=[0, 0.05, 1, 0.97])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task27_flow_chart_and_table.svg"))
 
 
@@ -473,11 +474,12 @@ def task27_stacked_bar(tdf: pd.DataFrame, output_dir: str):
     ax.set_ylabel("Number of Traces", fontsize=FONT_LABEL)
     ax.set_title("Conformance Status by Trace-Length Bucket", fontsize=FONT_TITLE)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.5)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    ax.legend(loc="upper right", frameon=False, fontsize=FONT_ANNOT, title="Status",
-              title_fontsize=FONT_ANNOT)
-    fig.tight_layout()
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=max(1, len(handles)), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task27_stacked_bar.svg"))
 
 
@@ -494,7 +496,7 @@ def task27_box_plot(tdf: pd.DataFrame, output_dir: str):
     draw_grouped_box_plot(ax, data, statuses, [_COLOR_CONFORM, _COLOR_NON_CONFORM],
                           ylabel="Throughput time (hours)", ylim=None)
     ax.set_title("Throughput Time by Conformance Status", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task27_box_plot.svg"))
 
 
@@ -520,7 +522,7 @@ def task27_heatmap(vdf: pd.DataFrame, alignments, output_dir: str):
     draw_value_heatmap(fig, ax, data, labels, activities, xlabel="Activity (model order)",
                        cbar_label="Occurrences in variant", annotate=False, rotate_xticks=40)
     ax.set_title(f"Activity Presence Across Variants (top-{len(top)})", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task27_heatmap.svg"))
 
 
@@ -553,7 +555,7 @@ def task27_gantt_chart(vdf: pd.DataFrame, log, output_dir: str):
     ax.set_title("Representative Trace Timelines by Conformance Status", fontsize=FONT_TITLE)
     ax.legend(handles=_status_legend_handles(), frameon=False, fontsize=FONT_ANNOT,
               loc="lower right")
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task27_gantt_chart.svg"))
 
 

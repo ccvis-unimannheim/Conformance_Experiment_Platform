@@ -160,7 +160,7 @@ def task12_tile_metric(stats, output_dir):
                 transform=ax.transAxes)
 
     fig.suptitle("Process Conformance Summary", fontsize=FONT_TITLE + 1, y=1.02)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task12_tile_metric.svg"))
 
 
@@ -178,43 +178,27 @@ def task12_pie_chart(stats, output_dir):
 
     slice_data = [
         (n_c, pct_c, _CAT_COLORS["conformant"], "Conformant"),
-        (n_d, pct_d, _C_DARK,                   "Deviating"),
+        (n_d, pct_d, "#333333",                 "Deviating"),
     ]
 
-    fig, ax = plt.subplots(figsize=(9, 6.5))
-    wedges, _ = ax.pie(
+    def _autopct(pct):
+        cnt = int(round(pct / 100 * n_t))
+        return f"{pct:.1f}%\n({cnt:,})"
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    wedges, _texts, autotexts = ax.pie(
         [n_c, n_d],
         labels=None,
         colors=[d[2] for d in slice_data],
-        autopct=None,
-        startangle=180,
-        wedgeprops={"edgecolor": "white", "linewidth": 2.5},
+        autopct=_autopct,
+        startangle=90,
+        pctdistance=0.68,
+        wedgeprops={"edgecolor": "white", "linewidth": 2},
+        textprops=dict(fontsize=FONT_ANNOT),
     )
-
-    # Manually annotate each slice
-    for wedge, (cnt, pct, clr, _) in zip(wedges, slice_data):
-        angle_mid = np.radians((wedge.theta1 + wedge.theta2) / 2)
-        cos_a, sin_a = np.cos(angle_mid), np.sin(angle_mid)
-        label_txt = f"{pct:.1f}%\n({cnt:,})"
+    for atext, (_, _, clr, _) in zip(autotexts, slice_data):
         r_in = int(clr[1:3], 16)
-        txt_clr = "white" if r_in < 150 else _C_DARK
-
-        if pct < 5:
-            # Outside label with leader line
-            xy  = (0.6 * cos_a, 0.6 * sin_a)
-            txt = (1.35 * cos_a, 1.35 * sin_a)
-            ax.annotate(
-                label_txt,
-                xy=xy, xytext=txt,
-                arrowprops=dict(arrowstyle="-", color=_C_LIGHT, lw=0.9),
-                ha="center", va="center",
-                fontsize=FONT_ANNOT + 1, color=_C_DARK,
-            )
-        else:
-            ax.text(0.65 * cos_a, 0.65 * sin_a, label_txt,
-                    ha="center", va="center",
-                    fontsize=FONT_ANNOT + 1, color=txt_clr,
-                    linespacing=1.4)
+        atext.set_color("white" if r_in < 150 else _C_DARK)
 
     ax.legend(
         wedges,
@@ -226,11 +210,8 @@ def task12_pie_chart(stats, output_dir):
         frameon=True, framealpha=0.9,
         ncol=2,
     )
-    ax.set_title(
-        f"Conformant vs Deviating Traces\n{n_t:,} total traces",
-        fontsize=FONT_TITLE, pad=16,
-    )
-    fig.tight_layout()
+    ax.set_title("Conformant vs Deviating Traces", fontsize=FONT_TITLE, pad=16)
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task12_pie_chart.svg"))
 
 
@@ -274,11 +255,11 @@ def task12_bar_chart(stats, output_dir):
         fontsize=FONT_TITLE,
     )
     ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.3)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
     ax.set_xlim(0, n_t * 1.22)
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task12_bar_chart.svg"))
 
 
@@ -351,18 +332,18 @@ def task12_stacked_bar(stats, output_dir):
         fontsize=FONT_TITLE,
     )
     ax.spines[["top", "right", "left"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.25)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
     ax.legend(
         handles=patches,
-        loc="upper center",
-        bbox_to_anchor=(0.5, -0.20),
+        loc="lower center",
+        bbox_to_anchor=(0.5, -0.25),
         ncol=3,
         fontsize=FONT_ANNOT,
         frameon=True, framealpha=0.9,
     )
 
-    fig.tight_layout(rect=[0, 0.10, 1, 1])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task12_stacked_bar.svg"))
 
 
@@ -420,7 +401,7 @@ def task12_table(stats, output_dir):
     x = l
     for hdr, cw in zip(col_headers, col_widths):
         ax.add_patch(plt.Rectangle((x, t - row_h), cw * tw, row_h,
-                                   fc=_HDR_BG, ec="white", linewidth=0.5,
+                                   fc=_HDR_BG, ec="#333333", linewidth=0.5,
                                    transform=ax.transAxes, clip_on=False))
         ax.text(x + cw * tw * 0.5, t - row_h * 0.5, hdr,
                 ha="center", va="center", fontsize=FONT_ANNOT,
@@ -439,7 +420,7 @@ def task12_table(stats, output_dir):
 
         for j, (val, cw) in enumerate(zip(row, col_widths)):
             ax.add_patch(plt.Rectangle((x, y_top), cw * tw, row_h,
-                                       fc=bg, ec="#eeeeee", linewidth=0.4,
+                                       fc=bg, ec="#333333", linewidth=0.5,
                                        transform=ax.transAxes, clip_on=False))
             ha = "left" if j == 0 else "center"
             px = x + 0.008 if j == 0 else x + cw * tw * 0.5
@@ -453,7 +434,7 @@ def task12_table(stats, output_dir):
         f"Process Conformance Breakdown  ·  {n_t:,} total traces",
         fontsize=FONT_TITLE, pad=14,
     )
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task12_table.svg"))
 
 
@@ -533,7 +514,7 @@ def task12_table_bar_chart(stats, output_dir):
         f"Process Conformance Breakdown  ·  {n_t:,} total traces",
         fontsize=FONT_TITLE + 1, y=1.01,
     )
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task12_table_bar_chart.svg"))
 
 

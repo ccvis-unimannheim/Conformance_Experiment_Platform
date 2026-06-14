@@ -67,7 +67,7 @@ class GroundTruthBlock(BaseModel):
     decisive: bool             # derived from format, admin-overridable
     value: Any = None          # scalar/set/rank/matrix per format
     options: List[OptionItem] = []   # MC: full closed set incl. distractors, editable
-    reference: Optional[str] = None  # free-text rubric (auto-generated, editable)
+    reference: Optional[str] = None  # free-text rubric (seeded from the task's static RUBRIC, editable)
     artefact_path: Optional[str] = None  # disk cache of computed support
 ```
 
@@ -100,6 +100,7 @@ ANSWER_FORMATS = [                  # allowed col-D formats; each declares its G
   {"key": "pct-set",   "gt_shape": "labelled-set", "decisive_default": True},
   {"key": "free-text", "gt_shape": "reference",    "decisive_default": False},
 ]
+RUBRIC = "..."                      # static free-text grading rubric, authored once per task (see §8)
 def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
     # optional; returns {value, options, correct, support_artefact}
 ```
@@ -173,24 +174,26 @@ summary (both have non-empty col-E), consistent with the rule above.
   blank/fallback GT so the flow still works — enabling one-task-at-a-time
   rollout.
 
-**Rubric generation (decoupled from tier):** available **whenever `free-text` ∈
-that task's `ANSWER_FORMATS`** — which covers all MANUAL tasks *and* the SEMI
-split tasks (#14, #17, #18, #24, #37). So a SEMI split task auto-computes its
-mc/numeric GT *and* offers an editable rubric when free-text is the chosen
-format.
+**Rubrics are per-task, not per (experiment, task).** A rubric is derived from
+the task's *description*, which is fixed per task — it does not depend on the
+dataset, experiment, or hyperparameters. So there is **no runtime rubric-
+generation function** in the pipeline. Instead:
 
-- New **`rubric.py`**: `generate_rubric(task_key, task_description,
-  support_artefact) -> str`, **Claude-backed** (default `claude-opus-4-8`;
-  `claude-haiku-4-5` available if lower cost is preferred — configurable). Input
-  = task description + computed supporting artefact (correlations / deviation
-  profile) so the rubric cites concrete evidence; output = a structured rubric
-  (criteria + what a strong answer must address). The exact request shape / model
-  id / key handling will be confirmed against the `claude-api` skill at
-  implementation time.
-- **Graceful fallback** (matching the pm4py-import degradation style): no API
-  key / offline → deterministic template scaffold instead of failing the run.
-- Stored in `ground_truth.reference`, editable on `/answer-format-groundtruth`,
-  with a **"Regenerate rubric"** button.
+- Each task carries a **static `RUBRIC` string** (a module constant, §4),
+  available **whenever `free-text` ∈ that task's `ANSWER_FORMATS`** — which covers
+  all MANUAL tasks *and* the SEMI split tasks (#14, #17, #18, #24, #37). So a SEMI
+  split task auto-computes its mc/numeric GT *and* carries an editable rubric for
+  when free-text is the chosen format.
+- The `RUBRIC` text is **authored once per task** during the per-task loop
+  (step 6). Producing it may be **Claude-assisted or hand-written** — but that is
+  an *authoring-time aid*, not shipped runtime code, and needs no API key at run
+  time.
+- At experiment-generation, the static `RUBRIC` is simply **copied into
+  `ground_truth.reference`** as the editable seed (a dict copy). The seed stays
+  **generic**; the admin adds any dataset-specific detail by editing, with the
+  computed supporting artefact shown read-only alongside as a guide.
+- The `/answer-format-groundtruth` page offers a **"Reset to default rubric"**
+  button that re-copies the task's static `RUBRIC`.
 
 ## 9. Params are optional
 
@@ -252,7 +255,8 @@ For each task, **in task-ID order (#1 → #37)**, with the user:
 1. Author `PARAM_SPEC` from col E (surface existing `generate()` kwargs).
 2. Author `ANSWER_FORMATS` + per-format `gt_shape` from col D.
 3. Implement `compute_ground_truth` per col H (incl. the MC distractor set).
-4. If `free-text` ∈ `ANSWER_FORMATS`, wire `generate_rubric`.
+4. If `free-text` ∈ `ANSWER_FORMATS`, author the static `RUBRIC` string
+   (Claude-assisted or hand-written; see §8).
 5. Run generation on a real dataset; eyeball that task's `/specify` +
    `/answer-format-groundtruth`; adjust.
 6. Mark authored; move on.
@@ -266,8 +270,8 @@ For each task, **in task-ID order (#1 → #37)**, with the user:
 3. Pipeline refactor: per-experiment paths, on-demand `…/generate`, status,
    shared-artefact reuse.
 4. `/specify` page (data-driven).
-5. GT scaffold + `rubric.py` (Claude + template fallback) +
-   `/answer-format-groundtruth` page (works with fallback GT).
+5. GT scaffold + `/answer-format-groundtruth` page (seeds `reference` from each
+   task's static `RUBRIC`; works with fallback GT). No runtime rubric service.
 6. Per-task contracts + `compute_ground_truth`, **one task at a time in ID order
    (#1 → #37)** — the §14 loop.
 7. `/overview` wiring + participant-side reads.
@@ -275,7 +279,8 @@ For each task, **in task-ID order (#1 → #37)**, with the user:
 ## 16. Open items
 
 - **Resolved:** migration → **migrate in place** (§3).
-- Rubric model default: `claude-opus-4-8` (quality, current default) vs
-  `claude-haiku-4-5` (cost). Configurable either way.
+- **Resolved:** rubrics are static per-task `RUBRIC` constants copied into each
+  instance — no runtime rubric service, no API key needed at run time (§8).
+  Authoring the text once per task may use Claude as an offline aid.
 - Upload-time default render: plan assumes **none** (generation happens on
   `/specify`).

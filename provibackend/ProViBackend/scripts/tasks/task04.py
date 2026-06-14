@@ -84,8 +84,8 @@ def task04_bar_chart(vdf: pd.DataFrame, output_dir: str):
             mpatches.Patch(color=GREY_MED,   label="Conformant (fitness = 1.0)"),
             mpatches.Patch(color=GREY_LIGHT, label="Non-conformant (fitness < 1.0)"),
         ],
-        frameon=False, fontsize=FONT_ANNOT,
-        loc="lower right", bbox_to_anchor=(1.0, -0.18), ncol=2,
+        loc="lower center", bbox_to_anchor=(0.5, -0.25),
+        ncol=2, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT,
     )
     ax.set_xlabel(f"Variant (ranked by frequency, top {len(top)} of {len(vdf)})",
                   fontsize=FONT_LABEL)
@@ -93,9 +93,9 @@ def task04_bar_chart(vdf: pd.DataFrame, output_dir: str):
     ax.set_title("Conformance Fitness by Process Variant", fontsize=FONT_TITLE)
     ax.set_ylim(0, 1.15)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.5)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task04_bar_chart.svg"))
 
 
@@ -121,7 +121,7 @@ def task04_table(vdf: pd.DataFrame, output_dir: str):
         f"Top-{len(cell_text)} Process Variants by Frequency (of {len(vdf)} total)",
         fontsize=FONT_TITLE, pad=3,
     )
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task04_table.svg"))
 
 
@@ -175,7 +175,7 @@ def task04_scatter_plot(vdf: pd.DataFrame, output_dir: str):
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.4)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task04_scatter_plot.svg"))
 
 
@@ -203,9 +203,10 @@ def task04_stacked_bar(vdf: pd.DataFrame, output_dir: str):
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
-    ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1.0), frameon=False,
-              fontsize=FONT_ANNOT - 1, title="Variant", title_fontsize=FONT_ANNOT)
-    fig.tight_layout()
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=max(1, len(handles)), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task04_stacked_bar.svg"))
 
 
@@ -221,7 +222,7 @@ def task04_line_graph(vdf: pd.DataFrame, output_dir: str):
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.4)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task04_line_graph.svg"))
 
 
@@ -232,7 +233,7 @@ def task04_box_plot(vdf: pd.DataFrame, fitness_df: pd.DataFrame, output_dir: str
     draw_grouped_box_plot(ax, data, ["Variant-level", "Trace-level"], [GREY_MED, GREY_LIGHT],
                           ylabel="Fitness (0.0 – 1.0)")
     ax.set_title("Variant-level vs. Trace-level Fitness", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task04_box_plot.svg"))
 
 
@@ -264,7 +265,7 @@ def task04_table_bar_chart(vdf: pd.DataFrame, output_dir: str):
     ax_bar.spines[["top", "right"]].set_visible(False)
     ax_bar.xaxis.grid(True, linestyle="--", alpha=0.5)
     ax_bar.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task04_table_bar_chart.svg"))
 
 
@@ -306,7 +307,7 @@ def task04_matrix(vdf: pd.DataFrame, output_dir: str):
     cbar = fig.colorbar(im, ax=ax, fraction=0.04, pad=0.02)
     cbar.set_label("Normalized (per metric)", fontsize=FONT_ANNOT)
     ax.set_title(f"Variant Metrics Matrix (top-{len(labels)})", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task04_matrix.svg"))
 
 
@@ -318,7 +319,7 @@ def task04_heatmap(vdf: pd.DataFrame, output_dir: str):
     draw_value_heatmap(fig, ax, norm, labels, metrics,
                        cbar_label="Normalized (per metric)", annotate=False)
     ax.set_title(f"Variant Metrics Heatmap (all {len(labels)} variants)", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task04_heatmap.svg"))
 
 

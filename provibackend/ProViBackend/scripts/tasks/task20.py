@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 IDIOMS = ["bar_chart", "scatter_plot", "table", "table_bar_chart", "flow_chart_table",
           "flow_chart_elaborate_table", "parallel_sets",
-          "flow_chart_elaborate", "network_diagram", "decision_tree"]
+          "flow_chart_elaborate", "network_diagram", "tree"]
 
 import os
 import numpy as np
@@ -643,7 +643,7 @@ def _task20_draw_feature_importance(ax, tree: dict):
         ax.text(val + max(importance["importance"].max(), 0.01) * 0.02, y, f"{val:.2f}", va="center", fontsize=FONT_ANNOT)
 
 
-def task20_decision_tree(tree: dict, output_dir: str):
+def task20_tree(tree: dict, output_dir: str):
     """Decision tree: shallow Gini tree fitted on trace/event attributes."""
     fig = plt.figure(figsize=(19.2, 8.0))
     gs = gridspec.GridSpec(1, 2, width_ratios=[3.7, 1.0], wspace=0.16)
@@ -689,8 +689,8 @@ def task20_decision_tree(tree: dict, output_dir: str):
         y_gap=2.05,
     )
     _task20_draw_feature_importance(ax_importance, tree)
-    fig.tight_layout(rect=[0, 0.03, 1, 1])
-    save_svg(fig, os.path.join(output_dir, "task20_decision_tree.svg"))
+    fig.tight_layout(pad=1.2)
+    save_svg(fig, os.path.join(output_dir, "task20_tree.svg"))
 
 
 # ---------------------------------------------------------------------------
@@ -782,7 +782,7 @@ def task20_network_diagram(alignments, output_dir: str, top_n: int = 12):
     ax.set_ylim(-1.45, 1.45)
     ax.set_title("Violation Pattern Co-occurrence Network\n(node size = #traces, edge width = co-occurrence)",
                  fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 
@@ -808,7 +808,7 @@ def generate(log, alignments, output_dir: str, model_path=None):
         return
 
     # Decision Tree — the module's original rendering, unchanged.
-    task20_decision_tree(tree, output_dir)
+    task20_tree(tree, output_dir)
     # Network Diagram (new)
     task20_network_diagram(alignments, output_dir)
 

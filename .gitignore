@@ -13,3 +13,5 @@ provibackend/ProVibackend/new_input/
 provibackend/ProVibackend/new_output/
 provibackend/ProVibackend/output/
 provibackend/ProVibackend/data/
+provibackend/ProViBackend/scripts/generate_all_local.py
+check_idioms.py

@@ -18,8 +18,82 @@ class AssignmentRequest(BaseModel):
     experiment_id: str
 
 
-def _resolve_svg_path(task_id: str, idiom_id: str, dataset_id: str):
+# PARTICIPANT_TRIAL_CONTRACT.md "answer_format -> answer_type (widget) mapping"
+ANSWER_FORMAT_TO_ANSWER_TYPE = {
+    "mc-single": "single_choice",
+    "mc-multi": "multiple_choice",
+    "pct": "numeric",
+    "count": "numeric",
+    "decimal": "numeric",
+    "pct-set": "numeric_set",
+    "count-set": "numeric_set",
+    "rank": "rank",
+    "matrix": "matrix",
+    "free-text": "free_text",
+}
+
+# PARTICIPANT_TRIAL_CONTRACT.md "Fallback (task not yet authored - step 6 pending)"
+FALLBACK_ANSWER_FORMAT = "free-text"
+
+# Choice formats: the option `value` is the submittable token (safe to send).
+_CHOICE_FORMATS = {"mc-single", "mc-multi"}
+# Labelled-set formats: options are row labels; the `value` column holds the GT
+# number, which must NOT be sent to participants (PARTICIPANT_TRIAL_CONTRACT.md
+# "The frontend must never receive ... any other ground-truth value").
+_LABELLED_SET_FORMATS = {"pct-set", "count-set"}
+
+
+def _participant_options(answer_format: str, gt_options: list) -> list:
+    """Strip ground-truth from a task's option set per answer_format.
+
+    - choice (mc-single/mc-multi): send {label, value} (value = submit token).
+    - labelled-set (pct-set/count-set): send {label, value:label} only — the GT
+      number in `value` is withheld so the answer isn't leaked.
+    - everything else: no options.
+    (rank/matrix option-order leakage is a known TODO, not used by any authored
+    task yet.)
+    """
+    if answer_format in _CHOICE_FORMATS:
+        return [
+            {"label": opt.get("label", ""), "value": opt.get("value") or opt.get("label", "")}
+            for opt in gt_options
+        ]
+    if answer_format in _LABELLED_SET_FORMATS:
+        return [{"label": opt.get("label", ""), "value": opt.get("label", "")} for opt in gt_options]
+    return []
+
+
+def _trial_contract_fields(task_instances_by_task_id: dict, task_id: str) -> dict:
+    """Derive the stable trial-contract fields for one task.
+
+    Reads `answer_format`/`ground_truth` from the experiment's task_instances
+    (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md step 7). Falls back to free-text/
+    free_text/[]/false when the task hasn't been authored yet
+    (PARTICIPANT_TRIAL_CONTRACT.md "Fallback"). Ground-truth values are stripped
+    from `options` so they never reach the participant.
+    """
+    ti = task_instances_by_task_id.get(task_id) or {}
+    answer_format = ti.get("answer_format") or FALLBACK_ANSWER_FORMAT
+    answer_type = ANSWER_FORMAT_TO_ANSWER_TYPE.get(answer_format, "free_text")
+
+    ground_truth = ti.get("ground_truth") or {}
+    options = _participant_options(answer_format, ground_truth.get("options", []))
+
+    return {
+        "answer_format": answer_format,
+        "answer_type": answer_type,
+        "decisive": bool(ground_truth.get("decisive", False)),
+        "options": options,
+    }
+
+
+def _resolve_svg_path(task_id: str, idiom_id: str, dataset_id: str, experiment_id: str | None = None):
     """Resolve DB IDs to a filesystem SVG path.
+
+    If `experiment_id` is given and the per-experiment SVG exists at
+    data/{dataset_id}/output/{experiment_id}/{task_key}/{idiom_key}.svg
+    (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7), that path is returned. Otherwise
+    falls back to the legacy shared path data/{dataset_id}/output/{task_key}/{idiom_key}.svg.
 
     Returns (path, error_message). On success error_message is None.
     """
@@ -35,10 +109,15 @@ def _resolve_svg_path(task_id: str, idiom_id: str, dataset_id: str):
 
     task_key  = task["task_key"]    # e.g. "task1"
     idiom_key = idiom["idiom_key"]  # e.g. "bar_chart"
-    svg_path  = (
-        config.BASE_DIRECTORY / "data" / dataset_id / "output" / task_key / f"{idiom_key}.svg"
-    )
-    return svg_path, None
+    output_dir = config.BASE_DIRECTORY / "data" / dataset_id / "output"
+
+    if experiment_id:
+        per_experiment_path = output_dir / experiment_id / task_key / f"{idiom_key}.svg"
+        if per_experiment_path.exists():
+            return per_experiment_path, None
+
+    legacy_path = output_dir / task_key / f"{idiom_key}.svg"
+    return legacy_path, None
 
 
 def _get_experiment_knowledge_questions(exp: dict) -> list:
@@ -90,7 +169,10 @@ async def get_active_experiment():
         raise HTTPException(status_code=404, detail="No active experiment found.")
 
     exp = sorted(experiments, key=lambda e: e.get("created_at", ""), reverse=True)[0]
+    experiment_id = str(exp.get("_id", ""))
     trials = []
+
+    task_instances_by_task_id = {ti["task_id"]: ti for ti in exp.get("task_instances", [])}
 
     for tc in exp.get("task_configs", []):
         task_id    = tc.get("task_id", "")
@@ -105,8 +187,9 @@ async def get_active_experiment():
         if not task or not idiom:
             continue
 
-        svg_path, _ = _resolve_svg_path(task_id, idiom_id, dataset_id)
+        svg_path, _ = _resolve_svg_path(task_id, idiom_id, dataset_id, experiment_id)
         svg_available = bool(svg_path and svg_path.exists())
+        contract = _trial_contract_fields(task_instances_by_task_id, task_id)
 
         trials.append({
             "task_id":       task_id,
@@ -116,7 +199,10 @@ async def get_active_experiment():
             "task_label":    task["label"],
             "idiom_key":     idiom["idiom_key"],
             "idiom_label":   idiom["label"],
-            "answer_type":   task["answer_type"],
+            "answer_format": contract["answer_format"],
+            "answer_type":   contract["answer_type"],
+            "decisive":      contract["decisive"],
+            "options":       contract["options"],
             "svg_available": svg_available,
         })
 
@@ -128,9 +214,14 @@ async def get_active_experiment():
 
 
 @router.get("/vis/{dataset_id}/{task_id}/{idiom_id}", tags=["participant"])
-async def get_visualization(dataset_id: str, task_id: str, idiom_id: str):
-    """Return the SVG file for a specific task/idiom/dataset combination."""
-    svg_path, err = _resolve_svg_path(task_id, idiom_id, dataset_id)
+async def get_visualization(dataset_id: str, task_id: str, idiom_id: str, experiment_id: str | None = None):
+    """Return the SVG file for a specific task/idiom/dataset combination.
+
+    `experiment_id` is optional; if given and a per-experiment SVG exists at
+    data/{dataset_id}/output/{experiment_id}/{task_key}/{idiom_key}.svg it is
+    served, otherwise the legacy shared path is used (see _resolve_svg_path).
+    """
+    svg_path, err = _resolve_svg_path(task_id, idiom_id, dataset_id, experiment_id)
     if err:
         raise HTTPException(status_code=404, detail=err)
     if not svg_path.exists():
@@ -193,6 +284,9 @@ async def get_assigned_trials(
             detail="No assignment found. Call POST /participant/assignment first.",
         )
 
+    exp = dbc.get_document("Experiment", {"_id": experiment_id})
+    task_instances_by_task_id = {ti["task_id"]: ti for ti in (exp or {}).get("task_instances", [])}
+
     trials = []
     for idx, token in enumerate(assignment.get("trial_sequence", [])):
         try:
@@ -205,8 +299,9 @@ async def get_assigned_trials(
         if not task or not idiom:
             continue
 
-        svg_path, _ = _resolve_svg_path(task_id, idiom_id, dataset_id)
+        svg_path, _ = _resolve_svg_path(task_id, idiom_id, dataset_id, experiment_id)
         svg_available = bool(svg_path and svg_path.exists())
+        contract = _trial_contract_fields(task_instances_by_task_id, task_id)
 
         trials.append({
             "trial_index":   idx,
@@ -217,7 +312,10 @@ async def get_assigned_trials(
             "task_label":    task["label"],
             "idiom_key":     idiom["idiom_key"],
             "idiom_label":   idiom["label"],
-            "answer_type":   task["answer_type"],
+            "answer_format": contract["answer_format"],
+            "answer_type":   contract["answer_type"],
+            "decisive":      contract["decisive"],
+            "options":       contract["options"],
             "svg_available": svg_available,
         })
 

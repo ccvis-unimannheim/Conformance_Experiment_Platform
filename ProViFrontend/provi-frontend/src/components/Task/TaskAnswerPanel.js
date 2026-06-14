@@ -2,33 +2,15 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { taskDescriptions, idiomDescriptions } from "./descriptions";
 
-/**
- * TaskAnswerPanel
- * Right panel — answer box for each task.
- *
- * Behaviour:
- *  - If options are provided  → show each as a selectable answer box
- *  - If no options            → show a free-text box (default)
- *
- * On submit: saves answer + response_time_ms to backend, then advances to next task.
- *
- * Props:
- *  - options            : [{ label, value }]  — if empty, free-text is shown
- *  - taskId             : number/string
- *  - idiomId            : string
- *  - datasetId          : string
- *  - trialIndex         : number
- *  - presentationOrder  : number
- *  - totalTasks         : total number of tasks
- *  - currentTaskIndex   : 0-based index
- *  - onAnswerSubmit     : callback fired after submit to advance to next task
- */
 const TaskAnswerPanel = ({
   options = [],
   taskLabel = "",
   taskId,
+  taskKey = "",
   idiomId = "",
+  idiomKey = "",
   datasetId = "",
   experimentId = "",
   trialIndex = 0,
@@ -40,15 +22,20 @@ const TaskAnswerPanel = ({
   const router = useRouter();
   const [selectedAnswer, setSelectedAnswer] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [idiomExpanded, setIdiomExpanded] = useState(false);
+  const [showTaskTooltip, setShowTaskTooltip] = useState(false);
 
-  // Track when the current task started
   const startTimeRef = useRef(Date.now());
 
   const hasOptions = options.length > 0;
   const isLastTask = currentTaskIndex >= totalTasks - 1;
 
+  const taskDesc = taskDescriptions[taskKey] ?? null;
+  const idiomDesc = idiomDescriptions[idiomKey] ?? null;
+
   useEffect(() => {
     setSelectedAnswer("");
+    setIdiomExpanded(false);
     startTimeRef.current = Date.now();
   }, [currentTaskIndex]);
 
@@ -60,7 +47,6 @@ const TaskAnswerPanel = ({
     }
 
     setSubmitting(true);
-
     const response_time_ms = Date.now() - startTimeRef.current;
 
     const payload = {
@@ -69,7 +55,6 @@ const TaskAnswerPanel = ({
       task_id: taskId?.toString(),
       idiom_id: idiomId,
       dataset_id: datasetId,
-      experiment_id: experimentId,
       trial_index: trialIndex,
       presentation_order: presentationOrder,
       answer: selectedAnswer.toString(),
@@ -105,8 +90,11 @@ const TaskAnswerPanel = ({
   };
 
   const headerStyle = {
-    fontSize: "0.7rem", fontWeight: 700, color: "#5a6061",
-    letterSpacing: "0.2em", textTransform: "uppercase",
+    fontSize: "0.7rem",
+    fontWeight: 700,
+    color: "#5a6061",
+    letterSpacing: "0.2em",
+    textTransform: "uppercase",
     margin: "0 0 1.5rem 0",
   };
 
@@ -129,23 +117,98 @@ const TaskAnswerPanel = ({
   return (
     <aside style={{ display: "flex", flexDirection: "column", gap: "1.5rem", position: "sticky", top: "5rem", maxHeight: "calc(100vh - 6rem)", overflowY: "auto", scrollbarWidth: "none" }}>
       <div style={cardStyle}>
+
+        {/* Task Label with hover tooltip */}
         {taskLabel && (
-          <p style={{
-            fontSize: "1.05rem",
-            fontWeight: 700,
-            color: "#00305e",
-            lineHeight: 1.5,
-            marginBottom: "1.5rem",
-            paddingBottom: "1.25rem",
-            borderBottom: "1px solid #f0f0f0",
-          }}>
-            {taskLabel}
-          </p>
+          <div style={{ position: "relative", marginBottom: "1rem", paddingBottom: "1rem", borderBottom: "1px solid #f0f0f0" }}>
+            <p
+              style={{
+                fontSize: "1.05rem",
+                fontWeight: 700,
+                color: "#00305e",
+                lineHeight: 1.5,
+                margin: 0,
+                cursor: taskDesc ? "help" : "default",
+              }}
+              onMouseEnter={() => setShowTaskTooltip(true)}
+              onMouseLeave={() => setShowTaskTooltip(false)}
+            >
+              {taskLabel}
+            </p>
+
+            {showTaskTooltip && taskDesc && (
+              <div style={{
+                position: "absolute",
+                top: "calc(100% + 0.5rem)",
+                left: 0,
+                right: 0,
+                zIndex: 100,
+                backgroundColor: "#00305e",
+                color: "white",
+                padding: "0.875rem 1rem",
+                borderRadius: "0.5rem",
+                fontSize: "0.8rem",
+                lineHeight: 1.6,
+                boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+              }}>
+                {taskDesc}
+              </div>
+            )}
+          </div>
         )}
+
+        {/* Idiom expandable description */}
+        {idiomDesc && (
+          <div style={{
+            marginBottom: "1.25rem",
+            border: "1px solid #eef0f0",
+            borderRadius: "0.5rem",
+            overflow: "hidden",
+          }}>
+            <button
+              type="button"
+              onClick={() => setIdiomExpanded(!idiomExpanded)}
+              style={{
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "0.6rem 0.875rem",
+                backgroundColor: "#f8f9fa",
+                border: "none",
+                cursor: "pointer",
+                fontSize: "0.72rem",
+                fontWeight: 700,
+                color: "#5a6061",
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                textAlign: "left",
+              }}
+            >
+              <span>About this visualization</span>
+              <span style={{ fontSize: "0.65rem", color: "#9ca3af" }}>
+                {idiomExpanded ? "▲" : "▼"}
+              </span>
+            </button>
+            {idiomExpanded && (
+              <div style={{
+                padding: "0.875rem",
+                backgroundColor: "white",
+                fontSize: "0.8rem",
+                color: "#5a6061",
+                lineHeight: 1.7,
+                borderTop: "1px solid #eef0f0",
+              }}>
+                {idiomDesc}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Answer section */}
         <h2 style={headerStyle}>Your Answer</h2>
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-
           {hasOptions ? (
             options.map((option, index) => {
               const isSelected = selectedAnswer === option.value;
@@ -168,14 +231,16 @@ const TaskAnswerPanel = ({
                     transition: "all 0.15s ease",
                   }}
                 >
-                  {/* Circle indicator */}
                   <div style={{
-                    width: "1.1rem", height: "1.1rem",
+                    width: "1.1rem",
+                    height: "1.1rem",
                     borderRadius: "50%",
                     border: `2px solid ${isSelected ? "#3c5f90" : "#adb3b4"}`,
                     backgroundColor: isSelected ? "#3c5f90" : "transparent",
                     flexShrink: 0,
-                    display: "flex", alignItems: "center", justifyContent: "center",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                     transition: "all 0.15s ease",
                   }}>
                     {isSelected && (
@@ -219,7 +284,6 @@ const TaskAnswerPanel = ({
             />
           )}
 
-          {/* Submit button — same for both types */}
           <button type="submit" disabled={submitting} style={submitBtnStyle}>
             {submitting ? "Saving…" : isLastTask ? "Finish Experiment" : "Submit & Next →"}
           </button>

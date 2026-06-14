@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 IDIOMS = [
     "table", "bar_chart", "scatter_plot",
     "flow_chart_table", "flow_chart_elaborate", "flow_chart_elaborate_table",
-    "tree", "table_bar_chart", "parallel_sets",
+    "table_bar_chart", "parallel_sets",
 ]
 
 import os
@@ -162,7 +162,7 @@ def task14_table(ctx, output_dir):
         f"Violation Classification — {ctx['trace_label']}  (fitness {ctx['fitness']:.4f})",
         fontsize=FONT_TITLE, pad=10,
     )
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out)
 
 
@@ -206,12 +206,12 @@ def task14_bar_chart(ctx, output_dir):
         mpatches.Patch(facecolor=_TYPE_COLOR[mt], label=mt)
         for mt in _MOVE_TYPES if counts[mt] > 0
     ]
-    fig.legend(
+    ax.legend(
         handles=legend_handles,
-        loc="lower center", bbox_to_anchor=(0.5, -0.06),
-        ncol=1, frameon=False, fontsize=FONT_ANNOT,
+        loc="lower center", bbox_to_anchor=(0.5, -0.25),
+        ncol=3, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT,
     )
-    fig.tight_layout(rect=[0, 0.14, 1, 1])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out)
 
 
@@ -271,7 +271,7 @@ def task14_scatter_plot(ctx, output_dir):
         handles=legend_handles,
         loc="upper right", fontsize=FONT_ANNOT, frameon=True, framealpha=0.9,
     )
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out)
 
 
@@ -336,7 +336,7 @@ def task14_flow_chart_and_table(ctx, output_dir):
         f"Violation Classification — {ctx['trace_label']}  (fitness {ctx['fitness']:.4f})",
         fontsize=FONT_TITLE, y=0.99,
     )
-    fig.tight_layout(rect=[0, 0.10, 1, 0.96])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out)
 
 
@@ -458,80 +458,6 @@ def task14_flow_chart_elaborate_table(ctx, model_path, output_dir):
 
 
 # ---------------------------------------------------------------------------
-# Idiom 8: tree
-# ---------------------------------------------------------------------------
-
-def task14_tree(ctx, output_dir):
-    """Hierarchical tree: root = trace violations, level 1 = types, leaves = activities."""
-    out = os.path.join(output_dir, "task14_tree.svg")
-    violations = ctx["violations"]
-    if not violations:
-        render_empty_state_svg(out, "Violation Type Breakdown", "No violations in this trace.")
-        return
-
-    from collections import defaultdict
-    raw_branches = defaultdict(list)
-    for r in violations:
-        act = _activity_for_row(r)
-        if act and act not in _MISSING_TOKENS:
-            raw_branches[r["moveType"]].append(act)
-
-    branch_data = []
-    for mt in _MOVE_TYPES:
-        acts = list(dict.fromkeys(raw_branches[mt]))  # deduplicate, preserve insertion order
-        if acts:
-            branch_data.append((mt, len(raw_branches[mt]), acts))
-
-    if not branch_data:
-        render_empty_state_svg(out, "Violation Type Breakdown", "No violations to display.")
-        return
-
-    n_leaves = sum(len(acts) for _, _, acts in branch_data)
-    fig, ax = plt.subplots(figsize=(13, max(4.5, n_leaves * 0.62 + 1.8)))
-    ax.axis("off")
-    ax.set_xlim(0, 11)
-    ax.set_ylim(0, n_leaves + 1.4)
-
-    total_v = sum(c for _, c, _ in branch_data)
-    root_y = (n_leaves + 1.0) / 2.0
-    ax.text(
-        0.60, root_y,
-        f"Trace Violations\n(total: {total_v})",
-        ha="center", va="center", fontsize=FONT_ANNOT,
-        color="white",
-        bbox=dict(boxstyle="round,pad=0.40", fc="#333333", ec="none"),
-    )
-
-    leaf_i = float(n_leaves)
-    for mt, count, acts in branch_data:
-        n = len(acts)
-        branch_y = leaf_i - (n - 1) / 2.0
-        ax.annotate("", xy=(2.85, branch_y), xytext=(1.35, root_y),
-                    arrowprops=dict(arrowstyle="-", color="#AAAAAA", linewidth=1.1))
-        ax.text(
-            3.75, branch_y,
-            f"{mt}\n(×{count})",
-            ha="center", va="center", fontsize=FONT_ANNOT - 1,
-            color=contrasting_text_color(_TYPE_COLOR[mt]),
-            bbox=dict(boxstyle="round,pad=0.35", fc=_TYPE_COLOR[mt], ec="none"),
-        )
-        for act in acts:
-            ax.annotate("", xy=(5.5, leaf_i), xytext=(4.55, branch_y),
-                        arrowprops=dict(arrowstyle="-", color="#CCCCCC", linewidth=0.9))
-            display = act if len(act) <= 32 else act[:30] + "…"
-            ax.text(5.65, leaf_i, display, ha="left", va="center",
-                    fontsize=FONT_ANNOT - 1, color="#222222")
-            leaf_i -= 1.0
-
-    ax.set_title(
-        f"Violation Type Breakdown — {ctx['trace_label']}  (fitness {ctx['fitness']:.4f})",
-        fontsize=FONT_TITLE, pad=10,
-    )
-    fig.tight_layout()
-    save_svg(fig, out)
-
-
-# ---------------------------------------------------------------------------
 # Idiom 9: table_bar_chart
 # ---------------------------------------------------------------------------
 
@@ -593,7 +519,7 @@ def task14_table_bar_chart(ctx, output_dir):
         f"(fitness {ctx['fitness']:.4f})",
         fontsize=FONT_TITLE, y=0.99,
     )
-    fig.tight_layout(rect=[0, 0, 1, 0.95])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out)
 
 
@@ -649,7 +575,7 @@ def task14_parallel_sets(ctx, output_dir):
         f"(fitness {ctx['fitness']:.4f})",
         fontsize=FONT_TITLE, pad=12,
     )
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out)
 
 
@@ -684,6 +610,5 @@ def generate(alignments, model_path: str, output_dir: str):
     task14_flow_chart_and_table(ctx, output_dir)
     task14_flow_chart_elaborate(ctx, model_path, output_dir)
     task14_flow_chart_elaborate_table(ctx, model_path, output_dir)
-    task14_tree(ctx, output_dir)
     task14_table_bar_chart(ctx, output_dir)
     task14_parallel_sets(ctx, output_dir)

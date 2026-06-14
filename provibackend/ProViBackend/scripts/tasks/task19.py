@@ -250,11 +250,12 @@ def task19_bar_chart(eff, output_dir):
         mpatches.Patch(color=GREY_DARK, label="Associated with missing the goal (−)"),
         mpatches.Patch(color=GREY_MED, label="Associated with achieving the goal (+)"),
         mpatches.Patch(facecolor="#cccccc", hatch="//", label=f"Low support (< {MIN_SUPPORT} traces)"),
-    ], frameon=False, fontsize=FONT_ANNOT - 1, loc="lower right")
+    ], loc="lower center", bbox_to_anchor=(0.5, -0.35),
+       ncol=3, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.4)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 
@@ -285,7 +286,7 @@ def task19_scatter_plot(eff, output_dir):
     ax.spines[["top", "right"]].set_visible(False)
     ax.grid(True, linestyle="--", alpha=0.4)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 
@@ -345,7 +346,7 @@ def task19_table_and_bar_chart(eff, output_dir):
     ax_b.set_xlabel("Risk diff (pp)", fontsize=FONT_LABEL)
     ax_b.spines[["top", "right"]].set_visible(False)
     ax_b.set_title("Signed goal effect", fontsize=FONT_TITLE, pad=8)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 
@@ -438,7 +439,7 @@ def task19_flow_chart_and_table(eff, alignments, output_dir):
                bbox=[0.02, 0.05, 0.96, 0.84], col_widths=col_widths,
                font_size=9, cell_pad=0.07)
     ax_tab.set_title("Violation Patterns Associated with the Goal (ranked)", fontsize=FONT_TITLE, pad=6)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 

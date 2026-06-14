@@ -33,7 +33,6 @@ IDIOMS = [
     "scatter_plot",
     "table",
     "table_bar_chart",
-    "tree",
 ]
 
 import os
@@ -203,7 +202,7 @@ def task08_bar_chart(violation_freq, n_traces, output_dir):
     pcts   = [c / n_traces * 100 for c in counts]
 
     fig, ax = plt.subplots(figsize=(12, 5))
-    bars = ax.barh(range(len(top)), counts, color=_C_DARK, alpha=0.85, height=0.65)
+    bars = ax.barh(range(len(top)), counts, color=_C_DARK, alpha=0.85, height=0.65, edgecolor="white")
     ax.invert_yaxis()
 
     # Annotate with % of traces
@@ -216,11 +215,11 @@ def task08_bar_chart(violation_freq, n_traces, output_dir):
     ax.set_xlabel("Number of Traces", fontsize=FONT_LABEL)
     ax.set_title("Most Frequent Guideline Violations", fontsize=FONT_TITLE)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.35)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
     ax.tick_params(axis="y", length=0)
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task08_bar_chart.svg"))
 
 
@@ -641,71 +640,6 @@ def task08_table_bar_chart(violation_freq, cooccurrence, n_traces, output_dir,
     save_svg(fig, os.path.join(output_dir, "task08_table_bar_chart.svg"))
 
 
-# ---------------------------------------------------------------------------
-# Idiom 8: Tree (Dendrogram) — hierarchical clustering of violations
-# ---------------------------------------------------------------------------
-
-def task08_tree(violation_sets, violation_freq, cooccurrence, output_dir):
-    """Cluster violations by co-occurrence similarity (Jaccard distance)."""
-    try:
-        from scipy.cluster import hierarchy
-        from scipy.spatial.distance import squareform
-    except ImportError:
-        _save_empty(output_dir, "task08_tree.svg",
-                    "scipy not installed — pip install scipy")
-        return
-
-    if not violation_freq:
-        _no_violations(output_dir, "tree")
-        return
-
-    top = _top_violations(violation_freq, _TOP_N)
-    if len(top) < 3:
-        _save_empty(output_dir, "task08_tree.svg",
-                    "Too few distinct violations for hierarchical clustering (need ≥ 3)")
-        return
-
-    n = len(top)
-    # Build Jaccard distance matrix: dist(A,B) = 1 - |A∩B| / |A∪B|
-    idx = {v: i for i, v in enumerate(top)}
-    dist_mat = np.ones((n, n))
-    np.fill_diagonal(dist_mat, 0.0)
-
-    for (a, b), cnt in cooccurrence.items():
-        if a in idx and b in idx:
-            fa = violation_freq[a]
-            fb = violation_freq[b]
-            union = fa + fb - cnt
-            jaccard = cnt / union if union > 0 else 0
-            dist_mat[idx[a], idx[b]] = 1 - jaccard
-            dist_mat[idx[b], idx[a]] = 1 - jaccard
-
-    condensed = squareform(dist_mat)
-    linkage   = hierarchy.linkage(condensed, method="average")
-    labs      = [_short_label(v) for v in top]
-
-    fig_h = max(5, 0.4 * n + 2)
-    fig, ax = plt.subplots(figsize=(12, fig_h))
-
-    hierarchy.dendrogram(
-        linkage,
-        labels=labs,
-        orientation="left",
-        ax=ax,
-        color_threshold=0.6 * max(linkage[:, 2]),
-        above_threshold_color=_C_LIGHT,
-        link_color_func=lambda k: _C_DARK,
-        leaf_font_size=FONT_ANNOT,
-    )
-
-    ax.set_xlabel("Jaccard Distance  (0 = always co-occur · 1 = never co-occur)",
-                  fontsize=FONT_LABEL)
-    ax.set_title("Hierarchical Clustering of Guideline Violations\nby Co-occurrence Similarity",
-                 fontsize=FONT_TITLE)
-    ax.spines[["top", "right", "left"]].set_visible(False)
-
-    fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task08_tree.svg"))
 
 
 # ---------------------------------------------------------------------------
@@ -744,10 +678,9 @@ def generate(log, alignments, output_dir: str,
         return
 
     task08_bar_chart(violation_freq, n_traces, output_dir)
-    task08_heatmap(violation_freq, cooccurrence, output_dir, thr_count, thr_frac)
-    task08_matrix(violation_freq, cooccurrence, output_dir, thr_count, thr_frac)
-    task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count, thr_frac)
-    task08_scatter_plot(violation_freq, cooccurrence, n_traces, output_dir, thr_count, thr_frac)
-    task08_table(violation_freq, cooccurrence, n_traces, output_dir, thr_count, thr_frac)
-    task08_table_bar_chart(violation_freq, cooccurrence, n_traces, output_dir, thr_count, thr_frac)
-    task08_tree(violation_sets, violation_freq, cooccurrence, output_dir)
+    task08_heatmap(violation_freq, cooccurrence, output_dir)
+    task08_matrix(violation_freq, cooccurrence, output_dir)
+    task08_network_diagram(violation_freq, cooccurrence, output_dir)
+    task08_scatter_plot(violation_freq, cooccurrence, n_traces, output_dir)
+    task08_table(violation_freq, cooccurrence, n_traces, output_dir)
+    task08_table_bar_chart(violation_freq, cooccurrence, n_traces, output_dir)

@@ -16,6 +16,8 @@ if _scripts_dir not in sys.path:
 try:
     from ProViBackend.scripts.create_all_visualizations import (
         run_pipeline as run_visualization_pipeline,
+        generate_for_task_instances,
+        get_log_activities,
         _FILE_RENAME,
         _TASK_RENAME_SKIP,
     )
@@ -25,32 +27,14 @@ except ImportError:
     # full traceback so the cause is never hidden.
     _logger.exception("Could not import visualization pipeline; run_pipeline disabled")
     run_visualization_pipeline = None
+    generate_for_task_instances = None
+    get_log_activities = None
     _FILE_RENAME = {}
     _TASK_RENAME_SKIP = {}
 
 try:
-    from ProViBackend.scripts.tasks import (
-        task01, task02, task03, task04, task05,
-        task06, task07, task08, task09, task10, task11, task12,
-        task13, task14, task15, task16,
-        task17, task18, task19, task20, task21,
-        task22, task23, task24, task25, task26, task27,
-        task28, task29, task30, task31,
-        task32, task33, task34,
-        task35, task36, task37,
-    )
-    _TASK_MODULES = {
-        "task01": task01, "task02": task02, "task03": task03, "task04": task04, "task05": task05,
-        "task06": task06, "task07": task07, "task08": task08, "task09": task09,
-        "task10": task10, "task11": task11, "task12": task12,
-        "task13": task13, "task14": task14, "task15": task15, "task16": task16,
-        "task17": task17, "task18": task18, "task19": task19, "task20": task20, "task21": task21,
-        "task22": task22,
-        "task23": task23, "task24": task24, "task25": task25, "task26": task26, "task27": task27,
-        "task28": task28, "task29": task29, "task30": task30, "task31": task31,
-        "task32": task32, "task33": task33, "task34": task34,
-        "task35": task35, "task36": task36, "task37": task37,
-    }
+    from ProViBackend.scripts.tasks import task_registry
+    _TASK_MODULES = task_registry.TASK_MODULES
 except ImportError:
     # These task modules are required for the task-idiom mapping. Failing fast
     # here surfaces the problem in startup logs instead of silently returning an
@@ -63,6 +47,10 @@ import pathlib as pl
 
 import ProViBackend.utils.database.connection as dbc
 import ProViBackend.utils.redis_handler as redis_handler
+from ProViBackend.utils.database.migration import (
+    task_instances_to_configs,
+    task_configs_to_instances,
+)
 
 router = APIRouter(
     prefix="/admin"
@@ -74,6 +62,29 @@ ALLOWED_LOG_EXTENSIONS   = {".xes", ".csv"}
 ALLOWED_MODEL_EXTENSIONS = {".bpmn"}
 EVENTLOG_BASENAME = "EventLog"
 GUIDELINE_FILENAME = "Guideline.bpmn"
+
+# Cache of distinct activity names per dataset, so /specify's param-spec
+# candidate enumeration doesn't reload the event log on every page render
+# (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §5). Keyed by dataset_id.
+_LOG_ACTIVITIES_CACHE: dict[str, list[str]] = {}
+
+
+def _dataset_activities(dataset_id: str) -> list[str]:
+    """Sorted distinct activities in a dataset's event log (cached)."""
+    if dataset_id in _LOG_ACTIVITIES_CACHE:
+        return _LOG_ACTIVITIES_CACHE[dataset_id]
+    if get_log_activities is None:
+        return []
+    activities = get_log_activities(str(DATA_DIRECTORY / dataset_id))
+    _LOG_ACTIVITIES_CACHE[dataset_id] = activities
+    return activities
+
+
+# Maps a PARAM_SPEC entry's `source` to the dataset-candidate enumerator.
+def _param_candidates(source: str, dataset_id: str) -> list[str]:
+    if source == "log.activities":
+        return _dataset_activities(dataset_id)
+    return []
 
 
 def _validate_extension(filename: str, allowed: set, label: str) -> str:
@@ -91,10 +102,14 @@ def _validate_extension(filename: str, allowed: set, label: str) -> str:
 async def upload_dataset_pair(
     log: UploadFile,
     guideline: UploadFile,
-    background_tasks: BackgroundTasks,
     dataset_title: str = Form(None),
 ):
-    """Upload an event log + BPMN guideline; triggers the visualization pipeline asynchronously."""
+    """Upload an event log + BPMN guideline.
+
+    Generation no longer runs at upload time (see ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md
+    §7) — it is triggered per-experiment via POST /admin/experiments/{id}/generate,
+    once the admin has selected idioms (/idiom) and hyperparameters (/specify).
+    """
     # Validate file extensions BEFORE creating any directories on disk
     log_ext = _validate_extension(log.filename, ALLOWED_LOG_EXTENSIONS, "Event log")
     _validate_extension(guideline.filename, ALLOWED_MODEL_EXTENSIONS, "Guideline")
@@ -135,9 +150,6 @@ async def upload_dataset_pair(
 
         db = dbc.connect_to_database()
         db["DatasetPair"].insert_one(dataset_pair.model_dump())
-
-        if run_visualization_pipeline is not None:
-            background_tasks.add_task(run_visualization_pipeline, str(pair_dir))
 
         return {"dataset_id": pair_id}
     except HTTPException:
@@ -414,6 +426,75 @@ async def get_task_idioms():
     return JSONResponse(content=result)
 
 
+@router.get("/tasks/{task_key}/param-spec", tags=["admin"])
+async def get_task_param_spec(task_key: str, dataset_id: str | None = None):
+    """Return this task's hyperparameter spec for /specify (col E, see
+    ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4-5, §9-10).
+
+    Unauthored or param-free tasks return `param_spec: []`, which /specify
+    renders as "No parameters required — ready to generate". `dataset_id` is
+    accepted for forward-compatibility: once a task declares PARAM_SPEC entries
+    with a `source` (e.g. "log.activities"), candidate values for that dataset
+    are populated here (§14, step 6).
+    """
+    if task_key not in _TASK_MODULES:
+        raise HTTPException(status_code=404, detail=f"Unknown task '{task_key}'.")
+
+    # Copy entries so we never mutate the module's PARAM_SPEC, then populate
+    # candidate `options` for entries with a dataset-backed `source`.
+    spec = [dict(entry) for entry in task_registry.get_param_spec(task_key)]
+    if dataset_id:
+        for entry in spec:
+            source = entry.get("source")
+            if source:
+                try:
+                    candidates = _param_candidates(source, dataset_id)
+                    if candidates:
+                        entry["options"] = candidates
+                except Exception:
+                    _logger.exception(
+                        "Failed to enumerate candidates for %s param '%s' (source=%s)",
+                        task_key, entry.get("key"), source,
+                    )
+    return JSONResponse(content={
+        "task_key": task_key,
+        "param_spec": spec,
+    })
+
+
+@router.get("/tasks/{task_key}/answer-formats", tags=["admin"])
+async def get_task_answer_formats(task_key: str):
+    """Return this task's allowed answer formats for /answer-format-groundtruth
+    (col D, see ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4-5, §11).
+
+    Unauthored tasks fall back to a single generic `free-text` format.
+    """
+    if task_key not in _TASK_MODULES:
+        raise HTTPException(status_code=404, detail=f"Unknown task '{task_key}'.")
+    return JSONResponse(content={
+        "task_key": task_key,
+        "answer_formats": task_registry.get_answer_formats(task_key),
+    })
+
+
+@router.get("/tasks/{task_key}/rubric", tags=["admin"])
+async def get_task_rubric(task_key: str):
+    """Return this task's static, task-level grading rubric for read-only display
+    on /answer-format-groundtruth and /overview (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §8, §11).
+
+    The rubric is a single source of truth per task (the task's RUBRIC constant);
+    it is never copied into or editable on a per-experiment instance. `rubric` is
+    `null` if the task hasn't authored one yet (step 6).
+    """
+    if task_key not in _TASK_MODULES:
+        raise HTTPException(status_code=404, detail=f"Unknown task '{task_key}'.")
+    return JSONResponse(content={
+        "task_key": task_key,
+        "rubric": task_registry.get_rubric(task_key),
+        "gt_tier": task_registry.get_gt_tier(task_key),
+    })
+
+
 # ---------------------------------------------------------------------------
 # Question management
 # ---------------------------------------------------------------------------
@@ -448,6 +529,18 @@ async def get_experiments():
         if "_id" in doc and not isinstance(doc["_id"], str):
             doc["_id"] = str(doc["_id"])
     return JSONResponse(content=experiments)
+
+
+@router.get("/experiments/{experiment_id}", tags=["admin"])
+async def get_experiment(experiment_id: str):
+    """Return one experiment, including task_instances (with generation_status)
+    for polling after POST /experiments/{experiment_id}/generate."""
+    exp = dbc.get_document("Experiment", {"_id": experiment_id})
+    if not exp:
+        raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
+    if "_id" in exp and not isinstance(exp["_id"], str):
+        exp["_id"] = str(exp["_id"])
+    return JSONResponse(content=exp)
 
 
 @router.get("/experiments/{experiment_id}/stats", tags=["admin"])
@@ -524,60 +617,242 @@ async def update_experiment_status(experiment_id: str, status: str):
     return JSONResponse(content={"message": f"Experiment status updated to '{status}'."})
 
 
-def _sync_participant_experiment(experiment_id: str, participant_status: str):
-    """Build and upsert a ParticipantExperiment document for participant-facing queries."""
-    exp = dbc.get_document("Experiment", {"_id": experiment_id})
-    if not exp:
-        return
-    def _get_by_id(collection, id_str):
-        doc = dbc.get_document(collection, {"_id": id_str})
-        if doc:
-            return doc
-        try:
-            doc = dbc.get_document(collection, {"_id": ObjectId(id_str)})
-        except Exception:
-            pass
-        return doc
-
-    task_assignments = []
-    for tc in exp.get("task_configs", []):
-        task_doc = _get_by_id("Task", tc["task_id"])
-        idiom_doc = _get_by_id("Idiom", tc["idiom_id"])
-        task_key = task_doc["task_key"] if task_doc else None
-        idiom_key = idiom_doc["idiom_key"] if idiom_doc else None
-        pair_id = tc["dataset_id"]
-        svg_path = (
-            f"data/{pair_id}/output/{task_key}/{idiom_key}.svg"
-            if task_key and idiom_key else None
-        )
-        task_assignments.append({
-            "dataset_id": tc["dataset_id"],
-            "task_id": tc["task_id"],
-            "idiom_id": tc["idiom_id"],
-            "svg_path": svg_path,
-        })
-    db = dbc.connect_to_database()
-    db["ParticipantExperiment"].replace_one(
-        {"_id": experiment_id},
-        {
-            "_id": experiment_id,
-            "experiment_id": experiment_id,
-            "status": participant_status,
-            "task_assignments": task_assignments,
-        },
-        upsert=True,
-    )
-
-
 @router.patch("/experiments/{experiment_id}", tags=["admin"])
 async def update_experiment(experiment_id: str, update_data: ds.ExperimentUpdate):
-    fields: dict = {"task_configs": [tc.model_dump() for tc in update_data.task_configs]}
+    # Keep task_instances (canonical) and task_configs (legacy mirror) in sync,
+    # regardless of which one the caller sends.
+    fields: dict = {}
+    if update_data.task_instances is not None:
+        instances = [ti.model_dump() for ti in update_data.task_instances]
+        fields["task_instances"] = instances
+        fields["task_configs"] = task_instances_to_configs(instances)
+    elif update_data.task_configs is not None:
+        configs = [tc.model_dump() for tc in update_data.task_configs]
+        fields["task_configs"] = configs
+        fields["task_instances"] = task_configs_to_instances(configs)
     if update_data.status is not None:
         fields["status"] = update_data.status
+    if not fields:
+        raise HTTPException(status_code=400, detail="No fields to update.")
     updated = dbc.update_document("Experiment", query={"_id": experiment_id}, update={"$set": fields})
     if not updated:
         raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
     return JSONResponse(content={"message": "Experiment updated.", "experiment_id": experiment_id})
+
+
+def _task_key_for(task_id: str | None) -> str | None:
+    """Resolve a task_instance's task_id to its canonical task_key (e.g. 'task01')."""
+    if not task_id:
+        return None
+    task = dbc.get_document("Task", {"_id": task_id})
+    return task.get("task_key") if task else None
+
+
+def _resolve_answer_format(task_key: str, ti: dict) -> str | None:
+    """The answer_format to compute GT for: the one chosen on
+    /answer-format-groundtruth, else the task's sole/first declared format
+    (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7, §11)."""
+    if ti.get("answer_format"):
+        return ti["answer_format"]
+    formats = task_registry.get_answer_formats(task_key)
+    return formats[0]["key"] if formats else None
+
+
+def _build_gt_block(task_key: str, answer_format: str, gt_raw: dict) -> dict:
+    """Assemble a GroundTruthBlock from compute_ground_truth's raw output, filling
+    tier/format/decisive defaults from the task's contract (§3, §8).
+
+    The grading rubric is a static, task-level property (served by
+    /tasks/{task_key}/rubric) and is intentionally NOT copied into the
+    per-instance ground truth — `reference` only ever holds reference text that
+    compute_ground_truth explicitly returns."""
+    formats = task_registry.get_answer_formats(task_key)
+    fmt = next((f for f in formats if f.get("key") == answer_format), None) or (formats[0] if formats else {})
+    return {
+        "tier": task_registry.get_gt_tier(task_key),
+        "format": answer_format,
+        "decisive": bool(gt_raw.get("decisive", fmt.get("decisive_default", False))),
+        "value": gt_raw.get("value"),
+        "options": gt_raw.get("options", []),
+        "reference": gt_raw.get("reference"),
+        "artefact_path": gt_raw.get("artefact_path"),
+    }
+
+
+def _load_dataset_log(dataset_id: str):
+    """Load a dataset's event log as a pm4py EventLog (for validate_params hooks)."""
+    input_dir = DATA_DIRECTORY / dataset_id / "input"
+    log_path = None
+    for fname in os.listdir(input_dir):
+        if os.path.splitext(fname)[1].lower() in ALLOWED_LOG_EXTENSIONS:
+            log_path = str(input_dir / fname)
+            break
+    if log_path is None:
+        raise FileNotFoundError(f"No event log found in {input_dir}")
+    from io_helpers import load_event_log
+    return load_event_log(log_path)
+
+
+def _validate_task_instances(exp: dict) -> list[str]:
+    """Hard-validate every task_instance's parameters against its PARAM_SPEC and
+    optional validate_params hook (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §10). Returns
+    a list of human-readable error messages; empty means all valid."""
+    errors: list[str] = []
+    log_cache: dict[str, object] = {}
+    for ti in exp.get("task_instances", []):
+        task_key = _task_key_for(ti.get("task_id"))
+        if not task_key or task_key not in _TASK_MODULES:
+            continue
+        dataset_id = ti.get("dataset_id") or ""
+        params = ti.get("parameters") or {}
+        spec = task_registry.get_param_spec(task_key)
+
+        # Generic: required present + membership against dataset candidates
+        # (catches gibberish and typo'd activity names).
+        for entry in spec:
+            key = entry.get("key")
+            label = entry.get("label", key)
+            val = params.get(key)
+            if entry.get("required") and (val is None or val == ""):
+                errors.append(f"{task_key}: '{label}' is required.")
+                continue
+            source = entry.get("source")
+            if source and val not in (None, ""):
+                try:
+                    candidates = _param_candidates(source, dataset_id)
+                except Exception:
+                    candidates = []
+                if candidates and val not in candidates:
+                    errors.append(f"{task_key}: '{val}' is not a valid {label} — not found in the event log.")
+
+        # Task-specific semantic validation (e.g. the condition must split the log).
+        validate = task_registry.get_validate_params(task_key)
+        if validate is not None and dataset_id:
+            if dataset_id not in log_cache:
+                try:
+                    log_cache[dataset_id] = _load_dataset_log(dataset_id)
+                except (Exception, SystemExit) as e:
+                    log_cache[dataset_id] = None
+                    errors.append(f"{task_key}: could not load event log for validation ({e}).")
+            log = log_cache.get(dataset_id)
+            if log is not None:
+                try:
+                    for msg in (validate(log, params) or []):
+                        errors.append(f"{task_key}: {msg}")
+                except (Exception, SystemExit) as e:
+                    errors.append(f"{task_key}: parameter validation error ({e}).")
+    return errors
+
+
+def _run_generation_job(experiment_id: str):
+    """Background job: per dataset, render the experiment's task_instances with
+    their chosen parameters and compute ground truth, then mark each instance
+    'ready'/'failed' and store the computed GT (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7)."""
+    exp = dbc.get_document("Experiment", {"_id": experiment_id})
+    if not exp:
+        return
+    task_instances = exp.get("task_instances", [])
+
+    # Group instances per dataset; remember each ti's resolved task_key + format.
+    by_dataset: dict[str, list[dict]] = {}
+    meta: dict[str, tuple] = {}  # task_id -> (task_key, answer_format)
+    for ti in task_instances:
+        ds = ti.get("dataset_id")
+        task_key = _task_key_for(ti.get("task_id"))
+        answer_format = _resolve_answer_format(task_key, ti) if task_key else None
+        meta[ti.get("task_id")] = (task_key, answer_format)
+        if not ds or not task_key:
+            continue
+        by_dataset.setdefault(ds, []).append({
+            "task_key": task_key,
+            "parameters": ti.get("parameters") or {},
+            "answer_format": answer_format,
+        })
+
+    results: dict[tuple, dict] = {}  # (dataset_id, task_key) -> result entry
+    for ds, insts in by_dataset.items():
+        try:
+            res = generate_for_task_instances(str(DATA_DIRECTORY / ds), experiment_id, insts)
+            for tk, entry in res.items():
+                results[(ds, tk)] = entry
+        except Exception as e:
+            _logger.exception("Generation failed for experiment %s, dataset %s", experiment_id, ds)
+            for inst in insts:
+                results[(ds, inst["task_key"])] = {"render_error": str(e), "gt_raw": None, "gt_error": None}
+
+    for ti in task_instances:
+        ds = ti.get("dataset_id")
+        task_key, answer_format = meta.get(ti.get("task_id"), (None, None))
+        if not ds:
+            ti["generation_status"] = "failed"
+            ti["generation_error"] = "No dataset assigned to this task."
+            continue
+        if not task_key:
+            ti["generation_status"] = "failed"
+            ti["generation_error"] = "Unknown task — no generator available."
+            continue
+        r = results.get((ds, task_key))
+        if r is None:
+            ti["generation_status"] = "failed"
+            ti["generation_error"] = "Task was not generated."
+            continue
+        if r.get("render_error"):
+            ti["generation_status"] = "failed"
+            ti["generation_error"] = r["render_error"]
+        else:
+            ti["generation_status"] = "ready"
+            ti["generation_error"] = None
+        gt_raw = r.get("gt_raw")
+        if gt_raw is not None and answer_format:
+            ti["ground_truth"] = _build_gt_block(task_key, answer_format, gt_raw)
+        elif r.get("gt_error"):
+            _logger.warning("compute_ground_truth failed for %s: %s", task_key, r["gt_error"])
+
+    dbc.update_document("Experiment", {"_id": experiment_id}, {"$set": {
+        "task_instances": task_instances,
+        "task_configs": task_instances_to_configs(task_instances),
+    }})
+
+
+@router.post("/experiments/{experiment_id}/generate", tags=["admin"])
+async def generate_experiment_visualizations(experiment_id: str, background_tasks: BackgroundTasks):
+    """Validate parameters, then run generation + ground-truth computation for this
+    experiment's task_instances in the background, writing SVGs to
+    data/{dataset_id}/output/{experiment_id}/... (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7).
+    Invalid parameters are rejected with a 400 before anything runs. Poll
+    GET /experiments/{experiment_id} for per-task generation_status."""
+    exp = dbc.get_document("Experiment", {"_id": experiment_id})
+    if not exp:
+        raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
+    task_instances = exp.get("task_instances", [])
+    if not task_instances:
+        raise HTTPException(status_code=400, detail="Experiment has no task_instances to generate.")
+    if generate_for_task_instances is None:
+        raise HTTPException(status_code=503, detail="Visualization pipeline unavailable.")
+
+    # Hard-error on invalid parameters before touching anything (§10).
+    param_errors = _validate_task_instances(exp)
+    if param_errors:
+        raise HTTPException(status_code=400, detail={
+            "message": "Cannot generate — fix the following parameters first.",
+            "errors": param_errors,
+        })
+
+    for ti in task_instances:
+        ti["generation_status"] = "running"
+        ti["generation_error"] = None
+    dbc.update_document("Experiment", {"_id": experiment_id}, {"$set": {
+        "task_instances": task_instances,
+        "task_configs": task_instances_to_configs(task_instances),
+    }})
+
+    dataset_ids = sorted({ti["dataset_id"] for ti in task_instances if ti.get("dataset_id")})
+    background_tasks.add_task(_run_generation_job, experiment_id)
+    return JSONResponse(content={
+        "message": "Generation started.",
+        "experiment_id": experiment_id,
+        "dataset_ids": dataset_ids,
+    })
 
 
 # ---------------------------------------------------------------------------

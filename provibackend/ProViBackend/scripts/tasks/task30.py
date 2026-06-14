@@ -250,16 +250,16 @@ def task30_bar_chart(agg_df, groups, attr, output_dir):
     x = draw_grouped_rate_bars(ax, len(patterns), groups, _rates(agg_df, groups),
                                _group_colors(groups))
     ax.set_xticks(x)
-    ax.set_xticklabels(patterns, rotation=35, ha="right", fontsize=FONT_ANNOT - 1)
+    ax.set_xticklabels(patterns, fontsize=FONT_ANNOT - 1)
     ax.set_ylabel("% of sub-log traces exhibiting violation", fontsize=FONT_LABEL)
     ax.set_title(f"Top-{len(patterns)} Violation Patterns per Sub-log ({attr})",
                  fontsize=FONT_TITLE)
-    ax.legend(frameon=False, fontsize=FONT_ANNOT, title="Sub-log",
-              title_fontsize=FONT_ANNOT)
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=3, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.5)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task30_bar_chart.svg"))
 
 
@@ -299,9 +299,9 @@ def task30_scatter_plot(trace_df, groups, meta, attr, output_dir):
     ax.legend(frameon=False, fontsize=FONT_ANNOT, title="Sub-log",
               title_fontsize=FONT_ANNOT, loc="lower right")
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.4)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task30_scatter_plot.svg"))
 
 
@@ -369,7 +369,7 @@ def task30_table(agg_df, stats_df, groups, attr, output_dir):
         )
     ax_pat.set_title(f"Top-{len(agg_df)} Violation Patterns per Sub-log",
                      fontsize=FONT_TITLE, pad=8)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task30_table.svg"))
 
 
@@ -414,7 +414,7 @@ def task30_table_and_bar_chart(agg_df, groups, attr, output_dir):
     ax_bar.xaxis.grid(True, linestyle="--", alpha=0.5)
     ax_bar.set_axisbelow(True)
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task30_table_and_bar_chart.svg"))
 
 
@@ -456,7 +456,7 @@ def task30_parallel_sets(agg_df, viol_df, stats_df, groups, attr, output_dir):
         right_title="Violation Pattern",
     )
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task30_parallel_sets.svg"))
 
 
@@ -474,16 +474,14 @@ def task30_stacked_bar(agg_df, groups, attr, output_dir):
     ax.set_ylabel("Cumulative violation rate (%)", fontsize=FONT_LABEL)
     ax.set_title(f"Violation Pattern Composition per Sub-log ({attr})",
                  fontsize=FONT_TITLE)
-    ax.tick_params(axis="x", labelrotation=15)
+    ax.tick_params(axis="x", labelrotation=0)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.5)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    ax.legend(
-        loc="upper left", bbox_to_anchor=(1.02, 1.0),
-        frameon=False, fontsize=FONT_ANNOT - 1,
-        title="Violation pattern", title_fontsize=FONT_ANNOT,
-    )
-    fig.tight_layout()
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=max(1, len(handles)), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task30_stacked_bar.svg"))
 
 
@@ -496,7 +494,7 @@ def task30_box_plot(trace_df, groups, attr, output_dir):
     draw_grouped_box_plot(ax, data, groups, colors, ylabel="Fitness (0.0 – 1.0)")
     ax.tick_params(axis="x", labelrotation=15)
     ax.set_title(f"Fitness Distribution per Sub-log ({attr})", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task30_box_plot.svg"))
 
 
@@ -514,7 +512,7 @@ def task30_matrix(agg_df, groups, attr, output_dir):
     draw_rate_matrix(fig, ax, data, patterns, groups,
                      xlabel=f"Sub-log ({attr})")
     ax.set_title("Violation Rate Matrix (%)", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task30_matrix.svg"))
 
 
@@ -532,7 +530,7 @@ def task30_heatmap(agg_df, groups, attr, output_dir):
     draw_value_heatmap(fig, ax, data, patterns, groups, xlabel=f"Sub-log ({attr})",
                        cbar_label="Rate (%)", annotate=False, rotate_xticks=20)
     ax.set_title("Violation Rate Heatmap (%)", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task30_heatmap.svg"))
 
 

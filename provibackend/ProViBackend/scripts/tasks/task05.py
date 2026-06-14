@@ -108,22 +108,24 @@ def task05_bar_chart(agg_df: pd.DataFrame, output_dir: str):
     """Grouped bars: violation rate per top-N pattern for Positive vs Negative."""
     patterns = agg_df["pattern"].tolist()
 
-    fig, ax = plt.subplots(figsize=(max(9, len(patterns) * 1.1), 5.5))
+    fig, ax = plt.subplots(figsize=(max(9, len(patterns) * 1.5), 5.5))
     rates = agg_df[["Positive_rate", "Negative_rate"]].values
     x = draw_grouped_rate_bars(
         ax, len(patterns), ["Positive outcome", "Negative outcome"], rates,
         [_COLOR_POSITIVE, _COLOR_NEGATIVE],
     )
 
+    wrapped = [p.replace(" (", "\n(") for p in patterns]
     ax.set_xticks(x)
-    ax.set_xticklabels(patterns, rotation=35, ha="right", fontsize=FONT_ANNOT - 1)
+    ax.set_xticklabels(wrapped, fontsize=FONT_ANNOT - 1)
     ax.set_ylabel("% of group traces exhibiting violation", fontsize=FONT_LABEL)
     ax.set_title(f"Top-{len(patterns)} Violation Patterns by Outcome Group", fontsize=FONT_TITLE)
-    ax.legend(frameon=False, fontsize=FONT_ANNOT)
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=2, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.5)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task05_bar_chart.svg"))
 
 
@@ -143,12 +145,10 @@ def task05_stacked_bar(agg_df: pd.DataFrame, n_traces: dict, output_dir: str):
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
-    ax.legend(
-        loc="upper left", bbox_to_anchor=(1.02, 1.0),
-        frameon=False, fontsize=FONT_ANNOT - 1,
-        title="Violation pattern", title_fontsize=FONT_ANNOT,
-    )
-    fig.tight_layout()
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=max(1, len(handles)), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task05_stacked_bar.svg"))
 
 
@@ -178,7 +178,7 @@ def task05_table(agg_df: pd.DataFrame, output_dir: str):
     )
     ax.set_title(f"Top-{len(cell_text)} Violation Patterns by Outcome Group",
                  fontsize=FONT_TITLE, pad=12)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task05_table.svg"))
 
 
@@ -223,7 +223,7 @@ def task05_table_and_bar_chart(agg_df: pd.DataFrame, output_dir: str):
     ax_bar.xaxis.grid(True, linestyle="--", alpha=0.5)
     ax_bar.set_axisbelow(True)
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task05_table_and_bar_chart.svg"))
 
 
@@ -245,7 +245,7 @@ def task05_matrix(agg_df: pd.DataFrame, output_dir: str):
     fig, ax = plt.subplots(figsize=(5, fig_h))
     draw_rate_matrix(fig, ax, data, patterns, groups, xlabel="Outcome Group")
     ax.set_title("Violation Rate Matrix (%)", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task05_matrix.svg"))
 
 
@@ -326,7 +326,7 @@ def task05_parallel_sets(agg_df: pd.DataFrame, viol_df: pd.DataFrame,
         right_title="Violation Pattern",
     )
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task05_parallel_sets.svg"))
 
 
@@ -387,7 +387,7 @@ def task05_box_plot(log, viol_df: pd.DataFrame, outcome_activity: str, output_di
     ax.set_title("Violations per Trace by Outcome Group\n"
                  "(% = traces in group with at least one violation)",
                  fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task05_box_plot.svg"))
 
 
@@ -404,7 +404,7 @@ def task05_heatmap(agg_df: pd.DataFrame, output_dir: str):
     draw_value_heatmap(fig, ax, data, patterns, _GROUPS, xlabel="Outcome Group",
                        cbar_label="Rate (%)", annotate=False)
     ax.set_title("Violation Rate Heatmap (%)", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task05_heatmap.svg"))
 
 

@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 IDIOMS = ["flow_chart_basic", "flow_chart_table", "flow_chart_elaborate", "table",
           "bar_chart", "stacked_bar", "scatter_plot", "boxplot", "matrix",
-          "heatmap", "table_bar_chart", "network_diagram", "tree",
+          "heatmap", "table_bar_chart", "network_diagram",
           "flow_chart_elaborate_table"]
 
 import html
@@ -262,7 +262,7 @@ def task28_flow_chart_and_table(ctx: dict, output_dir: str):
     draw_chevron_strip(ax_bot, nodes, fontsize=11)
     ax_bot.set_title("Trace Alignment", fontsize=FONT_TITLE, pad=7)
 
-    fig.tight_layout(rect=[0, 0.105, 1, 0.98])
+    fig.tight_layout(pad=1.2)
     fig.legend(
         handles=_task28_move_legend_elements(),
         loc="lower center",
@@ -439,9 +439,9 @@ def task28_scatter_plot(tdf, output_dir):
     ax.legend(frameon=False, fontsize=FONT_ANNOT, loc="upper left",
               bbox_to_anchor=(1.01, 1), borderaxespad=0, markerscale=2)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.grid(True, linestyle="--", alpha=0.4)
+    ax.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out)
 
 
@@ -458,7 +458,7 @@ def task28_boxplot(tdf, output_dir):
     draw_grouped_box_plot(ax, data, ["All traces"], ["#999999"],
                           ylabel="Deviating steps per trace", ylim=(-0.3, vmax + 1))
     ax.set_title("Deviations per Trace — spot the outliers", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out)
 
 
@@ -488,13 +488,12 @@ def task28_bar_chart(df, output_dir):
     ax.set_ylim(0, counts.max() * 1.12)
     ax.set_title("Observed Deviating Steps per Pattern", fontsize=FONT_TITLE)
     ax.legend(handles=[mpatches.Patch(color=_move_color(m), label=m) for m in move_types],
-              title="Deviation type", frameon=False, fontsize=FONT_ANNOT - 1,
-              title_fontsize=FONT_ANNOT, loc="upper left",
-              bbox_to_anchor=(1.01, 1), borderaxespad=0)
+              loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=len(move_types), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out)
 
 
@@ -518,12 +517,13 @@ def task28_stacked_bar(df, output_dir):
     ax.set_xticklabels(top_acts, rotation=0, ha="center", fontsize=FONT_ANNOT - 1)
     ax.set_ylabel("Observed count", fontsize=FONT_LABEL)
     ax.set_title(f"Deviations per Activity, by Type (top-{len(top_acts)})", fontsize=FONT_TITLE)
-    ax.legend(frameon=False, fontsize=FONT_ANNOT, title="Deviation type", title_fontsize=FONT_ANNOT,
-              loc="upper left", bbox_to_anchor=(1.01, 1), borderaxespad=0)
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=max(1, len(handles)), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out)
 
 
@@ -541,7 +541,7 @@ def task28_matrix(df, output_dir):
     draw_rate_matrix(fig, ax, data, top_acts, move_types,
                      xlabel="Deviation Type", cbar_label="Count", cell_fmt="{:.0f}")
     ax.set_title(f"Explore: Activity × Deviation Type (top-{len(top_acts)})", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out)
 
 
@@ -557,7 +557,7 @@ def task28_heatmap(df, output_dir):
     draw_value_heatmap(fig, ax, data, top_acts, move_types,
                        xlabel="Deviation Type", cbar_label="Count", annotate=False)
     ax.set_title(f"Deviation Heatmap (top-{len(top_acts)} activities)", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out)
 
 
@@ -602,7 +602,7 @@ def task28_table_bar_chart(df, output_dir):
     ax_bar.xaxis.grid(True, linestyle="--", alpha=0.45)
     ax_bar.set_axisbelow(True)
     ax_bar.set_title("Frequency", fontsize=FONT_TITLE, pad=10)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out)
 
 
@@ -673,52 +673,10 @@ def task28_network_diagram(alignments, df, output_dir):
     ax.set_title("Explore: Deviation Co-occurrence Network\n"
                  "(node size = frequency · edge width = traces sharing both)", fontsize=FONT_TITLE)
     ax.axis("off")
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out)
 
 
-# --- Idiom: tree — hierarchical breakdown (deviation type → activity) --------
-
-def task28_tree(df, output_dir):
-    out = os.path.join(output_dir, "task28_tree.svg")
-    if df.empty:
-        render_empty_state_svg(out, "Deviation Breakdown", "No deviations found.")
-        return
-    move_types = _present_move_types(df)
-    total = int(df["count"].sum())
-
-    # leaves: top activities within each move type
-    branches = []
-    for m in move_types:
-        sub = df[df["move_type"] == m]
-        acts = (sub.groupby("activity")["count"].sum().sort_values(ascending=False).head(6))
-        branches.append((m, int(sub["count"].sum()), list(acts.items())))
-
-    n_leaves = sum(len(a) for _, _, a in branches) or 1
-    fig, ax = plt.subplots(figsize=(11, max(5, n_leaves * 0.55 + 1.5)))
-    ax.axis("off"); ax.set_xlim(0, 10); ax.set_ylim(0, n_leaves + 1)
-
-    root_y = (n_leaves + 1) / 2
-    ax.text(0.4, root_y, f"All deviations\n({total})", ha="center", va="center",
-            fontsize=FONT_ANNOT, color="white",
-            bbox=dict(boxstyle="round,pad=0.4", fc="#333333", ec="none"))
-
-    leaf_i = n_leaves
-    for m, m_tot, acts in branches:
-        n = len(acts) or 1
-        mt_y = leaf_i - (n - 1) / 2
-        ax.plot([1.3, 3.2], [root_y, mt_y], color="#999999", linewidth=1.2, zorder=1)
-        ax.text(3.6, mt_y, f"{m}\n({m_tot})", ha="center", va="center",
-                fontsize=FONT_ANNOT - 1, color=contrasting_text_color(_move_color(m)),
-                bbox=dict(boxstyle="round,pad=0.35", fc=_move_color(m), ec="none"))
-        for act, c in acts:
-            ax.plot([4.4, 6.2], [mt_y, leaf_i], color="#BBBBBB", linewidth=1.0, zorder=1)
-            ax.text(6.4, leaf_i, f"{act}  ({int(c)})", ha="left", va="center",
-                    fontsize=FONT_ANNOT - 1, color="#222222")
-            leaf_i -= 1
-    ax.set_title("Explore: Deviation Breakdown (type → activity)", fontsize=FONT_TITLE)
-    fig.tight_layout()
-    save_svg(fig, out)
 
 
 # --- Idiom: flow_chart_elaborate_table — BPMN shaded by frequency + table ----
@@ -781,7 +739,6 @@ _LOG_FNAMES_TITLES = [
     ("task28_heatmap.svg",                    "Deviation Heatmap"),
     ("task28_table_bar_chart.svg",            "Deviation Patterns"),
     ("task28_network_diagram.svg",            "Deviation Co-occurrence"),
-    ("task28_tree.svg",                       "Deviation Breakdown"),
     ("task28_flow_chart_elaborate_table.svg", "Deviations on the Model"),
 ]
 
@@ -823,5 +780,4 @@ def generate(alignments, model_path: str, output_dir: str):
     task28_heatmap(df, output_dir)
     task28_table_bar_chart(df, output_dir)
     task28_network_diagram(alignments, df, output_dir)
-    task28_tree(df, output_dir)
     task28_flow_chart_elaborate_table(df, model_path, output_dir)

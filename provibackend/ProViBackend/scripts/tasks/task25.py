@@ -76,9 +76,9 @@ def task25_bar_chart(df, output_dir: str):
     ax.set_title("Conformant vs. Non-conformant Traces", fontsize=FONT_TITLE)
     ax.set_ylim(0, ymax * 1.15)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.5)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task25_bar_chart.svg"))
 
 
@@ -97,7 +97,7 @@ def task25_scatter_plot(df, output_dir: str):
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.4)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task25_scatter_plot.svg"))
 
 
@@ -123,7 +123,7 @@ def task25_table(vdf, output_dir: str):
         f"Top-{len(cell_text)} Process Variants by Frequency (of {len(vdf)} total)",
         fontsize=FONT_TITLE, pad=3,
     )
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task25_table.svg"))
 
 
@@ -229,7 +229,7 @@ def task25_flow_chart_table(diff, output_dir):
     # Deliberately NO total/percentage row — the overall degree must stay
     # underivable-at-a-glance (discovery principle).
     ax.set_title("Per-Activity Deviations from the Desired Model", fontsize=FONT_TITLE, pad=4)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task25_flow_chart_table.svg"))
 
 

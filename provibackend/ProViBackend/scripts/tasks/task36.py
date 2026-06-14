@@ -213,7 +213,7 @@ def task36_bar_chart(data: dict, output_dir: str):
     n_tr   = data["n_traces"]
 
     y_pos = np.arange(n)
-    bars = ax.barh(y_pos, rates, color=colors, edgecolor="#888888",
+    bars = ax.barh(y_pos, rates, color=colors, edgecolor="white",
                    linewidth=0.5, height=0.72)
 
     for i, (rate, bar, viol) in enumerate(zip(rates, bars, viols)):
@@ -245,8 +245,9 @@ def task36_bar_chart(data: dict, output_dir: str):
         mpatches.Patch(color=_conf_gray(0.40), label="Low  30–50%",       ec="#888"),
         mpatches.Patch(color=_conf_gray(0.15), label="Very Low  < 30%",   ec="#888"),
     ]
-    ax.legend(handles=legend_items, loc="lower right", fontsize=FONT_ANNOT,
-              framealpha=0.9, edgecolor=_C_XLIGHT)
+    ax.legend(handles=legend_items,
+              loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=4, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
 
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
@@ -489,7 +490,7 @@ def task36_network_diagram(data: dict, output_dir: str):
               fontsize=FONT_ANNOT - 1, frameon=True, framealpha=0.95,
               edgecolor="#dddddd")
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
 
     path = os.path.join(output_dir, "task36_network_diagram.svg")
     save_svg(fig, path)

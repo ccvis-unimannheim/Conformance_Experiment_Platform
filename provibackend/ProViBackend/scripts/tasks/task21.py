@@ -194,12 +194,12 @@ def task21_bar_chart(candidates, output_dir):
     ax.set_title("Candidate Reasons for Guideline Violations (attributes + events)",
                  fontsize=FONT_TITLE)
     ax.legend(handles=[mpatches.Patch(color=c, label=k) for k, c in _KIND_COLORS.items()],
-              frameon=False, fontsize=FONT_ANNOT, title="Candidate kind",
-              title_fontsize=FONT_ANNOT, loc="lower right")
+              loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=3, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.4)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 
@@ -271,7 +271,7 @@ def task21_table_and_bar_chart(candidates, output_dir):
                 frameon=False, fontsize=FONT_ANNOT - 1, loc="lower right")
     ax_b.spines[["top", "right"]].set_visible(False)
     ax_b.set_title("Unified ranking", fontsize=FONT_TITLE, pad=8)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 
@@ -351,7 +351,7 @@ def task21_flow_chart_and_table(ctx, candidates, output_dir):
                font_size=9, cell_pad=0.07)
     ax_tab.set_title("Candidate Reasons to Explore (ranked, attributes + events)",
                      fontsize=FONT_TITLE, pad=6)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 

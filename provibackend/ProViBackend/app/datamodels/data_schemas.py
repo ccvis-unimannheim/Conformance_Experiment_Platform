@@ -1,5 +1,5 @@
 from pydantic import BaseModel,Field, ConfigDict
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 
 class PreliminaryAnswersRequest(BaseModel):
     """Request body from frontend — no _id, generated server-side."""
@@ -163,6 +163,34 @@ class TaskConfig(BaseModel):
     dataset_id: str
     question_ids: List[str]
 
+class OptionItem(BaseModel):
+    """One option in a multiple-choice ground-truth set (correct answer or distractor)."""
+    label: str
+    value: str = ""
+    correct: bool = False
+
+class GroundTruthBlock(BaseModel):
+    """Format-tagged ground truth for one task instance (see ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §3)."""
+    tier: str = "MANUAL"               # AUTO | SEMI | MANUAL
+    format: Optional[str] = None       # the answer_format this GT is shaped for
+    decisive: bool = False             # derived from format, admin-overridable
+    value: Optional[Any] = None        # scalar / set / rank / matrix per format
+    options: List[OptionItem] = []     # MC: full closed set incl. distractors
+    reference: Optional[str] = None    # optional reference text from compute_ground_truth; the grading rubric is task-level (served by /tasks/{task_key}/rubric), not stored here
+    artefact_path: Optional[str] = None
+
+class TaskInstance(BaseModel):
+    """One task in an experiment, grouping its idioms + shared params/format/GT."""
+    task_id: str
+    dataset_id: str = ""
+    idiom_ids: List[str] = []
+    parameters: Dict[str, Any] = {}
+    answer_format: Optional[str] = None
+    generation_status: str = "pending"   # pending | running | ready | failed
+    generation_error: Optional[str] = None
+    ground_truth: Optional[GroundTruthBlock] = None
+    question_ids: List[str] = []
+
 class Experiment(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     id: str = Field(alias="_id")
@@ -176,7 +204,8 @@ class Experiment(BaseModel):
     between_balance_mode: str
     within_sequence_mode: str
     dataset_ids: List[str]
-    task_configs: List[TaskConfig]
+    task_configs: List[TaskConfig] = []      # legacy flat view (mirror of task_instances)
+    task_instances: List[TaskInstance] = []  # canonical: one entry per task
     knowledge_question_ids: List[str] = []   # empty = use all system questions
     created_by: str             # FK → Administrator
     created_at: str
@@ -226,7 +255,8 @@ class Idiom(BaseModel):
     active: bool
 
 class ExperimentUpdate(BaseModel):
-    task_configs: List[TaskConfig]
+    task_configs: Optional[List[TaskConfig]] = None
+    task_instances: Optional[List[TaskInstance]] = None
     status: Optional[str] = None
 
 # Aliases for backward compatibility with older router code

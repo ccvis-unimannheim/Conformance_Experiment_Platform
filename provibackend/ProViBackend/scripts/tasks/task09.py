@@ -140,11 +140,11 @@ def task09_bar_chart(type_totals, n_violations, output_dir):
     ax.set_xlabel("Number of violations", fontsize=FONT_LABEL)
     ax.set_title("Guideline Violations by Type", fontsize=FONT_TITLE)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.3)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
     ax.set_xlim(0, max(counts) * 1.3)
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task09_bar_chart.svg"))
 
 
@@ -176,11 +176,12 @@ def task09_stacked_bar(activity_type, activity_totals, output_dir):
     ax.set_title(f"Violations per Activity by Type  (top {len(top_acts)})",
                  fontsize=FONT_TITLE)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.3)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    ax.legend(loc="lower right", fontsize=FONT_ANNOT, frameon=True, framealpha=0.9)
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=3, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task09_stacked_bar.svg"))
 
 
@@ -278,8 +279,8 @@ def task09_scatter_plot(activity_type, activity_totals, output_dir):
     ax.set_xlim(-0.5, lim)
     ax.set_ylim(-0.5, lim)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.3)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.3)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
 
     legend_handles = [mpatches.Patch(color=_VTYPE_COLOR[t], label=t) for t in _VTYPES]
@@ -287,7 +288,7 @@ def task09_scatter_plot(activity_type, activity_totals, output_dir):
     ax.legend(handles=legend_handles, fontsize=FONT_ANNOT,
               frameon=True, framealpha=0.9, loc="upper right")
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task09_scatter_plot.svg"))
 
 
@@ -350,7 +351,7 @@ def task09_table(activity_type, activity_totals, type_totals, n_violations, outp
 
     ax.set_title(f"Guideline Violations per Activity  (top {n_rows})",
                  fontsize=FONT_TITLE, pad=14)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task09_table.svg"))
 
 
@@ -435,7 +436,7 @@ def task09_table_bar_chart(activity_type, activity_totals, n_violations, output_
 
     fig.suptitle(f"Violation Breakdown per Activity  (top {n})",
                  fontsize=FONT_TITLE + 1, y=1.01)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task09_table_bar_chart.svg"))
 
 
@@ -486,7 +487,7 @@ def task09_matrix(activity_type, activity_totals, output_dir):
     for spine in ax.spines.values():
         spine.set_visible(False)
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task09_matrix.svg"))
 
 
@@ -652,7 +653,7 @@ def task09_flow_chart_and_table(activity_type, activity_totals, type_totals, n_v
     fig.legend(handles=_flow_legend_handles(), loc="lower center",
                bbox_to_anchor=(0.5, 0.01), ncol=3,
                fontsize=FONT_ANNOT, frameon=True, fancybox=False, edgecolor="#cccccc")
-    fig.tight_layout(rect=[0, 0.07, 1, 0.99])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task09_flow_chart_and_table.svg"))
 
 
@@ -923,7 +924,7 @@ def task09_flow_chart_elaborate_bpmn_table(activity_type, activity_totals, type_
             x += cw * tw
     tbl_ax.set_title(f"Guideline Violations per Activity  (top {n_rows})",
                      fontsize=FONT_TITLE, pad=14)
-    tbl_fig.tight_layout()
+    tbl_fig.tight_layout(pad=1.2)
     buf = _io.BytesIO()
     tbl_fig.savefig(buf, format="svg", bbox_inches="tight")
     plt.close(tbl_fig)

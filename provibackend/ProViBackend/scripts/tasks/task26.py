@@ -157,7 +157,7 @@ def task26_bar_chart(pat_df: pd.DataFrame, output_dir: str):
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task26_bar_chart.svg"))
 
 
@@ -175,16 +175,17 @@ def task26_stacked_bar(pat_df: pd.DataFrame, output_dir: str):
         bottoms += vals
 
     ax.set_xticks(x)
-    ax.set_xticklabels(top_acts, rotation=40, ha="right", fontsize=FONT_ANNOT - 1)
+    ax.set_xticklabels(top_acts, rotation=0, fontsize=FONT_ANNOT - 1)
     ax.set_ylabel("Violation count", fontsize=FONT_LABEL)
     ax.set_title(f"Violation Severity per Activity (top-{len(top_acts)})",
                  fontsize=FONT_TITLE)
-    ax.legend(frameon=False, fontsize=FONT_ANNOT,
-              title="Severity", title_fontsize=FONT_ANNOT)
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=max(1, len(handles)), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task26_stacked_bar.svg"))
 
 
@@ -212,7 +213,7 @@ def task26_table(pat_df: pd.DataFrame, output_dir: str):
     )
     ax.set_title(f"Violation Patterns by Severity (top-{len(top)})",
                  fontsize=FONT_TITLE, pad=4)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task26_table.svg"))
 
 
@@ -260,7 +261,7 @@ def task26_table_and_bar_chart(pat_df: pd.DataFrame, output_dir: str):
     ax_bar.xaxis.grid(True, linestyle="--", alpha=0.5)
     ax_bar.set_axisbelow(True)
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task26_table_and_bar_chart.svg"))
 
 
@@ -294,7 +295,7 @@ def task26_matrix(pat_df: pd.DataFrame, output_dir: str):
 
     cbar = fig.colorbar(im, ax=ax, fraction=0.04, pad=0.02)
     cbar.set_label("Count", fontsize=FONT_ANNOT)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task26_matrix.svg"))
 
 
@@ -304,7 +305,7 @@ def task26_pie_chart(pat_df: pd.DataFrame, output_dir: str):
     total = int(sev.sum())
     present = [s for s in SEVERITY_LEVELS if sev[s] > 0]
 
-    fig, ax = plt.subplots(figsize=(7, 5.5))
+    fig, ax = plt.subplots(figsize=(8, 6))
     if present:
         values = [sev[s] for s in present]
         colors = [SEVERITY_COLORS[s] for s in present]
@@ -314,14 +315,12 @@ def task26_pie_chart(pat_df: pd.DataFrame, output_dir: str):
             startangle=90,
             counterclock=False,
             autopct=lambda pct: f"{pct:.1f}%" if pct >= 1 else "",
-            pctdistance=0.78,
-            wedgeprops=dict(width=0.42, edgecolor="white", linewidth=2),
+            pctdistance=0.68,
+            wedgeprops=dict(edgecolor="white", linewidth=2),
             textprops=dict(fontsize=FONT_ANNOT),
         )
         for color, autotext in zip(colors, autotexts):
             autotext.set_color(contrasting_text_color(color))
-        ax.text(0, 0, "Violations\nby severity", ha="center", va="center",
-                fontsize=FONT_ANNOT, color="#555555")
     # legend keeps all classes (zero classes included) in fixed order
     ax.legend(
         handles=[mpatches.Patch(
@@ -330,10 +329,10 @@ def task26_pie_chart(pat_df: pd.DataFrame, output_dir: str):
                   else f"{s} (0)")
             for s in SEVERITY_LEVELS],
         loc="lower center", bbox_to_anchor=(0.5, -0.12), ncol=3,
-        frameon=False, fontsize=FONT_ANNOT,
+        frameon=True, framealpha=0.9, fontsize=FONT_ANNOT,
     )
     ax.set_title("Violation Share per Severity Class", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task26_pie_chart.svg"))
 
 
@@ -398,7 +397,7 @@ def task26_sunburst(pat_df: pd.DataFrame, output_dir: str):
     )
     ax.set_title("Violation Severity Sunburst (severity → move type → activity)",
                  fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task26_sunburst.svg"))
 
 
@@ -505,7 +504,7 @@ def task26_tree_map(pat_df: pd.DataFrame, output_dir: str):
     )
     ax.set_title(f"Violation Patterns Tree Map (area = count, top-{len(top)} + Other)",
                  fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task26_tree_map.svg"))
 
 
@@ -549,7 +548,7 @@ def task26_parallel_sets(pat_df: pd.DataFrame, output_dir: str):
         right_title="Activity",
     )
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task26_parallel_sets.svg"))
 
 
@@ -575,7 +574,7 @@ def task26_heatmap(pat_df: pd.DataFrame, output_dir: str):
     draw_value_heatmap(fig, ax, data, top_acts, SEVERITY_LEVELS, xlabel="Severity Class",
                        cbar_label="Count", annotate=False)
     ax.set_title(f"Violation Severity Heatmap (top-{len(top_acts)} activities)", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task26_heatmap.svg"))
 
 
@@ -639,7 +638,7 @@ def task26_flow_chart_table(pat_df: pd.DataFrame, model_path: str, output_dir: s
     )
     ax.set_title("Per-Activity Violation Severity (annotated on the model)",
                  fontsize=FONT_TITLE, pad=4)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task26_flow_chart_table.svg"))
 
 

@@ -10,7 +10,6 @@ import { UITrackingProvider } from "../../utils/usertracking";
 import ProjectLogo from "../../public/images/logo-no-background.png";
 import UniLogo from "../../public/images/Logo_UMA_EN_RGB.png";
 
-// Group flat trials array by task_key, preserving order
 function groupTrialsByTask(trials) {
   const groups = [];
   const seen = new Map();
@@ -32,14 +31,13 @@ function groupTrialsByTask(trials) {
       idiom_key:     trial.idiom_key,
       idiom_label:   trial.idiom_label,
       dataset_id:    trial.dataset_id,
-      trial_index:   trial.trial_index,  // comes directly from backend now
+      trial_index:   trial.trial_index,
       svg_available: trial.svg_available,
     });
   }
   return groups;
 }
 
-// Skeleton placeholder
 function LoadingSkeleton() {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 440px", gap: "1.5rem", alignItems: "start" }}>
@@ -68,7 +66,6 @@ function LoadingSkeleton() {
   );
 }
 
-// TaskExecutionPage
 export default function TaskExecutionPage() {
   const [taskGroups, setTaskGroups]               = useState([]);
   const [experimentId, setExperimentId]           = useState(null);
@@ -78,14 +75,9 @@ export default function TaskExecutionPage() {
   const [loadingTasks, setLoadingTasks]           = useState(true);
   const [loadingSvg, setLoadingSvg]               = useState(false);
 
-  // ── 3-step fetch on mount 
-  // Step 1: GET /participant/experiment/active → get experiment_id
-  // Step 2: POST /participant/assignment → create assignment for this participant
-  // Step 3: GET /participant/assignment/{experiment_id}/trials → get personalized trials
   useEffect(() => {
     const fetchTasks = async () => {
       try {
-        // Step 1 — get active experiment
         const expRes = await fetch("/api/participant/experiment/active", {
           method: "GET",
           credentials: "include",
@@ -95,7 +87,6 @@ export default function TaskExecutionPage() {
         const expId = expData.experiment_id;
         setExperimentId(expId);
 
-        // Step 2 — create/get assignment for this participant
         const assignRes = await fetch("/api/participant/assignment", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -104,7 +95,6 @@ export default function TaskExecutionPage() {
         });
         if (!assignRes.ok) throw new Error(`Assignment failed: HTTP ${assignRes.status}`);
 
-        // Step 3 — fetch personalized trial list
         const trialsRes = await fetch(`/api/participant/assignment/${expId}/trials`, {
           method: "GET",
           credentials: "include",
@@ -122,7 +112,6 @@ export default function TaskExecutionPage() {
     fetchTasks();
   }, []);
 
-  // ── Fetch SVG when group or idiom index changes
   useEffect(() => {
     const group = taskGroups[currentGroupIndex];
     if (!group) return;
@@ -135,10 +124,9 @@ export default function TaskExecutionPage() {
 
     const fetchSvg = async () => {
       try {
-        const response = await fetch(
-          `/api/participant/vis/${idiom.dataset_id}/${group.task_id}/${idiom.idiom_id}`,
-          { method: "GET", credentials: "include" }
-        );
+        const visUrl = `/api/participant/vis/${idiom.dataset_id}/${group.task_id}/${idiom.idiom_id}` +
+          (experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : "");
+        const response = await fetch(visUrl, { method: "GET", credentials: "include" });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const blob = await response.blob();
         objectUrl = URL.createObjectURL(blob);
@@ -153,9 +141,8 @@ export default function TaskExecutionPage() {
 
     fetchSvg();
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [currentGroupIndex, currentIdiomIndex, taskGroups]);
+  }, [currentGroupIndex, currentIdiomIndex, taskGroups, experimentId]);
 
-  // ── Advance: idiom-first, then task 
   const handleAnswerSubmit = () => {
     const group = taskGroups[currentGroupIndex];
     if (!group) return;
@@ -167,7 +154,6 @@ export default function TaskExecutionPage() {
     }
   };
 
-  // ── Derived display values 
   const currentGroup = taskGroups[currentGroupIndex];
   const currentIdiom = currentGroup?.idioms[currentIdiomIndex];
 
@@ -175,18 +161,15 @@ export default function TaskExecutionPage() {
   const currentStep     = currentGroupIndex + 1;
   const progressPercent = totalTasks > 0 ? (currentStep / totalTasks) * 100 : 0;
 
-  // Use trial_index from backend directly
   const currentTrialIndex = currentIdiom?.trial_index ?? 0;
   const totalTrials = taskGroups.reduce((sum, g) => sum + g.idioms.length, 0);
 
   const showSkeleton = loadingTasks;
 
-  // ── Render 
   return (
     <UITrackingProvider>
       <div style={{ backgroundColor: "#f9f9f9", color: "#2d3435", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
 
-        {/* ── Nav Bar  */}
         <nav style={{
           backgroundColor: "#ffffff",
           position: "fixed", top: 0, zIndex: 50, width: "100%",
@@ -215,9 +198,7 @@ export default function TaskExecutionPage() {
           </div>
         </nav>
 
-        {/* Main Content */}
         <main style={{ flexGrow: 1, paddingTop: "5.5rem", paddingBottom: "2rem", paddingLeft: "1.5rem", paddingRight: "1.5rem", maxWidth: "1800px", margin: "0 auto", width: "100%" }}>
-
           {showSkeleton ? (
             <LoadingSkeleton />
           ) : (
@@ -232,7 +213,9 @@ export default function TaskExecutionPage() {
                 taskLabel={currentGroup?.task_label ?? ""}
                 experimentId={experimentId}
                 taskId={currentGroup?.task_id ?? currentStep}
+                taskKey={currentGroup?.task_key ?? ""}
                 idiomId={currentIdiom?.idiom_id ?? ""}
+                idiomKey={currentIdiom?.idiom_key ?? ""}
                 datasetId={currentIdiom?.dataset_id ?? ""}
                 trialIndex={currentTrialIndex}
                 presentationOrder={currentTrialIndex}

@@ -146,12 +146,12 @@ def task17_bar_chart(df, output_dir):
     ax.set_ylim(0, counts.max() * 1.16 if len(counts) else 1)
     ax.set_title("How Often is Each Guideline Violated?", fontsize=FONT_TITLE)
     ax.legend(handles=[mpatches.Patch(color=_move_color(m), label=m) for m in move_types],
-              title="Deviation type", frameon=False, fontsize=FONT_ANNOT - 1,
-              title_fontsize=FONT_ANNOT, loc="upper right")
+              loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=len(move_types), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task17_bar_chart.svg"))
 
 
@@ -171,16 +171,17 @@ def task17_stacked_bar(df, output_dir):
                edgecolor="white", linewidth=0.5, label=m)
         bottoms += vals
     ax.set_xticks(x)
-    ax.set_xticklabels(top_acts, rotation=40, ha="right", fontsize=FONT_ANNOT - 1)
+    ax.set_xticklabels(top_acts, rotation=0, fontsize=FONT_ANNOT - 1)
     ax.set_ylabel("Violation frequency (count)", fontsize=FONT_LABEL)
     ax.set_title(f"Violation Frequency per Activity, by Deviation Type (top-{len(top_acts)})",
                  fontsize=FONT_TITLE)
-    ax.legend(frameon=False, fontsize=FONT_ANNOT, title="Deviation type",
-              title_fontsize=FONT_ANNOT)
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=max(1, len(handles)), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task17_stacked_bar.svg"))
 
 
@@ -206,7 +207,7 @@ def task17_table(df, output_dir):
         col_widths=[0.30, 0.26, 0.20, 0.12, 0.12],
         font_size=9.5, scale_xy=(1, 1.4))
     ax.set_title("Violation Frequency per Pattern", fontsize=FONT_TITLE, pad=10)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task17_table.svg"))
 
 
@@ -254,7 +255,7 @@ def task17_table_bar_chart(df, output_dir):
     ax_bar.xaxis.grid(True, linestyle="--", alpha=0.45)
     ax_bar.set_axisbelow(True)
     ax_bar.set_title("Frequency", fontsize=FONT_TITLE, pad=10)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task17_table_bar_chart.svg"))
 
 
@@ -287,7 +288,7 @@ def task17_matrix(df, output_dir):
                     fontsize=FONT_ANNOT, color=tc)
     cbar = fig.colorbar(im, ax=ax, fraction=0.04, pad=0.02)
     cbar.set_label("Count", fontsize=FONT_ANNOT)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task17_matrix.svg"))
 
 
@@ -300,7 +301,7 @@ def task17_heatmap(df, output_dir):
                        xlabel="Deviation Type", cbar_label="Count", annotate=False)
     ax.set_title(f"Violation Frequency Heatmap (top-{len(top_acts)} activities)",
                  fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task17_heatmap.svg"))
 
 
@@ -314,27 +315,25 @@ def task17_pie_chart(df, output_dir):
                         for m in move_types})
     total = int(totals.sum())
 
-    fig, ax = plt.subplots(figsize=(7, 5.5))
+    fig, ax = plt.subplots(figsize=(8, 6))
     colors = [_move_color(m) for m in move_types]
     _w, _t, autotexts = ax.pie(
         [totals[m] for m in move_types], colors=colors, startangle=90,
         counterclock=False,
         autopct=lambda pct: f"{pct:.1f}%" if pct >= 1 else "",
-        pctdistance=0.78,
-        wedgeprops=dict(width=0.42, edgecolor="white", linewidth=2),
+        pctdistance=0.68,
+        wedgeprops=dict(edgecolor="white", linewidth=2),
         textprops=dict(fontsize=FONT_ANNOT))
     for color, at in zip(colors, autotexts):
         at.set_color(contrasting_text_color(color))
-    ax.text(0, 0, "Violations\nby type", ha="center", va="center",
-            fontsize=FONT_ANNOT, color="#555555")
     ax.legend(handles=[mpatches.Patch(
         color=_move_color(m),
         label=f"{m} ({int(totals[m])}, {totals[m]/total*100:.1f}%)" if total else f"{m} (0)")
         for m in move_types],
         loc="lower center", bbox_to_anchor=(0.5, -0.12), ncol=2,
-        frameon=False, fontsize=FONT_ANNOT)
+        frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.set_title("Share of Violations per Deviation Type", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task17_pie_chart.svg"))
 
 
@@ -380,7 +379,7 @@ def task17_sunburst(df, output_dir):
               loc="lower center", bbox_to_anchor=(0.5, -0.06), ncol=3,
               frameon=False, fontsize=FONT_ANNOT)
     ax.set_title("Violation Sunburst (deviation type → activity)", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task17_sunburst.svg"))
 
 
@@ -427,7 +426,7 @@ def task17_tree_map(df, output_dir):
               frameon=False, fontsize=FONT_ANNOT)
     ax.set_title(f"Violation Tree Map (area = frequency, top-{len(top)} + Other)",
                  fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task17_tree_map.svg"))
 
 
@@ -463,7 +462,7 @@ def task17_parallel_sets(df, output_dir):
                        matrix=matrix, left_colors=[_move_color(m) for m in move_types],
                        right_colors=right_colors, left_title="Deviation type",
                        right_title="Activity")
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task17_parallel_sets.svg"))
 
 
@@ -575,7 +574,7 @@ def task17_flow_chart_table(log, df, output_dir):
                bbox=[0.04, 0.04, 0.92, 0.86], col_widths=[0.34, 0.30, 0.22, 0.14],
                font_size=9.5, scale_xy=(1, 1.4))
     ax_tbl.set_title("Violation Frequency per Pattern", fontsize=FONT_TITLE, pad=8)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out)
 
 

@@ -337,7 +337,7 @@ def task18_flow_chart_and_table(resp, ctx, output_dir):
                font_size=9, cell_pad=0.07)
     ax_tab.set_title("Responsible Activities (ranked by responsibility share)",
                      fontsize=FONT_TITLE, pad=6)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 
@@ -358,15 +358,16 @@ def task18_bar_chart(resp, output_dir):
     for p, v in zip(pos, pct):
         ax.text(p, v + 0.4, f"{v:.1f}%", ha="center", va="bottom", fontsize=FONT_ANNOT - 1)
     ax.set_xticks(pos)
-    ax.set_xticklabels(labels, rotation=35, ha="right", fontsize=FONT_ANNOT - 1)
+    ax.set_xticklabels(labels, fontsize=FONT_ANNOT - 1)
     ax.set_ylabel("% of all violations", fontsize=FONT_LABEL)
     ax.set_title("Activities Ranked by Responsibility Share", fontsize=FONT_TITLE)
     ax.legend(handles=[mpatches.Patch(color=c, label=mt) for mt, c in _MOVE_COLORS.items()],
-              frameon=False, fontsize=FONT_ANNOT, title="Move type", title_fontsize=FONT_ANNOT)
+              loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=3, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.5)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 
@@ -412,7 +413,7 @@ def task18_scatter_plot(resp, output_dir):
     ax.spines[["top", "right"]].set_visible(False)
     ax.grid(True, linestyle="--", alpha=0.4)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 
@@ -468,7 +469,7 @@ def task18_table_and_bar_chart(resp, output_dir):
         ax_b.text(v + 0.3, i, f"{v:.1f}%", va="center", fontsize=FONT_ANNOT - 1)
     ax_b.spines[["top", "right"]].set_visible(False)
     ax_b.set_title("Responsibility share", fontsize=FONT_TITLE, pad=8)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 

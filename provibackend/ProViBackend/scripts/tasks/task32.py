@@ -162,14 +162,14 @@ def task32_bar_chart(agg_df, groups, attr, output_dir):
     ax.set_ylabel("Occurrences", fontsize=FONT_LABEL)
     ax.set_ylim(0, max(ymax * 1.18, 1.0))
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.4)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
     ax.legend(frameon=False, fontsize=FONT_ANNOT - 1, title=f"Sub-process ({attr})",
               title_fontsize=FONT_ANNOT)
 
     ax.set_title(f"Main Violations — Frequency by Sub-process ({attr}, top {len(patterns)})",
                  fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task32_bar_chart.svg"))
 
 
@@ -205,12 +205,12 @@ def task32_stacked_bar(agg_df, groups, attr, output_dir):
     ax.set_title(f"Violation Frequency split by Sub-process ({attr})",
                  fontsize=FONT_TITLE)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.4)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    ax.legend(title="Sub-process", frameon=False, fontsize=FONT_ANNOT - 1,
-              title_fontsize=FONT_ANNOT,
-              loc="upper left", bbox_to_anchor=(1.01, 1), borderaxespad=0)
-    fig.tight_layout()
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=max(1, len(handles)), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task32_stacked_bar.svg"))
 
 
@@ -237,7 +237,7 @@ def task32_boxplot(viol_df, assignment, groups, attr, output_dir):
                           ylim=(-0.3, vmax + 1))
     ax.tick_params(axis="x", labelrotation=0)
     ax.set_title(f"Violations per Trace by Sub-process ({attr})", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task32_boxplot.svg"))
 
 
@@ -286,7 +286,7 @@ def task32_table(agg_df, attr, output_dir):
     )
     ax.set_title(f"Main Violations — Frequency by Sub-process ({attr})",
                  fontsize=FONT_TITLE, pad=10)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task32_table.svg"))
 
 
@@ -339,7 +339,7 @@ def task32_table_bar_chart(agg_df, groups, attr, output_dir):
     ax_bar.set_axisbelow(True)
     ax_bar.set_title("Frequency Ranking", fontsize=FONT_TITLE, pad=10)
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task32_table_bar_chart.svg"))
 
 
@@ -361,7 +361,7 @@ def task32_matrix(agg_df, groups, attr, output_dir):
                      xlabel=f"Sub-process ({attr})",
                      cbar_label="Occurrences", cell_fmt="{:.0f}")
     ax.set_title("Violation Frequency Matrix (counts)", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task32_matrix.svg"))
 
 
@@ -383,7 +383,7 @@ def task32_heatmap(agg_df, groups, attr, output_dir):
                        xlabel=f"Sub-process ({attr})",
                        cbar_label="Occurrences", annotate=False, rotate_xticks=0)
     ax.set_title("Violation Frequency Heatmap (counts)", fontsize=FONT_TITLE)
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task32_heatmap.svg"))
 
 
@@ -430,7 +430,7 @@ def task32_parallel_sets(agg_df, viol_df, groups, attr, output_dir):
         left_title="Sub-process",
         right_title="Violation",
     )
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task32_parallel_sets.svg"))
 
 

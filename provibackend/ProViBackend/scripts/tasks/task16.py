@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 IDIOMS = [
     "table", "bar_chart", "scatter_plot",
     "flow_chart_table", "flow_chart_elaborate", "flow_chart_elaborate_table",
-    "tree", "table_bar_chart", "parallel_sets",
+    "table_bar_chart", "parallel_sets",
 ]
 
 import os
@@ -200,7 +200,7 @@ def task16_table(viol_df, s, output_dir):
     )
     ax.set_title("Violations by Activity", fontsize=FONT_TITLE, pad=10)
     _add_stats_footer(fig, s)
-    fig.tight_layout(rect=[0, 0.04, 1, 1])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
 
 
@@ -238,12 +238,13 @@ def task16_bar_chart(viol_df, s, output_dir):
     ax.invert_yaxis()
     ax.set_xlabel("Violation Count", fontsize=FONT_LABEL)
     ax.set_title("Top Activities by Violation Count", fontsize=FONT_TITLE)
-    ax.legend(frameon=False, fontsize=FONT_ANNOT, loc="lower right")
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=2, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.4)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
     _add_stats_footer(fig, s)
-    fig.tight_layout(rect=[0, 0.04, 1, 1])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
 
 
@@ -276,7 +277,7 @@ def task16_scatter_plot(trace_df, s, output_dir):
     ax.yaxis.grid(True, linestyle="--", alpha=0.3)
     ax.set_axisbelow(True)
     _add_stats_footer(fig, s)
-    fig.tight_layout(rect=[0, 0.10, 1, 1])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
 
 
@@ -348,7 +349,7 @@ def task16_flow_chart_table(alignments, fitness_df, s, output_dir):
         f"violations = {len(violations)}",
         fontsize=FONT_TITLE, y=0.99,
     )
-    fig.tight_layout(rect=[0, 0.07, 1, 0.97])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
 
 
@@ -471,94 +472,6 @@ def task16_flow_chart_elaborate_table(act_totals, viol_df, s, model_path, output
         table_rows=table_rows, table_cols=table_cols,
         legend_below_panels=True, legend_center=True,
     )
-
-
-# ---------------------------------------------------------------------------
-# Idiom 7: tree — Activity → Move Types hierarchy
-# ---------------------------------------------------------------------------
-
-def _draw_tree_node(ax, x, y, lines, facecolor, textcolor, fontsize=9):
-    ax.text(x, y, "\n".join(lines), ha="center", va="center",
-            fontsize=fontsize, color=textcolor, linespacing=1.5,
-            bbox=dict(boxstyle="round,pad=0.4", facecolor=facecolor,
-                      edgecolor="#888888", linewidth=1.0),
-            zorder=5)
-
-
-def _draw_tree_edge(ax, x0, y0, x1, y1):
-    ax.annotate("",
-                xy=(x1, y1 + 0.05), xytext=(x0, y0 - 0.05),
-                arrowprops=dict(arrowstyle="-", color="#BBBBBB",
-                                linewidth=1.0, shrinkA=0, shrinkB=0),
-                zorder=2)
-
-
-def task16_tree(viol_df, s, output_dir):
-    out_path = os.path.join(output_dir, "task16_tree.svg")
-    if viol_df.empty:
-        render_empty_state_svg(out_path, "Violation Hierarchy", "No violations found.")
-        return
-
-    act_totals = _activity_total_violations(viol_df)
-    top_acts = sorted(act_totals, key=lambda a: -act_totals[a])[:4]
-    if not top_acts:
-        render_empty_state_svg(out_path, "Violation Hierarchy", "No violations found.")
-        return
-
-    total_viol = int(viol_df["count"].sum())
-    n_acts = len(top_acts)
-    fig_w = max(12, n_acts * 4.8)
-
-    fig, ax = plt.subplots(figsize=(fig_w, 7.5))
-    ax.axis("off")
-    ax.set_xlim(0, 1)
-    ax.set_ylim(-0.05, 1.1)
-
-    # Root
-    rx, ry = 0.5, 0.92
-    _draw_tree_node(ax, rx, ry,
-                    ["All Violations", f"total = {total_viol}"],
-                    "#E8E8E8", "#222222", fontsize=9)
-
-    # Level 1: top activities
-    act_xs = [(i + 0.5) / n_acts for i in range(n_acts)]
-    ay = 0.60
-
-    for act, ax_x in zip(top_acts, act_xs):
-        act_total = act_totals[act]
-        _draw_tree_edge(ax, rx, ry, ax_x, ay)
-        label = act if len(act) <= 20 else act[:18] + "…"
-        _draw_tree_node(ax, ax_x, ay,
-                        [label, f"total = {act_total}"],
-                        "#555555", "white", fontsize=8.5)
-
-        # Level 2: move types for this activity
-        sub = viol_df[viol_df["activity"] == act]
-        present_mts = [(mt, int(sub[sub["move_type"] == mt]["count"].sum()))
-                       for mt in _MOVE_TYPES
-                       if mt in sub["move_type"].values and
-                       int(sub[sub["move_type"] == mt]["count"].sum()) > 0]
-
-        n_leaves = len(present_mts)
-        if n_leaves == 0:
-            continue
-        leaf_gap = 0.34 / n_acts
-        lx_offsets = np.linspace(-leaf_gap * (n_leaves - 1) / 2,
-                                  leaf_gap * (n_leaves - 1) / 2, n_leaves)
-        ly = 0.25
-
-        for (mt, cnt), lx_off in zip(present_mts, lx_offsets):
-            lx = ax_x + lx_off
-            _draw_tree_edge(ax, ax_x, ay, lx, ly)
-            _draw_tree_node(ax, lx, ly,
-                            [mt, f"n = {cnt}"],
-                            _MOVE_COLOR.get(mt, "#AAAAAA"), "white", fontsize=7.5)
-
-    ax.set_title("Violation Hierarchy: Activity → Move Type",
-                 fontsize=FONT_TITLE, pad=8)
-    _add_stats_footer(fig, s)
-    fig.tight_layout(rect=[0, 0.03, 1, 1])
-    save_svg(fig, out_path)
 
 
 # ---------------------------------------------------------------------------
@@ -697,7 +610,7 @@ def task16_parallel_sets(viol_df, s, output_dir):
         left_title="Activity (top violations)",
         right_title="Move Type",
     )
-    fig.tight_layout(rect=[0, 0.04, 1, 1])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
 
 
@@ -735,6 +648,5 @@ def generate(log, fitness_df, alignments, output_dir: str,
     task16_flow_chart_table(alignments, fitness_df, s, output_dir)
     task16_flow_chart_elaborate(act_totals, s, model_path, output_dir)
     task16_flow_chart_elaborate_table(act_totals, viol_df, s, model_path, output_dir)
-    task16_tree(viol_df, s, output_dir)
     task16_table_bar_chart(viol_df, s, output_dir)
     task16_parallel_sets(viol_df, s, output_dir)

@@ -33,7 +33,7 @@ from shared import (
     save_svg, build_fitness_time_series,
     render_conformance_line_graph, render_conformance_horizon_chart,
     DEFAULT_TIME_GRANULARITY,
-    GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 # Maximum traces shown in the Gantt chart (readability + cognitive load)
@@ -183,7 +183,7 @@ def task07_gantt_chart(df: pd.DataFrame, output_dir: str):
     cbar.set_ticklabels([f"{f_min:.0%}", f"{mid:.0%}", f"{f_max:.0%}"])
     cbar.outline.set_visible(False)
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task07_gantt_chart.svg"))
 
 

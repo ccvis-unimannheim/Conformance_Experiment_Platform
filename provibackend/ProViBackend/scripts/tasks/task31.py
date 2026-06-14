@@ -11,7 +11,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["table", "decision_tree", "bar_chart", "stacked_bar", "scatter_plot", "matrix", "heatmap"]
+IDIOMS = ["table", "tree", "bar_chart", "stacked_bar", "scatter_plot", "matrix", "heatmap"]
 
 import os
 import numpy as np
@@ -340,7 +340,7 @@ def task31_table(df_table: pd.DataFrame, output_dir: str):
         zebra=True,
     )
     ax.set_title("Conformance and Approval Rates", fontsize=FONT_TITLE, pad=12)
-    fig.tight_layout(rect=[0, 0.02, 1, 0.96])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task31_table.svg"))
 
 
@@ -393,8 +393,8 @@ def _task31_draw_decision_tree(ax, tree: dict, title=True):
     )
 
 
-def task31_decision_tree(tree: dict, output_dir: str):
-    """Standalone Task 6 decision tree."""
+def task31_tree(tree: dict, output_dir: str):
+    """Standalone Task 31 decision tree."""
     fig, ax = plt.subplots(figsize=(11.0, 6.6))
     _task31_draw_decision_tree(ax, tree)
     legend = [
@@ -402,8 +402,8 @@ def task31_decision_tree(tree: dict, output_dir: str):
         mpatches.Patch(facecolor="#888888", edgecolor="#555555", label="Mostly paid"),
     ]
     ax.legend(handles=legend, loc="lower center", bbox_to_anchor=(0.5, -0.03), ncol=2, frameon=False, fontsize=FONT_ANNOT)
-    fig.tight_layout(rect=[0, 0.04, 1, 1])
-    save_svg(fig, os.path.join(output_dir, "task31_decision_tree.svg"))
+    fig.tight_layout(pad=1.2)
+    save_svg(fig, os.path.join(output_dir, "task31_tree.svg"))
 
 
 # ---------------------------------------------------------------------------
@@ -432,7 +432,7 @@ def task31_bar_chart(df: pd.DataFrame, output_dir: str):
     fig, ax = plt.subplots(figsize=(8.5, 5.2))
     ax.set_facecolor("#fafbfc")
 
-    bars = ax.bar(x, agg["rate"].fillna(0), width=0.58, color=GREY_MED, zorder=3)
+    bars = ax.bar(x, agg["rate"].fillna(0), width=0.58, color=GREY_MED, zorder=3, edgecolor="white")
 
     # Annotate each non-empty bar with "rate% (n=N)" above bar
     max_rate = float(agg["rate"].fillna(0).max())
@@ -453,13 +453,13 @@ def task31_bar_chart(df: pd.DataFrame, output_dir: str):
     ax.set_ylabel("Positive Outcome Rate (%)", fontsize=FONT_LABEL)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.5)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
     ax.set_title("Conformance Degree vs. Positive Outcome Rate", fontsize=FONT_TITLE, pad=10)
 
     caption = "Definitive outcomes only  ·  Bin '= 1.0' = fitness exactly 1.0"
     fig.text(0.0, 0.01, caption, ha="left", fontsize=FONT_ANNOT - 1, color="#888888")
-    fig.tight_layout(rect=[0, 0.06, 1, 1])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
 
 
@@ -502,8 +502,8 @@ def task31_stacked_bar(df: pd.DataFrame, output_dir: str):
     prop_neg_arr = np.array([d["prop_neg"] for d in band_data])
 
     # Bottom segment = positive (darker), top = negative (lighter)
-    bars_pos = ax.bar(x, prop_pos_arr, color="#555555", label="Positive outcome")
-    bars_neg = ax.bar(x, prop_neg_arr, bottom=prop_pos_arr, color="#CCCCCC", label="Negative outcome")
+    bars_pos = ax.bar(x, prop_pos_arr, color="#555555", edgecolor="white", label="Positive outcome")
+    bars_neg = ax.bar(x, prop_neg_arr, bottom=prop_pos_arr, color="#CCCCCC", edgecolor="white", label="Negative outcome")
 
     # Annotate segments
     for i in range(n_nonempty):
@@ -526,7 +526,7 @@ def task31_stacked_bar(df: pd.DataFrame, output_dir: str):
     ax.set_ylim(0, 1.0)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.5)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
 
     legend_patches = [
@@ -534,12 +534,11 @@ def task31_stacked_bar(df: pd.DataFrame, output_dir: str):
         mpatches.Patch(facecolor="#CCCCCC", label="Negative outcome"),
     ]
     ax.legend(handles=legend_patches,
-              loc="upper left", bbox_to_anchor=(1.01, 1),
-              frameon=True, framealpha=0.9, fontsize=FONT_ANNOT,
-              borderaxespad=0)
+              loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              ncol=2, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.set_title("Outcome Composition by Conformance Band", fontsize=FONT_TITLE, pad=10)
 
-    fig.tight_layout(rect=[0, 0, 0.88, 1])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
 
 
@@ -625,7 +624,7 @@ def task31_scatter_plot(df: pd.DataFrame, log, output_dir: str):
     ax.set_ylabel("Outcome", fontsize=FONT_LABEL)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.3)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
     ax.set_title("Conformance Degree vs. Outcome", fontsize=FONT_TITLE, pad=8)
     legend_patches = [
@@ -639,7 +638,7 @@ def task31_scatter_plot(df: pd.DataFrame, log, output_dir: str):
         caption += "  ·  Scatter shows 2,000 sampled traces"
     fig.text(0.0, 0.01, caption, ha="left", fontsize=FONT_ANNOT - 1, color="#888888")
 
-    fig.tight_layout(rect=[0, 0.05, 1, 1])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
 
 
@@ -723,7 +722,7 @@ def task31_matrix(df: pd.DataFrame, output_dir: str):
     # Matrix convention: keep all four spines (bounding box of the color grid)
     ax.set_title("Outcome Rate by Conformance Band", fontsize=FONT_TITLE, pad=10)
 
-    fig.tight_layout()
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
 
 
@@ -878,7 +877,7 @@ def task31_heatmap(df: pd.DataFrame, log, output_dir: str):
     fig.text(0.01, 0.01, footnote, ha="left",
              fontsize=FONT_ANNOT - 1, color="#888888")
 
-    fig.tight_layout(rect=[0, 0.07, 1, 1])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
 
 
@@ -911,7 +910,7 @@ def generate(log, alignments, output_dir: str, outcome_activity: str = "A_ACTIVA
     logger.info(f"      -> Definitive outcomes: {len(df)} cases  |  Excluded non-definitive: {excluded}")
     logger.info(f"      -> Positive outcome ({outcome_activity}): {int(df['positive_outcome'].sum())}/{len(df)} ({positive_rate:.2%})")
     task31_table(table, output_dir)
-    task31_decision_tree(tree, output_dir)
+    task31_tree(tree, output_dir)
     task31_bar_chart(df, output_dir)
     task31_stacked_bar(df, output_dir)
     task31_scatter_plot(df, log, output_dir)
