@@ -1,10 +1,95 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import AdminNav from "../../components/Admin/AdminNav";
 import UploadDatasetModal from "../../components/Admin/UploadDatasetModal";
 import Toast from "../../components/Admin/Toast";
+
+function TasksTooltip({ exp, taskMap, idiomMap }) {
+  const [visible, setVisible] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const triggerRef = useRef(null);
+
+  // Build per-task groups: task_id → { taskKey, idiomKeys[], params }
+  const groups = (() => {
+    const byTask = {};
+    const order = [];
+    // idiom list comes from task_configs (one row per task×idiom)
+    (exp.task_configs || []).forEach((tc) => {
+      if (!byTask[tc.task_id]) { byTask[tc.task_id] = []; order.push(tc.task_id); }
+      if (tc.idiom_id) byTask[tc.task_id].push(tc.idiom_id);
+    });
+    // params come from task_instances
+    const paramsOf = {};
+    (exp.task_instances || []).forEach((ti) => { paramsOf[ti.task_id] = ti.parameters || {}; });
+
+    return order.map((tid) => ({
+      taskKey: taskMap[tid]?.task_key || tid,
+      idiomKeys: (byTask[tid] || []).map((iid) => idiomMap[iid]?.idiom_key || iid),
+      params: paramsOf[tid] || {},
+    }));
+  })();
+
+  const count = groups.length;
+
+  function handleMouseEnter() {
+    if (!triggerRef.current || count === 0) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    setPos({ top: rect.top + window.scrollY - 8, left: rect.left + window.scrollX });
+    setVisible(true);
+  }
+
+  return (
+    <>
+      <span
+        ref={triggerRef}
+        className="flex items-center gap-1 text-[11px] text-on-surface-variant cursor-default"
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={() => setVisible(false)}
+      >
+        <span className="material-symbols-outlined text-[14px]">task</span>
+        <strong className="text-on-surface">{count}</strong> tasks
+        {count > 0 && <span className="material-symbols-outlined text-[12px] opacity-50">info</span>}
+      </span>
+
+      {visible && count > 0 && (
+        <div
+          className="fixed z-50 bg-surface-container-highest border border-outline-variant rounded-xl shadow-lg p-3 w-72 text-[11px]"
+          style={{ top: pos.top, left: pos.left, transform: "translateY(-100%)" }}
+          onMouseEnter={() => setVisible(true)}
+          onMouseLeave={() => setVisible(false)}
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant mb-2">
+            Task Details
+          </p>
+          <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+            {groups.map((g) => (
+              <div key={g.taskKey} className="border-t border-outline-variant/40 pt-2 first:border-t-0 first:pt-0">
+                <p className="font-semibold text-on-surface mb-1">{g.taskKey}</p>
+                {g.idiomKeys.length > 0 && (
+                  <p className="text-on-surface-variant mb-0.5">
+                    <span className="font-medium text-on-surface">Idioms: </span>
+                    {g.idiomKeys.join(", ")}
+                  </p>
+                )}
+                {Object.keys(g.params).length > 0 && (
+                  <p className="text-on-surface-variant">
+                    <span className="font-medium text-on-surface">Params: </span>
+                    {Object.entries(g.params).map(([k, v]) => `${k}=${v}`).join(", ")}
+                  </p>
+                )}
+                {g.idiomKeys.length === 0 && Object.keys(g.params).length === 0 && (
+                  <p className="text-on-surface-variant italic">No idioms or params set</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
 
 const STATUS_STYLES = {
   draft:     { border: "border-amber-400", dot: "bg-amber-400", label: "Draft" },
@@ -51,6 +136,10 @@ export default function AdminPage() {
   }, []);
   const hideToast = useCallback(() => setToast((t) => ({ ...t, visible: false })), []);
 
+  // ── Task / Idiom name maps (for tooltip) ─────────
+  const [taskMap, setTaskMap] = useState({});
+  const [idiomMap, setIdiomMap] = useState({});
+
   // ── Fetch ─────────────────────────────────────────
   const fetchDatasets = useCallback(() => {
     setDatasetsLoading(true);
@@ -73,6 +162,18 @@ export default function AdminPage() {
   useEffect(() => {
     fetchDatasets();
     fetchExperiments();
+    // Fetch tasks and idioms once to resolve UUIDs → names in the tooltip
+    Promise.all([
+      fetch("/api/admin/tasks").then((r) => (r.ok ? r.json() : [])),
+      fetch("/api/admin/idioms").then((r) => (r.ok ? r.json() : [])),
+    ]).then(([tasks, idioms]) => {
+      const tMap = {};
+      tasks.forEach((t) => { tMap[t._id || t.task_id] = t; });
+      const iMap = {};
+      idioms.forEach((i) => { iMap[i._id || i.idiom_id] = i; });
+      setTaskMap(tMap);
+      setIdiomMap(iMap);
+    }).catch(() => {});
   }, [fetchDatasets, fetchExperiments]);
 
   // ── Dataset manage ────────────────────────────────
@@ -410,10 +511,7 @@ export default function AdminPage() {
                             <span className="material-symbols-outlined text-[14px]">check_circle</span>
                             <strong className="text-on-surface">{expStats[expId].completed}</strong> completed
                           </span>
-                          <span className="flex items-center gap-1 text-[11px] text-on-surface-variant">
-                            <span className="material-symbols-outlined text-[14px]">task</span>
-                            <strong className="text-on-surface">{expStats[expId].total_tasks}</strong> tasks
-                          </span>
+                          <TasksTooltip exp={exp} taskMap={taskMap} idiomMap={idiomMap} />
                         </div>
                       )}
                     </div>
