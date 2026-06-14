@@ -616,6 +616,24 @@ async def delete_experiment(experiment_id: str, force: bool = False):
     db["Answer"].delete_many({"experiment_id": experiment_id})
     db["UILogging"].delete_many({"experiment_id": experiment_id})
     db["Experiment"].delete_one({"_id": experiment_id})
+
+    # Remove the generated idiom SVGs for this experiment so they don't pile up as
+    # orphaned files on disk (mirrors dataset deletion's shutil.rmtree cleanup).
+    # The per-experiment output lives at data/{dataset_id}/output/{experiment_id}/;
+    # collect dataset ids from both the experiment's dataset_ids and its
+    # task_configs (a task may target a dataset not in dataset_ids).
+    dataset_ids = set(exp.get("dataset_ids", []) or [])
+    for tc in exp.get("task_configs", []):
+        if tc.get("dataset_id"):
+            dataset_ids.add(tc["dataset_id"])
+
+    removed_output_dirs = []
+    for dataset_id in dataset_ids:
+        out_dir = DATA_DIRECTORY / dataset_id / "output" / experiment_id
+        if out_dir.exists():
+            shutil.rmtree(out_dir, ignore_errors=True)
+            removed_output_dirs.append(f"{dataset_id}/output/{experiment_id}")
+
     return JSONResponse(content={
         "message": "Experiment deleted.",
         "deleted_counts": {
@@ -623,6 +641,7 @@ async def delete_experiment(experiment_id: str, force: bool = False):
             "answers": answer_count,
             "ui_logs": log_count,
         },
+        "removed_output_dirs": removed_output_dirs,
     })
 
 
