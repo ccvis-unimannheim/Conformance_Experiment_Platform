@@ -21,7 +21,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "scatter_plot", "table", "table_and_bar_chart", "stacked_bar", "matrix"]
+IDIOMS = ["bar_chart", "table", "table_and_bar_chart", "stacked_bar", "matrix"]
 
 # ---------------------------------------------------------------------------
 # Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8)
@@ -280,63 +280,28 @@ def task03_bar_chart(presence_df: pd.DataFrame, throughput_buckets, variant_df: 
     ax.yaxis.grid(True, linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
 
-    fig.suptitle("Conformant vs. Non-conformant: Behavioral Factor Composition", fontsize=FONT_TITLE)
-    fig.tight_layout(rect=[0, 0, 1, 0.93])
-    save_svg(fig, os.path.join(output_dir, "task03_bar_chart.svg"))
-
-
-def task03_scatter_plot(trace_rows: list, output_dir: str):
-    """Scatter of activity presence: one point per activity,
-    x = presence rate in Conformant traces, y = presence rate in Non-conformant traces.
-    Points far from the y=x diagonal are the strongest differentiators.
-    """
-    full = _task03_activity_presence_df(trace_rows, top_n=10**9)
-    if full.empty:
-        render_empty_state_svg(
-            os.path.join(output_dir, "task03_scatter_plot.svg"),
-            "Activity Presence: Conformant vs. Non-conformant",
-            "No activities found.",
-        )
-        return
-
-    fig, ax = plt.subplots(figsize=(7.5, 7))
-    ax.plot([0, 100], [0, 100], color="#999999", linestyle="--", linewidth=1.0, zorder=1)
-    ax.text(99, 99, "equal presence", rotation=45, rotation_mode="anchor",
-            ha="right", va="bottom", fontsize=FONT_ANNOT - 1, color="#888888")
-
-    ax.scatter(full["Conformant"], full["Non-conformant"],
-               c=GREY_MED, s=36, alpha=0.7, linewidths=0, zorder=3)
-
-    top = full.head(TOP_N)
-    texts = [
-        ax.text(row["Conformant"], row["Non-conformant"], row["activity"],
-                fontsize=FONT_ANNOT - 2, color="#333333")
-        for _, row in top.iterrows()
-    ]
-    try:
-        from adjustText import adjust_text
-        adjust_text(
-            texts, ax=ax,
-            arrowprops=dict(arrowstyle="-", color="#aaaaaa", lw=0.6),
-            expand=(2.0, 2.5),
-            force_text=(1.0, 1.5),
-            force_points=(1.2, 1.8),
-            lim=500,
-        )
-    except Exception:
-        pass
-
-    ax.set_xlim(-5, 115)
-    ax.set_ylim(-5, 115)
-    ax.set_aspect("equal", adjustable="box")
-    ax.set_xlabel("Presence rate in Conformant traces (%)", fontsize=FONT_LABEL)
-    ax.set_ylabel("Presence rate in Non-conformant traces (%)", fontsize=FONT_LABEL)
-    ax.set_title("Activity Presence: Conformant vs. Non-conformant", fontsize=FONT_TITLE)
+    # --- Panel 3: variant composition ----------------------------------------
+    ax = axes[2]
+    variants = variant_df["variant"].tolist()
+    x = np.arange(len(variants))
+    ax.bar(x - width / 2, variant_df["Conformant"],     width, color=_COLOR_CONFORM,
+           label="Conformant",     edgecolor="white")
+    ax.bar(x + width / 2, variant_df["Non-conformant"], width, color=_COLOR_NON_CONFORM,
+           label="Non-conformant", edgecolor="white")
+    ax.set_xticks(x)
+    ax.set_xticklabels(variants, rotation=35, ha="right", fontsize=FONT_ANNOT - 1)
+    ax.set_ylabel("Share of group's traces (%)", fontsize=FONT_LABEL)
+    ax.set_title(f"Variant Composition (top-{len(variants)} by |Δ|)", fontsize=FONT_LABEL)
+    if len(variants):
+        ax.set_ylim(0, min(115, variant_df[["Conformant", "Non-conformant"]].values.max() * 1.18))
+    ax.legend(frameon=False, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task03_scatter_plot.svg"))
+
+    fig.suptitle("Conformant vs. Non-conformant: Behavioral Factor Composition", fontsize=FONT_TITLE)
+    fig.tight_layout(rect=[0, 0, 1, 0.93])
+    save_svg(fig, os.path.join(output_dir, "task03_bar_chart.svg"))
 
 
 def task03_table(presence_df: pd.DataFrame, throughput_df: pd.DataFrame,
@@ -362,36 +327,36 @@ def task03_table(presence_df: pd.DataFrame, throughput_df: pd.DataFrame,
     ] or [["—", "—", "—", "—"]]
 
     height_ratios = [max(1, len(presence_rows)), max(1, len(throughput_rows)), max(1, len(variant_rows))]
-    fig_h = max(8.0, 2.2 + sum(height_ratios) * 0.5)
+    fig_h = max(6.0, 1.2 + sum(height_ratios) * 0.45)
     fig = plt.figure(figsize=(11, fig_h))
-    gs = gridspec.GridSpec(3, 1, height_ratios=height_ratios, hspace=0.7)
+    gs = gridspec.GridSpec(3, 1, height_ratios=height_ratios, hspace=0.35)
 
     ax1 = fig.add_subplot(gs[0]); ax1.axis("off")
     make_table(
         ax1, cell_text=presence_rows,
         col_labels=["Activity", "Presence Conformant (%)", "Presence Non-conformant (%)", "Δ"],
-        bbox=[0.02, 0.05, 0.96, 0.85], col_widths=[0.40, 0.22, 0.24, 0.14],
+        bbox=[0.02, 0.02, 0.96, 0.90], col_widths=[0.40, 0.22, 0.24, 0.14],
         font_size=9.5, cell_pad=0.08,
     )
-    ax1.set_title(f"1. Activity Presence (top-{len(presence_rows)})", fontsize=FONT_TITLE, pad=8)
+    ax1.set_title(f"1. Activity Presence (top-{len(presence_rows)})", fontsize=FONT_TITLE, pad=4)
 
     ax2 = fig.add_subplot(gs[1]); ax2.axis("off")
     make_table(
         ax2, cell_text=throughput_rows,
         col_labels=["Group", "Mean (h)", "Median (h)", "Std (h)", "Min (h)", "Max (h)"],
-        bbox=[0.02, 0.05, 0.96, 0.85], col_widths=[0.24, 0.15, 0.15, 0.15, 0.15, 0.16],
+        bbox=[0.02, 0.02, 0.96, 0.90], col_widths=[0.24, 0.15, 0.15, 0.15, 0.15, 0.16],
         font_size=9.5, cell_pad=0.08,
     )
-    ax2.set_title("2. Throughput Time", fontsize=FONT_TITLE, pad=8)
+    ax2.set_title("2. Throughput Time", fontsize=FONT_TITLE, pad=4)
 
     ax3 = fig.add_subplot(gs[2]); ax3.axis("off")
     make_table(
         ax3, cell_text=variant_rows,
         col_labels=["Variant", "Share Conformant (%)", "Share Non-conformant (%)", "Δ"],
-        bbox=[0.02, 0.05, 0.96, 0.85], col_widths=[0.18, 0.30, 0.30, 0.14],
+        bbox=[0.02, 0.02, 0.96, 0.90], col_widths=[0.18, 0.30, 0.30, 0.14],
         font_size=9.5, cell_pad=0.08,
     )
-    ax3.set_title(f"3. Variant Composition (top-{len(variant_rows)})", fontsize=FONT_TITLE, pad=8)
+    ax3.set_title(f"3. Variant Composition (top-{len(variant_rows)})", fontsize=FONT_TITLE, pad=4)
 
     fig.suptitle("Conformant vs. Non-conformant: Behavioral Factors", fontsize=FONT_TITLE, y=0.99)
     save_svg(fig, os.path.join(output_dir, "task03_table.svg"))
@@ -637,36 +602,80 @@ def task03_matrix(presence_df: pd.DataFrame, throughput_buckets, variant_df: pd.
 # ---------------------------------------------------------------------------
 
 def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
-    """Top-3 most-differentiating activities as mc-multi options.
+    """mc-multi covering all 3 behavioral dimensions shown in the visualizations:
 
-    For each activity: one correct statement (dominant group) + one incorrect
-    (groups swapped), shuffled deterministically → 6 options, 3 correct.
+    Dim 1 – Activity presence  : top-2 activities by |Δ|  → 4 options (2 correct)
+    Dim 2 – Throughput time    : which group is slower     → 2 options (1 correct)
+    Dim 3 – Variant composition: top-1 variant by |Δ|     → 2 options (1 correct)
+    Total: up to 8 options, 4 correct. Shuffled deterministically.
     """
+    import random as _rnd
+
     threshold = float(params.get("conformant_threshold", 1.0))
     trace_rows = _task03_build_trace_rows(log, fitness_df, conformant_threshold=threshold)
+
+    if answer_format != "mc-multi":
+        return {"options": []}
+
+    options = []
+    rng = _rnd.Random(round(threshold * 100))
+
+    # --- Dimension 1: activity presence (top-2 by |difference|) ---------------
     presence_df = _task03_activity_presence_df(trace_rows, top_n=TOP_N)
+    for _, row in presence_df.head(2).iterrows():
+        act      = row["activity"]
+        dominant = "Conformant" if row["Conformant"] >= row["Non-conformant"] else "Non-conformant"
+        other    = "Non-conformant" if dominant == "Conformant" else "Conformant"
+        options.append({
+            "label":   f"'{act}' is more prevalent in {dominant} traces",
+            "value":   f"act::{act}::{dominant}",
+            "correct": True,
+        })
+        options.append({
+            "label":   f"'{act}' is more prevalent in {other} traces",
+            "value":   f"act::{act}::{other}",
+            "correct": False,
+        })
 
-    if answer_format == "mc-multi":
-        options = []
-        for _, row in presence_df.head(3).iterrows():
-            act = row["activity"]
-            dominant = "Conformant" if row["Conformant"] >= row["Non-conformant"] else "Non-conformant"
-            other    = "Non-conformant" if dominant == "Conformant" else "Conformant"
-            options.append({
-                "label":   f"'{act}' has higher presence in {dominant} traces",
-                "value":   f"{act}::{dominant}",
-                "correct": True,
-            })
-            options.append({
-                "label":   f"'{act}' has higher presence in {other} traces",
-                "value":   f"{act}::{other}",
-                "correct": False,
-            })
-        import random as _rnd
-        _rnd.Random(round(threshold * 100)).shuffle(options)
-        return {"options": options}
+    # --- Dimension 2: throughput time -----------------------------------------
+    throughput_df = _task03_throughput_stats_df(trace_rows)
+    t_map = {row["Group"]: row["Mean"] for _, row in throughput_df.iterrows()}
+    c_mean  = t_map.get("Conformant",     0.0)
+    nc_mean = t_map.get("Non-conformant", 0.0)
+    if c_mean > 0 and nc_mean > 0 and abs(c_mean - nc_mean) > 0.01:
+        longer  = "Conformant"     if c_mean > nc_mean else "Non-conformant"
+        shorter = "Non-conformant" if c_mean > nc_mean else "Conformant"
+        options.append({
+            "label":   f"{longer} traces have longer average throughput time",
+            "value":   f"throughput::{longer}::longer",
+            "correct": True,
+        })
+        options.append({
+            "label":   f"{shorter} traces have longer average throughput time",
+            "value":   f"throughput::{shorter}::longer",
+            "correct": False,
+        })
 
-    return {"options": []}
+    # --- Dimension 3: variant composition (top-1 by |difference|) -------------
+    variant_df = _task03_variant_df(trace_rows)
+    if not variant_df.empty:
+        row      = variant_df.iloc[0]
+        var      = row["variant"]
+        dominant = "Conformant" if row["Conformant"] >= row["Non-conformant"] else "Non-conformant"
+        other    = "Non-conformant" if dominant == "Conformant" else "Conformant"
+        options.append({
+            "label":   f"Variant {var} is more prevalent in {dominant} traces",
+            "value":   f"var::{var}::{dominant}",
+            "correct": True,
+        })
+        options.append({
+            "label":   f"Variant {var} is more prevalent in {other} traces",
+            "value":   f"var::{var}::{other}",
+            "correct": False,
+        })
+
+    rng.shuffle(options)
+    return {"options": options}
 
 
 def generate(log, fitness_df, output_dir: str, conformant_threshold: float = 1.0):
@@ -694,7 +703,6 @@ def generate(log, fitness_df, output_dir: str, conformant_threshold: float = 1.0
                 f"top-{len(variant_df)} variants extracted.")
 
     task03_bar_chart(presence_df, throughput_buckets, variant_df, output_dir)
-    task03_scatter_plot(trace_rows, output_dir)
     task03_table(presence_df, throughput_df, variant_df, output_dir)
     task03_table_and_bar_chart(presence_df, throughput_df, variant_df, output_dir)
 

@@ -308,7 +308,7 @@ function RankList({ value, onChange, options, answerFormat }) {
         </div>
       ))}
       <p style={hintStyle}>
-        Drag, or use ▲▼, to rank from most conformant (highest fitness) at top to least conformant at bottom.
+        Drag, or use ▲▼, to rank from most conformant (highest fitness) at top to least conformant at bottom. Ties in fitness are broken by frequency (more frequent = higher rank).
       </p>
     </>
   );

@@ -65,7 +65,7 @@ def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer
         return {"value": None, "options": []}
     top = vdf.head(top_n)
     if answer_format == "rank":
-        ranked = top.sort_values("fitness", ascending=False).reset_index(drop=True)
+        ranked = top.sort_values(["fitness", "count"], ascending=[False, False]).reset_index(drop=True)
         return {
             "options": [
                 {"label": row["label"], "value": row["label"]}
