@@ -819,9 +819,17 @@ def _run_generation_job(experiment_id: str):
         else:
             ti["generation_status"] = "ready"
             ti["generation_error"] = None
-        gt_raw = r.get("gt_raw")
-        if gt_raw is not None and answer_format:
-            ti["ground_truth"] = _build_gt_block(task_key, answer_format, gt_raw)
+        gt_raw_by_format = r.get("gt_raw_by_format") or {}
+        if gt_raw_by_format:
+            gt_block_by_format = {
+                fmt_key: _build_gt_block(task_key, fmt_key, fmt_raw)
+                for fmt_key, fmt_raw in gt_raw_by_format.items()
+            }
+            ti["ground_truth_by_format"] = gt_block_by_format
+            selected = answer_format if (answer_format and answer_format in gt_block_by_format) \
+                else next(iter(gt_block_by_format), None)
+            if selected:
+                ti["ground_truth"] = gt_block_by_format[selected]
         elif r.get("gt_error"):
             _logger.warning("compute_ground_truth failed for %s: %s", task_key, r["gt_error"])
 

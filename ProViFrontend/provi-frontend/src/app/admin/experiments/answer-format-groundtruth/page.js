@@ -341,6 +341,13 @@ function FormatSelector({ formats, value, onChange }) {
   );
 }
 
+function pickGroundTruth(ti, formatKey, taskFormats, rubricInfo) {
+  const precomputed = ti.ground_truth_by_format?.[formatKey];
+  if (precomputed) return precomputed;
+  if (ti.ground_truth && ti.ground_truth.format === formatKey) return ti.ground_truth;
+  return seedGroundTruth(formatKey, taskFormats, rubricInfo.gt_tier);
+}
+
 function seedInstances(instances, formatsByTask, rubricsByTask) {
   return instances.map((ti) => {
     const taskFormats = formatsByTask[ti.task_id] || FALLBACK_ANSWER_FORMATS;
@@ -355,12 +362,11 @@ function seedInstances(instances, formatsByTask, rubricsByTask) {
       answerFormat = ti.ground_truth.format;
     }
 
-    let groundTruth = ti.ground_truth;
-    if (answerFormat && (!groundTruth || groundTruth.format !== answerFormat)) {
-      groundTruth = seedGroundTruth(answerFormat, taskFormats, rubricInfo.gt_tier);
-    }
+    const groundTruth = answerFormat
+      ? pickGroundTruth(ti, answerFormat, taskFormats, rubricInfo)
+      : (ti.ground_truth ?? null);
 
-    return { ...ti, answer_format: answerFormat ?? null, ground_truth: groundTruth ?? null };
+    return { ...ti, answer_format: answerFormat ?? null, ground_truth: groundTruth };
   });
 }
 
@@ -467,16 +473,15 @@ function GroundTruthContent() {
     const taskFormats = answerFormatsByTask[taskId] || FALLBACK_ANSWER_FORMATS;
     const rubricInfo = rubricsByTask[taskId] || { rubric: null, gt_tier: "MANUAL" };
     setTaskInstances((prev) =>
-      prev.map((ti) => {
-        if (ti.task_id !== taskId) return ti;
-        // Preserve a computed GT if it already matches the selected format
-        const existingGt = ti.ground_truth;
-        const groundTruth =
-          existingGt?.format === formatKey
-            ? existingGt
-            : seedGroundTruth(formatKey, taskFormats, rubricInfo.gt_tier);
-        return { ...ti, answer_format: formatKey, ground_truth: groundTruth };
-      })
+      prev.map((ti) =>
+        ti.task_id === taskId
+          ? {
+              ...ti,
+              answer_format: formatKey,
+              ground_truth: pickGroundTruth(ti, formatKey, taskFormats, rubricInfo),
+            }
+          : ti
+      )
     );
   }
 

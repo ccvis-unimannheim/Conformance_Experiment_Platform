@@ -463,7 +463,7 @@ def generate_for_task_instances(dataset_dir: str, experiment_id: str,
         tk = inst["task_key"]
         params = inst.get("parameters") or {}
         answer_format = inst.get("answer_format")
-        entry = {"render_error": None, "gt_raw": None, "gt_error": None}
+        entry = {"render_error": None, "gt_raw_by_format": {}, "gt_error": None}
 
         generators = make_task_generators(log, alignments, fitness_df, model_path,
                                           compare_attribute, params)
@@ -482,14 +482,24 @@ def generate_for_task_instances(dataset_dir: str, experiment_id: str,
             logger.exception("Render failed for %s", tk)
             entry["render_error"] = str(e)
 
-        compute = getattr(_TASK_MODULE.get(tk), "compute_ground_truth", None)
+        task_mod = _TASK_MODULE.get(tk)
+        compute = getattr(task_mod, "compute_ground_truth", None)
         if compute is not None:
-            try:
-                entry["gt_raw"] = compute(log, alignments, fitness_df, model_path,
-                                          params, answer_format)
-            except Exception as e:
-                logger.exception("compute_ground_truth failed for %s", tk)
-                entry["gt_error"] = str(e)
+            all_formats = getattr(task_mod, "ANSWER_FORMATS", [])
+            gt_raw_by_format: dict = {}
+            gt_errors: list[str] = []
+            for fmt in all_formats:
+                fmt_key = fmt.get("key", "")
+                try:
+                    gt_raw_by_format[fmt_key] = compute(
+                        log, alignments, fitness_df, model_path, params, fmt_key
+                    )
+                except Exception as e:
+                    logger.exception("compute_ground_truth failed for %s format %s", tk, fmt_key)
+                    gt_errors.append(f"{fmt_key}: {e}")
+            entry["gt_raw_by_format"] = gt_raw_by_format
+            if gt_errors and not gt_raw_by_format:
+                entry["gt_error"] = "; ".join(gt_errors)
 
         results[tk] = entry
 
