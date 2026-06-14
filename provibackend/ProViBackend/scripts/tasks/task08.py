@@ -678,9 +678,9 @@ def generate(log, alignments, output_dir: str,
         return
 
     task08_bar_chart(violation_freq, n_traces, output_dir)
-    task08_heatmap(violation_freq, cooccurrence, output_dir)
-    task08_matrix(violation_freq, cooccurrence, output_dir)
-    task08_network_diagram(violation_freq, cooccurrence, output_dir)
-    task08_scatter_plot(violation_freq, cooccurrence, n_traces, output_dir)
-    task08_table(violation_freq, cooccurrence, n_traces, output_dir)
-    task08_table_bar_chart(violation_freq, cooccurrence, n_traces, output_dir)
+    task08_heatmap(violation_freq, cooccurrence, output_dir, thr_count, thr_frac)
+    task08_matrix(violation_freq, cooccurrence, output_dir, thr_count, thr_frac)
+    task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count, thr_frac)
+    task08_scatter_plot(violation_freq, cooccurrence, n_traces, output_dir, thr_count, thr_frac)
+    task08_table(violation_freq, cooccurrence, n_traces, output_dir, thr_count, thr_frac)
+    task08_table_bar_chart(violation_freq, cooccurrence, n_traces, output_dir, thr_count, thr_frac)
