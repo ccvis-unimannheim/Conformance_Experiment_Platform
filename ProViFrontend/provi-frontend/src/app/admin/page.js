@@ -55,32 +55,31 @@ function TasksTooltip({ exp, taskMap, idiomMap }) {
 
       {visible && count > 0 && (
         <div
-          className="fixed z-50 bg-surface-container-highest border border-outline-variant rounded-xl shadow-lg p-3 w-72 text-[11px]"
-          style={{ top: pos.top, left: pos.left, transform: "translateY(-100%)" }}
+          className="fixed z-50 bg-white border border-slate-200 rounded-lg shadow-md p-3 w-64 text-xs"
+          style={{ top: pos.top, left: pos.left, transform: "translateY(-100%) translateY(-6px)" }}
           onMouseEnter={() => setVisible(true)}
           onMouseLeave={() => setVisible(false)}
         >
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant mb-2">
-            Task Details
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
+            Tasks
           </p>
-          <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+          <div className="space-y-2 max-h-56 overflow-y-auto">
             {groups.map((g) => (
-              <div key={g.taskKey} className="border-t border-outline-variant/40 pt-2 first:border-t-0 first:pt-0">
-                <p className="font-semibold text-on-surface mb-1">{g.taskKey}</p>
+              <div key={g.taskKey} className="border-t border-slate-100 pt-2 first:border-t-0 first:pt-0">
+                <p className="font-semibold text-slate-700 mb-0.5">
+                  <span className="inline-block bg-blue-100 text-blue-700 text-[10px] font-bold px-1.5 py-0.5 rounded mr-1">{g.taskKey}</span>
+                </p>
                 {g.idiomKeys.length > 0 && (
-                  <p className="text-on-surface-variant mb-0.5">
-                    <span className="font-medium text-on-surface">Idioms: </span>
+                  <p className="text-slate-500 mb-0.5">
+                    <span className="font-medium text-slate-600">Idioms: </span>
                     {g.idiomKeys.join(", ")}
                   </p>
                 )}
                 {Object.keys(g.params).length > 0 && (
-                  <p className="text-on-surface-variant">
-                    <span className="font-medium text-on-surface">Params: </span>
+                  <p className="text-slate-500">
+                    <span className="font-medium text-slate-600">Params: </span>
                     {Object.entries(g.params).map(([k, v]) => `${k}=${v}`).join(", ")}
                   </p>
-                )}
-                {g.idiomKeys.length === 0 && Object.keys(g.params).length === 0 && (
-                  <p className="text-on-surface-variant italic">No idioms or params set</p>
                 )}
               </div>
             ))}
@@ -500,20 +499,22 @@ export default function AdminPage() {
                           </div>
                         )}
                       </div>
-                      {/* Row 2: stats (published only) */}
-                      {status === "published" && expStats[expId] && (
-                        <div className="mt-3 pt-3 border-t border-outline-variant/40 flex items-center gap-4">
-                          <span className="flex items-center gap-1 text-[11px] text-on-surface-variant">
-                            <span className="material-symbols-outlined text-[14px]">group</span>
-                            <strong className="text-on-surface">{expStats[expId].participants}</strong> participants
-                          </span>
-                          <span className="flex items-center gap-1 text-[11px] text-on-surface-variant">
-                            <span className="material-symbols-outlined text-[14px]">check_circle</span>
-                            <strong className="text-on-surface">{expStats[expId].completed}</strong> completed
-                          </span>
-                          <TasksTooltip exp={exp} taskMap={taskMap} idiomMap={idiomMap} />
-                        </div>
-                      )}
+                      {/* Row 2: stats + task preview (all experiments) */}
+                      <div className="mt-3 pt-3 border-t border-outline-variant/40 flex items-center gap-4">
+                        {status === "published" && expStats[expId] && (
+                          <>
+                            <span className="flex items-center gap-1 text-[11px] text-on-surface-variant">
+                              <span className="material-symbols-outlined text-[14px]">group</span>
+                              <strong className="text-on-surface">{expStats[expId].participants}</strong> participants
+                            </span>
+                            <span className="flex items-center gap-1 text-[11px] text-on-surface-variant">
+                              <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                              <strong className="text-on-surface">{expStats[expId].completed}</strong> completed
+                            </span>
+                          </>
+                        )}
+                        <TasksTooltip exp={exp} taskMap={taskMap} idiomMap={idiomMap} />
+                      </div>
                     </div>
                   );
                 })}
