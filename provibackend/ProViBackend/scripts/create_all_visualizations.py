@@ -269,7 +269,7 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
         "task01": lambda d: task01.generate(log, fitness_df, d, outcome_activity=outcome_activity()),
         "task02": lambda d: task02.generate(fitness_df, d, predominant_threshold=predominant_threshold()),
         "task03": lambda d: task03.generate(log, fitness_df, d, conformant_threshold=float(p.get("conformant_threshold", 1.0))),
-        "task04": lambda d: task04.generate(log, fitness_df, d),
+        "task04": lambda d: task04.generate(log, fitness_df, d, top_n=int(p.get("top_n", task04.TOP_N))),
         "task05": lambda d: task05.generate(log, alignments, d, outcome_activity=outcome_activity()),
         "task06": lambda d: task06.generate(fitness_df, d, log=log, alignments=alignments, model_path=model_path),
         "task07": lambda d: task07.generate(log, fitness_df, d, time_granularity=time_granularity()),
