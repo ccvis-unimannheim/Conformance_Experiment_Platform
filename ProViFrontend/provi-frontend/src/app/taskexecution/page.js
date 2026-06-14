@@ -18,10 +18,12 @@ function groupTrialsByTask(trials) {
     if (!seen.has(trial.task_key)) {
       seen.set(trial.task_key, groups.length);
       groups.push({
-        task_key:    trial.task_key,
-        task_id:     trial.task_id,
-        task_label:  trial.task_label,
-        answer_type: trial.answer_type,
+        task_key:      trial.task_key,
+        task_id:       trial.task_id,
+        task_label:    trial.task_label,
+        answer_type:   trial.answer_type,
+        answer_format: trial.answer_format,
+        options:       trial.options ?? [],
         idioms: [],
       });
     }
@@ -209,7 +211,9 @@ export default function TaskExecutionPage() {
                 loadingSvg={loadingSvg}
               />
               <TaskAnswerPanel
-                options={[]}
+                options={currentGroup?.options ?? []}
+                answerType={currentGroup?.answer_type ?? "free_text"}
+                answerFormat={currentGroup?.answer_format ?? "free-text"}
                 taskLabel={currentGroup?.task_label ?? ""}
                 experimentId={experimentId}
                 taskId={currentGroup?.task_id ?? currentStep}

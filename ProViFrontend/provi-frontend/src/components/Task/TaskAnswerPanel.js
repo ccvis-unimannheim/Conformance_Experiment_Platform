@@ -3,9 +3,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { taskDescriptions, idiomDescriptions } from "./descriptions";
+import AnswerInput, { initialAnswer, isAnswered, serializeAnswer } from "./AnswerWidgets";
 
 const TaskAnswerPanel = ({
   options = [],
+  answerType = "free_text",
+  answerFormat = "free-text",
   taskLabel = "",
   taskId,
   taskKey = "",
@@ -20,28 +23,27 @@ const TaskAnswerPanel = ({
   onAnswerSubmit,
 }) => {
   const router = useRouter();
-  const [selectedAnswer, setSelectedAnswer] = useState("");
+  const [answer, setAnswer] = useState(() => initialAnswer(answerType, options));
   const [submitting, setSubmitting] = useState(false);
   const [idiomExpanded, setIdiomExpanded] = useState(false);
   const [showTaskTooltip, setShowTaskTooltip] = useState(false);
 
   const startTimeRef = useRef(Date.now());
 
-  const hasOptions = options.length > 0;
   const isLastTask = currentTaskIndex >= totalTasks - 1;
 
   const taskDesc = taskDescriptions[taskKey] ?? null;
   const idiomDesc = idiomDescriptions[idiomKey] ?? null;
 
   useEffect(() => {
-    setSelectedAnswer("");
+    setAnswer(initialAnswer(answerType, options));
     setIdiomExpanded(false);
     startTimeRef.current = Date.now();
-  }, [currentTaskIndex]);
+  }, [currentTaskIndex, answerType]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedAnswer.trim()) {
+    if (!isAnswered(answerType, answer)) {
       alert("Please provide an answer before submitting.");
       return;
     }
@@ -57,7 +59,7 @@ const TaskAnswerPanel = ({
       dataset_id: datasetId,
       trial_index: trialIndex,
       presentation_order: presentationOrder,
-      answer: selectedAnswer.toString(),
+      answer: serializeAnswer(answerType, answer),
       response_time_ms: response_time_ms,
       insert_datetime: new Date().toISOString(),
     };
@@ -75,7 +77,7 @@ const TaskAnswerPanel = ({
       console.warn("Backend unreachable — continuing:", error.message);
     } finally {
       setSubmitting(false);
-      setSelectedAnswer("");
+      setAnswer(initialAnswer(answerType, options));
       if (isLastTask) router.push("/endpage");
       else onAnswerSubmit?.();
     }
@@ -232,80 +234,13 @@ const TaskAnswerPanel = ({
         <h2 style={headerStyle}>Your Answer</h2>
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-          {hasOptions ? (
-            options.map((option, index) => {
-              const isSelected = selectedAnswer === option.value;
-              return (
-                <button
-                  key={index}
-                  type="button"
-                  onClick={() => setSelectedAnswer(option.value)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.875rem",
-                    width: "100%",
-                    padding: "1rem 1.25rem",
-                    backgroundColor: isSelected ? "#eef2f8" : "#f2f4f4",
-                    border: `2px solid ${isSelected ? "#3c5f90" : "transparent"}`,
-                    borderRadius: "0.5rem",
-                    cursor: "pointer",
-                    textAlign: "left",
-                    transition: "all 0.15s ease",
-                  }}
-                >
-                  <div style={{
-                    width: "1.1rem",
-                    height: "1.1rem",
-                    borderRadius: "50%",
-                    border: `2px solid ${isSelected ? "#3c5f90" : "#adb3b4"}`,
-                    backgroundColor: isSelected ? "#3c5f90" : "transparent",
-                    flexShrink: 0,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    transition: "all 0.15s ease",
-                  }}>
-                    {isSelected && (
-                      <div style={{ width: "0.4rem", height: "0.4rem", borderRadius: "50%", backgroundColor: "white" }} />
-                    )}
-                  </div>
-                  <span style={{
-                    fontSize: "0.875rem",
-                    fontWeight: isSelected ? 600 : 500,
-                    color: isSelected ? "#00305e" : "#2d3435",
-                    lineHeight: 1.4,
-                  }}>
-                    {option.label}
-                  </span>
-                </button>
-              );
-            })
-          ) : (
-            <textarea
-              value={selectedAnswer}
-              onChange={(e) => setSelectedAnswer(e.target.value)}
-              placeholder="Type your answer here…"
-              rows={7}
-              style={{
-                width: "100%",
-                padding: "1rem",
-                border: "2px solid #dde4e5",
-                borderRadius: "0.5rem",
-                fontSize: "0.875rem",
-                color: "#2d3435",
-                resize: "vertical",
-                outline: "none",
-                fontFamily: "inherit",
-                lineHeight: 1.6,
-                boxSizing: "border-box",
-                backgroundColor: "#fafbfc",
-                transition: "border-color 0.15s ease",
-              }}
-              onFocus={(e) => { e.target.style.borderColor = "#3c5f90"; }}
-              onBlur={(e) => { e.target.style.borderColor = "#dde4e5"; }}
-            />
-          )}
+          <AnswerInput
+            answerType={answerType}
+            answerFormat={answerFormat}
+            options={options}
+            value={answer}
+            onChange={setAnswer}
+          />
 
           <button type="submit" disabled={submitting} style={submitBtnStyle}>
             {submitting ? "Saving…" : isLastTask ? "Finish Experiment" : "Submit & Next →"}

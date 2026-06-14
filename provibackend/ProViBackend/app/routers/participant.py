@@ -1,3 +1,5 @@
+import random
+
 from typing import Annotated
 from fastapi import APIRouter, Cookie, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
@@ -36,22 +38,27 @@ ANSWER_FORMAT_TO_ANSWER_TYPE = {
 FALLBACK_ANSWER_FORMAT = "free-text"
 
 # Choice formats: the option `value` is the submittable token (safe to send).
-_CHOICE_FORMATS = {"mc-single", "mc-multi"}
+# matrix options are pair tokens (e.g. "a__b"); their `correct` flag is stripped
+# below, so the candidate set is safe to send the same way as a choice set.
+_CHOICE_FORMATS = {"mc-single", "mc-multi", "matrix"}
 # Labelled-set formats: options are row labels; the `value` column holds the GT
 # number, which must NOT be sent to participants (PARTICIPANT_TRIAL_CONTRACT.md
 # "The frontend must never receive ... any other ground-truth value").
 _LABELLED_SET_FORMATS = {"pct-set", "count-set"}
+# Rank: the GT option ORDER is the answer, so it must be shuffled before sending.
+_RANK_FORMATS = {"rank"}
 
 
 def _participant_options(answer_format: str, gt_options: list) -> list:
     """Strip ground-truth from a task's option set per answer_format.
 
-    - choice (mc-single/mc-multi): send {label, value} (value = submit token).
+    - choice (mc-single/mc-multi/matrix): send {label, value} (value = submit
+      token). The `correct` flag is dropped, so only the candidate set is exposed.
     - labelled-set (pct-set/count-set): send {label, value:label} only — the GT
       number in `value` is withheld so the answer isn't leaked.
+    - rank: send {label, value} but SHUFFLED — the GT lives in option order, so
+      the stored order must never reach the participant.
     - everything else: no options.
-    (rank/matrix option-order leakage is a known TODO, not used by any authored
-    task yet.)
     """
     if answer_format in _CHOICE_FORMATS:
         return [
@@ -60,6 +67,13 @@ def _participant_options(answer_format: str, gt_options: list) -> list:
         ]
     if answer_format in _LABELLED_SET_FORMATS:
         return [{"label": opt.get("label", ""), "value": opt.get("label", "")} for opt in gt_options]
+    if answer_format in _RANK_FORMATS:
+        opts = [
+            {"label": opt.get("label", ""), "value": opt.get("value") or opt.get("label", "")}
+            for opt in gt_options
+        ]
+        random.shuffle(opts)
+        return opts
     return []
 
 
