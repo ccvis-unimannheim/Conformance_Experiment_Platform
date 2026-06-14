@@ -20,6 +20,79 @@ logger = logging.getLogger(__name__)
 
 IDIOMS = ["tile_metric", "bar_chart", "table"]
 
+# Default fitness level above which behaviour counts as "predominantly"
+# following the model. Overridable via generate(predominant_threshold=...).
+DEFAULT_PREDOMINANT_THRESHOLD = 0.8
+
+# ---------------------------------------------------------------------------
+# Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8; design doc §2 row 2)
+#
+# Task 2 (AUTO): overall (sub-)log fitness as a percentage (pct), plus an
+# optional Yes/No reading of whether behaviour "predominantly" follows the model
+# (mc-single, decided against an optional predominant threshold, default 0.8).
+# The task runs with zero admin input; the admin may override the threshold.
+# ---------------------------------------------------------------------------
+GT_TIER = "AUTO"
+
+PARAM_SPEC = [
+    {
+        "key": "predominant_threshold",
+        "label": "Predominant-conformance threshold (fitness 0–1 above which behaviour predominantly follows the model)",
+        "widget": "threshold",
+        "default": DEFAULT_PREDOMINANT_THRESHOLD,
+        "required": False,
+    },
+]
+
+ANSWER_FORMATS = [
+    {"key": "pct",       "gt_shape": "scalar", "decisive_default": True},
+    {"key": "mc-single", "gt_shape": "mc",     "decisive_default": False},
+]
+
+
+def validate_params(log, params) -> list:
+    """Reject an out-of-range predominant threshold. The threshold is optional
+    (defaults to 0.8); only a supplied value is checked (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §10)."""
+    raw = params.get("predominant_threshold")
+    if raw is None or raw == "":
+        return []
+    try:
+        thr = float(raw)
+    except (TypeError, ValueError):
+        return [f"Predominant threshold '{raw}' is not a number."]
+    if not (0.0 <= thr <= 1.0):
+        return ["Predominant threshold must be between 0 and 1."]
+    return []
+
+
+def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
+    """Overall log fitness as the ground truth (design doc §2 row 2, AUTO tier).
+
+    Returns the raw GroundTruthBlock fields the backend assembles
+    (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §3, §8):
+      - "pct"       -> {"value": "96%"} (overall mean fitness, integer percent).
+      - "mc-single" -> Yes/No options, the side matching whether overall fitness
+                       meets the predominant threshold flagged correct.
+    """
+    overall = (
+        float(fitness_df["fitness"].mean())
+        if fitness_df is not None and len(fitness_df) else 0.0
+    )
+
+    if answer_format == "mc-single":
+        thr = float(params.get("predominant_threshold", DEFAULT_PREDOMINANT_THRESHOLD))
+        predominant = overall >= thr
+        return {
+            "value": None,
+            "options": [
+                {"label": "Yes", "value": "yes", "correct": predominant},
+                {"label": "No",  "value": "no",  "correct": not predominant},
+            ],
+        }
+
+    return {"value": f"{round(overall * 100)}%"}
+
+
 import os
 import matplotlib
 matplotlib.use("Agg")
@@ -29,10 +102,6 @@ from shared import (
     render_fitness_tile_metric, save_svg, make_table,
     GREY_MED, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
-
-# Default fitness level above which behaviour counts as "predominantly"
-# following the model. Overridable via generate(predominant_threshold=...).
-DEFAULT_PREDOMINANT_THRESHOLD = 0.8
 
 
 def task02_bar_chart(df, output_dir: str, predominant_threshold: float):
