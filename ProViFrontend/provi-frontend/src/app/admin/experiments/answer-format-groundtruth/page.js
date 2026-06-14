@@ -132,34 +132,59 @@ function ChoiceSetEditor({ gt, format, groupName, onChange }) {
   const multi = format === "mc-multi";
   const options = gt.options || [];
 
-  function updateRow(i, field, val) {
-    let next = options.map((o, idx) => (idx === i ? { ...o, [field]: val } : o));
-    if (field === "correct" && val && !multi) {
+  function updateText(i, text) {
+    const next = options.map((o, idx) => (idx === i ? { ...o, label: text, value: text } : o));
+    onChange({ ...gt, options: next });
+  }
+
+  function updateCorrect(i, val) {
+    let next = options.map((o, idx) => (idx === i ? { ...o, correct: val } : o));
+    if (!multi && val) {
       next = next.map((o, idx) => ({ ...o, correct: idx === i }));
     }
     onChange({ ...gt, options: next });
   }
 
+  function addRow() {
+    onChange({ ...gt, options: [...options, emptyOption()] });
+  }
+
+  function removeRow(i) {
+    onChange({ ...gt, options: options.filter((_, idx) => idx !== i) });
+  }
+
   return (
-    <div className="flex flex-col gap-2 max-w-lg">
+    <div className="flex flex-col gap-2 max-w-md">
       <label className="text-xs font-semibold text-on-surface">
         Options ({multi ? "check all correct options" : "select the one correct option"})
       </label>
-      <OptionRows
-        options={options}
-        onChange={(opts) => onChange({ ...gt, options: opts })}
-        addLabel="Add option"
-        emptyHint="No options yet — add the correct answer plus distractors."
-        renderExtra={(opt, i, _updateRow) => (
+      {options.length === 0 && (
+        <p className="text-xs text-on-surface-variant italic">No options yet — add the correct answer plus distractors.</p>
+      )}
+      {options.map((opt, i) => (
+        <div key={i} className="flex items-center gap-2">
           <input
             type={multi ? "checkbox" : "radio"}
             name={`gt-correct-${groupName}`}
             checked={!!opt.correct}
-            onChange={(e) => updateRow(i, "correct", e.target.checked)}
+            onChange={(e) => updateCorrect(i, e.target.checked)}
             className="flex-shrink-0"
           />
-        )}
-      />
+          <input
+            type="text"
+            placeholder="Option text"
+            value={opt.label}
+            onChange={(e) => updateText(i, e.target.value)}
+            className="flex-1 text-sm border border-border-subtle rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+          <button onClick={() => removeRow(i)} className="text-on-surface-variant hover:text-error">
+            <span className="material-symbols-outlined text-sm">delete</span>
+          </button>
+        </div>
+      ))}
+      <button onClick={addRow} className="self-start text-xs font-semibold text-primary hover:underline flex items-center gap-1">
+        <span className="material-symbols-outlined text-sm">add</span> Add option
+      </button>
     </div>
   );
 }
