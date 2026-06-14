@@ -21,7 +21,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "table", "table_and_bar_chart", "stacked_bar", "matrix"]
+IDIOMS = ["bar_chart", "scatter_plot", "table", "table_and_bar_chart", "stacked_bar", "matrix"]
 
 # ---------------------------------------------------------------------------
 # Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8)
@@ -280,6 +280,25 @@ def task03_bar_chart(presence_df: pd.DataFrame, throughput_buckets, variant_df: 
     ax.yaxis.grid(True, linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
 
+    fig.suptitle("Conformant vs. Non-conformant: Behavioral Factor Composition", fontsize=FONT_TITLE)
+    fig.tight_layout(rect=[0, 0, 1, 0.93])
+    save_svg(fig, os.path.join(output_dir, "task03_bar_chart.svg"))
+
+
+def task03_scatter_plot(trace_rows: list, output_dir: str):
+    """Scatter of activity presence: one point per activity,
+    x = presence rate in Conformant traces, y = presence rate in Non-conformant traces.
+    Points far from the y=x diagonal are the strongest differentiators.
+    """
+    full = _task03_activity_presence_df(trace_rows, top_n=10**9)
+    if full.empty:
+        render_empty_state_svg(
+            os.path.join(output_dir, "task03_scatter_plot.svg"),
+            "Activity Presence: Conformant vs. Non-conformant",
+            "No activities found.",
+        )
+        return
+
     fig, ax = plt.subplots(figsize=(7.5, 7))
     ax.plot([0, 100], [0, 100], color="#999999", linestyle="--", linewidth=1.0, zorder=1)
     ax.text(99, 99, "equal presence", rotation=45, rotation_mode="anchor",
@@ -288,7 +307,6 @@ def task03_bar_chart(presence_df: pd.DataFrame, throughput_buckets, variant_df: 
     ax.scatter(full["Conformant"], full["Non-conformant"],
                c=GREY_MED, s=36, alpha=0.7, linewidths=0, zorder=3)
 
-    # Label the strongest differentiators; use adjustText to avoid overlaps.
     top = full.head(TOP_N)
     texts = [
         ax.text(row["Conformant"], row["Non-conformant"], row["activity"],
@@ -306,7 +324,7 @@ def task03_bar_chart(presence_df: pd.DataFrame, throughput_buckets, variant_df: 
             lim=500,
         )
     except Exception:
-        pass  # fall back to raw placement if adjustText fails
+        pass
 
     ax.set_xlim(-5, 115)
     ax.set_ylim(-5, 115)
@@ -317,10 +335,8 @@ def task03_bar_chart(presence_df: pd.DataFrame, throughput_buckets, variant_df: 
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
-
-    fig.suptitle("Conformant vs. Non-conformant: Behavioral Factors", fontsize=FONT_TITLE)
-    fig.tight_layout(rect=[0, 0, 1, 0.93])
-    save_svg(fig, os.path.join(output_dir, "task03_bar_chart.svg"))
+    fig.tight_layout(pad=1.2)
+    save_svg(fig, os.path.join(output_dir, "task03_scatter_plot.svg"))
 
 
 def task03_table(presence_df: pd.DataFrame, throughput_df: pd.DataFrame,
@@ -678,6 +694,7 @@ def generate(log, fitness_df, output_dir: str, conformant_threshold: float = 1.0
                 f"top-{len(variant_df)} variants extracted.")
 
     task03_bar_chart(presence_df, throughput_buckets, variant_df, output_dir)
+    task03_scatter_plot(trace_rows, output_dir)
     task03_table(presence_df, throughput_df, variant_df, output_dir)
     task03_table_and_bar_chart(presence_df, throughput_df, variant_df, output_dir)
 
