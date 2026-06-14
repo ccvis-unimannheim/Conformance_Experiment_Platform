@@ -92,7 +92,6 @@ from matplotlib.colors import LinearSegmentedColormap
 from shared import (
     save_svg, make_table, build_variant_df, variant_table_data,
     draw_value_heatmap,
-    render_empty_state_svg,
     GREY_MED, GREY_LIGHT, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
@@ -378,6 +377,6 @@ def generate(log, fitness_df, output_dir: str, top_n: int = TOP_N):
     task04_table_bar_chart(top_vdf, output_dir, total_variants=n_total)
     task04_matrix(top_vdf, output_dir)
 
-    task04_scatter_plot(top_vdf, output_dir)
-    task04_line_graph(top_vdf, output_dir)
-    task04_heatmap(top_vdf, output_dir)
+    task04_scatter_plot(vdf, output_dir)
+    task04_line_graph(vdf, output_dir)
+    task04_heatmap(vdf, output_dir)
