@@ -20,6 +20,38 @@ logger = logging.getLogger(__name__)
 IDIOMS = ["tile_metric", "bar_chart", "scatter_plot", "table",
           "flow_chart_elaborate", "flow_chart_table"]
 
+# ---------------------------------------------------------------------------
+# Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8)
+#
+# Task 25 (AUTO): no hyperparameters — the analyst discovers the overall
+# conformance degree from the visualisation. GT is the same scalar fitness
+# as task06 (mean per-trace fitness × 100, rounded). count-set format
+# additionally exposes the raw conformant / non-conformant trace counts.
+# ---------------------------------------------------------------------------
+GT_TIER = "AUTO"
+
+PARAM_SPEC = []
+
+ANSWER_FORMATS = [
+    {"key": "pct",   "gt_shape": "scalar", "decisive_default": True},
+    {"key": "count", "gt_shape": "scalar", "decisive_default": True},
+]
+
+
+def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
+    """Overall log fitness (mean per-trace fitness × 100, rounded) for pct format;
+    conformant trace count as a scalar for count format."""
+    mean_fit = float(fitness_df["fitness"].mean()) if len(fitness_df) > 0 else 0.0
+    pct = round(mean_fit * 100)
+
+    if answer_format == "count":
+        conform = int(fitness_df["is_fit"].sum())
+        return {"value": str(conform)}
+
+    # pct (default)
+    return {"value": f"{pct}%"}
+
+
 import os
 import matplotlib
 matplotlib.use("Agg")

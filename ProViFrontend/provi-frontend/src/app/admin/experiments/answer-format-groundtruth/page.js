@@ -54,7 +54,7 @@ function emptyOption() {
 
 // --- Generic GT editors, one per gt_shape ---
 
-function ScalarEditor({ gt, onChange }) {
+function ScalarEditor({ gt, onChange, placeholder = "e.g. 96% / 42 / 0.42" }) {
   return (
     <div className="flex flex-col gap-1 max-w-xs">
       <label className="text-xs font-semibold text-on-surface">Ground-truth value</label>
@@ -62,7 +62,7 @@ function ScalarEditor({ gt, onChange }) {
         type="text"
         value={gt.value ?? ""}
         onChange={(e) => onChange({ ...gt, value: e.target.value })}
-        placeholder="e.g. 96% / 42 / 0.42"
+        placeholder={placeholder}
         className="w-full text-sm border border-border-subtle rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
       />
     </div>
@@ -299,7 +299,7 @@ function GroundTruthEditor({ gt, format, answerFormats, rubricInfo, groupName, o
   const shape = shapeFor(format, answerFormats);
   switch (shape) {
     case "scalar":
-      return <ScalarEditor gt={gt} onChange={onChange} />;
+      return <ScalarEditor gt={gt} onChange={onChange} placeholder={format === "count" ? "e.g. 42" : "e.g. 96%"} />;
     case "labelled-set":
       return <LabelledSetEditor gt={gt} onChange={onChange} />;
     case "mc":
