@@ -156,6 +156,18 @@ export default function TaskExecutionPage() {
     }
   };
 
+  const handlePreviousIdiom = () => {
+    if (currentIdiomIndex > 0) {
+      setCurrentIdiomIndex((prev) => prev - 1);
+    } else if (currentGroupIndex > 0) {
+      const prevGroup = taskGroups[currentGroupIndex - 1];
+      setCurrentGroupIndex((prev) => prev - 1);
+      setCurrentIdiomIndex(prevGroup.idioms.length - 1);
+    }
+  };
+
+  const isFirstIdiom = currentGroupIndex === 0 && currentIdiomIndex === 0;
+
   const currentGroup = taskGroups[currentGroupIndex];
   const currentIdiom = currentGroup?.idioms[currentIdiomIndex];
 
@@ -210,7 +222,33 @@ export default function TaskExecutionPage() {
           {showSkeleton ? (
             <LoadingSkeleton />
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 440px", gap: "1.5rem", alignItems: "start" }}>
+            <>
+              {!isFirstIdiom && (
+                <div style={{ marginBottom: "0.75rem" }}>
+                  <button
+                    onClick={handlePreviousIdiom}
+                    style={{
+                      display: "flex", alignItems: "center", gap: "0.35rem",
+                      padding: "0.35rem 0.75rem",
+                      background: "white",
+                      border: "1.5px solid #dde4e5",
+                      borderRadius: "6px",
+                      fontSize: "0.75rem", fontWeight: 600, color: "#5a6061",
+                      cursor: "pointer",
+                      boxShadow: "0 2px 6px rgba(45,52,53,0.08)",
+                      transition: "border-color 0.15s, color 0.15s",
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#3c5f90"; e.currentTarget.style.color = "#3c5f90"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#dde4e5"; e.currentTarget.style.color = "#5a6061"; }}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="15 18 9 12 15 6" />
+                    </svg>
+                    Previous Visualization
+                  </button>
+                </div>
+              )}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 440px", gap: "1.5rem", alignItems: "start" }}>
               <TaskVisualizationPanel
                 svgUrl={svgUrl}
                 taskNumber={currentStep}
@@ -234,6 +272,7 @@ export default function TaskExecutionPage() {
                 onAnswerSubmit={handleAnswerSubmit}
               />
             </div>
+            </>
           )}
         </main>
       </div>
