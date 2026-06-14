@@ -38,16 +38,30 @@ ANSWER_FORMATS = [
 
 
 def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
-    """Percentage of traces with fitness < 1 (i.e. at least one violation).
-
-    Returns the GroundTruthBlock-shaped fields the backend assembles
-    (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §3, §8): a single scalar value, e.g. "38%".
-    """
     n_total = len(fitness_df)
     if n_total == 0:
         return {"value": "0%"}
     n_deviating = int((fitness_df["fitness"] < 1.0).sum())
     pct = round(n_deviating / n_total * 100)
+
+    if answer_format == "mc-single":
+        import random as _rnd
+        distractors = []
+        for delta in [2, 4, 6]:
+            for sign in (1, -1):
+                candidate = max(0, min(100, pct + sign * delta))
+                if candidate != pct and candidate not in distractors:
+                    distractors.append(candidate)
+                if len(distractors) == 3:
+                    break
+            if len(distractors) == 3:
+                break
+        options = [{"label": f"{pct}%", "value": f"{pct}%", "correct": True}] + [
+            {"label": f"{d}%", "value": f"{d}%", "correct": False} for d in distractors[:3]
+        ]
+        _rnd.Random(pct).shuffle(options)
+        return {"value": None, "options": options}
+
     return {"value": f"{pct}%"}
 
 
@@ -267,15 +281,15 @@ def task12_bar_chart(stats, output_dir):
     for i, (cnt, pct, clr) in enumerate(zip(counts, pcts, colors)):
         ax.barh(i, cnt, color=clr, edgecolor="white", linewidth=0.8, height=0.55)
         txt_color = "white" if int(clr[1:3], 16) < 150 else _C_DARK
-        # Count inside bar (if bar is wide enough), else outside
+        label = f"{pct:.1f}%\n({cnt:,})"
         if cnt / n_t > 0.12:
-            ax.text(cnt * 0.5, i, f"{cnt:,}  ({pct:.1f}%)",
+            ax.text(cnt * 0.5, i, label,
                     ha="center", va="center",
-                    fontsize=FONT_ANNOT + 1, color=txt_color, fontweight="bold")
+                    fontsize=FONT_ANNOT, color=txt_color, linespacing=1.4)
         else:
-            ax.text(cnt + n_t * 0.01, i, f"{cnt:,}  ({pct:.1f}%)",
+            ax.text(cnt + n_t * 0.01, i, label,
                     ha="left", va="center",
-                    fontsize=FONT_ANNOT + 1, color=_C_DARK)
+                    fontsize=FONT_ANNOT, color=_C_DARK, linespacing=1.4)
 
     ax.set_yticks([0, 1])
     ax.set_yticklabels(labels, fontsize=FONT_LABEL)
@@ -316,47 +330,30 @@ def task12_stacked_bar(stats, output_dir):
         (n_d / n_t * 100,  n_d, _C_DARK,                   "Deviating"),
     ]
 
-    # Row 2: deviating subcategories (% of deviating)
-    sub_cats = ["mom_only", "mol_only", "mm_only", "mixed"]
-    row2 = []
-    for c in sub_cats:
-        cnt  = cats.get(c, 0)
-        frac = cnt / n_d * 100 if n_d > 0 else 0.0
-        row2.append((frac, cnt, _CAT_COLORS[c], _CAT_LABELS[c]))
-
-    fig, ax = plt.subplots(figsize=(13, 4.2))
+    fig, ax = plt.subplots(figsize=(13, 2.8))
     ax.set_facecolor("#fafbfc")
 
     bar_h = 0.45
+    left = 0.0
+    for frac, cnt, clr, _ in row1:
+        ax.barh(0, frac, left=left, color=clr,
+                edgecolor="white", linewidth=1.2, height=bar_h)
+        if frac > 5:
+            txt_color = "white" if int(clr[1:3], 16) < 150 else _C_DARK
+            ax.text(left + frac / 2, 0, f"{frac:.1f}%\n({cnt:,})",
+                    ha="center", va="center",
+                    fontsize=FONT_ANNOT, color=txt_color, linespacing=1.4)
+        left += frac
 
-    def _draw_row(y, segments):
-        left = 0.0
-        for frac, cnt, clr, _ in segments:
-            ax.barh(y, frac, left=left, color=clr,
-                    edgecolor="white", linewidth=1.2, height=bar_h)
-            if frac > 5:
-                txt_color = "white" if int(clr[1:3], 16) < 150 else _C_DARK
-                ax.text(left + frac / 2, y, f"{frac:.1f}%\n({cnt:,})",
-                        ha="center", va="center",
-                        fontsize=FONT_ANNOT, color=txt_color, linespacing=1.4)
-            left += frac
-
-    _draw_row(1.0, row1)
-    _draw_row(0.0, row2)
-
-    # Legend: all 5 categories
     patches = [
-        mpatches.Patch(color=_CAT_COLORS[c], label=f"{_CAT_LABELS[c]}  ({cats.get(c, 0):,})")
-        for c in _CAT_ORDER
+        mpatches.Patch(color=_CAT_COLORS["conformant"], label=f"Conformant  ({n_c:,})"),
+        mpatches.Patch(color=_C_DARK,                   label=f"Deviating  ({n_d:,})"),
     ]
 
     ax.set_xlim(0, 100)
     ax.set_xlabel("Proportion (%)", fontsize=FONT_LABEL)
-    ax.set_yticks([1.0, 0.0])
-    ax.set_yticklabels(
-        [f"All traces\n({n_t:,})", f"Deviating only\n({n_d:,})"],
-        fontsize=FONT_LABEL,
-    )
+    ax.set_yticks([0])
+    ax.set_yticklabels([f"All traces\n({n_t:,})"], fontsize=FONT_LABEL)
     ax.set_title(
         f"Trace Conformance Profile  ·  {n_t:,} total traces",
         fontsize=FONT_TITLE,
@@ -367,8 +364,8 @@ def task12_stacked_bar(stats, output_dir):
     ax.legend(
         handles=patches,
         loc="lower center",
-        bbox_to_anchor=(0.5, -0.25),
-        ncol=3,
+        bbox_to_anchor=(0.5, -0.35),
+        ncol=2,
         fontsize=FONT_ANNOT,
         frameon=True, framealpha=0.9,
     )
@@ -438,15 +435,11 @@ def task12_table(stats, output_dir):
                 color="white", transform=ax.transAxes)
         x += cw * tw
 
-    # Rows
-    special_rows = {0, 1, n_rows - 1}  # conformant, deviating-subtotal, total
+    # Rows — all white except the Total row which keeps grey
     for i, row in enumerate(rows):
         y_top = t - (i + 2) * row_h
         x = l
-        if i in special_rows:
-            bg = "#e8e8e8"
-        else:
-            bg = "#f5f5f5" if i % 2 == 0 else "white"
+        bg = "#e8e8e8" if i == n_rows - 1 else "white"
 
         for j, (val, cw) in enumerate(zip(row, col_widths)):
             ax.add_patch(plt.Rectangle((x, y_top), cw * tw, row_h,

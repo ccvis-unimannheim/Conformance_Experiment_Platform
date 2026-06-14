@@ -54,7 +54,8 @@ import logging
 logger = logging.getLogger(__name__)
 
 IDIOMS = ["bar_chart", "scatter_plot", "table", "table_bar_chart",
-          "parallel_sets", "flow_chart_table", "flow_chart_elaborate_table"]
+          "parallel_sets"]
+          # "flow_chart_table", "flow_chart_elaborate_table"  # commented out
 
 # ---------------------------------------------------------------------------
 # Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8; design doc §2 row 13)
@@ -404,7 +405,7 @@ def task13_bar_chart(attr_meta, evidence_df, output_dir):
                     fontsize=FONT_ANNOT - 1, color="#333333")
         ax.set_xticks(pos)
         ax.set_xticklabels(labels, fontsize=FONT_ANNOT - 1)
-        ax.set_title(f"{m['label']} ({m['type']})", fontsize=FONT_LABEL)
+        ax.set_xlabel(f"{m['label']} ({m['type']})", fontsize=FONT_LABEL)
         ax.set_ylim(0, 100)
         ax.spines[["top", "right"]].set_visible(False)
         ax.yaxis.grid(True, linestyle="--", alpha=0.45)
@@ -724,7 +725,7 @@ def generate(log, alignments, model_path, output_dir: str, candidate_attributes=
     task13_table_and_bar_chart(ranking, output_dir)
     task13_parallel_sets(evidence_df, ranking, output_dir)
 
-    # Flow combos (representative violating trace, reused from task28's picker)
-    ctx = build_task28_context(alignments)
-    task13_flow_chart_and_table(ctx, ranking, output_dir)
-    task13_flow_chart_elaborate_bpmn_table(ctx, ranking, model_path, output_dir)
+    # Flow combos commented out
+    # ctx = build_task28_context(alignments)
+    # task13_flow_chart_and_table(ctx, ranking, output_dir)
+    # task13_flow_chart_elaborate_bpmn_table(ctx, ranking, model_path, output_dir)
