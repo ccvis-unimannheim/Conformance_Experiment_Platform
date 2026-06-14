@@ -350,6 +350,10 @@ function seedInstances(instances, formatsByTask, rubricsByTask) {
     if (!answerFormat && taskFormats.length === 1) {
       answerFormat = taskFormats[0].key;
     }
+    // If GT was computed during generation, use its format as the initial selection
+    if (!answerFormat && ti.ground_truth?.format) {
+      answerFormat = ti.ground_truth.format;
+    }
 
     let groundTruth = ti.ground_truth;
     if (answerFormat && (!groundTruth || groundTruth.format !== answerFormat)) {
@@ -463,11 +467,16 @@ function GroundTruthContent() {
     const taskFormats = answerFormatsByTask[taskId] || FALLBACK_ANSWER_FORMATS;
     const rubricInfo = rubricsByTask[taskId] || { rubric: null, gt_tier: "MANUAL" };
     setTaskInstances((prev) =>
-      prev.map((ti) =>
-        ti.task_id === taskId
-          ? { ...ti, answer_format: formatKey, ground_truth: seedGroundTruth(formatKey, taskFormats, rubricInfo.gt_tier) }
-          : ti
-      )
+      prev.map((ti) => {
+        if (ti.task_id !== taskId) return ti;
+        // Preserve a computed GT if it already matches the selected format
+        const existingGt = ti.ground_truth;
+        const groundTruth =
+          existingGt?.format === formatKey
+            ? existingGt
+            : seedGroundTruth(formatKey, taskFormats, rubricInfo.gt_tier);
+        return { ...ti, answer_format: formatKey, ground_truth: groundTruth };
+      })
     );
   }
 
