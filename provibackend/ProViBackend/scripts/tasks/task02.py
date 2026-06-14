@@ -106,11 +106,11 @@ def generate(df, output_dir: str,
         participants decide for themselves whether the behaviour predominates.
     """
     os.makedirs(output_dir, exist_ok=True)
-    logger.info("\n--- Generating Task ID 2 visualizations ---")
+    logger.info("\n--- Generating Task 2 visualizations ---")
     logger.info(f"      Predominant threshold: {predominant_threshold:.2f}")
 
     if df is None or df.empty:
-        logger.warning("      Skipped Task ID 2: empty fitness DataFrame.")
+        logger.warning("      Skipped Task 2: empty fitness DataFrame.")
         render_fitness_tile_metric(0.0, os.path.join(output_dir, "task02_tile_metric.svg"))
         return
 

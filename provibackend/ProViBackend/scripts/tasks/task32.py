@@ -36,6 +36,7 @@ from matplotlib import gridspec
 from shared import (
     save_svg, make_table, draw_parallel_sets,
     draw_value_heatmap, draw_rate_matrix, draw_grouped_box_plot,
+    draw_grouped_rate_bars,
     render_empty_state_svg, format_threshold,
     GREY_MED, GREY_LIGHT, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
@@ -129,31 +130,44 @@ def _violations_per_trace(viol_df: pd.DataFrame, assignment: list,
 # Idiom 1: bar_chart — Pareto of total violation frequency (whole-log ranking)
 # ---------------------------------------------------------------------------
 
-def task32_bar_chart(agg_df, attr, output_dir):
-    """Pareto chart: bars = total count (desc), line = cumulative % of all violations."""
+def task32_bar_chart(agg_df, groups, attr, output_dir):
+    """Grouped bars: per violation pattern (ranked by total), its occurrence COUNT
+    in each sub-process (sub-log defined by the compare attribute, e.g. AMOUNT_REQ).
+
+    Consistent with task30/task13, the bar chart breaks the metric down across the
+    sub-process split rather than collapsing to a single whole-log total — so the
+    compare attribute (AMOUNT_REQ) is actually visible. The total per pattern is
+    annotated above each cluster to preserve the Pareto ranking read.
+    """
     if agg_df.empty:
         render_empty_state_svg(os.path.join(output_dir, "task32_bar_chart.svg"),
                                "Main Violations (Pareto)", "No violations found.")
         return
     patterns = agg_df["pattern"].tolist()
+    counts = _counts(agg_df, groups)        # (n_patterns × n_groups)
     totals = agg_df["total"].values
-    x = np.arange(len(patterns))
 
-    fig, ax = plt.subplots(figsize=(max(10, len(patterns) * 1.5), 5.8))
-    ax.bar(x, totals, color=_PARETO_BAR, edgecolor="white", linewidth=0.6, width=0.7)
+    fig, ax = plt.subplots(figsize=(max(10, len(patterns) * 1.6), 5.8))
+    x = draw_grouped_rate_bars(ax, len(patterns), groups, counts, _group_colors(groups))
+
+    # Total per pattern above each cluster (keeps the frequency-ranking read).
+    ymax = counts.max() if counts.size else 1.0
     for xi, t in zip(x, totals):
-        ax.text(xi, t, f"{int(t)}", ha="center", va="bottom",
+        ax.text(xi, ymax * 1.04, f"Σ {int(t)}", ha="center", va="bottom",
                 fontsize=FONT_ANNOT - 1, color="#444444")
+
     ax.set_xticks(x)
     ax.set_xticklabels([_wrap_pattern(p) for p in patterns],
                        rotation=0, ha="center", fontsize=FONT_ANNOT - 2)
-    ax.set_ylabel("Total occurrences", fontsize=FONT_LABEL)
-    ax.set_ylim(0, totals.max() * 1.18)
+    ax.set_ylabel("Occurrences", fontsize=FONT_LABEL)
+    ax.set_ylim(0, max(ymax * 1.18, 1.0))
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.4)
     ax.set_axisbelow(True)
+    ax.legend(frameon=False, fontsize=FONT_ANNOT - 1, title=f"Sub-process ({attr})",
+              title_fontsize=FONT_ANNOT)
 
-    ax.set_title(f"Main Violations — Frequency Ranking (top {len(patterns)})",
+    ax.set_title(f"Main Violations — Frequency by Sub-process ({attr}, top {len(patterns)})",
                  fontsize=FONT_TITLE)
     fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task32_bar_chart.svg"))
@@ -440,7 +454,7 @@ def generate(log, alignments, output_dir: str,
              compare_attribute: str = "AMOUNT_REQ"):
     """Generate all Task ID 32 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
-    logger.info("\n--- Generating Task ID 32 visualizations ---")
+    logger.info("\n--- Generating Task 32 visualizations ---")
 
     groups, assignment, meta = split_by_attribute(log, compare_attribute)
     if groups is None:
@@ -474,7 +488,7 @@ def generate(log, alignments, output_dir: str,
         logger.info(f"         {pat_ascii:<40} total={int(row['total']):>6}  "
                     f"cum={row['cum_pct']:.0f}%")
 
-    task32_bar_chart(agg_df, compare_attribute, output_dir)
+    task32_bar_chart(agg_df, groups, compare_attribute, output_dir)
     task32_stacked_bar(agg_df, groups, compare_attribute, output_dir)
     task32_boxplot(viol_df, assignment, groups, compare_attribute, output_dir)
     task32_table(agg_df, compare_attribute, output_dir)

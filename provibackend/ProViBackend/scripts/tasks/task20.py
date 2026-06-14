@@ -326,7 +326,7 @@ def task20_root_cause_analysis(log, alignments):
             ["score", "violation_rate", "nonconformant_cases"],
             ascending=False,
         ).reset_index(drop=True)
-    logger.info(f"      -> Task 4 features: {len(features)} predictors, base non-conformance rate: {base_rate:.2%}")
+    logger.info(f"      -> Feature set: {len(features)} predictors, base non-conformance rate: {base_rate:.2%}")
     return df, tree, root_causes
 
 
@@ -797,7 +797,7 @@ def generate(log, alignments, output_dir: str, model_path=None):
     (reused from task13), the elaborate model (reused from task18), and a
     violation-pattern co-occurrence network. Legacy extras still rendered."""
     os.makedirs(output_dir, exist_ok=True)
-    logger.info("\n--- Generating Task ID 20 visualizations ---")
+    logger.info("\n--- Generating Task 20 visualizations ---")
     # Lazy imports to avoid the task13↔task20 circular import at module load.
     import tasks.task13 as task13
     from tasks.task28 import build_task28_context

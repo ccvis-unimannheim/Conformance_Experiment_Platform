@@ -783,10 +783,10 @@ def task29_sunburst(alignments, output_dir: str):
 def generate(alignments, output_dir: str):
     """Generate all Task 3 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
-    logger.info("\n--- Generating Task 3 visualizations ---")
+    logger.info("\n--- Generating Task 29 visualizations ---")
     df = task29_violation_summary_dataframe(alignments)
     if df.empty:
-        logger.warning("      Skipped Task 3: no violation moves found.")
+        logger.warning("      Skipped Task 29: no violation moves found.")
         return
     task29_bar_chart(df, output_dir)
     task29_heatmap(df, output_dir)

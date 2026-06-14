@@ -499,7 +499,8 @@ def task36_network_diagram(data: dict, output_dir: str):
 # ── Entry point ──────────────────────────────────────────────────────────────
 
 def generate(log, alignments, output_dir: str, model_path: str = None):
-    logger.info("Task36: extracting Declare conformance data…")
+    logger.info("\n--- Generating Task 36 visualizations (Declare constraint conformance) ---")
+    logger.info("      Extracting Declare conformance data…")
     data = _extract_data(log)
 
     if not data["constraints"]:

@@ -662,15 +662,15 @@ def generate(log, fitness_df, alignments, output_dir: str, model_path: str = Non
     BPMN exemplar panels); when absent that idiom is skipped.
     """
     os.makedirs(output_dir, exist_ok=True)
-    logger.info("\n--- Generating Task ID 27 visualizations ---")
+    logger.info("\n--- Generating Task 27 visualizations ---")
 
     if fitness_df is None or fitness_df.empty:
-        logger.warning("      Skipped Task ID 27: empty fitness DataFrame.")
+        logger.warning("      Skipped Task 27: empty fitness DataFrame.")
         return
 
     vdf = build_variant_df(log, fitness_df, warn_prefix="task27")
     if vdf.empty:
-        logger.warning("      Skipped Task ID 27: no trace data available.")
+        logger.warning("      Skipped Task 27: no trace data available.")
         return
 
     n_conform = int((vdf["fitness"] >= 1.0).sum())

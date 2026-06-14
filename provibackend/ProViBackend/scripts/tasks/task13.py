@@ -654,7 +654,7 @@ def generate(log, alignments, model_path, output_dir: str, candidate_attributes=
     violation label and the throughput-time reason.
     """
     os.makedirs(output_dir, exist_ok=True)
-    logger.info("\n--- Generating Task ID 13 visualizations ---")
+    logger.info("\n--- Generating Task 13 visualizations ---")
 
     if candidate_attributes is None:
         candidate_attributes = list(CANDIDATE_ATTRIBUTES)

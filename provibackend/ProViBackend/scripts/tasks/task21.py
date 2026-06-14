@@ -415,7 +415,7 @@ def generate(log, alignments, model_path, output_dir: str, candidate_attributes=
     evidence and task18's event responsibility into one neutral, exploratory ranking.
     Alignments are reused from the central run (never recomputed)."""
     os.makedirs(output_dir, exist_ok=True)
-    logger.info("\n--- Generating Task ID 21 visualizations ---")
+    logger.info("\n--- Generating Task 21 visualizations ---")
 
     if not log or not alignments:
         logger.warning("      task21: empty log / alignments — emitting empty-state SVGs.")

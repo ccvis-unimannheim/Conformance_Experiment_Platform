@@ -895,14 +895,14 @@ def generate(log, alignments, output_dir: str, outcome_activity: str = "A_ACTIVA
     outcome_activity: the activity name that marks a positive process outcome.
     """
     os.makedirs(output_dir, exist_ok=True)
-    logger.info("\n--- Generating Task 6 visualizations ---")
+    logger.info("\n--- Generating Task 31 visualizations ---")
     # Patch the outcome detection to use the provided activity name
     import tasks.task31 as _self
     _self._OUTCOME_ACTIVITY = outcome_activity
 
     df = task31_outcome_dataframe(log, alignments)
     if df.empty:
-        logger.warning("      Skipped Task 6: no trace-level outcome features found.")
+        logger.warning("      Skipped Task 31: no trace-level outcome features found.")
         return
     tree = _task31_fit_tree(df)
     table = task31_summary_table_dataframe(df, tree)

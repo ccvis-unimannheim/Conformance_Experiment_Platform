@@ -238,7 +238,10 @@ def _resolve_dataset_paths(dataset_dir: str):
 def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED",
                  compare_attribute: str = "AMOUNT_REQ",
                  predominant_threshold: float = 0.8,
-                 high_cooccurrence_threshold: float = 0.1) -> str:
+                 high_cooccurrence_threshold: float = 0.1,
+                 time_granularity: str = "month",
+                 conformance_bins: list = None,
+                 target_violation: str = None) -> str:
     """Run the full visualization pipeline for one dataset directory.
 
     Parameters
@@ -260,6 +263,15 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED",
     high_cooccurrence_threshold : float
         Share of traces (0–1) at/above which Task 8 marks a violation pair's
         co-occurrence as "high" (drawn neutrally as a reference value).
+    time_granularity : str
+        Time-axis aggregation for Task 7 ("year" | "month" | "day"; default month).
+    conformance_bins : list, optional
+        Conformance interval boundaries for Task 10 (e.g. [0.0, 0.5, 0.9, 1.01]).
+        Defaults to the canonical CONFORMANCE_BINS in shared.py.
+    target_violation : str, optional
+        Specific guideline violation Task 11 focuses on, as "activity|move_type"
+        (move_type may be a full name or a short code MoM/MoL/MM). Defaults to the
+        most frequent violation in the log.
 
     Returns
     -------
@@ -278,6 +290,9 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED",
     logger.info(f"Compare attribute : {compare_attribute}")
     logger.info(f"Predominant thresh: {predominant_threshold}")
     logger.info(f"High co-occ thresh: {high_cooccurrence_threshold}")
+    logger.info(f"Time granularity  : {time_granularity}")
+    logger.info(f"Conformance bins  : {conformance_bins if conformance_bins else 'default (shared.py)'}")
+    logger.info(f"Target violation  : {target_violation if target_violation else 'auto (most frequent)'}")
     log         = load_event_log(log_path)
     compare_attribute = _auto_detect_compare_attribute(log, compare_attribute)
     logger.info(f"Compare attribute (resolved): {compare_attribute}")
@@ -301,12 +316,15 @@ def run_pipeline(dataset_dir: str, outcome_activity: str = "A_ACTIVATED",
                                              outcome_activity=outcome_activity)),
         ("task06", lambda d: task06.generate(fitness_df,             d,
                                              log=log, alignments=alignments, model_path=model_path)),
-        ("task07", lambda d: task07.generate(log, fitness_df,        d)),
+        ("task07", lambda d: task07.generate(log, fitness_df,        d,
+                                             time_granularity=time_granularity)),
         ("task08", lambda d: task08.generate(log, alignments,        d,
                                              high_cooccurrence_threshold=high_cooccurrence_threshold)),
         ("task09", lambda d: task09.generate(log, alignments,        d, model_path=model_path)),
-        ("task10", lambda d: task10.generate(fitness_df,             d, log=log)),
-        ("task11", lambda d: task11.generate(log, alignments,        d, model_path=model_path)),
+        ("task10", lambda d: task10.generate(fitness_df,             d, log=log,
+                                             conformance_bins=conformance_bins)),
+        ("task11", lambda d: task11.generate(log, alignments,        d, model_path=model_path,
+                                             target_violation=target_violation)),
         ("task12", lambda d: task12.generate(log, alignments,        d)),
         ("task13", lambda d: task13.generate(log, alignments, model_path, d)),
         ("task14", lambda d: task14.generate(alignments, model_path, d)),
@@ -411,7 +429,38 @@ def parse_args():
         help="Share of traces (0–1) at/above which Task 8 marks a violation "
              "pair's co-occurrence as high (neutral reference). Default: 0.1",
     )
+    parser.add_argument(
+        "--time-granularity", choices=["year", "month", "day"], default="month",
+        help="Time-axis aggregation for Task 7's line/horizon charts. Default: month",
+    )
+    parser.add_argument(
+        "--conformance-bins", default=None,
+        help="Comma-separated conformance interval boundaries for Task 10 "
+             "(e.g. '0.0,0.5,0.9,1.01'). Default: shared.py canonical bins.",
+    )
+    parser.add_argument(
+        "--target-violation", default=None,
+        help="Specific violation Task 11 focuses on, as 'activity|move_type' "
+             "(move_type may be a full name or MoM/MoL/MM). "
+             "Default: most frequent violation in the log.",
+    )
     return parser.parse_args()
+
+
+def _parse_conformance_bins(raw):
+    """Parse a comma-separated bin-edge string into an ascending list of floats."""
+    if not raw:
+        return None
+    try:
+        bins = [float(x.strip()) for x in str(raw).split(",") if x.strip() != ""]
+    except ValueError as e:
+        raise ValueError(f"Invalid --conformance-bins '{raw}': expected comma-separated "
+                         f"numbers like '0.0,0.5,0.9,1.01' ({e})")
+    if len(bins) < 2:
+        raise ValueError(f"--conformance-bins needs at least 2 edges, got: {bins}")
+    if any(a >= b for a, b in zip(bins, bins[1:])):
+        raise ValueError(f"--conformance-bins must be strictly ascending, got: {bins}")
+    return bins
 
 
 def _configure_cli_logging(level: int = logging.INFO):
@@ -438,10 +487,14 @@ def main():
     _configure_cli_logging()
     args = parse_args()
     try:
+        conformance_bins = _parse_conformance_bins(args.conformance_bins)
         run_pipeline(args.dataset_dir, outcome_activity=args.outcome_activity,
                      compare_attribute=args.compare_attribute,
                      predominant_threshold=args.predominant_threshold,
-                     high_cooccurrence_threshold=args.high_cooccurrence_threshold)
+                     high_cooccurrence_threshold=args.high_cooccurrence_threshold,
+                     time_granularity=args.time_granularity,
+                     conformance_bins=conformance_bins,
+                     target_violation=args.target_violation)
     except (FileNotFoundError, ValueError) as e:
         logger.error(f"ERROR: {e}")
         sys.exit(1)

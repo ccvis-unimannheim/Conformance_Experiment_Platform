@@ -534,7 +534,7 @@ def generate(log, alignments, model_path, output_dir: str, outcome_activity: str
     outcome activity; effects are per-violation-pattern risk differences computed from
     the central alignment run (never recomputed)."""
     os.makedirs(output_dir, exist_ok=True)
-    logger.info("\n--- Generating Task ID 19 visualizations ---")
+    logger.info("\n--- Generating Task 19 visualizations ---")
 
     if not log or not alignments:
         logger.warning("      task19: empty log / alignments — emitting empty-state SVGs.")

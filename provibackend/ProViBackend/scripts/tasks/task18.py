@@ -534,7 +534,7 @@ def generate(log, alignments, model_path, output_dir: str, candidate_attributes=
     central run (never recomputed); the dominant-attribute context reuses task13's
     evidence frame."""
     os.makedirs(output_dir, exist_ok=True)
-    logger.info("\n--- Generating Task ID 18 visualizations ---")
+    logger.info("\n--- Generating Task 18 visualizations ---")
 
     if not log or not alignments:
         logger.warning("      task18: empty log / alignments — emitting empty-state SVGs.")

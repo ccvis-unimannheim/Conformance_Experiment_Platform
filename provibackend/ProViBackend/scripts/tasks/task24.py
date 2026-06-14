@@ -69,8 +69,14 @@ def _model_task_edges(elements: dict, sequence_flows: dict) -> set:
     return model_edges
 
 
-def _compute_diff(log, model_path: str, noise_threshold: int = NOISE_THRESHOLD) -> dict:
-    """Diff observed DFG against reference BPMN model edges."""
+def _compute_diff(log, model_path: str, noise_threshold: int = NOISE_THRESHOLD,
+                  log_summary: bool = True) -> dict:
+    """Diff observed DFG against reference BPMN model edges.
+
+    log_summary: when False, the DFG/diff INFO lines are suppressed. Reusers
+    (e.g. task25) set this so the summary is not logged again under their own
+    section.
+    """
     dfg_counts     = _discover_dfg(log, noise_threshold)
     observed_edges = set(dfg_counts.keys())
     observed_acts  = {a for pair in observed_edges for a in pair}
@@ -88,11 +94,12 @@ def _compute_diff(log, model_path: str, noise_threshold: int = NOISE_THRESHOLD) 
     extra_activities      = observed_acts  - model_task_names
     missing_activities    = model_task_names - observed_acts
 
-    logger.info(f"      -> DFG edges (≥{noise_threshold}): {len(observed_edges)}"
-                f"  |  Model edges: {len(model_edges)}")
-    logger.info(f"      -> Conform: {len(conform_edges)}"
-                f"  |  In-model-not-observed: {len(in_model_not_observed)}"
-                f"  |  Observed-not-in-model: {len(observed_not_in_model)}")
+    if log_summary:
+        logger.info(f"      -> DFG edges (≥{noise_threshold}): {len(observed_edges)}"
+                    f"  |  Model edges: {len(model_edges)}")
+        logger.info(f"      -> Conform: {len(conform_edges)}"
+                    f"  |  In-model-not-observed: {len(in_model_not_observed)}"
+                    f"  |  Observed-not-in-model: {len(observed_not_in_model)}")
 
     return {
         "model_task_names": model_task_names, "observed_activities": observed_acts,
@@ -238,7 +245,7 @@ def task24_flow_chart_and_table(diff: dict, output_dir: str):
 def generate(log, model_path: str, output_dir: str):
     """Generate all Task ID 24 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
-    logger.info("\n--- Generating Task ID 24 visualizations ---")
+    logger.info("\n--- Generating Task 24 visualizations ---")
 
     if not log:
         logger.warning("      task24: empty log — skipping.")

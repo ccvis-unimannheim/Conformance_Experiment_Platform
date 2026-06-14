@@ -436,7 +436,7 @@ _ALL_FNAMES_TITLES = [
 def generate(log, fitness_df, output_dir, compare_attribute="AMOUNT_REQ"):
     """Generate all Task ID 33 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
-    logger.info("\n--- Generating Task ID 33 visualizations ---")
+    logger.info("\n--- Generating Task 33 visualizations ---")
 
     groups, assignment, meta = split_by_attribute(log, compare_attribute)
     if groups is None:

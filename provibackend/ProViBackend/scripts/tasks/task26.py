@@ -654,7 +654,7 @@ def generate(alignments, output_dir: str, model_path: str = None):
     severity); when absent those two idioms are skipped.
     """
     os.makedirs(output_dir, exist_ok=True)
-    logger.info("\n--- Generating Task ID 26 visualizations ---")
+    logger.info("\n--- Generating Task 26 visualizations ---")
 
     pat_df = _task26_build_severity_df(alignments)
 
