@@ -80,6 +80,9 @@ function ParamField({ entry, value, onChange }) {
         type="number"
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
+        min={entry.min ?? undefined}
+        max={entry.max ?? undefined}
+        step={entry.step ?? "any"}
         className="w-full text-sm border border-border-subtle rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
       />
     );

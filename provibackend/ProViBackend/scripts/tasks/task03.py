@@ -38,6 +38,9 @@ PARAM_SPEC = [
         "widget": "threshold",
         "default": 1.0,
         "required": False,
+        "min": 0.01,
+        "max": 1.0,
+        "step": 0.01,
     },
 ]
 
