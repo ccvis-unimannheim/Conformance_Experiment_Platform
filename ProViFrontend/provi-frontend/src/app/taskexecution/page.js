@@ -255,6 +255,7 @@ export default function TaskExecutionPage() {
                 loadingSvg={loadingSvg}
               />
               <TaskAnswerPanel
+                key={linearTrialPosition}
                 options={currentGroup?.options ?? []}
                 answerType={currentGroup?.answer_type ?? "free_text"}
                 answerFormat={currentGroup?.answer_format ?? "free-text"}
