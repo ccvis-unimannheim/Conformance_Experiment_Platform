@@ -118,9 +118,8 @@ _FILE_RENAME = {
 }
 
 # Per-task idiom keys that must NOT go through _FILE_RENAME.
-# task08 uses scatter_plot (SVG) which is distinct from scatterplot (echarts).
+# These tasks use scatter_plot (SVG) which is distinct from scatterplot (echarts).
 _TASK_RENAME_SKIP: dict[str, set[str]] = {
-    "task08": {"scatter_plot"},
     "task13": {"scatter_plot"},
     "task14": {"scatter_plot"},
     "task15": {"scatter_plot"},

@@ -4,6 +4,10 @@ tasks/task02.py – Task ID 2: Confirm / Present / Process conformance.
 Single idiom: Tile Metric — overall (sub-)log fitness as a simple percentage.
 The tile is visually identical to task06's tile; rendering logic lives in shared.py.
 
+The answer format is a single Yes/No question ("yes-no"): does behaviour
+predominantly follow the model? The ground truth is decided against an optional
+predominant threshold (default 0.8).
+
 Public API:
     generate(df, output_dir, predominant_threshold=0.8)
         df                   – fitness summary DataFrame from io_helpers.fitness_summary_dataframe
@@ -27,10 +31,10 @@ DEFAULT_PREDOMINANT_THRESHOLD = 0.8
 # ---------------------------------------------------------------------------
 # Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8; design doc §2 row 2)
 #
-# Task 2 (AUTO): overall (sub-)log fitness as a percentage (pct), plus an
-# optional Yes/No reading of whether behaviour "predominantly" follows the model
-# (mc-single, decided against an optional predominant threshold, default 0.8).
-# The task runs with zero admin input; the admin may override the threshold.
+# Task 2 (AUTO): a single Yes/No answer format ("yes-no") reading whether
+# behaviour "predominantly" follows the model, decided against an optional
+# predominant threshold (default 0.8). The task runs with zero admin input;
+# the admin may override the threshold.
 # ---------------------------------------------------------------------------
 GT_TIER = "AUTO"
 
@@ -45,8 +49,7 @@ PARAM_SPEC = [
 ]
 
 ANSWER_FORMATS = [
-    {"key": "pct",       "gt_shape": "scalar", "decisive_default": True},
-    {"key": "mc-single", "gt_shape": "mc",     "decisive_default": False},
+    {"key": "yes-no", "gt_shape": "mc", "decisive_default": True},
 ]
 
 
@@ -66,31 +69,26 @@ def validate_params(log, params) -> list:
 
 
 def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
-    """Overall log fitness as the ground truth (design doc §2 row 2, AUTO tier).
+    """Yes/No ground truth (design doc §2 row 2).
 
     Returns the raw GroundTruthBlock fields the backend assembles
-    (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §3, §8):
-      - "pct"       -> {"value": "96%"} (overall mean fitness, integer percent).
-      - "mc-single" -> Yes/No options, the side matching whether overall fitness
-                       meets the predominant threshold flagged correct.
+    (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §3, §8) for the sole "yes-no" format:
+    Yes/No options, with the side matching whether the overall mean fitness
+    meets the predominant threshold flagged correct.
     """
     overall = (
         float(fitness_df["fitness"].mean())
         if fitness_df is not None and len(fitness_df) else 0.0
     )
-
-    if answer_format == "mc-single":
-        thr = float(params.get("predominant_threshold", DEFAULT_PREDOMINANT_THRESHOLD))
-        predominant = overall >= thr
-        return {
-            "value": None,
-            "options": [
-                {"label": "Yes", "value": "yes", "correct": predominant},
-                {"label": "No",  "value": "no",  "correct": not predominant},
-            ],
-        }
-
-    return {"value": f"{round(overall * 100)}%"}
+    thr = float(params.get("predominant_threshold", DEFAULT_PREDOMINANT_THRESHOLD))
+    predominant = overall >= thr
+    return {
+        "value": None,
+        "options": [
+            {"label": "Yes", "value": "yes", "correct": predominant},
+            {"label": "No",  "value": "no",  "correct": not predominant},
+        ],
+    }
 
 
 import os
