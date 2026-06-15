@@ -338,7 +338,7 @@ def task04_heatmap(vdf: pd.DataFrame, output_dir: str):
     fig, ax = plt.subplots(figsize=(6, fig_h))
     draw_value_heatmap(fig, ax, norm, labels, metrics,
                        cbar_label="Normalized (per metric)", annotate=False)
-    ax.set_title(f"Variant Metrics Heatmap (all {len(labels)} variants)", fontsize=FONT_TITLE)
+    ax.set_title(f"Variant Metrics Heatmap (top-{len(labels)} variants)", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task04_heatmap.svg"))
 
@@ -351,9 +351,7 @@ def generate(log, fitness_df, output_dir: str, top_n: int = TOP_N):
     """Generate all Task ID 4 SVGs into output_dir.
 
     ``top_n`` is the admin-configured number of variants (from PARAM_SPEC
-    "top_n"). Idioms that compare the selected variants are sliced to top_n;
-    overview idioms (scatter_plot, line_graph, heatmap) always show
-    all variants so participants have full context.
+    "top_n"). All idioms are sliced to top_n variants ranked by frequency.
     """
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 4 visualizations ---")
@@ -377,6 +375,6 @@ def generate(log, fitness_df, output_dir: str, top_n: int = TOP_N):
     task04_table_bar_chart(top_vdf, output_dir, total_variants=n_total)
     task04_matrix(top_vdf, output_dir)
 
-    task04_scatter_plot(vdf, output_dir)
-    task04_line_graph(vdf, output_dir)
-    task04_heatmap(vdf, output_dir)
+    task04_scatter_plot(top_vdf, output_dir)
+    task04_line_graph(top_vdf, output_dir)
+    task04_heatmap(top_vdf, output_dir)
