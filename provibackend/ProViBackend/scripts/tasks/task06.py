@@ -123,27 +123,26 @@ import tasks.task20 as task20
 
 
 def task06_bar_chart(df, output_dir: str):
-    """Bar chart showing mean fitness value for conformant vs non-conformant trace groups."""
-    conform_df     = df[df["is_fit"] == True]
-    nonconform_df  = df[df["is_fit"] == False]
-
-    mean_fit_conform    = float(conform_df["fitness"].mean())    if len(conform_df)    > 0 else 0.0
-    mean_fit_nonconform = float(nonconform_df["fitness"].mean()) if len(nonconform_df) > 0 else 0.0
+    """Bar chart showing count of conformant vs non-conformant traces."""
+    conform    = int(df["is_fit"].sum())
+    nonconform = len(df) - conform
+    total      = len(df)
 
     labels = ["Conformant Traces", "Non-Conformant Traces"]
-    values = [mean_fit_conform, mean_fit_nonconform]
+    values = [conform, nonconform]
 
     fig, ax = plt.subplots(figsize=(6, 5))
     bars = ax.bar(labels, values, color=[GREY_MED, GREY_LIGHT], edgecolor="white", width=0.5)
     for bar, val in zip(bars, values):
+        pct = val / total * 100 if total else 0
         ax.text(
             bar.get_x() + bar.get_width() / 2,
-            bar.get_height() + 0.015,
-            f"{val:.2f}", ha="center", va="bottom", fontsize=FONT_ANNOT,
+            bar.get_height() + 0.5,
+            f"{val:,}\n({pct:.1f}%)", ha="center", va="bottom", fontsize=FONT_ANNOT,
         )
-    ax.set_ylabel("Mean Fitness Value (0–1)", fontsize=FONT_LABEL)
-    ax.set_title("Mean Fitness: Conformant vs. Non-Conformant Traces", fontsize=FONT_TITLE)
-    ax.set_ylim(0, 1.15)
+    ax.set_ylabel("Number of Traces", fontsize=FONT_LABEL)
+    ax.set_title("Conformant vs. Non-Conformant Trace Count", fontsize=FONT_TITLE)
+    ax.set_ylim(0, max(values) * 1.2 if values else 10)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
@@ -216,38 +215,54 @@ def task06_donut_chart(df, output_dir: str):
     """Donut chart: conformant vs non-conformant trace counts."""
     conform     = int(df["is_fit"].sum())
     non_conform = len(df) - conform
+    total       = len(df)
+
+    pct_conform    = conform / total * 100 if total else 0
+    pct_nonconform = non_conform / total * 100 if total else 0
 
     fig, ax = plt.subplots(figsize=(6, 5))
     wedges, texts = ax.pie(
         [conform, non_conform],
-        labels=[f"{conform:,}", f"{non_conform:,}"],
         colors=[GREY_MED, GREY_LIGHT],
         startangle=90,
         wedgeprops=dict(width=0.5),
     )
-    for t in texts:
-        t.set_fontsize(FONT_ANNOT)
-    ax.set_title("Conform vs. non-conform cases", fontsize=FONT_TITLE)
-    fig.tight_layout(pad=1.2)
+    ax.legend(
+        wedges,
+        [f"Conformant ({conform:,}, {pct_conform:.1f}%)",
+         f"Non-Conformant ({non_conform:,}, {pct_nonconform:.1f}%)"],
+        loc="lower center",
+        bbox_to_anchor=(0.5, -0.12),
+        fontsize=FONT_ANNOT,
+        frameon=False,
+    )
+    ax.set_title("Conformant vs. Non-Conformant Cases", fontsize=FONT_TITLE)
+    fig.tight_layout(pad=1.5)
     save_svg(fig, os.path.join(output_dir, "task06_donut_chart.svg"))
 
 
 def task06_heatmap(df, output_dir: str):
-    """Single-cell heatmap showing overall conformance rate (0–100), light→dark grey."""
-    pct = float(df["fitness"].mean()) * 100
+    """Per-trace fitness grid heatmap — each cell is one trace, colour = fitness (light → dark)."""
+    fitness = df.sort_values("trace_index")["fitness"].values
+    n = len(fitness)
+
+    ncols = max(1, int(np.ceil(np.sqrt(n))))
+    nrows = max(1, int(np.ceil(n / ncols)))
+    grid  = np.full(nrows * ncols, np.nan)
+    grid[:n] = fitness
+    grid = grid.reshape(nrows, ncols)
 
     cmap = LinearSegmentedColormap.from_list("grey_scale", [GREY_LIGHTER, GREY_DARK])
-    fig, ax = plt.subplots(figsize=(5, 4))
-    im = ax.imshow([[pct]], cmap=cmap, vmin=0, vmax=100, aspect="auto")
-    ax.text(0, 0, f"{pct:.2f}", ha="center", va="center",
-            fontsize=22, fontweight="bold",
-            color="white" if pct > 55 else GREY_DARK)
-    ax.set_xticks([])
-    ax.set_yticks([])
+    fig_w = min(10, max(5, ncols * 0.35))
+    fig_h = min(8,  max(4, nrows * 0.35))
+    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+    im = ax.imshow(grid, cmap=cmap, vmin=0, vmax=1, aspect="auto")
+    ax.set_xlabel("Trace (column index)", fontsize=FONT_LABEL)
+    ax.set_ylabel("Trace (row index)", fontsize=FONT_LABEL)
+    ax.set_title("Per-Trace Fitness Heatmap (light = high fitness)", fontsize=FONT_TITLE)
     cbar = fig.colorbar(im, ax=ax, orientation="vertical", fraction=0.046, pad=0.04)
-    cbar.set_label("Conformance Rate", fontsize=FONT_LABEL)
-    cbar.set_ticks([0, 25, 50, 75, 100])
-    ax.set_title("Overall Conformance Rate", fontsize=FONT_TITLE)
+    cbar.set_label("Fitness (0–1)", fontsize=FONT_LABEL)
+    cbar.set_ticks([0, 0.25, 0.5, 0.75, 1.0])
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task06_heatmap.svg"))
 
