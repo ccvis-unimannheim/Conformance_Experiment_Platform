@@ -74,7 +74,7 @@ CANONICAL_TASKS = [
     },
     {
         "task_key": "task08",
-        "label": "What violation co-occurrence patterns exist in the event log? Which violations tend to happen together?",
+        "label": "Which guideline violations frequently co-occur in a trace?",
         "description": "Identify pairs of violations that frequently co-occur across traces and quantify their co-occurrence strength.",
         "answer_type": "single_choice",
     },
