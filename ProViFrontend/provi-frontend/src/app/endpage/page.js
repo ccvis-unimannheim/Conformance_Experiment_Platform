@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -31,6 +31,10 @@ export default function EndPage() {
 
   const canFinish = difficulty !== null;
 
+  useEffect(() => {
+    fetch("/api/participant/complete", { method: "POST", credentials: "include" }).catch(() => {});
+  }, []);
+
   const handleFinish = async () => {
     if (!canFinish) return;
     setFinished(true);
@@ -40,14 +44,6 @@ export default function EndPage() {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ difficulty, feedback: feedback.trim() || null }),
-      });
-    } catch {
-      // best-effort
-    }
-    try {
-      await fetch("/api/participant/complete", {
-        method: "POST",
-        credentials: "include",
       });
     } catch {
       // best-effort
