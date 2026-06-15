@@ -1,23 +1,78 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../../components/Admin/Toast";
+
+// ---------------------------------------------------------------------------
+// Static classification characteristics from the task taxonomy.
+// Source: "Conformance Checking Tasks Working Table.xlsx" columns B / C / D.
+// ---------------------------------------------------------------------------
+const TASK_CHARACTERISTICS = {
+  task01: { goal: "Confirm",  means: "Compare",      chars: "Process conformance" },
+  task02: { goal: "Confirm",  means: "Present",      chars: "Process conformance" },
+  task03: { goal: "Describe", means: "Compare",      chars: "Conformant and non-conformant traces" },
+  task04: { goal: "Describe", means: "Compare",      chars: "Process conformance" },
+  task05: { goal: "Describe", means: "Compare",      chars: "Violation patterns" },
+  task06: { goal: "Describe", means: "Derive",       chars: "Process conformance" },
+  task07: { goal: "Describe", means: "Derive",       chars: "Process conformance over time" },
+  task08: { goal: "Describe", means: "Derive",       chars: "Violation patterns" },
+  task09: { goal: "Describe", means: "Identify",     chars: "Guideline violations" },
+  task10: { goal: "Describe", means: "Present",      chars: "Conformance distribution" },
+  task11: { goal: "Describe", means: "Summarize",    chars: "Guideline violations" },
+  task12: { goal: "Describe", means: "Summarize",    chars: "Process conformance" },
+  task13: { goal: "Explain",  means: "(not known)",  chars: "Reasons for guideline violations" },
+  task14: { goal: "Explain",  means: "Annotate",     chars: "Guideline violations" },
+  task15: { goal: "Explain",  means: "Annotate",     chars: "Reasons for process conformance" },
+  task16: { goal: "Explain",  means: "Annotate",     chars: "Reasons for guideline violations" },
+  task17: { goal: "Explain",  means: "Annotate",     chars: "Severity of guideline violations" },
+  task18: { goal: "Explain",  means: "Derive",       chars: "Reasons for guideline violations" },
+  task19: { goal: "Explain",  means: "Discover",     chars: "Effects of goal deviations" },
+  task20: { goal: "Explain",  means: "Discover",     chars: "Reasons for guideline violations" },
+  task21: { goal: "Explain",  means: "Identify",     chars: "Reasons for guideline violations" },
+  task22: { goal: "Explain",  means: "Summarize",    chars: "Reasons for process conformance" },
+  task23: { goal: "Explore",  means: "Compare",      chars: "Guideline violations" },
+  task24: { goal: "Explore",  means: "Discover",     chars: "Guideline violations in model" },
+  task25: { goal: "Explore",  means: "Discover",     chars: "Process conformance" },
+  task26: { goal: "Present",  means: "Present",      chars: "Severity of guideline violations" },
+  task27: { goal: "Explore",  means: "Identify",     chars: "Conformant and non-conformant traces" },
+  task28: { goal: "Explore",  means: "Identify",     chars: "Guideline violations" },
+  task29: { goal: "Explore",  means: "Summarize",    chars: "Guideline violations" },
+  task30: { goal: "Present",  means: "Compare",      chars: "Guideline violations" },
+  task31: { goal: "Present",  means: "Compare",      chars: "Impact of conformance on process outcome" },
+  task32: { goal: "Present",  means: "Compare",      chars: "Most frequent guideline violations" },
+  task33: { goal: "Present",  means: "Compare",      chars: "Process conformance" },
+  task34: { goal: "Present",  means: "Present",      chars: "Guideline violations" },
+  task35: { goal: "Present",  means: "Present",      chars: "Guideline violations in model" },
+  task36: { goal: "Present",  means: "Present",      chars: "Process conformance per rule" },
+  task37: { goal: "Present",  means: "Summarize",    chars: "Process conformance" },
+};
+
+const DIMS = [
+  { id: "goal",  label: "Task Goal",      color: "#6366f1", dot: "bg-indigo-400",  tag: "bg-indigo-100 text-indigo-700" },
+  { id: "means", label: "Task Means",     color: "#10b981", dot: "bg-emerald-400", tag: "bg-emerald-100 text-emerald-700" },
+  { id: "chars", label: "Characteristics",color: "#f59e0b", dot: "bg-amber-400",   tag: "bg-amber-100 text-amber-700" },
+];
 
 function getTaskId(task) {
   return task._id || task.id;
 }
 
 export default function TaskSelectionPage() {
-  const router = useRouter();
+  const router       = useRouter();
   const searchParams = useSearchParams();
   const experimentId = searchParams.get("experiment_id");
 
-  const [allTasks, setAllTasks] = useState([]);
-  const [loadError, setLoadError] = useState(null);
+  const [allTasks,    setAllTasks]    = useState([]);
+  const [loadError,   setLoadError]   = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
+
+  // Filter state: null = no filter for that dim
+  const [filterState, setFilterState] = useState({ goal: null, means: null, chars: null });
+  const [openFilter,  setOpenFilter]  = useState(null);
+  const filterBarRef = useRef(null);
 
   const [toast, setToast] = useState({ visible: false, message: "", isError: false });
   const showToast = useCallback((message, isError = false) => {
@@ -37,6 +92,61 @@ export default function TaskSelectionPage() {
       .then(setAllTasks)
       .catch((e) => setLoadError(e.message));
   }, []);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function onMouseDown(e) {
+      if (filterBarRef.current && !filterBarRef.current.contains(e.target)) {
+        setOpenFilter(null);
+      }
+    }
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, []);
+
+  // Tasks visible given current filter selections (AND across dims)
+  const visibleTasks = useMemo(() => {
+    return allTasks.filter((t) => {
+      const c = TASK_CHARACTERISTICS[t.task_key];
+      if (!c) return true; // unclassified tasks always shown
+      return (
+        (!filterState.goal  || c.goal  === filterState.goal)  &&
+        (!filterState.means || c.means === filterState.means) &&
+        (!filterState.chars || c.chars === filterState.chars)
+      );
+    });
+  }, [allTasks, filterState]);
+
+  // Context-aware options: only show values that yield ≥1 task given the OTHER dims
+  function getOptions(dimId) {
+    const counts = {};
+    allTasks.forEach((t) => {
+      const c = TASK_CHARACTERISTICS[t.task_key];
+      if (!c) return;
+      const othersMatch = DIMS.every((d) => {
+        if (d.id === dimId) return true;
+        return !filterState[d.id] || c[d.id] === filterState[d.id];
+      });
+      if (othersMatch) counts[c[dimId]] = (counts[c[dimId]] || 0) + 1;
+    });
+    return Object.entries(counts).sort((a, b) => a[0].localeCompare(b[0]));
+  }
+
+  function selectFilter(dimId, val) {
+    setFilterState((prev) => ({ ...prev, [dimId]: prev[dimId] === val ? null : val }));
+    setOpenFilter(null);
+  }
+
+  function clearFilter(e, dimId) {
+    e.stopPropagation();
+    setFilterState((prev) => ({ ...prev, [dimId]: null }));
+  }
+
+  function resetFilters() {
+    setFilterState({ goal: null, means: null, chars: null });
+  }
+
+  const anyFilter = DIMS.some((d) => filterState[d.id]);
 
   function toggleTask(id) {
     setSelectedIds((prev) =>
@@ -90,21 +200,123 @@ export default function TaskSelectionPage() {
         </div>
 
         <div className="grid grid-cols-12 gap-6 items-start">
-          {/* Left column: task list */}
+          {/* Left column */}
           <div className="col-span-8 flex flex-col gap-4">
-            {/* Toolbar */}
+
+            {/* ── Filter bars ─────────────────────────────── */}
+            <div className="flex flex-col gap-2" ref={filterBarRef}>
+              {DIMS.map((dim) => {
+                const options = getOptions(dim.id);
+                const isOpen  = openFilter === dim.id;
+                const current = filterState[dim.id];
+                return (
+                  <div key={dim.id} className="relative">
+                    {/* Bar button */}
+                    <button
+                      type="button"
+                      onClick={() => setOpenFilter(isOpen ? null : dim.id)}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 bg-white rounded-lg border text-sm transition-colors select-none
+                        ${isOpen   ? "border-primary rounded-b-none shadow-sm" :
+                          current  ? "border-primary"
+                                   : "border-slate-200 hover:border-primary/50"}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="w-2 h-2 rounded-full flex-shrink-0"
+                          style={{ background: dim.color }}
+                        />
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                          {dim.label}
+                        </span>
+                        <span className="text-slate-300 text-xs">|</span>
+                        {current
+                          ? <span className="text-primary font-semibold text-xs">{current}</span>
+                          : <span className="text-slate-400 text-xs">All</span>
+                        }
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {current && (
+                          <span
+                            onClick={(e) => clearFilter(e, dim.id)}
+                            className="text-slate-400 hover:text-red-500 text-xs font-semibold cursor-pointer px-1"
+                          >
+                            ✕
+                          </span>
+                        )}
+                        <span className={`text-slate-400 text-xs transition-transform duration-150 ${isOpen ? "rotate-180" : ""}`}>
+                          ▾
+                        </span>
+                      </div>
+                    </button>
+
+                    {/* Dropdown */}
+                    {isOpen && (
+                      <div className="absolute top-full left-0 right-0 z-50 bg-white border border-primary border-t-0 rounded-b-lg shadow-lg overflow-hidden">
+                        {options.length === 0 ? (
+                          <div className="px-3 py-3 text-xs text-slate-400 text-center">
+                            No options available
+                          </div>
+                        ) : (
+                          options.map(([val, count]) => (
+                            <button
+                              key={val}
+                              type="button"
+                              onClick={() => selectFilter(dim.id, val)}
+                              className={`w-full flex items-center justify-between px-3 py-2 text-sm text-left transition-colors
+                                ${current === val
+                                  ? "bg-blue-50 text-primary font-semibold"
+                                  : "hover:bg-slate-50 text-slate-700"
+                                }`}
+                            >
+                              <span>{val}</span>
+                              <div className="flex items-center gap-2">
+                                <span className={`text-xs ${current === val ? "text-primary/60" : "text-slate-400"}`}>
+                                  {count}
+                                </span>
+                                {current === val && (
+                                  <span className="text-primary text-xs">✓</span>
+                                )}
+                              </div>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* Reset row */}
+              {anyFilter && (
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-xs text-slate-400">
+                    Showing {visibleTasks.length} of {allTasks.length} tasks
+                  </span>
+                  <button
+                    type="button"
+                    onClick={resetFilters}
+                    className="text-xs text-primary font-semibold hover:underline"
+                  >
+                    Reset filters
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* ── Task list header ─────────────────────────── */}
             <div className="flex justify-between items-center">
               <h2 className="text-base font-semibold text-on-surface">
                 Available Tasks
                 {allTasks.length > 0 && (
-                  <span className="ml-2 text-xs text-on-surface-variant font-normal">
-                    ({allTasks.length})
+                  <span className={`ml-2 text-xs font-normal px-1.5 py-0.5 rounded-full
+                    ${anyFilter ? "bg-blue-100 text-primary" : "text-on-surface-variant bg-slate-100"}`}>
+                    {anyFilter ? `${visibleTasks.length} / ${allTasks.length}` : allTasks.length}
                   </span>
                 )}
               </h2>
             </div>
 
-            {/* Task cards */}
+            {/* ── Task cards ───────────────────────────────── */}
             <div className="flex flex-col gap-3">
               {loadError ? (
                 <div className="text-sm text-error bg-error-container px-4 py-3 rounded-lg">
@@ -113,19 +325,29 @@ export default function TaskSelectionPage() {
                 </div>
               ) : allTasks.length === 0 ? (
                 <div className="text-center text-on-surface-variant text-sm py-10 border-2 border-dashed border-outline-variant rounded-lg">
-                  <span className="material-symbols-outlined text-3xl block mb-2 text-outline-variant">
-                    inbox
-                  </span>
+                  <span className="material-symbols-outlined text-3xl block mb-2 text-outline-variant">inbox</span>
                   No tasks in database yet.
-                  <br />
-                  <span className="text-xs mt-1 block">
-                    Click <strong>Seed Tasks</strong> to add the 6 standard CC tasks.
+                </div>
+              ) : visibleTasks.length === 0 ? (
+                <div className="text-center text-on-surface-variant text-sm py-10 border-2 border-dashed border-outline-variant rounded-lg">
+                  <span className="material-symbols-outlined text-3xl block mb-2 text-outline-variant">
+                    filter_alt_off
                   </span>
+                  No tasks match the selected filters.
+                  <br />
+                  <button
+                    type="button"
+                    onClick={resetFilters}
+                    className="mt-2 text-xs text-primary font-semibold hover:underline"
+                  >
+                    Clear filters
+                  </button>
                 </div>
               ) : (
-                allTasks.map((task) => {
-                  const id = getTaskId(task);
+                visibleTasks.map((task) => {
+                  const id       = getTaskId(task);
                   const selected = selectedIds.includes(id);
+                  const chars    = TASK_CHARACTERISTICS[task.task_key];
                   return (
                     <div
                       key={id}
@@ -149,9 +371,26 @@ export default function TaskSelectionPage() {
                               {task.task_key}
                             </span>
                           </div>
-                          <p className="text-sm font-semibold text-on-surface leading-snug">
+                          <p className="text-sm font-semibold text-on-surface leading-snug mb-2">
                             {task.label}
                           </p>
+                          {/* Characteristic tags */}
+                          {chars && (
+                            <div className="flex flex-wrap gap-1.5">
+                              {DIMS.map((dim) => (
+                                <span
+                                  key={dim.id}
+                                  className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${dim.tag}`}
+                                >
+                                  <span
+                                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                                    style={{ background: dim.color }}
+                                  />
+                                  {chars[dim.id]}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -173,9 +412,7 @@ export default function TaskSelectionPage() {
               <div className="flex flex-col gap-2 min-h-[100px]">
                 {selectedTasks.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-20 text-center text-on-surface-variant text-xs border-2 border-dashed border-outline-variant rounded">
-                    <span className="material-symbols-outlined text-2xl mb-1 text-outline-variant">
-                      list_alt
-                    </span>
+                    <span className="material-symbols-outlined text-2xl mb-1 text-outline-variant">list_alt</span>
                     No tasks selected yet
                   </div>
                 ) : (
@@ -205,7 +442,7 @@ export default function TaskSelectionPage() {
         </div>
       </main>
 
-      {/* Footer action bar */}
+      {/* Footer */}
       <div className="border-t border-border-subtle bg-white sticky bottom-0">
         <div className="max-w-[1140px] mx-auto px-8 py-4 flex justify-between items-center">
           <Link
@@ -214,15 +451,13 @@ export default function TaskSelectionPage() {
           >
             <span className="material-symbols-outlined text-sm">arrow_back</span> Previous Step
           </Link>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={goToStep2}
-              className="flex items-center gap-2 font-button text-button bg-primary text-on-primary px-12 py-3 rounded-lg hover:opacity-90 transition-all active:scale-95"
-            >
-              Next
-              <span className="material-symbols-outlined text-sm">chevron_right</span>
-            </button>
-          </div>
+          <button
+            onClick={goToStep2}
+            className="flex items-center gap-2 font-button text-button bg-primary text-on-primary px-12 py-3 rounded-lg hover:opacity-90 transition-all active:scale-95"
+          >
+            Next
+            <span className="material-symbols-outlined text-sm">chevron_right</span>
+          </button>
         </div>
       </div>
 
