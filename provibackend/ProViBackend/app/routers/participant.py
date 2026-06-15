@@ -350,7 +350,14 @@ async def mark_experiment_complete(provi_user_id: Annotated[str | None, Cookie()
         raise HTTPException(status_code=401, detail="No user cookie found.")
 
     db = dbc.connect_to_database()
-    assignment = db["UserAssignment"].find_one({"user_id": provi_user_id})
+
+    # Find the currently active/published experiment so we update the right assignment.
+    experiments = dbc.get_query_db("Experiment", {"status": {"$in": ["active", "published"]}})
+    if not experiments:
+        raise HTTPException(status_code=404, detail="No active experiment found.")
+    experiment_id = str(sorted(experiments, key=lambda e: e.get("created_at", ""), reverse=True)[0].get("_id", ""))
+
+    assignment = db["UserAssignment"].find_one({"user_id": provi_user_id, "experiment_id": experiment_id})
     if not assignment:
         raise HTTPException(status_code=404, detail="No assignment found for this user.")
 
