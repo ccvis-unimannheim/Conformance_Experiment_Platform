@@ -168,8 +168,9 @@ summary (both have non-empty col-E), consistent with the rule above.
   format (pct→number, mc→labelled option set, rank→ordering, matrix→cell set,
   free-text→rubric). It is **not** a single free-form string.
 - **decisive vs reference** derived from format: auto-gradable
-  (`pct, count, decimal, pct-set, count-set, mc-single, mc-multi, rank, matrix`)
+  (`pct, count, decimal, pct-set, count-set, mc-single, mc-multi, yes-no, rank, matrix`)
   → `decisive=true`; `free-text` → `decisive=false`. Admin can override.
+  (`yes-no` has `gt_shape: "mc"` — a two-option Yes/No choice set.)
 - If `compute_ground_truth` is absent for a task, the instance gets a
   blank/fallback GT so the flow still works — enabling one-task-at-a-time
   rollout.

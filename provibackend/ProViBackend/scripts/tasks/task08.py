@@ -4,8 +4,7 @@ tasks/task08.py – Task 8: Violation co-occurrence patterns.
 Which guideline violations frequently co-occur in a trace?
 
 Visualizations:
-    bar_chart, heatmap, matrix, network_diagram, scatter_plot,
-    table, table_bar_chart, tree
+    heatmap, matrix, network_diagram, table
 
 Skipped (require BPMN rendering infrastructure):
     flow_table, flow_plus, flow_plus_table
@@ -26,13 +25,10 @@ import logging
 logger = logging.getLogger(__name__)
 
 IDIOMS = [
-    "bar_chart",
     "heatmap",
     "matrix",
     "network_diagram",
-    "scatter_plot",
     "table",
-    "table_bar_chart",
 ]
 
 # ---------------------------------------------------------------------------
@@ -83,16 +79,12 @@ from collections import Counter
 from itertools import combinations
 
 import numpy as np
-import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.ticker as mticker
 import matplotlib.patches as mpatches
-import matplotlib.colors as mcolors
-import matplotlib.cm as cm
 
-from shared import save_svg, FONT_TITLE, FONT_LABEL, FONT_ANNOT
+from shared import save_svg, FONT_TITLE, FONT_ANNOT
 
 # ── Greyscale palette (consistent with platform style) ──────────────────────
 _C_DARK   = "#222222"   # highest emphasis (= black bars, dark nodes)
@@ -227,43 +219,7 @@ def _no_violations(output_dir, name):
 
 
 # ---------------------------------------------------------------------------
-# Idiom 1: Bar Chart — individual violation frequencies
-# ---------------------------------------------------------------------------
-
-def task08_bar_chart(violation_freq, n_traces, output_dir):
-    if not violation_freq:
-        _no_violations(output_dir, "bar_chart")
-        return
-
-    top = _top_violations(violation_freq, _TOP_N)
-    labels = [_short_label(v) for v in top]
-    counts = [violation_freq[v] for v in top]
-    pcts   = [c / n_traces * 100 for c in counts]
-
-    fig, ax = plt.subplots(figsize=(12, 5))
-    bars = ax.barh(range(len(top)), counts, color=_C_DARK, alpha=0.85, height=0.65, edgecolor="white")
-    ax.invert_yaxis()
-
-    # Annotate with % of traces
-    for i, (c, p) in enumerate(zip(counts, pcts)):
-        ax.text(c + max(counts) * 0.01, i, f"{p:.1f}%",
-                va="center", fontsize=FONT_ANNOT, color=_C_MED)
-
-    ax.set_yticks(range(len(top)))
-    ax.set_yticklabels(labels, fontsize=FONT_ANNOT)
-    ax.set_xlabel("Number of Traces", fontsize=FONT_LABEL)
-    ax.set_title("Most Frequent Guideline Violations", fontsize=FONT_TITLE)
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
-    ax.set_axisbelow(True)
-    ax.tick_params(axis="y", length=0)
-
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task08_bar_chart.svg"))
-
-
-# ---------------------------------------------------------------------------
-# Idiom 2: Heatmap — violation × violation co-occurrence (colour only)
+# Idiom: Heatmap — violation × violation co-occurrence (colour only)
 # ---------------------------------------------------------------------------
 
 def _build_cooccur_matrix(top_viols, violation_freq, cooccurrence):
@@ -472,97 +428,7 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count, 
 
 
 # ---------------------------------------------------------------------------
-# Idiom 5: Scatter Plot — each point = a violation pair
-# ---------------------------------------------------------------------------
-
-def task08_scatter_plot(violation_freq, cooccurrence, n_traces, output_dir,
-                        thr_count, thr_frac):
-    """Scatter: X = freq(A), Y = freq(B), bubble size = co-occurrence count.
-
-    Only top 12 pairs shown (by co-occurrence). Small jitter separates points
-    that share the same violation frequency. Labels on top 6 only.
-    """
-    if not violation_freq or not cooccurrence:
-        _no_violations(output_dir, "scatter_plot")
-        return
-
-    top_set = set(_top_violations(violation_freq, _TOP_N))
-    rows = []
-    for (a, b), cnt in cooccurrence.items():
-        if a not in top_set or b not in top_set:
-            continue
-        fa, fb = violation_freq[a], violation_freq[b]
-        # Always put the more frequent violation on X-axis
-        if fa < fb:
-            a, b, fa, fb = b, a, fb, fa
-        rows.append({"a": a, "b": b, "freq_a": fa, "freq_b": fb, "cooccur": cnt})
-
-    if not rows:
-        _save_empty(output_dir, "task08_scatter_plot.svg",
-                    "No co-occurring violation pairs to display")
-        return
-
-    df = pd.DataFrame(rows).sort_values("cooccur", ascending=False).head(12)
-
-    rng = np.random.default_rng(42)
-    jitter_scale = max(df["freq_a"].max() - df["freq_a"].min(), 1) * 0.02
-    x = df["freq_a"].values + rng.uniform(-jitter_scale, jitter_scale, len(df))
-    y = df["freq_b"].values + rng.uniform(-jitter_scale, jitter_scale, len(df))
-
-    fig, ax = plt.subplots(figsize=(11, 8))
-    ax.set_facecolor("#fafbfc")
-
-    # Normalise bubble area to a bounded range so high co-occurrence counts
-    # don't blow up into canvas-filling circles.
-    cc = df["cooccur"].values.astype(float)
-    cc_max = max(cc.max(), 1.0)
-    sizes = (cc / cc_max) * 1800.0 + 140.0
-
-    sc = ax.scatter(
-        x, y,
-        s=sizes,
-        c=cc, cmap=_CMAP_SEQ,
-        alpha=0.85, edgecolors=_C_MED, linewidths=0.6, vmin=0,
-    )
-
-    # Label top 6 only, with white backing; show the full violation names.
-    for i, (_, row) in enumerate(df.head(6).iterrows()):
-        label = f"{_short_label(row['a'], 40)}\n× {_short_label(row['b'], 40)}"
-        ax.annotate(
-            label,
-            xy=(x[i], y[i]),
-            xytext=(12, 8), textcoords="offset points",
-            fontsize=max(FONT_ANNOT - 1, 6), color=_C_DARK,
-            bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="#dddddd",
-                      alpha=0.92, linewidth=0.5),
-        )
-
-    # Extra margins so the largest bubbles are not clipped at the axes' edges.
-    ax.margins(0.18)
-
-    cbar = fig.colorbar(sc, ax=ax, fraction=0.03, pad=0.02)
-    cbar.set_label("Co-occurrence count", fontsize=FONT_ANNOT)
-    cbar.outline.set_visible(False)
-    # Neutral reference line marking the "high co-occurrence" threshold on the
-    # colour scale (no point is highlighted — the reader decides what is high).
-    if 0 < thr_count <= cc_max:
-        cbar.ax.axhline(thr_count, color=_C_DARK, linewidth=1.2, linestyle="--")
-
-    ax.set_xlabel("Frequency of Violation A  (traces)", fontsize=FONT_LABEL)
-    ax.set_ylabel("Frequency of Violation B  (traces)", fontsize=FONT_LABEL)
-    ax.set_title("Top Violation Pair Co-occurrences\n(bubble size & shade = co-occurrence count · top 6 labelled)",
-                 fontsize=FONT_TITLE)
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.3)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.3)
-    ax.set_axisbelow(True)
-
-    _add_threshold_footer(fig, thr_count, thr_frac)
-    save_svg(fig, os.path.join(output_dir, "task08_scatter_plot.svg"))
-
-
-# ---------------------------------------------------------------------------
-# Idiom 6: Table — ranked co-occurrence pairs
+# Idiom: Table — ranked co-occurrence pairs
 # ---------------------------------------------------------------------------
 
 def task08_table(violation_freq, cooccurrence, n_traces, output_dir,
@@ -616,69 +482,6 @@ def task08_table(violation_freq, cooccurrence, n_traces, output_dir,
                  pad=12, loc="left")
     _add_threshold_footer(fig, thr_count, thr_frac)
     save_svg(fig, os.path.join(output_dir, "task08_table.svg"))
-
-
-# ---------------------------------------------------------------------------
-# Idiom 7: Table & Bar Chart — left bar chart + right table
-# ---------------------------------------------------------------------------
-
-def task08_table_bar_chart(violation_freq, cooccurrence, n_traces, output_dir,
-                           thr_count, thr_frac):
-    if not violation_freq:
-        _no_violations(output_dir, "table_bar_chart")
-        return
-
-    top   = _top_violations(violation_freq, 10)
-    labs  = [_short_label(v, 26) for v in top]
-    cnts  = [violation_freq[v] for v in top]
-    pcts  = [f"{c / n_traces * 100:.1f}%" for c in cnts]
-
-    fig, (ax_bar, ax_tbl) = plt.subplots(1, 2, figsize=(16, 6),
-                                          gridspec_kw={"width_ratios": [1.4, 1]})
-
-    # Left: horizontal bar chart
-    ax_bar.barh(range(len(top)), cnts, color=_C_DARK, alpha=0.85, height=0.65)
-    ax_bar.invert_yaxis()
-    ax_bar.set_yticks(range(len(top)))
-    ax_bar.set_yticklabels(labs, fontsize=FONT_ANNOT)
-    ax_bar.set_xlabel("Traces", fontsize=FONT_LABEL)
-    ax_bar.set_title("Violation Frequency", fontsize=FONT_TITLE)
-    ax_bar.spines[["top", "right"]].set_visible(False)
-    ax_bar.xaxis.grid(True, linestyle="--", alpha=0.35)
-    ax_bar.set_axisbelow(True)
-    ax_bar.tick_params(axis="y", length=0)
-
-    # Right: table showing top co-occurring pairs
-    ax_tbl.axis("off")
-    top_pairs = cooccurrence.most_common(10)
-    tbl_rows = [[_short_label(a, 22), _short_label(b, 22), str(cnt)]
-                for (a, b), cnt in top_pairs]
-    if tbl_rows:
-        tbl = ax_tbl.table(
-            cellText=tbl_rows,
-            colLabels=["Violation A", "Violation B", "Count"],
-            colWidths=[0.38, 0.38, 0.24],
-            loc="center", cellLoc="left",
-        )
-        tbl.auto_set_font_size(False)
-        tbl.set_fontsize(FONT_ANNOT)
-        tbl.scale(1, 1.6)
-        for j in range(3):
-            tbl[0, j].set_facecolor(_HDR_BG)
-            tbl[0, j].set_text_props(color=_HDR_FG, fontweight="bold")
-        for i in range(1, len(tbl_rows) + 1):
-            for j in range(3):
-                tbl[i, j].set_facecolor(_C_BG if i % 2 == 0 else "white")
-                tbl[i, j].set_edgecolor("#e0e0e0")
-        ax_tbl.set_title("Top Co-occurring Pairs", fontsize=FONT_TITLE,
-                         pad=12, loc="left")
-
-    fig.suptitle("Violation Frequency & Top Co-occurrences", fontsize=FONT_TITLE,
-                 y=1.01, fontweight="bold")
-    _add_threshold_footer(fig, thr_count, thr_frac)
-    save_svg(fig, os.path.join(output_dir, "task08_table_bar_chart.svg"))
-
-
 
 
 # ---------------------------------------------------------------------------
@@ -744,10 +547,7 @@ def generate(log, alignments, output_dir: str,
                         "No guideline violations detected in this log")
         return
 
-    task08_bar_chart(violation_freq, n_traces, output_dir)
     task08_heatmap(violation_freq, cooccurrence, output_dir, thr_count, thr_frac)
     task08_matrix(violation_freq, cooccurrence, output_dir, thr_count, thr_frac)
     task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count, thr_frac)
-    task08_scatter_plot(violation_freq, cooccurrence, n_traces, output_dir, thr_count, thr_frac)
     task08_table(violation_freq, cooccurrence, n_traces, output_dir, thr_count, thr_frac)
-    task08_table_bar_chart(violation_freq, cooccurrence, n_traces, output_dir, thr_count, thr_frac)
