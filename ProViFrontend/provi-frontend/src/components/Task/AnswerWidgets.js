@@ -110,8 +110,10 @@ export function initialAnswer(answerType, options = []) {
 
 export function isAnswered(answerType, value) {
   switch (answerType) {
-    case "multiple_choice":
     case "matrix":
+      // Empty selection is a valid answer (no violations co-occur above threshold).
+      return Array.isArray(value);
+    case "multiple_choice":
       return Array.isArray(value) && value.length > 0;
     case "rank":
       return Array.isArray(value) && value.length > 0;

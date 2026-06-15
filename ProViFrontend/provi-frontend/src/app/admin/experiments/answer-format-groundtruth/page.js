@@ -243,6 +243,22 @@ function RankEditor({ gt, onChange }) {
   );
 }
 
+// Parse pair-shaped options ("a__b") into a symmetric axis + pair→index lookup,
+// mirroring the participant MatrixGrid (AnswerWidgets.js parsePairs). Returns null
+// when options are not pair-shaped, so the editor can fall back to a flat list.
+function parseMatrixPairs(options) {
+  const axisOrder = [];
+  const seen = new Set();
+  const idxByPair = {}; // sorted "a b" -> option index
+  for (let i = 0; i < options.length; i++) {
+    const parts = String(options[i].value ?? "").split("__");
+    if (parts.length !== 2) return null;
+    parts.forEach((t) => { if (!seen.has(t)) { seen.add(t); axisOrder.push(t); } });
+    idxByPair[[...parts].sort().join(" ")] = i;
+  }
+  return { axisOrder, idxByPair };
+}
+
 function MatrixEditor({ gt, onChange }) {
   const options = gt.options || [];
 
@@ -250,26 +266,90 @@ function MatrixEditor({ gt, onChange }) {
     onChange({ ...gt, options: options.map((o, idx) => (idx === i ? { ...o, [field]: val } : o)) });
   }
 
+  const parsed = options.length ? parseMatrixPairs(options) : null;
+
+  // Fallback: not pair-shaped → flat per-cell list (legacy behaviour).
+  if (!parsed) {
+    return (
+      <div className="flex flex-col gap-2 max-w-md">
+        <label className="text-xs font-semibold text-on-surface">Selected cells</label>
+        <p className="text-xs text-on-surface-variant">
+          Each row is one grid cell; check it if that cell belongs in the correct selection.
+        </p>
+        <OptionRows
+          options={options}
+          onChange={(opts) => onChange({ ...gt, options: opts })}
+          addLabel="Add cell"
+          emptyHint="No cells yet — add the cells that make up the correct selection."
+          renderExtra={(opt, i, _updateRow) => (
+            <input
+              type="checkbox"
+              checked={!!opt.correct}
+              onChange={(e) => updateRow(i, "correct", e.target.checked)}
+              className="flex-shrink-0"
+            />
+          )}
+        />
+      </div>
+    );
+  }
+
+  const { axisOrder, idxByPair } = parsed;
+  const idxForPair = (a, b) => idxByPair[[a, b].sort().join(" ")];
+
   return (
-    <div className="flex flex-col gap-2 max-w-md">
-      <label className="text-xs font-semibold text-on-surface">Selected cells</label>
+    <div className="flex flex-col gap-2">
+      <label className="text-xs font-semibold text-on-surface">Co-occurrence matrix</label>
       <p className="text-xs text-on-surface-variant">
-        Each row is one grid cell; check it if that cell belongs in the correct selection.
+        Tick each pair of violations that co-occur. Both axes share the same violation set;
+        the matrix is symmetric, so only the upper triangle is editable (the diagonal is blank).
       </p>
-      <OptionRows
-        options={options}
-        onChange={(opts) => onChange({ ...gt, options: opts })}
-        addLabel="Add cell"
-        emptyHint="No cells yet — add the cells that make up the correct selection."
-        renderExtra={(opt, i, _updateRow) => (
-          <input
-            type="checkbox"
-            checked={!!opt.correct}
-            onChange={(e) => updateRow(i, "correct", e.target.checked)}
-            className="flex-shrink-0"
-          />
-        )}
-      />
+      <div className="overflow-x-auto border border-border-subtle rounded-lg">
+        <table className="border-collapse text-xs">
+          <thead>
+            <tr>
+              <th className="p-1" />
+              {axisOrder.map((c) => (
+                <th key={c} title={c}
+                    className="px-2 py-1 text-on-surface-variant font-semibold whitespace-nowrap align-bottom">
+                  {c}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {axisOrder.map((r) => (
+              <tr key={r} className="border-t border-border-subtle">
+                <td title={r} className="pr-2 py-1 font-semibold text-on-surface whitespace-nowrap">
+                  {r}
+                </td>
+                {axisOrder.map((c) => {
+                  const idx = r === c ? undefined : idxForPair(r, c);
+                  return (
+                    <td key={c} className="text-center px-2 py-1">
+                      {idx === undefined ? (
+                        <span className="text-border-subtle">·</span>
+                      ) : (
+                        <input
+                          type="checkbox"
+                          checked={!!options[idx].correct}
+                          onChange={() =>
+                            onChange({
+                              ...gt,
+                              options: options.map((o, k) =>
+                                k === idx ? { ...o, correct: !o.correct } : o),
+                            })
+                          }
+                        />
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

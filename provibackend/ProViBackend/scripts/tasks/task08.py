@@ -97,6 +97,9 @@ _CMAP_SEQ = "Greys"     # sequential: white → black
 
 # Max violations shown in most idioms (keeps charts readable)
 _TOP_N = 12
+# Number of most-frequent violation types forming the (symmetric) co-occurrence
+# axis shared by the matrix/heatmap SVGs and the matrix ground truth.
+_MATRIX_TOP_N = 10
 # Min co-occurrence count for network edges / scatter points
 _MIN_COOCCUR = 1
 
@@ -241,7 +244,7 @@ def task08_heatmap(violation_freq, cooccurrence, output_dir, thr_count, thr_frac
         _no_violations(output_dir, "heatmap")
         return
 
-    top = _top_violations(violation_freq, _TOP_N)
+    top = _top_violations(violation_freq, _MATRIX_TOP_N)  # same axis as the matrix GT
     if len(top) < 2:
         _save_empty(output_dir, "task08_heatmap.svg",
                     "Too few distinct violations for co-occurrence heatmap")
@@ -251,8 +254,8 @@ def task08_heatmap(violation_freq, cooccurrence, output_dir, thr_count, thr_frac
     labs = [_short_label(v) for v in top]
     n    = len(top)
 
-    fig, ax = plt.subplots(figsize=(max(8, n * 0.75), max(6, n * 0.65)))
-    im = ax.imshow(mat, cmap=_CMAP_SEQ, aspect="auto", vmin=0)
+    fig, ax = plt.subplots(figsize=(max(8, n * 0.85), max(6, n * 0.85)))
+    im = ax.imshow(mat, cmap=_CMAP_SEQ, aspect="equal", vmin=0)
 
     ax.set_xticks(range(n))
     ax.set_xticklabels(labs, rotation=40, ha="right", fontsize=FONT_ANNOT)
@@ -282,7 +285,7 @@ def task08_matrix(violation_freq, cooccurrence, output_dir, thr_count, thr_frac)
         _no_violations(output_dir, "matrix")
         return
 
-    top = _top_violations(violation_freq, min(_TOP_N, 10))  # tighter for readability
+    top = _top_violations(violation_freq, _MATRIX_TOP_N)  # same axis as the matrix GT
     if len(top) < 2:
         _save_empty(output_dir, "task08_matrix.svg",
                     "Too few distinct violations for co-occurrence matrix")
@@ -292,15 +295,16 @@ def task08_matrix(violation_freq, cooccurrence, output_dir, thr_count, thr_frac)
     labs = [_short_label(v) for v in top]
     n    = len(top)
 
-    fig, ax = plt.subplots(figsize=(max(8, n * 0.9), max(6, n * 0.8)))
-    im = ax.imshow(mat, cmap=_CMAP_SEQ, aspect="auto", vmin=0)
+    fig, ax = plt.subplots(figsize=(max(8, n * 0.9), max(6, n * 0.9)))
+    im = ax.imshow(mat, cmap=_CMAP_SEQ, aspect="equal", vmin=0)
 
     ax.set_xticks(range(n))
     ax.set_xticklabels(labs, rotation=40, ha="right", fontsize=FONT_ANNOT)
     ax.set_yticks(range(n))
     ax.set_yticklabels(labs, fontsize=FONT_ANNOT)
 
-    # Annotate each cell with the count
+    # Annotate each cell with the count; outline high-co-occurrence off-diagonal
+    # cells (count >= threshold) so "frequently co-occurring" pairs stand out.
     thresh = mat.max() / 2
     for i in range(n):
         for j in range(n):
@@ -308,8 +312,13 @@ def task08_matrix(violation_freq, cooccurrence, output_dir, thr_count, thr_frac)
             color = "white" if mat[i, j] > thresh else _C_DARK
             ax.text(j, i, str(val), ha="center", va="center",
                     fontsize=max(FONT_ANNOT - 1, 6), color=color, fontweight="bold")
+            if i != j and thr_count > 0 and mat[i, j] >= thr_count:
+                ax.add_patch(mpatches.Rectangle(
+                    (j - 0.5, i - 0.5), 1, 1, fill=False,
+                    edgecolor=_C_DARK, linewidth=2.2))
 
-    ax.set_title("Violation Co-occurrence Matrix\n(diagonal = individual frequency)",
+    ax.set_title("Violation Co-occurrence Matrix\n"
+                 "(diagonal = individual frequency · outlined = high co-occurrence)",
                  fontsize=FONT_TITLE)
     _add_threshold_footer(fig, thr_count, thr_frac)
     save_svg(fig, os.path.join(output_dir, "task08_matrix.svg"))
@@ -489,9 +498,14 @@ def task08_table(violation_freq, cooccurrence, n_traces, output_dir,
 # ---------------------------------------------------------------------------
 
 def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
-    """Violation-pair co-occurrence grid: each off-diagonal cell of the top-N
-    violation matrix, with high-co-occurrence pairs (≥ threshold × n_traces)
-    flagged correct (design doc §2 row 8, SEMI tier).
+    """Violation-pair co-occurrence grid over the symmetric top-N violation axis.
+
+    Both matrix axes are the same ordered set of the top-N most frequent
+    violation types. Each option is one upper-triangle cell (no diagonal, no
+    duplicate (i,j)/(j,i)); `label` and `value` share the same axis order so the
+    admin editor, the participant grid and the submit token stay consistent. A
+    pair is flagged correct when it co-occurs in >= threshold x n_traces traces
+    (design doc §2 row 8, SEMI tier).
     """
     if answer_format != "matrix":
         return {"options": []}
@@ -499,14 +513,13 @@ def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer
     n_traces  = len(log) if log is not None else 0
     thr_count = threshold * n_traces
     _, violation_freq, cooccurrence = _extract_violation_data(alignments)
-    top = _top_violations(violation_freq, min(_TOP_N, 10))
+    top = _top_violations(violation_freq, _MATRIX_TOP_N)
     options = []
-    for a, b in combinations(top, 2):
-        pair = tuple(sorted((a, b)))
-        cnt  = cooccurrence.get(pair, 0)
+    for a, b in combinations(top, 2):           # upper triangle, no diagonal
+        cnt = cooccurrence.get(tuple(sorted((a, b))), 0)
         options.append({
             "label":   f"{a} × {b}",
-            "value":   f"{pair[0]}__{pair[1]}",
+            "value":   f"{a}__{b}",             # same order as label (axis-consistent)
             "correct": cnt > 0 and cnt >= thr_count,
         })
     return {"options": options}
