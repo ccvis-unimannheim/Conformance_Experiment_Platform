@@ -23,6 +23,7 @@ class AssignmentRequest(BaseModel):
 # PARTICIPANT_TRIAL_CONTRACT.md "answer_format -> answer_type (widget) mapping"
 ANSWER_FORMAT_TO_ANSWER_TYPE = {
     "mc-single": "single_choice",
+    "yes-no": "single_choice",      # Yes/No rendered as two radio options
     "mc-multi": "multiple_choice",
     "pct": "numeric",
     "count": "numeric",
@@ -40,7 +41,8 @@ FALLBACK_ANSWER_FORMAT = "free-text"
 # Choice formats: the option `value` is the submittable token (safe to send).
 # matrix options are pair tokens (e.g. "a__b"); their `correct` flag is stripped
 # below, so the candidate set is safe to send the same way as a choice set.
-_CHOICE_FORMATS = {"mc-single", "mc-multi", "matrix"}
+# yes-no is a two-option choice set (Yes/No) handled exactly like mc-single.
+_CHOICE_FORMATS = {"mc-single", "mc-multi", "matrix", "yes-no"}
 # Labelled-set formats: options are row labels; the `value` column holds the GT
 # number, which must NOT be sent to participants (PARTICIPANT_TRIAL_CONTRACT.md
 # "The frontend must never receive ... any other ground-truth value").

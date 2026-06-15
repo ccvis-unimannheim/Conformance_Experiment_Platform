@@ -85,6 +85,7 @@ From the design doc §1.1. This set is fixed; every widget can be built up front
 | `pct-set` | one percent per labelled row | each cell follows `pct`; sum-to-100 for distributions | rows = labels |
 | `count-set` | one count per labelled row | each cell follows `count` | rows = labels |
 | `mc-single` | one correct option | radio; exactly one | yes |
+| `yes-no` | binary yes/no | radio; exactly one (Yes/No) | yes |
 | `mc-multi` | select-all over a closed set | checkboxes; graded as set equality | yes |
 | `rank` | ordering of given items | drag-to-order | yes (items) |
 | `matrix` | co-occurrence / pairwise grid | toggle grid; set of selected cells | yes (cells) |
@@ -99,6 +100,7 @@ New widgets should switch on `answer_format` directly.
 | `answer_format` | derived `answer_type` |
 |---|---|
 | `mc-single` | `single_choice` |
+| `yes-no` | `single_choice` |
 | `mc-multi` | `multiple_choice` |
 | `pct`, `count`, `decimal` | `numeric` |
 | `pct-set`, `count-set` | `numeric_set` |
@@ -126,6 +128,7 @@ string encoding per format:
 | `pct` / `count` / `decimal` | the scalar as a string, e.g. `"96%"`, `"42"`, `"0.42"` |
 | `pct-set` / `count-set` | JSON object `{label: value}` |
 | `mc-single` | the chosen option `value` |
+| `yes-no` | the chosen option `value` (`"yes"`/`"no"`) |
 | `mc-multi` | JSON array of chosen option `value`s |
 | `rank` | JSON array of `value`s in chosen order |
 | `matrix` | JSON array of selected cell ids |
