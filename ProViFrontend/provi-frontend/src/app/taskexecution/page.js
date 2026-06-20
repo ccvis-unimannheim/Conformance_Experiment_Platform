@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 
 import TaskVisualizationPanel from "../../components/Task/TaskVisualizationPanel";
@@ -40,6 +40,61 @@ function groupTrialsByTask(trials) {
   return groups;
 }
 
+function FitnessHelpButton() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  return (
+    <div ref={ref} style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-label="What is fitness?"
+        style={{
+          width: "20px", height: "20px", borderRadius: "50%",
+          backgroundColor: "#ebeeef", border: "1.5px solid #adb3b4",
+          color: "#5a6061", fontSize: "11px", fontWeight: 700,
+          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+          transition: "background-color 0.15s, color 0.15s",
+          flexShrink: 0,
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#00305e"; e.currentTarget.style.color = "#ffffff"; e.currentTarget.style.borderColor = "#00305e"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#ebeeef"; e.currentTarget.style.color = "#5a6061"; e.currentTarget.style.borderColor = "#adb3b4"; }}
+      >
+        ?
+      </button>
+      {open && (
+        <div style={{
+          position: "absolute", right: 0, top: "calc(100% + 8px)", zIndex: 100,
+          width: "300px", backgroundColor: "#ffffff",
+          border: "1px solid #e4e9ea", borderRadius: "12px",
+          boxShadow: "0 8px 24px rgba(45,52,53,0.12)", padding: "1rem",
+        }}>
+          <p style={{ fontSize: "10px", fontWeight: 700, color: "#5a6061", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.5rem" }}>
+            What is Fitness?
+          </p>
+          <p style={{ fontSize: "0.8125rem", color: "#2d3435", lineHeight: 1.6, marginBottom: "0.5rem" }}>
+            <strong>Fitness</strong> measures how closely the recorded process events follow the expected process model.
+            A value of <strong>1.0</strong> means every step matches the model perfectly;
+            <strong> 0.0</strong> means no steps follow it at all.
+          </p>
+          <p style={{ fontSize: "0.8125rem", color: "#2d3435", lineHeight: 1.6 }}>
+            The visualizations show fitness at different levels — per trace, over time, or as an overall summary — to help you answer the task question.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LoadingSkeleton() {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 440px", gap: "1.5rem", alignItems: "start" }}>
@@ -76,6 +131,8 @@ export default function TaskExecutionPage() {
   const [svgUrl, setSvgUrl]                       = useState(null);
   const [loadingTasks, setLoadingTasks]           = useState(true);
   const [loadingSvg, setLoadingSvg]               = useState(false);
+  const [showBanner, setShowBanner]               = useState(true);
+  const [showDismissHint, setShowDismissHint]     = useState(false);
 
   useEffect(() => {
     const fetchTasks = async () => {
@@ -211,6 +268,7 @@ export default function TaskExecutionPage() {
               <span style={{ color: "#3c5f90", fontWeight: 700, fontSize: "0.875rem" }}>
                 Task Execution
               </span>
+              <FitnessHelpButton />
               <div style={{ width: "4rem", height: "6px", backgroundColor: "#ebeeef", borderRadius: "9999px", overflow: "hidden" }}>
                 <div style={{ width: `${progressPercent}%`, height: "100%", backgroundColor: "#3c5f90" }} />
               </div>
@@ -218,7 +276,47 @@ export default function TaskExecutionPage() {
           </div>
         </nav>
 
-        <main style={{ flexGrow: 1, paddingTop: "5.5rem", paddingBottom: "2rem", paddingLeft: "1.5rem", paddingRight: "1.5rem", maxWidth: "1800px", margin: "0 auto", width: "100%" }}>
+        {showBanner && (
+          <div style={{
+            position: "fixed", top: "4rem", zIndex: 40, width: "100%",
+            backgroundColor: "#00305e", color: "#ffffff",
+            padding: "0.6rem 2rem", boxSizing: "border-box",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: "0.75rem",
+          }}>
+            <span style={{ fontSize: "0.8125rem", lineHeight: 1.5, textAlign: "center" }}>
+              <strong>What is fitness?</strong> Fitness measures how closely recorded process events follow the expected process model — 1.0 = perfect match, 0.0 = no match. The visualizations help you discover this.
+            </span>
+            <button
+              onClick={() => { setShowBanner(false); setShowDismissHint(true); setTimeout(() => setShowDismissHint(false), 4000); }}
+              aria-label="Dismiss"
+              style={{
+                background: "none", border: "none", color: "#ffffff",
+                cursor: "pointer", fontSize: "1rem", lineHeight: 1,
+                opacity: 0.7, flexShrink: 0, padding: "0.25rem",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.7"; }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {showDismissHint && (
+          <div style={{
+            position: "fixed", top: "4.75rem", right: "1.5rem", zIndex: 60,
+            backgroundColor: "#2d3435", color: "#ffffff",
+            padding: "0.65rem 1rem", borderRadius: "8px",
+            fontSize: "0.8125rem", lineHeight: 1.5,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
+            maxWidth: "260px",
+            animation: "fadeIn 0.2s ease",
+          }}>
+            You can reopen this explanation at any time using the <strong>?</strong> button in the top bar.
+          </div>
+        )}
+
+        <main style={{ flexGrow: 1, paddingTop: showBanner ? "8rem" : "5.5rem", paddingBottom: "2rem", paddingLeft: "1.5rem", paddingRight: "1.5rem", maxWidth: "1800px", margin: "0 auto", width: "100%" }}>
           {showSkeleton ? (
             <LoadingSkeleton />
           ) : (
