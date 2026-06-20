@@ -548,6 +548,9 @@ function GroundTruthContent() {
           } catch {
             // fall through with the free-text fallback
           }
+          if (!answerFormats.find((f) => f.key === "free-text")) {
+            answerFormats = [...answerFormats, { key: "free-text", gt_shape: "reference", decisive_default: false }];
+          }
           try {
             const res = await fetch(`/api/admin/tasks/${encodeURIComponent(taskKey)}/rubric`);
             if (res.ok) {
