@@ -409,6 +409,8 @@ function SpecifyContent() {
           </p>
         </div>
 
+
+
         {/* Task cards */}
         <div className="flex flex-col gap-6">
           {loading ? (
@@ -469,6 +471,9 @@ function SpecifyContent() {
                             <label className="text-xs font-semibold text-on-surface">
                               {entry.label || entry.key}
                               {entry.required && <span className="text-error ml-0.5">*</span>}
+                              {entry.required === false && (
+                                <span className="text-on-surface-variant font-normal ml-1">(optional — leave empty to skip threshold annotation and use manual ground truth)</span>
+                              )}
                             </label>
                             <ParamField
                               entry={entry}
