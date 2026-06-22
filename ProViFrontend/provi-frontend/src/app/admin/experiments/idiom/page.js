@@ -259,6 +259,12 @@ function IdiomSelectionContent() {
     setTaskIdiomMap((prev) => ({ ...prev, ...newMap }));
   }
 
+  function handleDeselectAll() {
+    const newMap = {};
+    selectedTasks.forEach((task) => { newMap[getId(task)] = []; });
+    setTaskIdiomMap((prev) => ({ ...prev, ...newMap }));
+  }
+
   async function handleNext() {
     const unassigned = selectedTasks.filter(
       (t) => (taskIdiomMap[getId(t)] || []).length === 0
@@ -319,13 +325,22 @@ function IdiomSelectionContent() {
             )}
           </h2>
           {selectedTasks.length > 0 && (
-            <button
-              onClick={handleSelectAll}
-              className="flex items-center gap-1.5 text-sm font-medium text-primary border border-primary/30 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-lg transition-all active:scale-95"
-            >
-              <span className="material-symbols-outlined text-[16px]">select_all</span>
-              Select All Idioms
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleSelectAll}
+                className="flex items-center gap-1.5 text-sm font-medium text-primary border border-primary/30 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-lg transition-all active:scale-95"
+              >
+                <span className="material-symbols-outlined text-[16px]">select_all</span>
+                Select All Idioms
+              </button>
+              <button
+                onClick={handleDeselectAll}
+                className="flex items-center gap-1.5 text-sm font-medium text-on-surface-variant border border-outline-variant bg-white hover:bg-surface-container-low px-4 py-2 rounded-lg transition-all active:scale-95"
+              >
+                <span className="material-symbols-outlined text-[16px]">deselect</span>
+                Deselect All
+              </button>
+            </div>
           )}
         </div>
 
@@ -374,18 +389,31 @@ function IdiomSelectionContent() {
                         </span>
                       </p>
                       {taskIdioms.length > 0 && (
-                        <button
-                          onClick={() =>
-                            setTaskIdiomMap((prev) => ({
-                              ...prev,
-                              [tid]: taskIdioms.map((i) => getId(i)),
-                            }))
-                          }
-                          className="flex items-center gap-1 text-xs font-medium text-primary border border-primary/30 bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-lg transition-all active:scale-95"
-                        >
-                          <span className="material-symbols-outlined text-[14px]">select_all</span>
-                          Select All
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() =>
+                              setTaskIdiomMap((prev) => ({
+                                ...prev,
+                                [tid]: taskIdioms.map((i) => getId(i)),
+                              }))
+                            }
+                            className="flex items-center gap-1 text-xs font-medium text-primary border border-primary/30 bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-lg transition-all active:scale-95"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">select_all</span>
+                            Select All
+                          </button>
+                          {selectedForTask.length > 0 && (
+                            <button
+                              onClick={() =>
+                                setTaskIdiomMap((prev) => ({ ...prev, [tid]: [] }))
+                              }
+                              className="flex items-center gap-1 text-xs font-medium text-on-surface-variant border border-outline-variant bg-white hover:bg-surface-container-low px-3 py-1 rounded-lg transition-all active:scale-95"
+                            >
+                              <span className="material-symbols-outlined text-[14px]">deselect</span>
+                              Deselect All
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                     {allIdioms.length === 0 ? (
