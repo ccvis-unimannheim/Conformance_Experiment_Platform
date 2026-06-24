@@ -81,7 +81,15 @@ def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer
     """
     raw = params.get("predominant_threshold")
     if raw is None or raw == "":
-        return {"value": None, "options": []}
+        # No threshold → participant still answers Yes/No but correctness is
+        # not pre-determined; admin grades manually (no 'correct' key).
+        return {
+            "value": None,
+            "options": [
+                {"label": "Yes", "value": "yes"},
+                {"label": "No",  "value": "no"},
+            ],
+        }
     overall = (
         float(fitness_df["fitness"].mean())
         if fitness_df is not None and len(fitness_df) else 0.0
