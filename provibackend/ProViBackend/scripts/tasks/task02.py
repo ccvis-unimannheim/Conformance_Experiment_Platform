@@ -75,12 +75,18 @@ def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer
     (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §3, §8) for the sole "yes-no" format:
     Yes/No options, with the side matching whether the overall mean fitness
     meets the predominant threshold flagged correct.
+
+    When the threshold is left empty the answer requires manual review, so
+    we return an empty options list (SEMI / manual GT path).
     """
+    raw = params.get("predominant_threshold")
+    if raw is None or raw == "":
+        return {"value": None, "options": []}
     overall = (
         float(fitness_df["fitness"].mean())
         if fitness_df is not None and len(fitness_df) else 0.0
     )
-    thr = float(params.get("predominant_threshold", DEFAULT_PREDOMINANT_THRESHOLD))
+    thr = float(raw)
     predominant = overall >= thr
     return {
         "value": None,
@@ -102,11 +108,11 @@ from shared import (
 )
 
 
-def task02_bar_chart(df, output_dir: str, predominant_threshold: float):
+def task02_bar_chart(df, output_dir: str, predominant_threshold):
     """Single bar: overall mean fitness on a fixed 0–1 axis (the 'number' as a bar).
 
-    A dashed reference line marks the predominant threshold neutrally; whether
-    the bar clears it is left for the participant to judge.
+    A dashed reference line marks the predominant threshold neutrally when set;
+    whether the bar clears it is left for the participant to judge.
     """
     avg = float(df["fitness"].mean())
 
@@ -115,12 +121,13 @@ def task02_bar_chart(df, output_dir: str, predominant_threshold: float):
     ax.text(bar.get_x() + bar.get_width() / 2, avg + 0.018, f"{avg:.3f}",
             ha="center", va="bottom", fontsize=FONT_ANNOT)
 
-    # Neutral threshold reference line + label (no pass/fail verdict).
-    ax.axhline(predominant_threshold, color="#444444", linestyle="--", linewidth=1.4)
-    ax.text(0.98, predominant_threshold + 0.012,
-            f"Threshold = {predominant_threshold:.2f}",
-            transform=ax.get_yaxis_transform(), ha="right", va="bottom",
-            fontsize=FONT_ANNOT, color="#444444")
+    # Neutral threshold reference line + label (only when threshold is set).
+    if predominant_threshold is not None:
+        ax.axhline(predominant_threshold, color="#444444", linestyle="--", linewidth=1.4)
+        ax.text(0.98, predominant_threshold + 0.012,
+                f"Threshold = {predominant_threshold:.2f}",
+                transform=ax.get_yaxis_transform(), ha="right", va="bottom",
+                fontsize=FONT_ANNOT, color="#444444")
 
     # Headroom above the bar so the value label never collides with the title;
     # ticks stay 0–1 to keep the "fixed 0–1 axis" reading.
@@ -135,24 +142,30 @@ def task02_bar_chart(df, output_dir: str, predominant_threshold: float):
     save_svg(fig, os.path.join(output_dir, "task02_bar_chart.svg"))
 
 
-def task02_table(df, output_dir: str, predominant_threshold: float):
-    """One row: #Traces | #Conformant | % Conformant | Overall Fitness | Threshold."""
+def task02_table(df, output_dir: str, predominant_threshold):
+    """One row: #Traces | #Conformant | % Conformant | Overall Fitness | Threshold (when set)."""
     n = len(df)
     n_conform = int(df["is_fit"].sum())
     pct = (n_conform / n * 100) if n else 0.0
     overall = float(df["fitness"].mean()) if n else 0.0
-    cell_text = [[str(n), str(n_conform), f"{pct:.1f}%", f"{overall:.4f}",
-                  f"{predominant_threshold:.2f}"]]
+    if predominant_threshold is not None:
+        cell_text = [[str(n), str(n_conform), f"{pct:.1f}%", f"{overall:.4f}",
+                      f"{predominant_threshold:.2f}"]]
+        col_labels = ["#Traces", "#Conformant", "% Conformant", "Overall Fitness", "Threshold"]
+        col_widths = [0.20, 0.22, 0.22, 0.20, 0.16]
+    else:
+        cell_text = [[str(n), str(n_conform), f"{pct:.1f}%", f"{overall:.4f}"]]
+        col_labels = ["#Traces", "#Conformant", "% Conformant", "Overall Fitness"]
+        col_widths = [0.23, 0.26, 0.26, 0.25]
 
     fig, ax = plt.subplots(figsize=(10, 2.8))
     ax.axis("off")
     make_table(
         ax,
         cell_text=cell_text,
-        col_labels=["#Traces", "#Conformant", "% Conformant", "Overall Fitness",
-                    "Threshold"],
+        col_labels=col_labels,
         bbox=[0.04, 0.20, 0.92, 0.55],
-        col_widths=[0.20, 0.22, 0.22, 0.20, 0.16],
+        col_widths=col_widths,
         font_size=11,
         scale_xy=(1, 1.9),
         cell_pad=0.12,
@@ -163,18 +176,20 @@ def task02_table(df, output_dir: str, predominant_threshold: float):
 
 
 def generate(df, output_dir: str,
-             predominant_threshold: float = DEFAULT_PREDOMINANT_THRESHOLD):
+             predominant_threshold=DEFAULT_PREDOMINANT_THRESHOLD):
     """Generate all Task ID 2 SVGs into output_dir.
 
-    predominant_threshold : float
+    predominant_threshold : float or None
         Fitness level (0–1) regarded as the threshold for "predominantly"
-        following the desired executions. Shown neutrally on the tile, bar chart
-        and table as a reference value — no pass/fail verdict is rendered, so
-        participants decide for themselves whether the behaviour predominates.
+        following the desired executions. When None (left empty by admin),
+        threshold annotations are omitted from all idioms.
     """
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 2 visualizations ---")
-    logger.info(f"      Predominant threshold: {predominant_threshold:.2f}")
+    if predominant_threshold is not None:
+        logger.info(f"      Predominant threshold: {predominant_threshold:.2f}")
+    else:
+        logger.info("      Predominant threshold: not set (no annotation)")
 
     if df is None or df.empty:
         logger.warning("      Skipped Task 2: empty fitness DataFrame.")
@@ -183,7 +198,8 @@ def generate(df, output_dir: str,
 
     avg = float(df["fitness"].mean()) * 100
     logger.info(f"      -> Overall conformance rate: {avg:.2f}%")
+    threshold_pct = predominant_threshold * 100 if predominant_threshold is not None else None
     render_fitness_tile_metric(avg, os.path.join(output_dir, "task02_tile_metric.svg"),
-                               threshold_pct=predominant_threshold * 100)
+                               threshold_pct=threshold_pct)
     task02_bar_chart(df, output_dir, predominant_threshold)
     task02_table(df, output_dir, predominant_threshold)

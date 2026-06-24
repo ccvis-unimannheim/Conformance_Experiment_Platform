@@ -43,6 +43,11 @@ async def lifespan(app: FastAPI):
         migrate_experiments_to_task_instances()
     except Exception:
         logger.exception("task_instances migration failed; continuing startup")
+    try:
+        from ProViBackend.scripts.generate_sample_data import generate as _gen_sample
+        _gen_sample()
+    except Exception:
+        logger.exception("Sample dataset generation failed; preview (sample) will be unavailable")
     yield
 
 
