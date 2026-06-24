@@ -417,8 +417,16 @@ function FreeText({ value, onChange }) {
 // =============================================================== dispatcher
 export default function AnswerInput({ answerType, answerFormat, options = [], value, onChange }) {
   switch (answerType) {
-    case "single_choice":
-      return <SingleChoice options={options} value={value} onChange={onChange} />;
+    case "single_choice": {
+      // "yes-no" always needs exactly two choices; if the backend stored an
+      // empty options list (manual-GT path), fall back to hardcoded Yes/No so
+      // the participant can still answer.
+      const choiceOpts =
+        answerFormat === "yes-no" && options.length === 0
+          ? [{ label: "Yes", value: "yes" }, { label: "No", value: "no" }]
+          : options;
+      return <SingleChoice options={choiceOpts} value={value} onChange={onChange} />;
+    }
     case "multiple_choice":
       return <MultipleChoice options={options} value={value} onChange={onChange} />;
     case "numeric":
