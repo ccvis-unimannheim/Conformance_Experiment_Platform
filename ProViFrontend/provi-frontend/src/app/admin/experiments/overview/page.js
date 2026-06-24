@@ -388,12 +388,20 @@ function ExperimentOverviewContent() {
                   <div className="divide-y divide-border-subtle">
                     {/* Selected Idioms */}
                     <div className="p-5">
-                      <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-3">
-                        Selected Idioms
-                        <span className="ml-2 font-normal normal-case tracking-normal text-primary">
-                          ({idiomIds.length})
-                        </span>
-                      </p>
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
+                          Selected Idioms
+                          <span className="ml-2 font-normal normal-case tracking-normal text-primary">
+                            ({idiomIds.length})
+                          </span>
+                        </p>
+                        <Link
+                          href={`/admin/experiments/idiom?experiment_id=${encodeURIComponent(experimentId)}`}
+                          className="text-xs text-primary border border-primary/30 px-3 py-1.5 rounded hover:bg-blue-50 transition-colors flex-shrink-0"
+                        >
+                          Edit
+                        </Link>
+                      </div>
                       {idiomIds.length === 0 ? (
                         <p className="text-xs text-on-surface-variant italic">No idioms assigned.</p>
                       ) : (
