@@ -117,7 +117,7 @@ const TaskVisualizationPanel = ({ svgUrl, taskNumber = 1, loadingSvg = false }) 
         </div>
       </section>
 
-      {/* Magnifier loupe — fixed overlay, pointer-events disabled */}
+      {/* Magnifier loupe — CSS background-image avoids async second-img load (blob URL) */}
       {showLoupe && (
         <div
           style={{
@@ -128,25 +128,16 @@ const TaskVisualizationPanel = ({ svgUrl, taskNumber = 1, loadingSvg = false }) 
             height: LOUPE_R * 2,
             borderRadius: "50%",
             border: "2.5px solid #3c5f90",
-            boxShadow: "0 8px 32px rgba(60,95,144,0.25), inset 0 0 0 1px rgba(255,255,255,0.5)",
-            overflow: "hidden",
+            boxShadow: "0 8px 32px rgba(60,95,144,0.25)",
             pointerEvents: "none",
             zIndex: 1000,
-            background: "white",
+            backgroundImage: `url("${svgUrl}")`,
+            backgroundSize: `${(loupe.w || 0) * MAGNIFY}px ${(loupe.h || 0) * MAGNIFY}px`,
+            backgroundPosition: `${LOUPE_R - loupe.relX * MAGNIFY}px ${LOUPE_R - loupe.relY * MAGNIFY}px`,
+            backgroundRepeat: "no-repeat",
+            backgroundColor: "white",
           }}
         >
-          <img
-            src={svgUrl}
-            alt=""
-            style={{
-              position: "absolute",
-              width:  (loupe.w || 0) * MAGNIFY,
-              height: (loupe.h || 0) * MAGNIFY,
-              left:   LOUPE_R - loupe.relX * MAGNIFY,
-              top:    LOUPE_R - loupe.relY * MAGNIFY,
-              pointerEvents: "none",
-            }}
-          />
         </div>
       )}
     </>
