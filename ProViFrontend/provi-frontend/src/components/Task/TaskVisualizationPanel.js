@@ -8,7 +8,7 @@ const MAGNIFY = 2.5;
 const TaskVisualizationPanel = ({ svgUrl, taskNumber = 1, loadingSvg = false }) => {
   const [imgError, setImgError] = useState(false);
   const [loupeOn,  setLoupeOn]  = useState(false);
-  const [loupe,    setLoupe]    = useState({ x: 0, y: 0, relX: 0, relY: 0 });
+  const [loupe,    setLoupe]    = useState({ x: 0, y: 0, relX: 0, relY: 0, w: 0, h: 0 });
 
   const imgRef  = useRef(null);
   const rectRef = useRef(null); // cached bounding rect — updated on load + resize
@@ -29,21 +29,21 @@ const TaskVisualizationPanel = ({ svgUrl, taskNumber = 1, loadingSvg = false }) 
   const showLoupe = loupeOn && !showPlaceholder && !loadingSvg;
 
   function handleMouseMove(e) {
+    // Refresh cached rect if not yet set with valid dimensions (img may not have loaded at mount time)
+    if (!rectRef.current?.width && imgRef.current) {
+      rectRef.current = imgRef.current.getBoundingClientRect();
+    }
     const rect = rectRef.current;
-    if (!rect) return;
+    if (!rect?.width) return;
     const relX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
     const relY = Math.max(0, Math.min(e.clientY - rect.top,  rect.height));
-    setLoupe({ x: e.clientX, y: e.clientY, relX, relY });
+    setLoupe({ x: e.clientX, y: e.clientY, relX, relY, w: rect.width, h: rect.height });
   }
 
   // Cache rect when img finishes loading
   function handleImgLoad() {
     if (imgRef.current) rectRef.current = imgRef.current.getBoundingClientRect();
   }
-
-  // Derived loupe img dimensions from cached rect
-  const loupeSrcW = rectRef.current ? rectRef.current.width  * MAGNIFY : 0;
-  const loupeSrcH = rectRef.current ? rectRef.current.height * MAGNIFY : 0;
 
   return (
     <>
@@ -140,8 +140,8 @@ const TaskVisualizationPanel = ({ svgUrl, taskNumber = 1, loadingSvg = false }) 
             alt=""
             style={{
               position: "absolute",
-              width:  loupeSrcW,
-              height: loupeSrcH,
+              width:  (loupe.w || 0) * MAGNIFY,
+              height: (loupe.h || 0) * MAGNIFY,
               left:   LOUPE_R - loupe.relX * MAGNIFY,
               top:    LOUPE_R - loupe.relY * MAGNIFY,
               pointerEvents: "none",
