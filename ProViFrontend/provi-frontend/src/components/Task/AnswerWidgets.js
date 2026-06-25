@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef } from "react";
 
 /**
  * Answer widgets for the Task Execution panel.
@@ -320,6 +320,13 @@ const arrowBtnStyle = (disabled) => ({
   background: "none", border: "none", cursor: disabled ? "default" : "pointer",
   color: disabled ? "#cbd1d2" : COLORS.muted, fontSize: "0.6rem", lineHeight: 1, padding: 0,
 });
+
+// Shorten long violation labels for chips and left-panel badges.
+function abbrevViolation(label) {
+  return label
+    .replace(/^Move on Model:\s*/i, "Mdl:")
+    .replace(/^Move on Log:\s*/i, "Log:");
+}
 
 // Parse pair-shaped options ("a__b") into a symmetric grid.
 // The two value tokens are the (human-readable) axis labels. We DON'T align them
