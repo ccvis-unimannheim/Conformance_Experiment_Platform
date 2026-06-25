@@ -328,6 +328,10 @@ function abbrevViolation(label) {
     .replace(/^Move on Log:\s*/i, "Log:");
 }
 
+// Separator for pairByKey map keys. Must be a char that never appears in a
+// violation label so two different pairs can never collide on the same key.
+const PAIR_SEP = "\u0000";
+
 // Parse pair-shaped options ("a__b") into a symmetric grid.
 // The two value tokens are the (human-readable) axis labels. We DON'T align them
 // against the " × " label, because the value is the sorted pair while the label
@@ -337,13 +341,13 @@ function abbrevViolation(label) {
 function parsePairs(options) {
   const axisOrder = [];
   const seen = new Set();
-  const pairByKey = {}; // unordered "a b" -> submit token (original option.value)
+  const pairByKey = {}; // unordered "a<SEP>b" -> submit token (original option.value)
   for (const o of options) {
     const v = optValue(o);
     const vt = v.split("__");
     if (vt.length !== 2) return null;
     vt.forEach((t) => { if (!seen.has(t)) { seen.add(t); axisOrder.push(t); } });
-    pairByKey[[...vt].sort().join(" ")] = v;
+    pairByKey[[...vt].sort().join(PAIR_SEP)] = v;
   }
   return { axisOrder, pairByKey };
 }
@@ -358,7 +362,7 @@ function MatrixGrid({ options, value, onChange }) {
   }
 
   const { axisOrder, pairByKey } = parsed;
-  const tokenForPair = (a, b) => pairByKey[[a, b].sort().join(" ")];
+  const tokenForPair = (a, b) => pairByKey[[a, b].sort().join(PAIR_SEP)];
   const toggle = (token) => {
     onChange(value.includes(token) ? value.filter((x) => x !== token) : [...value, token]);
   };
