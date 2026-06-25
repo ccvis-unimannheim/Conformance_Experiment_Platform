@@ -21,7 +21,10 @@ const C = {
   white:         "#ffffff",
 };
 
-const DIFFICULTY_LABELS = ["Very Easy", "Easy", "Neutral", "Difficult", "Very Difficult"];
+const LIKERT_POINTS = 7;
+// Colour ramp: green (easy) → amber → red (difficult)
+const LIKERT_COLORS = ["#22c55e","#84cc16","#bef264","#facc15","#fb923c","#f87171","#ef4444"];
+const LIKERT_BG     = ["#f0fdf4","#f7fee7","#fefce8","#fefce8","#fff7ed","#fef2f2","#fef2f2"];
 
 export default function EndPage() {
   const [difficulty, setDifficulty] = useState(null);
@@ -119,51 +122,72 @@ export default function EndPage() {
             Your participation is now complete. Your responses have been saved and will contribute to our research.
           </p>
 
-          {/* Difficulty rating */}
+          {/* Difficulty rating — 7-point Likert (SEQ-style) */}
           <div style={{ width: "100%", maxWidth: "32rem", marginBottom: "2rem" }}>
             <p style={{
               fontSize: "0.6875rem", fontWeight: 700, textTransform: "uppercase",
-              letterSpacing: "0.12em", color: C.onVariant, marginBottom: "1rem",
+              letterSpacing: "0.12em", color: C.onVariant, marginBottom: "0.75rem",
             }}>
               HOW DIFFICULT WERE THE TASKS?
             </p>
-            <div style={{ display: "flex", gap: "6px", width: "100%" }}>
-              {DIFFICULTY_LABELS.map((label) => {
-                const selected = difficulty === label;
+
+            {/* Scale cells */}
+            <div style={{ display: "flex", gap: "4px", width: "100%" }}>
+              {Array.from({ length: LIKERT_POINTS }, (_, i) => {
+                const val = i + 1;
+                const selected = difficulty === val;
                 return (
                   <button
-                    key={label}
-                    onClick={() => setDifficulty(label)}
+                    key={val}
+                    onClick={() => setDifficulty(val)}
                     style={{
                       flex: 1,
-                      height: "2.25rem",
-                      borderRadius: "0.625rem",
-                      border: selected ? "2px solid #3D4F7C" : "1px solid #e2e8f0",
-                      backgroundColor: selected ? "#EEF2FF" : C.white,
-                      color: selected ? "#3D4F7C" : "#64748b",
-                      fontSize: "0.6875rem",
-                      fontWeight: selected ? 700 : 500,
+                      height: "2.75rem",
+                      borderRadius: "0.5rem",
+                      border: selected
+                        ? `2px solid ${LIKERT_COLORS[i]}`
+                        : "1.5px solid #e2e8f0",
+                      backgroundColor: selected ? LIKERT_BG[i] : C.white,
+                      color: selected ? LIKERT_COLORS[i] : "#94a3b8",
+                      fontSize: "1rem",
+                      fontWeight: selected ? 800 : 500,
                       cursor: "pointer",
-                      transform: selected ? "scale(1.03)" : "scale(1)",
-                      transition: "all 0.15s ease",
+                      transform: selected ? "translateY(-2px) scale(1.06)" : "none",
+                      transition: "all 0.12s ease",
+                      boxShadow: selected ? `0 2px 8px ${LIKERT_COLORS[i]}44` : "none",
                     }}
                     onMouseEnter={(e) => {
                       if (!selected) {
-                        e.currentTarget.style.backgroundColor = "#F5F7FF";
-                        e.currentTarget.style.borderColor = "#3D4F7C";
+                        e.currentTarget.style.borderColor = LIKERT_COLORS[i];
+                        e.currentTarget.style.color = LIKERT_COLORS[i];
+                        e.currentTarget.style.backgroundColor = LIKERT_BG[i];
                       }
                     }}
                     onMouseLeave={(e) => {
                       if (!selected) {
-                        e.currentTarget.style.backgroundColor = C.white;
                         e.currentTarget.style.borderColor = "#e2e8f0";
+                        e.currentTarget.style.color = "#94a3b8";
+                        e.currentTarget.style.backgroundColor = C.white;
                       }
                     }}
                   >
-                    {label}
+                    {val}
                   </button>
                 );
               })}
+            </div>
+
+            {/* Anchor labels */}
+            <div style={{
+              display: "flex", justifyContent: "space-between",
+              marginTop: "0.4rem", paddingLeft: "2px", paddingRight: "2px",
+            }}>
+              <span style={{ fontSize: "0.6875rem", color: "#22c55e", fontWeight: 600 }}>
+                Very Easy
+              </span>
+              <span style={{ fontSize: "0.6875rem", color: "#ef4444", fontWeight: 600 }}>
+                Very Difficult
+              </span>
             </div>
           </div>
 
