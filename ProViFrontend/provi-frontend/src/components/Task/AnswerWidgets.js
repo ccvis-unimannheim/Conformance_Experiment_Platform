@@ -416,24 +416,25 @@ function MatrixGrid({ options, value, onChange }) {
                 key={v}
                 onClick={() => setActiveIdx(i)}
                 style={{
+                  display: "flex", alignItems: "center", gap: "6px",
                   padding: "6px 8px",
                   background: active ? COLORS.accentSoft : "transparent",
                   borderLeft: `3px solid ${active ? COLORS.accent : "transparent"}`,
                   borderBottom: i < axisOrder.length - 1 ? `1px solid ${COLORS.line}` : "none",
                   cursor: "pointer",
-                  position: "relative",
                 }}
               >
                 <span style={{
+                  flex: 1, minWidth: 0,
                   fontSize: "0.7rem", color: active ? COLORS.navy : COLORS.ink,
-                  fontWeight: active ? 700 : 500, lineHeight: 1.3, display: "block",
+                  fontWeight: active ? 700 : 500, lineHeight: 1.3,
                   wordBreak: "break-word",
                 }}>
                   {v}
                 </span>
                 {count > 0 && (
                   <span style={{
-                    position: "absolute", top: "4px", right: "4px",
+                    flexShrink: 0,
                     background: COLORS.accent, color: "white",
                     fontSize: "0.6rem", fontWeight: 900,
                     width: "14px", height: "14px", borderRadius: "50%",
