@@ -389,8 +389,8 @@ function MatrixGrid({ options, value, onChange }) {
         </span>
       </div>
 
-      {/* Two-panel */}
-      <div style={{ display: "flex", gap: "8px", height: "200px" }}>
+      {/* Two-panel — height grows with N, capped at 320px */}
+      <div style={{ display: "flex", gap: "8px", height: `${Math.min(320, Math.max(200, axisOrder.length * 44))}px` }}>
 
         {/* Left panel: violation list */}
         <div style={{
@@ -461,16 +461,20 @@ function MatrixGrid({ options, value, onChange }) {
               const token = tokenForPair(activeViolation, v);
               const checked = token !== undefined && value.includes(token);
               return (
-                <label
+                <div
                   key={v}
+                  role="button"
+                  tabIndex={0}
                   style={{
                     display: "flex", alignItems: "flex-start", gap: "8px",
                     padding: "7px 10px",
                     background: checked ? COLORS.accentSoft : "white",
                     borderBottom: i < arr.length - 1 ? `1px solid ${COLORS.line}` : "none",
                     cursor: token !== undefined ? "pointer" : "default",
+                    userSelect: "none",
                   }}
                   onClick={() => token !== undefined && toggle(token)}
+                  onKeyDown={(e) => (e.key === " " || e.key === "Enter") && token !== undefined && toggle(token)}
                 >
                   <div style={{
                     width: "15px", height: "15px", borderRadius: "4px",
@@ -496,7 +500,7 @@ function MatrixGrid({ options, value, onChange }) {
                       </span>
                     )}
                   </div>
-                </label>
+                </div>
               );
             })}
         </div>
