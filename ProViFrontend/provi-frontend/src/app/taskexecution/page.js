@@ -40,10 +40,44 @@ function groupTrialsByTask(trials) {
   return groups;
 }
 
-function FitnessHelpButton() {
+function FitnessHelpButton({ experimentId }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  const openCountRef = useRef(0);
+  const openTimeRef  = useRef(null);
 
+  // Send one open→close event to the backend
+  async function sendEvent(openIndex, dwellMs) {
+    try {
+      await fetch("/api/uitracking/fitness-help", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          experiment_id:   experimentId ?? null,
+          open_index:      openIndex,
+          dwell_ms:        dwellMs,
+          insert_datetime: new Date().toISOString(),
+        }),
+      });
+    } catch (e) {
+      console.warn("Fitness help tracking failed:", e.message);
+    }
+  }
+
+  // Track open / close transitions
+  useEffect(() => {
+    if (open) {
+      openCountRef.current += 1;
+      openTimeRef.current = Date.now();
+    } else if (openTimeRef.current !== null) {
+      const dwellMs = Date.now() - openTimeRef.current;
+      openTimeRef.current = null;
+      sendEvent(openCountRef.current, dwellMs);
+    }
+  }, [open]);
+
+  // Close on outside click
   useEffect(() => {
     if (!open) return;
     function handleClick(e) {
@@ -74,20 +108,34 @@ function FitnessHelpButton() {
       {open && (
         <div style={{
           position: "absolute", right: 0, top: "calc(100% + 8px)", zIndex: 100,
-          width: "300px", backgroundColor: "#ffffff",
+          width: "340px", backgroundColor: "#ffffff",
           border: "1px solid #e4e9ea", borderRadius: "12px",
-          boxShadow: "0 8px 24px rgba(45,52,53,0.12)", padding: "1rem",
+          boxShadow: "0 8px 24px rgba(45,52,53,0.12)", padding: "1.125rem",
         }}>
-          <p style={{ fontSize: "10px", fontWeight: 700, color: "#5a6061", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.5rem" }}>
+          <p style={{ fontSize: "10px", fontWeight: 700, color: "#5a6061", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.625rem" }}>
             What is Fitness?
           </p>
-          <p style={{ fontSize: "0.8125rem", color: "#2d3435", lineHeight: 1.6, marginBottom: "0.5rem" }}>
-            <strong>Fitness</strong> measures how closely the recorded process events follow the expected process model.
-            A value of <strong>1.0</strong> means every step matches the model perfectly;
-            <strong> 0.0</strong> means no steps follow it at all.
+          <p style={{ fontSize: "0.8125rem", color: "#2d3435", lineHeight: 1.7, marginBottom: "0.625rem" }}>
+            <strong>Fitness</strong> measures the ability of a model to explain the execution of a
+            process as recorded in an event log. It captures the fraction of the log&apos;s
+            behaviour that the model also allows:
           </p>
-          <p style={{ fontSize: "0.8125rem", color: "#2d3435", lineHeight: 1.6 }}>
-            The visualizations show fitness at different levels — per trace, over time, or as an overall summary — to help you answer the task question.
+          {/* Formula */}
+          <div style={{
+            backgroundColor: "#f2f4f4", borderRadius: "6px",
+            padding: "0.5rem 0.75rem", textAlign: "center",
+            fontFamily: "Georgia, serif", fontSize: "0.875rem",
+            color: "#2d3435", marginBottom: "0.625rem",
+          }}>
+            fitness = |L ∩ M| / |L|
+          </div>
+          <p style={{ fontSize: "0.8125rem", color: "#2d3435", lineHeight: 1.7, marginBottom: "0.625rem" }}>
+            A fitness of <strong>1.0</strong> means every recorded trace is fully covered by
+            the model; <strong>0.0</strong> means no recorded behaviour matches the model at all.
+          </p>
+          {/* Citation */}
+          <p style={{ fontSize: "0.7rem", color: "#757c7d", lineHeight: 1.5, borderTop: "1px solid #e4e9ea", paddingTop: "0.5rem", margin: 0 }}>
+            Carmona et al. (2018). <em>Conformance Checking</em>. Springer, §3.2.
           </p>
         </div>
       )}
@@ -252,9 +300,25 @@ export default function TaskExecutionPage() {
           position: "fixed", top: 0, zIndex: 50, width: "100%",
           borderBottom: "1px solid #e4e9ea",
           height: "4rem", display: "flex", alignItems: "center",
-          boxSizing: "border-box",
+          boxSizing: "border-box", padding: "0 1.25rem",
         }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", padding: "0 2rem", maxWidth: "56rem", margin: "0 auto" }}>
+          <button
+            onClick={() => { window.location.href = "/conformance-terms"; }}
+            style={{
+              display: "flex", alignItems: "center", gap: "0.25rem",
+              fontSize: "0.75rem", fontWeight: 500, color: "#5a6061",
+              background: "none", border: "1px solid #adb3b4",
+              borderRadius: "999px", padding: "0.25rem 0.75rem",
+              cursor: "pointer", transition: "color 0.15s, border-color 0.15s",
+              whiteSpace: "nowrap", flexShrink: 0,
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = "#00305e"; e.currentTarget.style.borderColor = "#00305e"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = "#5a6061"; e.currentTarget.style.borderColor = "#adb3b4"; }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: "14px" }}>arrow_back</span>
+            Key Concept
+          </button>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flex: 1, padding: "0 1rem", maxWidth: "56rem", margin: "0 auto" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
               <Image priority src={ProjectLogo} width={90} height={36} alt="ProVi Logo" style={{ objectFit: "contain" }} />
               <Image priority src={UniLogo} width={140} height={36} alt="University of Mannheim Logo" style={{ objectFit: "contain" }} />
@@ -268,7 +332,7 @@ export default function TaskExecutionPage() {
               <span style={{ color: "#3c5f90", fontWeight: 700, fontSize: "0.875rem" }}>
                 Task Execution
               </span>
-              <FitnessHelpButton />
+              <FitnessHelpButton experimentId={experimentId} />
               <div style={{ width: "4rem", height: "6px", backgroundColor: "#ebeeef", borderRadius: "9999px", overflow: "hidden" }}>
                 <div style={{ width: `${progressPercent}%`, height: "100%", backgroundColor: "#3c5f90" }} />
               </div>
@@ -284,7 +348,7 @@ export default function TaskExecutionPage() {
             display: "flex", alignItems: "center", justifyContent: "center", gap: "0.75rem",
           }}>
             <span style={{ fontSize: "0.8125rem", lineHeight: 1.5, textAlign: "center" }}>
-              <strong>What is fitness?</strong> Fitness measures how closely recorded process events follow the expected process model — 1.0 = perfect match, 0.0 = no match. The visualizations help you discover this.
+              <strong>Fitness</strong> measures the ability of a model to explain the behaviour recorded in an event log. It is the main indicator of how well the model fits the data.
             </span>
             <button
               onClick={() => { setShowBanner(false); setShowDismissHint(true); setTimeout(() => setShowDismissHint(false), 4000); }}
