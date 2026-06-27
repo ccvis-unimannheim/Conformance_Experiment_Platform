@@ -118,7 +118,7 @@ def task02_bar_chart(df, output_dir: str, predominant_threshold: float):
     # Neutral threshold reference line + label (no pass/fail verdict).
     ax.axhline(predominant_threshold, color="#444444", linestyle="--", linewidth=1.4)
     ax.text(0.98, predominant_threshold + 0.012,
-            f"Threshold = {predominant_threshold:.2f}",
+            f"Fitness Threshold = {predominant_threshold:.2f}",
             transform=ax.get_yaxis_transform(), ha="right", va="bottom",
             fontsize=FONT_ANNOT, color="#444444")
 
@@ -126,7 +126,7 @@ def task02_bar_chart(df, output_dir: str, predominant_threshold: float):
     # ticks stay 0–1 to keep the "fixed 0–1 axis" reading.
     ax.set_ylim(0, 1.12)
     ax.set_yticks([0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
-    ax.set_ylabel("Overall Conformance Rate (0–1)", fontsize=FONT_LABEL)
+    ax.set_ylabel("Mean Fitness (0–1)", fontsize=FONT_LABEL)
     ax.set_title("Overall Process Conformance", fontsize=FONT_TITLE, pad=10)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
@@ -136,12 +136,13 @@ def task02_bar_chart(df, output_dir: str, predominant_threshold: float):
 
 
 def task02_table(df, output_dir: str, predominant_threshold: float):
-    """One row: #Traces | #Conformant | % Conformant | Overall Fitness | Threshold."""
+    """One row: # of Traces | # of Conformant Traces | % of Conformant Traces |
+    Mean Fitness | Fitness Threshold."""
     n = len(df)
     n_conform = int(df["is_fit"].sum())
     pct = (n_conform / n * 100) if n else 0.0
     overall = float(df["fitness"].mean()) if n else 0.0
-    cell_text = [[str(n), str(n_conform), f"{pct:.1f}%", f"{overall:.4f}",
+    cell_text = [[str(n), str(n_conform), f"{pct:.1f}%", f"{overall:.3f}",
                   f"{predominant_threshold:.2f}"]]
 
     fig, ax = plt.subplots(figsize=(10, 2.8))
@@ -149,10 +150,10 @@ def task02_table(df, output_dir: str, predominant_threshold: float):
     make_table(
         ax,
         cell_text=cell_text,
-        col_labels=["#Traces", "#Conformant", "% Conformant", "Overall Fitness",
-                    "Threshold"],
+        col_labels=["# of Traces", "# of Conformant Traces", "% of Conformant Traces",
+                    "Mean Fitness", "Fitness Threshold"],
         bbox=[0.04, 0.20, 0.92, 0.55],
-        col_widths=[0.20, 0.22, 0.22, 0.20, 0.16],
+        col_widths=[0.18, 0.23, 0.23, 0.18, 0.18],
         font_size=11,
         scale_xy=(1, 1.9),
         cell_pad=0.12,
@@ -178,12 +179,18 @@ def generate(df, output_dir: str,
 
     if df is None or df.empty:
         logger.warning("      Skipped Task 2: empty fitness DataFrame.")
-        render_fitness_tile_metric(0.0, os.path.join(output_dir, "task02_tile_metric.svg"))
+        render_fitness_tile_metric(
+            0.0, os.path.join(output_dir, "task02_tile_metric.svg"),
+            metric_label="Mean Fitness", threshold_label="Fitness Threshold",
+            as_fraction=True)
         return
 
-    avg = float(df["fitness"].mean()) * 100
-    logger.info(f"      -> Overall conformance rate: {avg:.2f}%")
-    render_fitness_tile_metric(avg, os.path.join(output_dir, "task02_tile_metric.svg"),
-                               threshold_pct=predominant_threshold * 100)
+    mean_fitness = float(df["fitness"].mean())
+    logger.info(f"      -> Mean fitness: {mean_fitness:.3f}")
+    render_fitness_tile_metric(
+        mean_fitness, os.path.join(output_dir, "task02_tile_metric.svg"),
+        threshold_pct=predominant_threshold,
+        metric_label="Mean Fitness", threshold_label="Fitness Threshold",
+        as_fraction=True)
     task02_bar_chart(df, output_dir, predominant_threshold)
     task02_table(df, output_dir, predominant_threshold)

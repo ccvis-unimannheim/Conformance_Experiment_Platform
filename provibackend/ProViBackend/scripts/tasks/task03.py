@@ -21,7 +21,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "table", "table_and_bar_chart", "stacked_bar", "matrix"]
+IDIOMS = ["bar_chart", "scatter_plot", "table", "table_and_bar_chart", "stacked_bar", "matrix"]
 
 # ---------------------------------------------------------------------------
 # Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8)
@@ -81,7 +81,7 @@ from matplotlib import gridspec
 from shared import (
     save_svg, make_table,
     draw_composition_stacked_bars, draw_value_heatmap,
-    render_empty_state_svg, format_threshold,
+    render_empty_state_svg, format_threshold, place_scatter_labels,
     GREY_MED, GREY_LIGHT, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
@@ -281,17 +281,28 @@ def task03_bar_chart(presence_df: pd.DataFrame, throughput_buckets, variant_df: 
     # --- Panel 3: variant composition ----------------------------------------
     ax = axes[2]
     variants = variant_df["variant"].tolist()
-    x = np.arange(len(variants))
-    ax.bar(x - width / 2, variant_df["Conformant"],     width, color=_COLOR_CONFORM,
-           label="Conformant",     edgecolor="white")
-    ax.bar(x + width / 2, variant_df["Non-conformant"], width, color=_COLOR_NON_CONFORM,
-           label="Non-conformant", edgecolor="white")
-    ax.set_xticks(x)
-    ax.set_xticklabels(variants, rotation=35, ha="right", fontsize=FONT_ANNOT - 1)
+    if variants:
+        x = np.arange(len(variants))
+        bars_c  = ax.bar(x - width / 2, variant_df["Conformant"],     width, color=_COLOR_CONFORM,
+                         label="Conformant",     edgecolor="white")
+        bars_nc = ax.bar(x + width / 2, variant_df["Non-conformant"], width, color=_COLOR_NON_CONFORM,
+                         label="Non-conformant", edgecolor="white")
+        # Value labels (matching the activity-presence panel) so even small variant
+        # shares stay readable instead of looking like an empty panel.
+        for bars in (bars_c, bars_nc):
+            for bar in bars:
+                h = bar.get_height()
+                if h > 0:
+                    ax.text(bar.get_x() + bar.get_width() / 2, h + 0.5,
+                            f"{h:.0f}%", ha="center", va="bottom", fontsize=7)
+        ax.set_xticks(x)
+        ax.set_xticklabels(variants, rotation=35, ha="right", fontsize=FONT_ANNOT - 1)
+        ax.set_ylim(0, min(115, variant_df[["Conformant", "Non-conformant"]].values.max() * 1.18))
+    else:
+        ax.text(0.5, 0.5, "No variant data", ha="center", va="center",
+                transform=ax.transAxes, fontsize=FONT_ANNOT)
     ax.set_ylabel("Share of group's traces (%)", fontsize=FONT_LABEL)
     ax.set_title(f"Variant Composition (top-{len(variants)} by |Δ|)", fontsize=FONT_LABEL)
-    if len(variants):
-        ax.set_ylim(0, min(115, variant_df[["Conformant", "Non-conformant"]].values.max() * 1.18))
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
@@ -547,7 +558,7 @@ def task03_stacked_bar(trace_rows: list, throughput_buckets, variant_df: pd.Data
 
 def task03_matrix(presence_df: pd.DataFrame, throughput_buckets, variant_df: pd.DataFrame,
                    output_dir: str):
-    """3 stacked annotated grids (Conformance Group on the x-axis), one per
+    """3 annotated grids side by side (Conformance Group on the x-axis), one per
     behavioral factor:
       Grid 1 "Activity Presence": rows = top-N activities, cells = presence rate (%).
       Grid 2 "Throughput Time": rows = throughput-time quartile buckets,
@@ -579,14 +590,15 @@ def task03_matrix(presence_df: pd.DataFrame, throughput_buckets, variant_df: pd.
     if not acts:
         acts, presence_data = ["—"], np.zeros((1, len(_GROUPS)))
 
-    fig_h = 0.5 * (len(acts) + len(tt_labels) + len(variants)) + 4.0
-    fig, axes = plt.subplots(3, 1, figsize=(6, fig_h))
+    n_rows_max = max(len(acts), len(tt_labels), len(variants))
+    fig_h = 0.42 * n_rows_max + 2.8
+    fig, axes = plt.subplots(1, 3, figsize=(16, fig_h))
 
-    draw_value_heatmap(fig, axes[0], presence_data, acts, _GROUPS,
+    draw_value_heatmap(fig, axes[0], presence_data, acts, _GROUPS, xlabel="Conformance Group",
                        cbar_label="Presence rate (%)", cell_fmt="{:.0f}%", annotate=True)
     axes[0].set_title(f"Activity Presence (top-{len(acts)})", fontsize=FONT_LABEL)
 
-    draw_value_heatmap(fig, axes[1], tt_data, tt_labels, _GROUPS,
+    draw_value_heatmap(fig, axes[1], tt_data, tt_labels, _GROUPS, xlabel="Conformance Group",
                        cbar_label="Share of traces (%)", cell_fmt="{:.0f}%", annotate=True)
     axes[1].set_title("Throughput Time (quartile buckets)", fontsize=FONT_LABEL)
 
@@ -595,7 +607,55 @@ def task03_matrix(presence_df: pd.DataFrame, throughput_buckets, variant_df: pd.
     axes[2].set_title(f"Variant Composition (top-{len(variants)})", fontsize=FONT_LABEL)
 
     fig.suptitle("Conformant vs. Non-conformant: Behavioral Factors", fontsize=FONT_TITLE)
-    fig.tight_layout(rect=[0, 0, 1, 0.96])
+    fig.tight_layout(rect=[0, 0, 1, 0.95])
+    save_svg(fig, path)
+
+
+def task03_scatter_plot(trace_rows: list, output_dir: str):
+    """Scatter of activity presence: one point per activity,
+    x = presence rate in Conformant traces, y = presence rate in Non-conformant
+    traces. Points far from the y=x diagonal are the strongest differentiators.
+
+    Labels use the shared cluster-aware, non-overlapping callout helper
+    (place_scatter_labels) — no external adjustText dependency, so labels never
+    pile up on top of each other.
+    """
+    path = os.path.join(output_dir, "task03_scatter_plot.svg")
+    full = _task03_activity_presence_df(trace_rows, top_n=10**9)
+    if full.empty:
+        render_empty_state_svg(
+            path, "Activity Presence: Conformant vs. Non-conformant",
+            "No activities found.")
+        return
+
+    fig, ax = plt.subplots(figsize=(8, 7.5))
+    ax.plot([0, 100], [0, 100], color="#999999", linestyle="--", linewidth=1.0, zorder=1)
+    # Placed mid-diagonal (open space) so it never collides with the label-dense
+    # top-right corner where many activities cluster near (100, 100).
+    ax.text(60, 60, "equal presence", rotation=45, rotation_mode="anchor",
+            ha="center", va="bottom", fontsize=FONT_ANNOT - 1, color="#888888")
+
+    ax.scatter(full["Conformant"], full["Non-conformant"],
+               c=GREY_MED, s=40, alpha=0.75, linewidths=0, zorder=3)
+
+    ax.set_xlim(-5, 115)
+    ax.set_ylim(-5, 115)
+    ax.set_xlabel("Presence rate in Conformant traces (%)", fontsize=FONT_LABEL)
+    ax.set_ylabel("Presence rate in Non-conformant traces (%)", fontsize=FONT_LABEL)
+    ax.set_title("Activity Presence: Conformant vs. Non-conformant", fontsize=FONT_TITLE)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.5)
+    ax.set_axisbelow(True)
+
+    # Label the strongest differentiators with cluster-aware, non-crossing callouts.
+    labeled = full.head(TOP_N)
+    place_scatter_labels(
+        ax,
+        [(row["Conformant"], row["Non-conformant"], row["activity"])
+         for _, row in labeled.iterrows()],
+    )
+
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 
@@ -705,6 +765,7 @@ def generate(log, fitness_df, output_dir: str, conformant_threshold: float = 1.0
                 f"top-{len(variant_df)} variants extracted.")
 
     task03_bar_chart(presence_df, throughput_buckets, variant_df, output_dir)
+    task03_scatter_plot(trace_rows, output_dir)
     task03_table(presence_df, throughput_df, variant_df, output_dir)
     task03_table_and_bar_chart(presence_df, throughput_df, variant_df, output_dir)
 

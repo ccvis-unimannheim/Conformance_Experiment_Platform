@@ -122,12 +122,13 @@ def task04_bar_chart(vdf: pd.DataFrame, output_dir: str, total_variants: int = 0
     fig, ax = plt.subplots(figsize=(max(7, len(top) * 0.75), 5))
     bars = ax.bar(top["label"], top["fitness"], color=colors, edgecolor="white", width=0.65)
 
-    for bar, val in zip(bars, top["fitness"]):
+    # Value labels match the table's information density: fitness value + trace count.
+    for bar, val, cnt in zip(bars, top["fitness"], top["count"]):
         ax.text(
             bar.get_x() + bar.get_width() / 2,
             bar.get_height() + 0.012,
-            f"{val:.3f}",
-            ha="center", va="bottom", fontsize=FONT_ANNOT - 1,
+            f"{val:.3f}\nn={int(cnt)}",
+            ha="center", va="bottom", fontsize=FONT_ANNOT - 1, linespacing=1.15,
         )
 
     import matplotlib.patches as mpatches
@@ -144,7 +145,7 @@ def task04_bar_chart(vdf: pd.DataFrame, output_dir: str, total_variants: int = 0
                   fontsize=FONT_LABEL)
     ax.set_ylabel("Fitness (0–1)", fontsize=FONT_LABEL)
     ax.set_title("Conformance Fitness by Process Variant", fontsize=FONT_TITLE)
-    ax.set_ylim(0, 1.15)
+    ax.set_ylim(0, 1.24)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
@@ -184,7 +185,8 @@ def task04_table(vdf: pd.DataFrame, output_dir: str, total_variants: int = 0):
 
 
 def task04_scatter_plot(vdf: pd.DataFrame, output_dir: str):
-    """Scatter: all variants; x = trace count (log scale if wide), y = fitness."""
+    """Scatter of the selected top-N variants; x = trace count (log scale if wide),
+    y = fitness. Every shown variant is labelled (not just the most frequent)."""
     counts  = vdf["count"].values.astype(float)
     fitness = vdf["fitness"].values
     colors  = [GREY_MED if f >= 1.0 else GREY_LIGHT for f in fitness]
@@ -194,15 +196,16 @@ def task04_scatter_plot(vdf: pd.DataFrame, output_dir: str):
     fig, ax = plt.subplots(figsize=(8, 5))
     ax.scatter(counts, fitness, c=colors, s=40, alpha=0.75, edgecolors="white", linewidths=0.5)
 
-    # Label top-5 most frequent variants; alternate y-offset when x-positions are close
+    # Label every shown variant; alternate the y-offset when x-positions are close
+    # (pixel offsets keep labels attached to their point on both linear and log x).
     prev_log_x   = None
-    prev_y_off   = 3
-    for _, row in vdf.head(5).iterrows():
+    prev_y_off   = 6
+    for _, row in vdf.iterrows():
         log_x = np.log10(max(row["count"], 1))
         if prev_log_x is not None and abs(log_x - prev_log_x) < 0.15:
-            y_off = -13 if prev_y_off >= 0 else 6
+            y_off = -13 if prev_y_off >= 0 else 8
         else:
-            y_off = 3
+            y_off = 6
         prev_log_x = log_x
         prev_y_off = y_off
         ax.annotate(
@@ -278,11 +281,15 @@ def task04_table_bar_chart(vdf: pd.DataFrame, output_dir: str, total_variants: i
     ax_bar = fig.add_subplot(gs[1])
     y = np.arange(len(top))
     colors = [GREY_MED if f >= 1.0 else GREY_LIGHT for f in top["fitness"]]
-    ax_bar.barh(y, top["fitness"], color=colors, edgecolor="white")
+    bars = ax_bar.barh(y, top["fitness"], color=colors, edgecolor="white")
+    # Value labels so the bar matches the table's fitness readout.
+    for bar, val in zip(bars, top["fitness"]):
+        ax_bar.text(min(val + 0.02, 1.02), bar.get_y() + bar.get_height() / 2,
+                    f"{val:.3f}", va="center", ha="left", fontsize=FONT_ANNOT - 1)
     ax_bar.set_yticks(y)
     ax_bar.set_yticklabels(top["label"], fontsize=FONT_ANNOT - 1)
     ax_bar.invert_yaxis()
-    ax_bar.set_xlim(0, 1.05)
+    ax_bar.set_xlim(0, 1.18)
     ax_bar.set_xlabel("Fitness (0–1)", fontsize=FONT_LABEL)
     ax_bar.spines[["top", "right"]].set_visible(False)
     ax_bar.xaxis.grid(True, linestyle="--", alpha=0.5)
@@ -332,13 +339,13 @@ def task04_matrix(vdf: pd.DataFrame, output_dir: str):
 
 
 def task04_heatmap(vdf: pd.DataFrame, output_dir: str):
-    """All variants × normalized metrics, continuous, unannotated."""
+    """Top-N variants × normalized metrics, continuous, unannotated."""
     raw, norm, metrics, labels = _variant_metric_grid(vdf)
     fig_h = max(3.5, 0.26 * len(labels) + 1.4)
     fig, ax = plt.subplots(figsize=(6, fig_h))
     draw_value_heatmap(fig, ax, norm, labels, metrics,
                        cbar_label="Normalized (per metric)", annotate=False)
-    ax.set_title(f"Variant Metrics Heatmap (all {len(labels)} variants)", fontsize=FONT_TITLE)
+    ax.set_title(f"Variant Metrics Heatmap (top-{len(labels)})", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task04_heatmap.svg"))
 
@@ -351,9 +358,8 @@ def generate(log, fitness_df, output_dir: str, top_n: int = TOP_N):
     """Generate all Task ID 4 SVGs into output_dir.
 
     ``top_n`` is the admin-configured number of variants (from PARAM_SPEC
-    "top_n"). Idioms that compare the selected variants are sliced to top_n;
-    overview idioms (scatter_plot, line_graph, heatmap) always show
-    all variants so participants have full context.
+    "top_n"). Every idiom shows the same selected top_n variants so the views are
+    directly comparable (and match what the ground truth was computed for).
     """
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 4 visualizations ---")
@@ -371,12 +377,11 @@ def generate(log, fitness_df, output_dir: str, top_n: int = TOP_N):
     if n_total == 1:
         logger.warning("      Only one variant found — charts will show a single entry.")
 
-    # Comparison idioms: sliced to top_n (match what GT was computed for)
+    # Every idiom shows the same selected top_n variants (match what GT used).
     task04_bar_chart(top_vdf, output_dir, total_variants=n_total)
     task04_table(top_vdf, output_dir, total_variants=n_total)
     task04_table_bar_chart(top_vdf, output_dir, total_variants=n_total)
     task04_matrix(top_vdf, output_dir)
-
-    task04_scatter_plot(vdf, output_dir)
-    task04_line_graph(vdf, output_dir)
-    task04_heatmap(vdf, output_dir)
+    task04_scatter_plot(top_vdf, output_dir)
+    task04_line_graph(top_vdf, output_dir)
+    task04_heatmap(top_vdf, output_dir)

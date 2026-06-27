@@ -496,28 +496,38 @@ def _draw_tile_box(ax):
 
 
 def render_fitness_tile_metric(avg_fitness_pct: float, out_path: str,
-                               threshold_pct: float = None):
+                               threshold_pct: float = None, *,
+                               metric_label: str = "Conformance Rate",
+                               threshold_label: str = "Predominant threshold",
+                               as_fraction: bool = False):
     """Render a single-value tile showing overall conformance rate and save to out_path.
 
-    When ``threshold_pct`` is given (a percentage, e.g. 80.0), the predominant
-    threshold is shown neutrally as a reference subline — no pass/fail verdict,
-    so the reader judges for themselves. When omitted the tile keeps its
-    original threshold-free appearance (task06). Colours stay greyscale.
+    When ``threshold_pct`` is given, it is shown neutrally as a reference subline
+    — no pass/fail verdict, so the reader judges for themselves. When omitted the
+    tile keeps its original threshold-free appearance (task06). Colours stay
+    greyscale.
+
+    ``metric_label`` / ``threshold_label`` let a caller align the tile's wording
+    with its other idioms (e.g. task02 uses "Mean Fitness" / "Fitness Threshold").
+    ``as_fraction``: when True the value and threshold are treated as 0–1 fractions
+    and rendered as e.g. "0.84" / "0.80"; otherwise they are percentages ("84%").
     """
     fig, ax = plt.subplots(figsize=(4, 3))
     _draw_tile_box(ax)
-    ax.text(0.5, 0.72 if threshold_pct is not None else 0.68, "Conformance Rate",
+    ax.text(0.5, 0.72 if threshold_pct is not None else 0.68, metric_label,
             transform=ax.transAxes, ha="center", va="center",
             fontsize=FONT_TITLE, color="#555555")
 
     value_y = 0.45 if threshold_pct is not None else 0.38
-    ax.text(0.5, value_y, f"{avg_fitness_pct:.2f}%",
+    value_str = f"{avg_fitness_pct:.3f}" if as_fraction else f"{avg_fitness_pct:.2f}%"
+    ax.text(0.5, value_y, value_str,
             transform=ax.transAxes, ha="center", va="center",
             fontsize=32, color="#333333")
 
     if threshold_pct is not None:
+        thr_str = f"{threshold_pct:.2f}" if as_fraction else f"{threshold_pct:.0f}%"
         ax.text(0.5, 0.20,
-                f"Predominant threshold: {threshold_pct:.0f}%",
+                f"{threshold_label}: {thr_str}",
                 transform=ax.transAxes, ha="center", va="center",
                 fontsize=FONT_LABEL, color="#555555")
     fig.tight_layout()
@@ -1060,8 +1070,13 @@ def bin_fitness_time_series(df, time_granularity: str = DEFAULT_TIME_GRANULARITY
 
 def render_conformance_line_graph(df, out_path, *,
                                   time_granularity: str = DEFAULT_TIME_GRANULARITY,
-                                  title: str = "Process Conformance Over Time"):
-    """Line graph of mean conformance per time bin (granularity-aware)."""
+                                  title: str = "Process Conformance Over Time",
+                                  value_labels: bool = False):
+    """Line graph of mean conformance per time bin (granularity-aware).
+
+    value_labels: when True, annotate each marker with its mean-fitness percentage
+    (opt-in so callers that prefer an uncluttered trend line are unaffected).
+    """
     import matplotlib.ticker as _mticker
 
     if df is None or df.empty:
@@ -1081,6 +1096,13 @@ def render_conformance_line_graph(df, out_path, *,
 
     ax.fill_between(x, y, alpha=0.18, color=GREY_MED)
     ax.plot(x, y, color=GREY_MED, linewidth=1.8, marker="o", markersize=4)
+
+    if value_labels:
+        for xi, yi in zip(x, y):
+            ax.annotate(f"{yi * 100:.1f}%", (xi, yi),
+                        textcoords="offset points", xytext=(0, 7),
+                        ha="center", va="bottom", fontsize=FONT_ANNOT - 1,
+                        color=GREY_DARK)
 
     overall_mean = df["fitness"].mean()
     ax.axhline(overall_mean, color=GREY_LIGHT, linewidth=1.2,
