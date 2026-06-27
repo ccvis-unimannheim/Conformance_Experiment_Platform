@@ -19,3 +19,15 @@ async def post_ui_log_data(ui_log_data: ds.UILogDataFrontend, provi_user_id: Ann
     ui_log_data_db = ds.UILogDataDatabase(user_id=provi_user_id, ui_log_data=ui_log_data)
     dbc.save_ui_logging_data(ui_log_data_db)
     return JSONResponse(content={"message": "UI tracking data added to database."})
+
+
+@router.post("/fitness-help", tags=["ui-log"])
+async def post_fitness_help_event(
+    event: ds.FitnessHelpEvent,
+    provi_user_id: Annotated[str | None, Cookie()] = None,
+):
+    """Record one open→close interaction with the fitness definition popup."""
+    doc = event.model_dump()
+    doc["user_id"] = provi_user_id
+    dbc.create_document("FitnessHelpEvents", doc)
+    return JSONResponse(content={"message": "Fitness help event recorded."})

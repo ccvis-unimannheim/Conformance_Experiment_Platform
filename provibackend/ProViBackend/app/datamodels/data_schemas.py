@@ -147,6 +147,15 @@ class UILogDataDatabase(BaseModel):
     ui_log_data: UILogDataFrontend
 
 
+class FitnessHelpEvent(BaseModel):
+    """One open→close interaction with the fitness help popup."""
+    experiment_id: Optional[str] = None
+    open_index: int             # which open this was (1-based cumulative counter)
+    open_datetime: Optional[str] = None  # ISO timestamp when the user clicked to open
+    dwell_ms: int               # ms the popup was visible
+    insert_datetime: str        # ISO timestamp when the popup was closed / event was posted
+
+
 class Administrator(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     id: str = Field(alias="_id")
