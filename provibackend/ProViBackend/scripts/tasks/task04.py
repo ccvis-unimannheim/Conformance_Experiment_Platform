@@ -345,7 +345,7 @@ def task04_heatmap(vdf: pd.DataFrame, output_dir: str):
     fig, ax = plt.subplots(figsize=(6, fig_h))
     draw_value_heatmap(fig, ax, norm, labels, metrics,
                        cbar_label="Normalized (per metric)", annotate=False)
-    ax.set_title(f"Variant Metrics Heatmap (top-{len(labels)})", fontsize=FONT_TITLE)
+    ax.set_title(f"Variant Metrics Heatmap (top-{len(labels)} variants)", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task04_heatmap.svg"))
 

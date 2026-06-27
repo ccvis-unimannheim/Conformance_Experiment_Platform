@@ -136,6 +136,46 @@ function ParamField({ entry, value, onChange }) {
   );
 }
 
+function FitnessTooltip() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  return (
+    <div className="relative inline-flex items-center" ref={ref}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1 text-xs font-medium text-primary/70 hover:text-primary border border-primary/20 hover:border-primary/40 bg-primary/5 hover:bg-primary/10 px-2.5 py-1 rounded-full transition-colors"
+        aria-label="What is fitness?"
+      >
+        What is fitness?
+      </button>
+      {open && (
+        <div className="absolute left-7 top-0 z-50 w-80 bg-white border border-border-subtle rounded-xl shadow-lg p-4">
+          <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">What is Fitness?</p>
+          <p className="text-sm text-on-surface leading-relaxed mb-2">
+            <strong>Fitness</strong> measures how well an event log conforms to a process model.
+            A fitness value of <strong>1.0</strong> means every trace in the log is fully allowed
+            by the model; <strong>0.0</strong> means no trace fits at all.
+          </p>
+          <p className="text-sm text-on-surface leading-relaxed">
+            Clicking <em>Generate</em> computes per-trace fitness using token-based replay and
+            produces visualizations for the tasks you selected.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SpecifyContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -358,13 +398,18 @@ function SpecifyContent() {
       <main className="flex-grow max-w-[1140px] mx-auto w-full px-8 py-10 flex flex-col gap-8">
         {/* Page heading */}
         <div className="flex flex-col gap-1">
-          <h1 className="font-h1 text-h1 text-primary mb-2">Specify &amp; Generate</h1>
+          <div className="flex items-center gap-2 mb-2">
+            <h1 className="font-h1 text-h1 text-primary">Specify &amp; Generate</h1>
+            <FitnessTooltip />
+          </div>
           <p className="font-body-lg text-body-lg text-secondary max-w-2xl">
             Set any task-specific hyperparameters, then generate the visualizations and
             compute ground truth for the selected idioms. Tasks with no parameters are ready
             to generate immediately.
           </p>
         </div>
+
+
 
         {/* Task cards */}
         <div className="flex flex-col gap-6">
@@ -426,6 +471,9 @@ function SpecifyContent() {
                             <label className="text-xs font-semibold text-on-surface">
                               {entry.label || entry.key}
                               {entry.required && <span className="text-error ml-0.5">*</span>}
+                              {entry.required === false && (
+                                <span className="text-on-surface-variant font-normal ml-1">(optional — leave empty to skip threshold annotation and use manual ground truth)</span>
+                              )}
                             </label>
                             <ParamField
                               entry={entry}

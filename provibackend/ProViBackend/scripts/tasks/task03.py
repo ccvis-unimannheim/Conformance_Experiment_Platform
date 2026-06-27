@@ -60,8 +60,10 @@ RUBRIC = (
 
 
 def validate_params(log, params) -> list:
-    """Ensure conformant_threshold is a number in (0, 1]."""
+    """Ensure conformant_threshold is a number in (0, 1]. Empty = use default 1.0."""
     raw = params.get("conformant_threshold", 1.0)
+    if raw is None or raw == "":
+        return []
     try:
         thr = float(raw)
     except (TypeError, ValueError):
@@ -673,7 +675,8 @@ def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer
     """
     import random as _rnd
 
-    threshold = float(params.get("conformant_threshold", 1.0))
+    raw = params.get("conformant_threshold", 1.0)
+    threshold = 1.0 if (raw is None or raw == "") else float(raw)
     trace_rows = _task03_build_trace_rows(log, fitness_df, conformant_threshold=threshold)
 
     if answer_format != "mc-multi":

@@ -60,6 +60,15 @@ router = APIRouter(
 
 DATA_DIRECTORY = config.BASE_DIRECTORY / "data"
 
+# Bundled sample dataset used by the "Preview with sample data" feature.
+# Generated at startup by scripts/generate_sample_data.py.
+_SCRIPTS_PATH = pl.Path(__file__).parents[2] / "scripts"
+SAMPLE_DATA_DIR = _SCRIPTS_PATH / "sample_data"
+
+# In-memory preview status: experiment_id -> mode -> task_key -> status string.
+# Ephemeral — lost on restart, which is fine (preview is a transient UX step).
+_preview_status: dict[str, dict[str, dict[str, str]]] = {}
+
 ALLOWED_LOG_EXTENSIONS   = {".xes", ".csv"}
 ALLOWED_MODEL_EXTENSIONS = {".bpmn"}
 EVENTLOG_BASENAME = "EventLog"
@@ -897,6 +906,270 @@ async def generate_experiment_visualizations(experiment_id: str, background_task
         "experiment_id": experiment_id,
         "dataset_ids": dataset_ids,
     })
+
+
+# ---------------------------------------------------------------------------
+# Preview generation (2-step preview before publishing)
+# ---------------------------------------------------------------------------
+
+def _run_preview_job(experiment_id: str, mode: str):
+    """Background job: generate preview SVGs without touching the experiment's
+    permanent output or GT data.
+
+    mode='sample' — uses the bundled synthetic sample dataset so the admin can
+                    quickly see what each idiom looks like regardless of whether
+                    the real data is slow to process.
+    mode='real'   — uses the experiment's actual uploaded dataset so the admin
+                    can verify the real output before clicking Generate.
+
+    SVGs land at:
+      sample → SAMPLE_DATA_DIR/output/__prev_{exp_id}_sample/{task_key}/
+      real   → DATA_DIRECTORY/{dataset_id}/output/__prev_{exp_id}_real/{task_key}/
+    """
+    exp = dbc.get_document("Experiment", {"_id": experiment_id})
+    if not exp:
+        return
+
+    task_instances = exp.get("task_instances", [])
+    preview_exp_id = f"__prev_{experiment_id}_{mode}"
+
+    if mode == "sample":
+        dataset_dir = str(SAMPLE_DATA_DIR)
+        insts = []
+        for ti in task_instances:
+            task_key = _task_key_for(ti.get("task_id"))
+            if task_key:
+                insts.append({
+                    "task_key": task_key,
+                    "parameters": ti.get("parameters") or {},
+                    "answer_format": None,
+                })
+        try:
+            results = generate_for_task_instances(dataset_dir, preview_exp_id, insts)
+            for tk, entry in results.items():
+                _preview_status[experiment_id][mode][tk] = (
+                    "failed" if entry.get("render_error") else "ready"
+                )
+        except Exception:
+            _logger.exception("Preview (sample) failed for experiment %s", experiment_id)
+            for tk in list(_preview_status.get(experiment_id, {}).get(mode, {})):
+                _preview_status[experiment_id][mode][tk] = "failed"
+
+    else:  # real
+        by_dataset: dict[str, list[dict]] = {}
+        for ti in task_instances:
+            ds_id    = ti.get("dataset_id")
+            task_key = _task_key_for(ti.get("task_id"))
+            if ds_id and task_key:
+                by_dataset.setdefault(ds_id, []).append({
+                    "task_key": task_key,
+                    "parameters": ti.get("parameters") or {},
+                    "answer_format": None,
+                })
+
+        for ds_id, insts in by_dataset.items():
+            try:
+                results = generate_for_task_instances(
+                    str(DATA_DIRECTORY / ds_id), preview_exp_id, insts
+                )
+                for tk, entry in results.items():
+                    _preview_status[experiment_id][mode][tk] = (
+                        "failed" if entry.get("render_error") else "ready"
+                    )
+            except Exception:
+                _logger.exception(
+                    "Preview (real) failed for experiment %s dataset %s", experiment_id, ds_id
+                )
+                for inst in insts:
+                    _preview_status[experiment_id][mode][inst["task_key"]] = "failed"
+
+
+@router.post("/experiments/{experiment_id}/preview", tags=["admin"])
+async def start_preview(
+    experiment_id: str,
+    mode: str,
+    background_tasks: BackgroundTasks,
+):
+    """Start a preview generation run without committing to the experiment's output.
+
+    mode=sample : uses the bundled synthetic dataset — fast, shows idiom shapes.
+    mode=real   : uses the experiment's actual uploaded dataset — full-fidelity check.
+
+    Poll GET /admin/experiments/{id}/preview-status?mode=... for per-task progress,
+    then fetch SVGs via GET /admin/experiments/{id}/preview/{mode}/{task_key}/{idiom_key}.
+    """
+    if mode not in ("sample", "real"):
+        raise HTTPException(status_code=400, detail="mode must be 'sample' or 'real'.")
+
+    exp = dbc.get_document("Experiment", {"_id": experiment_id})
+    if not exp:
+        raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
+
+    if mode == "sample":
+        _sample_input = SAMPLE_DATA_DIR / "input"
+        _has_dir   = _sample_input.is_dir()
+        _has_log   = _has_dir and (any(_sample_input.glob("*.xes")) or any(_sample_input.glob("*.csv")))
+        _has_model = _has_dir and any(_sample_input.glob("*.bpmn"))
+        if not (_has_log and _has_model):
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Sample dataset is incomplete (XES or BPMN missing). "
+                    "Check backend startup logs for 'sample_data' errors."
+                ),
+            )
+
+    if generate_for_task_instances is None:
+        raise HTTPException(status_code=503, detail="Visualization pipeline unavailable.")
+
+    # Mark every task as "running" before the background job starts.
+    task_statuses: dict[str, str] = {}
+    for ti in exp.get("task_instances", []):
+        tk = _task_key_for(ti.get("task_id"))
+        if tk:
+            task_statuses[tk] = "running"
+
+    _preview_status.setdefault(experiment_id, {})[mode] = task_statuses
+    background_tasks.add_task(_run_preview_job, experiment_id, mode)
+
+    return JSONResponse(content={
+        "message": f"Preview ({mode}) started.",
+        "experiment_id": experiment_id,
+        "mode": mode,
+    })
+
+
+@router.get("/experiments/{experiment_id}/preview-status", tags=["admin"])
+async def get_preview_status(experiment_id: str, mode: str):
+    """Poll for preview generation progress.
+
+    Returns { "mode": str, "status": { task_key: "running"|"ready"|"failed" } }.
+    """
+    status = _preview_status.get(experiment_id, {}).get(mode, {})
+    return JSONResponse(content={"mode": mode, "status": status})
+
+
+@router.get("/experiments/{experiment_id}/preview/{mode}/{task_key}/{idiom_key}", tags=["admin"])
+async def get_preview_svg(
+    experiment_id: str,
+    mode: str,
+    task_key: str,
+    idiom_key: str,
+):
+    """Serve a preview SVG generated by start_preview().
+
+    For sample mode the file lives inside SAMPLE_DATA_DIR/output/...;
+    for real mode it lives inside DATA_DIRECTORY/{dataset_id}/output/...
+    """
+    if mode not in ("sample", "real"):
+        raise HTTPException(status_code=400, detail="mode must be 'sample' or 'real'.")
+
+    preview_exp_id = f"__prev_{experiment_id}_{mode}"
+
+    if mode == "sample":
+        svg_path = (
+            SAMPLE_DATA_DIR / "output" / preview_exp_id / task_key / f"{idiom_key}.svg"
+        )
+    else:
+        exp = dbc.get_document("Experiment", {"_id": experiment_id})
+        if not exp:
+            raise HTTPException(status_code=404)
+        dataset_id = next(
+            (ti.get("dataset_id") for ti in exp.get("task_instances", [])
+             if _task_key_for(ti.get("task_id")) == task_key),
+            None,
+        )
+        if not dataset_id:
+            raise HTTPException(status_code=404, detail=f"No dataset found for task '{task_key}'.")
+        svg_path = (
+            DATA_DIRECTORY / dataset_id / "output" / preview_exp_id / task_key / f"{idiom_key}.svg"
+        )
+
+    if not svg_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Preview SVG not found: {task_key}/{idiom_key} (mode={mode}). "
+                   "Run the preview first.",
+        )
+    from fastapi.responses import FileResponse as _FileResponse
+    return _FileResponse(svg_path, media_type="image/svg+xml")
+
+
+# ---------------------------------------------------------------------------
+# Idiom-level sample preview (used by the Select Idiom page)
+# ---------------------------------------------------------------------------
+# SVGs are generated once with default params + sample data and stored
+# permanently at SAMPLE_DATA_DIR/output/__idiom_preview/{task_key}/{idiom_key}.svg.
+# Generation is on-demand (triggered by POST) and cached in memory.
+
+_IDIOM_PREVIEW_EXP_ID = "__idiom_preview"
+_idiom_preview_status: dict[str, str] = {}  # task_key → "generating"|"ready"|"failed"
+
+
+def _run_idiom_preview_task(task_key: str):
+    """Generate sample SVGs for one task with default parameters."""
+    try:
+        insts = [{"task_key": task_key, "parameters": {}, "answer_format": None}]
+        results = generate_for_task_instances(
+            str(SAMPLE_DATA_DIR), _IDIOM_PREVIEW_EXP_ID, insts
+        )
+        entry = results.get(task_key, {})
+        _idiom_preview_status[task_key] = (
+            "failed" if entry.get("render_error") else "ready"
+        )
+    except Exception:
+        _logger.exception("Idiom preview generation failed for task %s", task_key)
+        _idiom_preview_status[task_key] = "failed"
+
+
+@router.post("/idiom-preview/{task_key}", tags=["admin"])
+async def generate_idiom_preview(task_key: str, background_tasks: BackgroundTasks):
+    """Trigger sample-data preview generation for one task (idempotent).
+
+    SVGs are generated with default parameters using the bundled sample dataset.
+    Already-generated results are served from cache without re-running.
+    """
+    current = _idiom_preview_status.get(task_key, "idle")
+    if current in ("generating", "ready"):
+        return JSONResponse({"status": current})
+
+    if generate_for_task_instances is None:
+        raise HTTPException(status_code=503, detail="Visualization pipeline unavailable.")
+
+    _sample_input = SAMPLE_DATA_DIR / "input"
+    _has_dir   = _sample_input.is_dir()
+    _has_log   = _has_dir and (any(_sample_input.glob("*.xes")) or any(_sample_input.glob("*.csv")))
+    _has_model = _has_dir and any(_sample_input.glob("*.bpmn"))
+    if not (_has_log and _has_model):
+        raise HTTPException(
+            status_code=503,
+            detail="Sample dataset not ready. Check backend startup logs for errors.",
+        )
+
+    _idiom_preview_status[task_key] = "generating"
+    background_tasks.add_task(_run_idiom_preview_task, task_key)
+    return JSONResponse({"status": "generating"})
+
+
+@router.get("/idiom-preview/{task_key}/status", tags=["admin"])
+async def get_idiom_preview_status(task_key: str):
+    """Return the generation status for one task's idiom previews."""
+    return JSONResponse({"status": _idiom_preview_status.get(task_key, "idle")})
+
+
+@router.get("/idiom-preview/{task_key}/{idiom_key}", tags=["admin"])
+async def get_idiom_preview_svg(task_key: str, idiom_key: str):
+    """Serve a pre-generated sample-data SVG for one task/idiom pair."""
+    svg_path = (
+        SAMPLE_DATA_DIR / "output" / _IDIOM_PREVIEW_EXP_ID / task_key / f"{idiom_key}.svg"
+    )
+    if not svg_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Preview not found for {task_key}/{idiom_key}. Trigger generation first.",
+        )
+    from fastapi.responses import FileResponse as _FileResponse
+    return _FileResponse(str(svg_path), media_type="image/svg+xml")
 
 
 # ---------------------------------------------------------------------------

@@ -257,17 +257,24 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
     p = params or {}
 
     def outcome_activity():        return p.get("outcome_activity", "A_ACTIVATED")
-    def predominant_threshold():   return p.get("predominant_threshold", 0.8)
-    def high_cooccurrence():       return float(p.get("high_cooccurrence_threshold", 0.1))
+    def predominant_threshold():
+        raw = p.get("predominant_threshold")
+        return None if (raw is None or raw == "") else float(raw)
+    def high_cooccurrence():
+        raw = p.get("high_cooccurrence_threshold")
+        return None if (raw is None or raw == "") else float(raw)
     def cmp_attr():                return p.get("compare_attribute", compare_attribute)
     def time_granularity():        return p.get("time_granularity", "month")
     def conformance_bins():        return p.get("conformance_bins", None)
     def target_violation():        return p.get("target_violation", None)
+    def conformant_threshold():
+        raw = p.get("conformant_threshold")
+        return 1.0 if (raw is None or raw == "") else float(raw)
 
     return {
         "task01": lambda d: task01.generate(log, fitness_df, d, outcome_activity=outcome_activity()),
         "task02": lambda d: task02.generate(fitness_df, d, predominant_threshold=predominant_threshold()),
-        "task03": lambda d: task03.generate(log, fitness_df, d, conformant_threshold=float(p.get("conformant_threshold", 1.0))),
+        "task03": lambda d: task03.generate(log, fitness_df, d, conformant_threshold=conformant_threshold()),
         "task04": lambda d: task04.generate(log, fitness_df, d, top_n=int(p.get("top_n", task04.TOP_N))),
         "task05": lambda d: task05.generate(log, alignments, d, outcome_activity=outcome_activity()),
         "task06": lambda d: task06.generate(fitness_df, d, log=log, alignments=alignments, model_path=model_path),

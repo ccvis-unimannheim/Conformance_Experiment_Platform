@@ -267,12 +267,15 @@ def task08_heatmap(violation_freq, cooccurrence, output_dir, thr_count, thr_frac
     cbar.outline.set_visible(False)
     # Neutral reference line marking the "high co-occurrence" threshold on the
     # colour scale (no cell is highlighted — the reader decides what is high).
-    if 0 < thr_count <= mat.max():
+    if thr_count is not None and 0 < thr_count <= mat.max():
         cbar.ax.axhline(thr_count, color=_C_DARK, linewidth=1.2, linestyle="--")
 
     ax.set_title("Violation Co-occurrence Heatmap\n(diagonal = individual frequency)",
                  fontsize=FONT_TITLE)
-    _add_threshold_footer(fig, thr_count, thr_frac)
+    if thr_count is not None:
+        _add_threshold_footer(fig, thr_count, thr_frac)
+    else:
+        fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task08_heatmap.svg"))
 
 
@@ -312,15 +315,18 @@ def task08_matrix(violation_freq, cooccurrence, output_dir, thr_count, thr_frac)
             color = "white" if mat[i, j] > thresh else _C_DARK
             ax.text(j, i, str(val), ha="center", va="center",
                     fontsize=max(FONT_ANNOT - 1, 6), color=color, fontweight="bold")
-            if i != j and thr_count > 0 and mat[i, j] >= thr_count:
+            if thr_count is not None and i != j and thr_count > 0 and mat[i, j] >= thr_count:
                 ax.add_patch(mpatches.Rectangle(
                     (j - 0.5, i - 0.5), 1, 1, fill=False,
                     edgecolor=_C_DARK, linewidth=2.2))
 
-    ax.set_title("Violation Co-occurrence Matrix\n"
-                 "(diagonal = individual frequency · outlined = high co-occurrence)",
-                 fontsize=FONT_TITLE)
-    _add_threshold_footer(fig, thr_count, thr_frac)
+    title_note = "diagonal = individual frequency · outlined = high co-occurrence" \
+        if thr_count is not None else "diagonal = individual frequency"
+    ax.set_title(f"Violation Co-occurrence Matrix\n({title_note})", fontsize=FONT_TITLE)
+    if thr_count is not None:
+        _add_threshold_footer(fig, thr_count, thr_frac)
+    else:
+        fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task08_matrix.svg"))
 
 
@@ -382,7 +388,9 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count, 
 
     colors = [node_color(n) for n in nodes_ordered]
 
-    fig, ax = plt.subplots(figsize=(14, 9))
+    fig_w = max(8, min(14, n_nodes * 2.5))
+    fig_h = max(6, min(9, n_nodes * 1.8))
+    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
     ax.set_facecolor("#fafbfc")
 
     nx.draw_networkx_edges(G, pos, ax=ax, width=edge_w,
@@ -431,8 +439,20 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count, 
     ax.set_title("Violation Co-occurrence Network\n"
                  "(node size = frequency · edge width & shade = co-occurrence count)",
                  fontsize=FONT_TITLE)
+
+    # Explicitly set axis limits so tight_layout / bbox_inches captures the
+    # networkx content correctly — ax.axis("off") can confuse the auto-scaler.
+    all_x = [p[0] for p in pos.values()]
+    all_y = [p[1] for p in pos.values()]
+    pad = max(1.0, (max(all_x) - min(all_x)) * 0.25, (max(all_y) - min(all_y)) * 0.25)
+    ax.set_xlim(min(all_x) - pad, max(all_x) + pad)
+    ax.set_ylim(min(all_y) - pad - 0.5, max(all_y) + pad)  # extra bottom room for labels
     ax.axis("off")
-    _add_threshold_footer(fig, thr_count, thr_frac)
+
+    if thr_count is not None:
+        _add_threshold_footer(fig, thr_count, thr_frac)
+    else:
+        fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task08_network_diagram.svg"))
 
 
@@ -489,7 +509,10 @@ def task08_table(violation_freq, cooccurrence, n_traces, output_dir,
 
     ax.set_title("Top Violation Co-occurrences", fontsize=FONT_TITLE,
                  pad=12, loc="left")
-    _add_threshold_footer(fig, thr_count, thr_frac)
+    if thr_count is not None:
+        _add_threshold_footer(fig, thr_count, thr_frac)
+    else:
+        fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task08_table.svg"))
 
 
@@ -509,7 +532,10 @@ def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer
     """
     if answer_format != "matrix":
         return {"options": []}
-    threshold = float(params.get("high_cooccurrence_threshold", DEFAULT_HIGH_COOCCURRENCE_THRESHOLD))
+    raw = params.get("high_cooccurrence_threshold")
+    if raw is None or raw == "":
+        return {"options": []}
+    threshold = float(raw)
     n_traces  = len(log) if log is not None else 0
     thr_count = threshold * n_traces
     _, violation_freq, cooccurrence = _extract_violation_data(alignments)
@@ -530,23 +556,25 @@ def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer
 # ---------------------------------------------------------------------------
 
 def generate(log, alignments, output_dir: str,
-             high_cooccurrence_threshold: float = DEFAULT_HIGH_COOCCURRENCE_THRESHOLD):
+             high_cooccurrence_threshold=DEFAULT_HIGH_COOCCURRENCE_THRESHOLD):
     """Generate all Task 8 SVGs into output_dir.
 
-    high_cooccurrence_threshold : float
+    high_cooccurrence_threshold : float or None
         Share of traces (0–1) at/above which a violation pair's co-occurrence is
-        regarded as "high". Drawn neutrally as a reference value on the
-        co-occurrence idioms — no pair is flagged pass/fail, so the analyst
-        decides which correlations are noteworthy.
+        regarded as "high". When None (left empty by admin), threshold annotations
+        are omitted from all idioms and no cells are outlined in the matrix.
     """
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 8 visualizations (Violation co-occurrence patterns) ---")
 
     n_traces = len(log)
     thr_frac  = high_cooccurrence_threshold
-    thr_count = thr_frac * n_traces
-    logger.info(f"      High co-occurrence threshold: {thr_frac * 100:.0f}% "
-                f"(≥ {thr_count:.0f} of {n_traces} traces)")
+    thr_count = thr_frac * n_traces if thr_frac is not None else None
+    if thr_frac is not None:
+        logger.info(f"      High co-occurrence threshold: {thr_frac * 100:.0f}% "
+                    f"(≥ {thr_count:.0f} of {n_traces} traces)")
+    else:
+        logger.info("      High co-occurrence threshold: not set (no annotation)")
     violation_sets, violation_freq, cooccurrence = _extract_violation_data(alignments)
 
     n_with_viols = sum(1 for vs in violation_sets if vs)

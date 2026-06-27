@@ -907,8 +907,12 @@ def draw_grouped_box_plot(ax, data, labels, colors, *, ylabel: str = "",
             zip(boxes["caps"][0::2], boxes["caps"][1::2]),
             boxes["fliers"], colors):
         patch.set_facecolor(color)
-        patch.set_color(color)
         patch.set_alpha(0.85)
+        # Dark outline so the box stays visible even when the distribution is
+        # near-constant and the IQR collapses to ~zero height (otherwise the box
+        # vanishes and only the white median line floats on the background).
+        patch.set_edgecolor("#333333")
+        patch.set_linewidth(1.2)
         for w in whisker_pair:
             w.set_color(color); w.set_linewidth(1.5)
         for c in cap_pair:

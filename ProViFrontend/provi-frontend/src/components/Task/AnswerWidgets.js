@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef } from "react";
 
 /**
  * Answer widgets for the Task Execution panel.
@@ -321,6 +321,17 @@ const arrowBtnStyle = (disabled) => ({
   color: disabled ? "#cbd1d2" : COLORS.muted, fontSize: "0.6rem", lineHeight: 1, padding: 0,
 });
 
+// Shorten long violation labels for chips and left-panel badges.
+function abbrevViolation(label) {
+  return label
+    .replace(/^Move on Model:\s*/i, "Mdl:")
+    .replace(/^Move on Log:\s*/i, "Log:");
+}
+
+// Separator for pairByKey map keys. Must be a char that never appears in a
+// violation label so two different pairs can never collide on the same key.
+const PAIR_SEP = "\u0000";
+
 // Parse pair-shaped options ("a__b") into a symmetric grid.
 // The two value tokens are the (human-readable) axis labels. We DON'T align them
 // against the " × " label, because the value is the sorted pair while the label
@@ -330,19 +341,20 @@ const arrowBtnStyle = (disabled) => ({
 function parsePairs(options) {
   const axisOrder = [];
   const seen = new Set();
-  const pairByKey = {}; // unordered "a b" -> submit token (original option.value)
+  const pairByKey = {}; // unordered "a<SEP>b" -> submit token (original option.value)
   for (const o of options) {
     const v = optValue(o);
     const vt = v.split("__");
     if (vt.length !== 2) return null;
     vt.forEach((t) => { if (!seen.has(t)) { seen.add(t); axisOrder.push(t); } });
-    pairByKey[[...vt].sort().join(" ")] = v;
+    pairByKey[[...vt].sort().join(PAIR_SEP)] = v;
   }
   return { axisOrder, pairByKey };
 }
 
 function MatrixGrid({ options, value, onChange }) {
   const parsed = useMemo(() => parsePairs(options), [options]);
+  const [activeIdx, setActiveIdx] = useState(0);
 
   // Fallback: not pair-shaped → render as a checkbox list.
   if (!parsed) {
@@ -350,52 +362,202 @@ function MatrixGrid({ options, value, onChange }) {
   }
 
   const { axisOrder, pairByKey } = parsed;
-  const tokenForPair = (a, b) => pairByKey[[a, b].sort().join(" ")];
+  const tokenForPair = (a, b) => pairByKey[[a, b].sort().join(PAIR_SEP)];
   const toggle = (token) => {
     onChange(value.includes(token) ? value.filter((x) => x !== token) : [...value, token]);
   };
 
-  const thStyle = { padding: "0.5rem 0.4rem", color: COLORS.muted, fontWeight: 700, fontSize: "0.62rem", textTransform: "uppercase", letterSpacing: "0.04em", textAlign: "center" };
-  const rowHStyle = { padding: "0.5rem 0.5rem", textAlign: "left", color: COLORS.ink, fontWeight: 600, fontSize: "0.78rem" };
+  const safeIdx = Math.min(activeIdx, axisOrder.length - 1);
+  const activeViolation = axisOrder[safeIdx];
+
+  const pairCountFor = (v) =>
+    axisOrder.reduce((n, other) => {
+      if (other === v) return n;
+      const tok = tokenForPair(v, other);
+      return tok && value.includes(tok) ? n + 1 : n;
+    }, 0);
 
   return (
-    <div style={{ overflowX: "auto" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead>
-          <tr>
-            <th style={rowHStyle}></th>
-            {axisOrder.map((c) => <th key={c} style={thStyle}>{c}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {axisOrder.map((r) => (
-            <tr key={r} style={{ borderTop: "1px solid #eef0f0" }}>
-              <td style={rowHStyle}>{r}</td>
-              {axisOrder.map((c) => {
-                const token = tokenForPair(r, c);
-                const exists = r !== c && token !== undefined;
-                const on = exists && value.includes(token);
-                return (
-                  <td key={c} style={{ textAlign: "center", padding: "0.45rem 0.4rem" }}>
-                    {exists ? (
-                      <div onClick={() => toggle(token)} style={{
-                        width: "1.2rem", height: "1.2rem", borderRadius: "0.28rem", margin: "0 auto",
-                        border: `2px solid ${on ? COLORS.accent : "#c2c8c9"}`,
-                        backgroundColor: on ? COLORS.accent : "transparent",
-                        cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-                        color: "white", fontSize: "0.7rem", fontWeight: 800, transition: "all 0.15s ease",
-                      }}>{on && "✓"}</div>
-                    ) : (
-                      <span style={{ color: "#dfe3e4" }}>·</span>
+    <div>
+      {/* Instruction banner */}
+      <div style={{
+        display: "flex", alignItems: "flex-start", gap: "6px",
+        padding: "7px 10px", background: "#f0f7ff",
+        borderRadius: "7px", marginBottom: "10px",
+        border: "1px solid #dbeafe",
+      }}>
+        <span style={{ fontSize: "14px", flexShrink: 0 }}>👆</span>
+        <span style={{ fontSize: "0.72rem", color: "#1e40af", lineHeight: 1.4 }}>
+          <strong>Select a violation</strong> on the left, then{" "}
+          <strong>tick</strong> which violations it co-occurs with on the right.
+        </span>
+      </div>
+
+      {/* Two-panel — height grows with N, capped at 320px */}
+      <div style={{ display: "flex", gap: "8px", height: `${Math.min(320, Math.max(200, axisOrder.length * 44))}px` }}>
+
+        {/* Left panel: violation list */}
+        <div style={{
+          flex: "0 0 100px", border: `1px solid ${COLORS.line}`,
+          borderRadius: "8px", overflowY: "auto", background: COLORS.fieldBg,
+        }}>
+          <div style={{
+            padding: "5px 7px", fontSize: "0.6rem", fontWeight: 700,
+            color: COLORS.muted, textTransform: "uppercase",
+            borderBottom: `1px solid ${COLORS.line}`, letterSpacing: "0.06em",
+          }}>
+            VIOLATION
+          </div>
+          {axisOrder.map((v, i) => {
+            const active = i === safeIdx;
+            const count = pairCountFor(v);
+            return (
+              <div
+                key={v}
+                onClick={() => setActiveIdx(i)}
+                style={{
+                  display: "flex", alignItems: "center", gap: "6px",
+                  padding: "6px 8px",
+                  background: active ? COLORS.accentSoft : "transparent",
+                  borderLeft: `3px solid ${active ? COLORS.accent : "transparent"}`,
+                  borderBottom: i < axisOrder.length - 1 ? `1px solid ${COLORS.line}` : "none",
+                  cursor: "pointer",
+                }}
+              >
+                <span style={{
+                  flex: 1, minWidth: 0,
+                  fontSize: "0.7rem", color: active ? COLORS.navy : COLORS.ink,
+                  fontWeight: active ? 700 : 500, lineHeight: 1.3,
+                  wordBreak: "break-word",
+                }}>
+                  {v}
+                </span>
+                {count > 0 && (
+                  <span style={{
+                    flexShrink: 0,
+                    background: COLORS.accent, color: "white",
+                    fontSize: "0.6rem", fontWeight: 900,
+                    width: "14px", height: "14px", borderRadius: "50%",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    {count}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Right panel: co-occurrence checkboxes */}
+        <div style={{
+          flex: 1, border: `1px solid ${COLORS.line}`,
+          borderRadius: "8px", overflowY: "auto", background: "white",
+        }}>
+          <div style={{
+            padding: "5px 8px", fontSize: "0.6rem", fontWeight: 700,
+            color: COLORS.muted, textTransform: "uppercase",
+            borderBottom: `1px solid ${COLORS.line}`, letterSpacing: "0.06em",
+          }}>
+            CO-OCCURS WITH
+          </div>
+          {axisOrder
+            .filter((v) => v !== activeViolation)
+            .map((v, i, arr) => {
+              const token = tokenForPair(activeViolation, v);
+              const checked = token !== undefined && value.includes(token);
+              return (
+                <div
+                  key={v}
+                  role="button"
+                  tabIndex={0}
+                  style={{
+                    display: "flex", alignItems: "flex-start", gap: "8px",
+                    padding: "7px 10px",
+                    background: checked ? COLORS.accentSoft : "white",
+                    borderBottom: i < arr.length - 1 ? `1px solid ${COLORS.line}` : "none",
+                    cursor: token !== undefined ? "pointer" : "default",
+                    userSelect: "none",
+                  }}
+                  onClick={() => token !== undefined && toggle(token)}
+                  onKeyDown={(e) => (e.key === " " || e.key === "Enter") && token !== undefined && toggle(token)}
+                >
+                  <div style={{
+                    width: "15px", height: "15px", borderRadius: "4px",
+                    border: `2px solid ${checked ? COLORS.accent : "#c2c8c9"}`,
+                    background: checked ? COLORS.accent : "transparent",
+                    flexShrink: 0, marginTop: "1px",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    color: "white", fontSize: "9px", fontWeight: 900,
+                    transition: "all 0.12s ease",
+                  }}>
+                    {checked && "✓"}
+                  </div>
+                  <div>
+                    <span style={{
+                      fontSize: "0.78rem", color: checked ? COLORS.navy : COLORS.ink,
+                      fontWeight: checked ? 600 : 400, lineHeight: 1.3, display: "block",
+                    }}>
+                      {v}
+                    </span>
+                    {checked && (
+                      <span style={{ fontSize: "0.65rem", color: COLORS.muted, fontStyle: "italic" }}>
+                        ↔ symmetric pair
+                      </span>
                     )}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p style={hintStyle}>Tick each pair that co-occurs.</p>
+                  </div>
+                </div>
+              );
+            })}
+        </div>
+      </div>
+
+      {/* Summary chip area */}
+      {value.length > 0 ? (
+        <div style={{ marginTop: "10px", paddingTop: "8px", borderTop: `1px solid ${COLORS.line}` }}>
+          <p style={{
+            fontSize: "0.6rem", fontWeight: 700, color: COLORS.muted,
+            textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 6px",
+          }}>
+            SELECTED PAIRS · {value.length}
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+            {value.map((token) => {
+              const parts = token.split("__");
+              const label = parts.length === 2
+                ? `${abbrevViolation(parts[0])} × ${abbrevViolation(parts[1])}`
+                : token;
+              return (
+                <div
+                  key={token}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: "5px",
+                    background: COLORS.accentSoft,
+                    border: "1px solid #b8cce4",
+                    borderRadius: "20px", padding: "3px 8px",
+                  }}
+                >
+                  <span style={{ fontSize: "0.68rem", fontWeight: 700, color: COLORS.navy }}>
+                    {label}
+                  </span>
+                  <span
+                    onClick={() => toggle(token)}
+                    style={{
+                      color: COLORS.accent, fontSize: "0.75rem",
+                      cursor: "pointer", fontWeight: 900, lineHeight: 1,
+                    }}
+                  >
+                    ×
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <p style={{ ...hintStyle, marginTop: "10px" }}>
+          No pairs selected. If no violations co-occur above the threshold, leave all unchecked.
+        </p>
+      )}
     </div>
   );
 }
@@ -417,8 +579,16 @@ function FreeText({ value, onChange }) {
 // =============================================================== dispatcher
 export default function AnswerInput({ answerType, answerFormat, options = [], value, onChange }) {
   switch (answerType) {
-    case "single_choice":
-      return <SingleChoice options={options} value={value} onChange={onChange} />;
+    case "single_choice": {
+      // "yes-no" always needs exactly two choices; if the backend stored an
+      // empty options list (manual-GT path), fall back to hardcoded Yes/No so
+      // the participant can still answer.
+      const choiceOpts =
+        answerFormat === "yes-no" && options.length === 0
+          ? [{ label: "Yes", value: "yes" }, { label: "No", value: "no" }]
+          : options;
+      return <SingleChoice options={choiceOpts} value={value} onChange={onChange} />;
+    }
     case "multiple_choice":
       return <MultipleChoice options={options} value={value} onChange={onChange} />;
     case "numeric":
