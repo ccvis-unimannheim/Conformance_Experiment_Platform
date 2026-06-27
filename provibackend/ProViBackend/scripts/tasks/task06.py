@@ -2,32 +2,34 @@
 tasks/task06.py – Task ID 6: Describe / Derive / Process conformance
 (overall degree of conformance between a single log and the guidelines).
 
-Validated idiom mapping (6 idioms = 1 High + 5 Medium):
-    tile_metric          (High) – overall fitness headline value           [shared helper]
-    bar_chart            (Med)  – conformant vs non-conformant count split
-    scatter_plot         (Med)  – per-trace fitness (x = trace index, y = fitness)
-    table                (Med)  – conformance summary row
-    flow_chart_elaborate (Med)  – desired model annotated with aggregated deviation
-                                  frequencies across all traces (where it deviates)
-    decision_tree        (Med)  – tree predicting conformant vs non-conformant traces
-                                  from case/event attributes (reuses task20)
+The task asks a single question — the overall degree of conformance, i.e. the
+fitness value between 0 (no conformance) and 1 (perfect). Every idiom therefore
+speaks one vocabulary ("Fitness" / "Mean Fitness", 0–1); no conformant-vs-non-
+conformant split, no percentages, no trace counts beyond "# of Traces".
+
+Idiom mapping:
+    tile_metric – overall mean-fitness headline value (0–1)        [shared helper]
+    bar_chart   – single bar of the overall mean fitness (0–1), value labelled
+    table       – fitness summary (# traces, mean/min/max/std fitness)
+    heatmap     – single-cell mean-fitness value (0–1)
+    box_plot    – distribution of per-trace fitness (mean annotated)
 
 Public API:
     generate(df, output_dir, log=None, alignments=None, model_path=None)
         df          – fitness summary DataFrame from io_helpers.fitness_summary_dataframe
         output_dir  – directory where SVGs are written
-        log/alignments/model_path – needed for the flow_chart_elaborate + decision_tree
-                                    idioms (the central run passes them; absent → empty state)
+        log/alignments/model_path – accepted for signature compatibility with the
+                                    central run (currently unused by the rendered idioms)
 """
 
 import logging
 
 logger = logging.getLogger(__name__)
 
-# Validated mapping (the legacy box_plot/donut_chart/heatmap are still rendered for
-# backward compatibility but intentionally excluded here so /task-idioms reports the
-# validated set only).
-IDIOMS = ["tile_metric", "bar_chart", "donut_chart", "scatter_plot",
+# Validated mapping. scatter_plot and donut_chart were removed on request: the
+# task is purely about fitness, so the per-trace scatter and the conformant-vs-
+# non-conformant donut (which mixed counts with fitness) did not fit.
+IDIOMS = ["tile_metric", "bar_chart",
           "table", "heatmap", "box_plot"]
 
 # ---------------------------------------------------------------------------
@@ -108,7 +110,6 @@ def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.patches import FancyBboxPatch
 
@@ -123,26 +124,19 @@ import tasks.task20 as task20
 
 
 def task06_bar_chart(df, output_dir: str):
-    """Bar chart showing count of conformant vs non-conformant traces."""
-    conform    = int(df["is_fit"].sum())
-    nonconform = len(df) - conform
-    total      = len(df)
+    """Single bar of the overall mean fitness (0–1), value labelled — so the
+    fitness reads off as a number, exactly as clearly as on the tile / heatmap /
+    table (no binning, no fitness bands)."""
+    mean_fitness = float(df["fitness"].mean()) if len(df) else 0.0
 
-    labels = ["Conformant Traces", "Non-Conformant Traces"]
-    values = [conform, nonconform]
-
-    fig, ax = plt.subplots(figsize=(6, 5))
-    bars = ax.bar(labels, values, color=[GREY_MED, GREY_LIGHT], edgecolor="white", width=0.5)
-    for bar, val in zip(bars, values):
-        pct = val / total * 100 if total else 0
-        ax.text(
-            bar.get_x() + bar.get_width() / 2,
-            bar.get_height() + 0.5,
-            f"{val:,}\n({pct:.1f}%)", ha="center", va="bottom", fontsize=FONT_ANNOT,
-        )
-    ax.set_ylabel("Number of Traces", fontsize=FONT_LABEL)
-    ax.set_title("Conformant vs. Non-Conformant Trace Count", fontsize=FONT_TITLE)
-    ax.set_ylim(0, max(values) * 1.2 if values else 10)
+    fig, ax = plt.subplots(figsize=(4.5, 5))
+    bar = ax.bar(["Overall"], [mean_fitness], color=GREY_MED, edgecolor="white", width=0.4)[0]
+    ax.text(bar.get_x() + bar.get_width() / 2, mean_fitness + 0.018, f"{mean_fitness:.3f}",
+            ha="center", va="bottom", fontsize=FONT_TITLE, fontweight="bold", color=GREY_DARK)
+    ax.set_ylim(0, 1.12)
+    ax.set_yticks([0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
+    ax.set_ylabel("Mean Fitness (0–1)", fontsize=FONT_LABEL)
+    ax.set_title("Overall Mean Fitness", fontsize=FONT_TITLE)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
@@ -150,37 +144,18 @@ def task06_bar_chart(df, output_dir: str):
     save_svg(fig, os.path.join(output_dir, "task06_bar_chart.svg"))
 
 
-def task06_scatter_plot(df, output_dir: str):
-    colors = [GREY_LIGHTER if fit else GREY_DARK for fit in df["is_fit"]]
-    fig, ax = plt.subplots(figsize=(10, 4))
-    ax.scatter(df["trace_index"], df["fitness"], c=colors, s=15, alpha=0.6, linewidths=0)
-    ax.set_xlabel("Traces in Log ordered by time", fontsize=FONT_LABEL)
-    ax.set_ylabel("Conformance Rate", fontsize=FONT_LABEL)
-    ax.set_ylim(-0.05, 1.1)
-    ax.set_title("Conformance Rate per Trace", fontsize=FONT_TITLE)
-    ax.legend(
-        handles=[mpatches.Patch(color=GREY_LIGHTER, label="Conform: True"),
-                 mpatches.Patch(color=GREY_DARK,   label="Conform: False")],
-        frameon=False, fontsize=FONT_ANNOT,
-    )
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.4)
-    ax.set_axisbelow(True)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task06_scatter_plot.svg"))
-
-
 def task06_table(df, output_dir: str):
-    """Conformance summary row: #Traces | #Conformant | % Conformant | Overall Fitness.
+    """Fitness summary row (fitness only — Task 6 is purely about the fitness value):
+    # of Traces | Mean Fitness | Min Fitness | Max Fitness | Std Fitness (all 0–1)."""
+    total = len(df)
+    vals  = df["fitness"].values
+    mean_fitness = float(np.mean(vals)) if total else 0.0
+    min_fitness  = float(np.min(vals))  if total else 0.0
+    max_fitness  = float(np.max(vals))  if total else 0.0
+    std_fitness  = float(np.std(vals))  if total else 0.0
 
-    Note: '% Conformant' is the share of fully-conformant traces, while 'Overall
-    Fitness' is the mean per-trace fitness (0–1) — two distinct measures."""
-    total          = len(df)
-    conform        = int(df["is_fit"].sum())
-    pct_conform    = (conform / total * 100) if total else 0.0
-    overall_fitness = float(df["fitness"].mean()) if total else 0.0
-
-    cell_text = [[str(total), str(conform), f"{pct_conform:.2f}%", f"{overall_fitness:.4f}"]]
+    cell_text = [[str(total), f"{mean_fitness:.3f}", f"{min_fitness:.3f}",
+                  f"{max_fitness:.3f}", f"{std_fitness:.3f}"]]
     # Taller canvas + wrapped headers so cell text is not clipped (mpl table centers text; PAD is weak for center)
     fig_h = max(3.6, 1.45 + len(cell_text) * 0.58)
 
@@ -190,88 +165,64 @@ def task06_table(df, output_dir: str):
         ax,
         cell_text=cell_text,
         col_labels=[
-            "#Traces",
-            "#Conformant",
-            "% Conformant",
-            "Overall Fitness",
+            "# of Traces",
+            "Mean Fitness",
+            "Min Fitness",
+            "Max Fitness",
+            "Std Fitness",
         ],
         bbox=[0.03, 0.04, 0.94, 0.80],
-        col_widths=[0.24, 0.26, 0.26, 0.24],
+        col_widths=[0.20, 0.20, 0.20, 0.20, 0.20],
         font_size=11,
         scale_xy=(1.12, 2.05),
         cell_pad=0.14,
     )
-    ax.set_title("Conformance Summary", fontsize=FONT_TITLE, pad=12)
+    ax.set_title("Fitness Summary", fontsize=FONT_TITLE, pad=12)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task06_table.svg"))
 
 
 def task06_tile_metric(df, output_dir: str):
-    avg = float(df["fitness"].mean()) * 100
-    render_fitness_tile_metric(avg, os.path.join(output_dir, "task06_tile_metric.svg"))
-
-
-def task06_donut_chart(df, output_dir: str):
-    """Donut chart: conformant vs non-conformant trace counts."""
-    conform     = int(df["is_fit"].sum())
-    non_conform = len(df) - conform
-    total       = len(df)
-
-    pct_conform    = conform / total * 100 if total else 0
-    pct_nonconform = non_conform / total * 100 if total else 0
-
-    fig, ax = plt.subplots(figsize=(6, 5))
-    wedges, texts = ax.pie(
-        [conform, non_conform],
-        colors=[GREY_MED, GREY_LIGHT],
-        startangle=90,
-        wedgeprops=dict(width=0.5),
-    )
-    ax.legend(
-        wedges,
-        [f"Conformant ({conform:,}, {pct_conform:.1f}%)",
-         f"Non-Conformant ({non_conform:,}, {pct_nonconform:.1f}%)"],
-        loc="lower center",
-        bbox_to_anchor=(0.5, -0.12),
-        fontsize=FONT_ANNOT,
-        frameon=False,
-    )
-    ax.set_title("Conformant vs. Non-Conformant Cases", fontsize=FONT_TITLE)
-    fig.tight_layout(pad=1.5)
-    save_svg(fig, os.path.join(output_dir, "task06_donut_chart.svg"))
+    mean_fitness = float(df["fitness"].mean()) if len(df) else 0.0
+    render_fitness_tile_metric(
+        mean_fitness, os.path.join(output_dir, "task06_tile_metric.svg"),
+        metric_label="Mean Fitness", as_fraction=True)
 
 
 def task06_heatmap(df, output_dir: str):
-    """Per-trace fitness grid heatmap — each cell is one trace, colour = fitness (light → dark)."""
-    fitness = df.sort_values("trace_index")["fitness"].values
-    n = len(fitness)
+    """Single-cell heatmap of the overall mean fitness, light→dark grey.
 
-    ncols = max(1, int(np.ceil(np.sqrt(n))))
-    nrows = max(1, int(np.ceil(n / ncols)))
-    grid  = np.full(nrows * ncols, np.nan)
-    grid[:n] = fitness
-    grid = grid.reshape(nrows, ncols)
+    Colour-encodes the mean fitness on a fixed 0–1 scale and labels the cell with
+    the actual fitness value (0–1). Drawn as a tidy square cell (aspect='equal')
+    so it reads as one metric tile, not a stretched block.
+    """
+    fitness = float(df["fitness"].mean()) if len(df) else 0.0
 
     cmap = LinearSegmentedColormap.from_list("grey_scale", [GREY_LIGHTER, GREY_DARK])
-    fig_w = min(10, max(5, ncols * 0.35))
-    fig_h = min(8,  max(4, nrows * 0.35))
-    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
-    im = ax.imshow(grid, cmap=cmap, vmin=0, vmax=1, aspect="auto")
-    ax.set_xlabel("Trace (column index)", fontsize=FONT_LABEL)
-    ax.set_ylabel("Trace (row index)", fontsize=FONT_LABEL)
-    ax.set_title("Per-Trace Fitness Heatmap (light = high fitness)", fontsize=FONT_TITLE)
+    fig, ax = plt.subplots(figsize=(4.5, 4.5))
+    im = ax.imshow([[fitness]], cmap=cmap, vmin=0.0, vmax=1.0, aspect="equal")
+    text_color = "white" if fitness > 0.55 else GREY_DARK
+    ax.text(0, 0, f"{fitness:.3f}", ha="center", va="center",
+            fontsize=28, fontweight="bold", color=text_color)
+    ax.set_xticks([])
+    ax.set_yticks([])
     cbar = fig.colorbar(im, ax=ax, orientation="vertical", fraction=0.046, pad=0.04)
-    cbar.set_label("Fitness (0–1)", fontsize=FONT_LABEL)
-    cbar.set_ticks([0, 0.25, 0.5, 0.75, 1.0])
+    cbar.set_label("Mean Fitness (0–1)", fontsize=FONT_LABEL)
+    cbar.set_ticks([0.0, 0.25, 0.5, 0.75, 1.0])
+    ax.set_title("Overall Mean Fitness", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task06_heatmap.svg"))
 
 
 def task06_box_plot(df, output_dir: str):
-    """Boxplot of per-trace fitness values across the log."""
+    """Boxplot of per-trace fitness values across the log, annotated with the
+    mean fitness so the idiom shows an actual fitness number."""
+    vals = df["fitness"].values
+    mean_fit = float(np.mean(vals)) if len(vals) else 0.0
+
     fig, ax = plt.subplots(figsize=(5, 5))
     ax.boxplot(
-        df["fitness"].values,
+        vals,
         labels=["Log"],
         widths=0.4,
         medianprops=dict(color="#333333", linewidth=2),
@@ -280,7 +231,12 @@ def task06_box_plot(df, output_dir: str):
         capprops=dict(color="#555555"),
         flierprops=dict(marker="o", markerfacecolor=GREY_MED, markersize=4, alpha=0.5),
     )
-    ax.set_ylabel("Conformance Rate", fontsize=FONT_LABEL)
+    # Numeric fitness readout: mean as a marker + label.
+    ax.scatter([1], [mean_fit], marker="D", s=28, color=GREY_DARK, zorder=5)
+    ax.annotate(f"Mean = {mean_fit:.3f}", (1.18, mean_fit),
+                textcoords="offset points", xytext=(0, 0),
+                va="center", ha="left", fontsize=FONT_ANNOT, color=GREY_DARK)
+    ax.set_ylabel("Fitness (0–1)", fontsize=FONT_LABEL)
     ax.set_title("Distribution of Fitness Values", fontsize=FONT_TITLE)
     ax.set_ylim(-0.05, 1.1)
     ax.spines[["top", "right"]].set_visible(False)
@@ -393,15 +349,14 @@ def task06_tree(log, alignments, output_dir: str):
 def generate(df, output_dir: str, log=None, alignments=None, model_path=None):
     """Generate all Task ID 6 SVGs into output_dir.
 
-    The four df-only idioms always render; flow_chart_elaborate + decision_tree need
-    the central log/alignments/model_path (absent → empty-state)."""
+    The df-only idioms (tile_metric, bar_chart, table, heatmap, box_plot) always
+    render; flow_chart_elaborate + decision_tree need the central
+    log/alignments/model_path (absent → empty-state)."""
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 6 visualizations ---")
 
     task06_tile_metric(df, output_dir)
     task06_bar_chart(df, output_dir)
-    task06_donut_chart(df, output_dir)
-    task06_scatter_plot(df, output_dir)
     task06_table(df, output_dir)
     task06_heatmap(df, output_dir)
     task06_box_plot(df, output_dir)

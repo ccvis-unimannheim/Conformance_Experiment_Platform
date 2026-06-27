@@ -149,7 +149,7 @@ def task07_line_graph(df: pd.DataFrame, output_dir: str,
     """Mean conformance per time bin (shared renderer, granularity-aware)."""
     render_conformance_line_graph(
         df, os.path.join(output_dir, "task07_line_graph.svg"),
-        time_granularity=time_granularity)
+        time_granularity=time_granularity, value_labels=True)
 
 
 # ---------------------------------------------------------------------------
