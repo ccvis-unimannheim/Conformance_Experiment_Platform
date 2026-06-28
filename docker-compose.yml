@@ -43,6 +43,7 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     volumes:
       - ./provibackend/ProViBackend/data:/code/ProViBackend/data
+      - ./provibackend/ProViBackend/new_input:/code/ProViBackend/new_input:ro
     depends_on:
       mongo:
         condition: service_healthy

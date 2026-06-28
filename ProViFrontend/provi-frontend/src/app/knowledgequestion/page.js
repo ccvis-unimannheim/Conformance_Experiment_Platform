@@ -106,7 +106,7 @@ export default function KnowledgeQuestionPage() {
         setError("Submission failed. Please try again.");
         return;
       }
-      router.push("/taskexecution");
+      router.push("/conformance-terms");
     } catch {
       setError("Network error. Please check your connection and try again.");
     } finally {
@@ -309,7 +309,7 @@ export default function KnowledgeQuestionPage() {
                     transition: "all 0.15s ease",
                   }}
                 >
-                  {submitting ? "Submitting…" : "Begin Conformance Checking Task"}
+                  {submitting ? "Submitting…" : "Next: Key Concept"}
                   <span className="material-symbols-outlined" style={{ fontSize: "1.1rem" }}>arrow_forward</span>
                 </button>
               </div>

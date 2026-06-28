@@ -1,10 +1,108 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../../components/Admin/Toast";
+
+function IdiomPreviewModal({ taskKey, idiomKey, idiomLabel, onClose }) {
+  const [status, setStatus] = useState("idle");
+  const [enlarged, setEnlarged] = useState(false);
+  const pollRef = useRef(null);
+
+  useEffect(() => {
+    if (!taskKey || !idiomKey) return;
+    async function trigger() {
+      try {
+        const res = await fetch(`/api/admin/idiom-preview/${taskKey}`, { method: "POST" });
+        if (!res.ok) { setStatus("failed"); return; }
+        const data = await res.json();
+        if (data.status === "ready") { setStatus("ready"); return; }
+        setStatus("generating");
+        startPolling();
+      } catch { setStatus("failed"); }
+    }
+    function startPolling() {
+      if (pollRef.current) clearInterval(pollRef.current);
+      pollRef.current = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/admin/idiom-preview/${taskKey}/status`);
+          if (!res.ok) return;
+          const data = await res.json();
+          if (data.status === "ready" || data.status === "failed") {
+            clearInterval(pollRef.current);
+            setStatus(data.status);
+          }
+        } catch {}
+      }, 1500);
+    }
+    trigger();
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [taskKey, idiomKey]);
+
+  useEffect(() => {
+    function onKey(e) { if (e.key === "Escape") onClose(); }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const svgSrc = `/api/admin/idiom-preview/${taskKey}/${idiomKey}`;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div
+        className={`bg-white flex flex-col overflow-hidden transition-all duration-200 ${
+          enlarged ? "fixed inset-4 z-50 rounded-xl shadow-2xl" : "rounded-xl shadow-xl w-[720px] max-w-[95vw] max-h-[90vh]"
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border-subtle flex-shrink-0">
+          <div>
+            <span className="text-xs font-bold bg-blue-100 text-primary px-2 py-0.5 rounded mr-2">{taskKey}</span>
+            <span className="text-sm font-semibold text-on-surface">{idiomLabel}</span>
+            <span className="ml-2 text-xs text-on-surface-variant">(sample data · default params)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {status === "ready" && (
+              <button onClick={() => setEnlarged((v) => !v)} title={enlarged ? "Shrink" : "Enlarge"} className="text-on-surface-variant hover:text-primary transition-colors">
+                <span className="material-symbols-outlined text-[20px]">{enlarged ? "close_fullscreen" : "open_in_full"}</span>
+              </button>
+            )}
+            <button onClick={onClose} className="text-on-surface-variant hover:text-on-surface transition-colors">
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 flex items-center justify-center p-6 overflow-auto bg-white min-h-[320px]">
+          {status === "idle" || status === "generating" ? (
+            <div className="flex flex-col items-center gap-3 text-on-surface-variant">
+              <span className="material-symbols-outlined text-4xl animate-spin">autorenew</span>
+              <span className="text-sm">Generating preview…</span>
+            </div>
+          ) : status === "failed" ? (
+            <div className="flex flex-col items-center gap-3">
+              <span className="material-symbols-outlined text-4xl text-error">error_outline</span>
+              <p className="text-sm text-on-surface-variant text-center">Preview generation failed.<br/><span className="text-xs">Make sure the backend is up to date.</span></p>
+            </div>
+          ) : (
+            <img src={svgSrc} alt={`${taskKey} ${idiomKey} preview`}
+              className={enlarged ? "max-w-full max-h-full object-contain" : "max-w-full max-h-[65vh] object-contain"}
+              onError={(e) => { e.currentTarget.style.display = "none"; e.currentTarget.nextSibling.style.display = "flex"; }}
+            />
+          )}
+          {status === "ready" && (
+            <div className="hidden flex-col items-center gap-2 text-on-surface-variant">
+              <span className="material-symbols-outlined text-3xl">broken_image</span>
+              <span className="text-sm">Image failed to load.</span>
+              <a href={svgSrc} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline">Open directly</a>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function getId(obj) {
   return obj._id || obj.id;
@@ -89,6 +187,8 @@ function ExperimentOverviewContent() {
 
   const [publishConflict, setPublishConflict] = useState(null);
   const [publishing, setPublishing] = useState(false);
+
+  const [previewModal, setPreviewModal] = useState(null); // { taskKey, idiomKey, idiomLabel }
 
   const [toast, setToast] = useState({ visible: false, message: "", isError: false });
   const showToast = useCallback((message, isError = false) => {
@@ -426,6 +526,15 @@ function ExperimentOverviewContent() {
                                     </p>
                                   )}
                                 </div>
+                                {idiom && (
+                                  <button
+                                    onClick={() => setPreviewModal({ taskKey: task.task_key, idiomKey: idiom.idiom_key, idiomLabel: idiom.label })}
+                                    title="Preview this idiom"
+                                    className="text-on-surface-variant hover:text-primary transition-colors p-0.5 rounded flex-shrink-0"
+                                  >
+                                    <span className="material-symbols-outlined text-[16px]">visibility</span>
+                                  </button>
+                                )}
                               </div>
                             );
                           })}
@@ -585,6 +694,15 @@ function ExperimentOverviewContent() {
         visible={toast.visible}
         onHide={hideToast}
       />
+
+      {previewModal && (
+        <IdiomPreviewModal
+          taskKey={previewModal.taskKey}
+          idiomKey={previewModal.idiomKey}
+          idiomLabel={previewModal.idiomLabel}
+          onClose={() => setPreviewModal(null)}
+        />
+      )}
     </div>
   );
 }

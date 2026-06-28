@@ -24,18 +24,24 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib import gridspec
-from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.colors import to_hex, Normalize
 
 from shared import (
     save_svg, make_table, draw_parallel_sets, build_violation_pattern_df,
     alignment_pairs_to_rows, draw_grouped_box_plot, draw_value_heatmap,
-    calendar_heatmap, render_empty_state_svg,
-    GREY_MED, GREY_LIGHT, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    calendar_heatmap, render_empty_state_svg, contrasting_text_color,
+    FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 TOP_N = 15
 
-_MOVE_COLORS = {"Model Move": GREY_MED, "Log Move": GREY_DARK, "Mismatch Move": GREY_LIGHT}
+_CIVIDIS = matplotlib.colormaps["cividis"]
+_MOVE_DEFAULT = to_hex(_CIVIDIS(0.50))         # mid (fallback for unknown move types)
+_MOVE_COLORS = {
+    "Model Move":    to_hex(_CIVIDIS(0.85)),   # soft  (light end)
+    "Log Move":      _MOVE_DEFAULT,            # mid
+    "Mismatch Move": to_hex(_CIVIDIS(0.15)),   # strong (dark end)
+}
 _MOVE_ORDER  = ["Model Move", "Log Move", "Mismatch Move"]
 
 
@@ -74,7 +80,7 @@ def _move_legend(ax, present_types):
 def task23_bar_chart(pat_df: pd.DataFrame, output_dir: str):
     """Bar chart: top-N violation patterns ranked by occurrence count."""
     top    = pat_df.head(TOP_N)
-    colors = [_MOVE_COLORS.get(mt, GREY_MED) for mt in top["move_type"]]
+    colors = [_MOVE_COLORS.get(mt, _MOVE_DEFAULT) for mt in top["move_type"]]
     ymax   = max(int(top["count"].max()), 1)
 
     fig, ax = plt.subplots(figsize=(max(9, len(top) * 1.6), 5.5))
@@ -192,7 +198,7 @@ def task23_table_and_bar_chart(pat_df: pd.DataFrame, output_dir: str):
 
     ax_bar = fig.add_subplot(gs[1])
     x      = np.arange(len(top))
-    colors = [_MOVE_COLORS.get(mt, GREY_MED) for mt in top["move_type"]]
+    colors = [_MOVE_COLORS.get(mt, _MOVE_DEFAULT) for mt in top["move_type"]]
     ax_bar.barh(x, top["count"], color=colors, edgecolor="white")
     ax_bar.set_yticks(x)
     ax_bar.set_yticklabels(top["pattern"], fontsize=FONT_ANNOT - 1)
@@ -227,7 +233,7 @@ def task23_matrix(pat_df: pd.DataFrame, output_dir: str):
     if data.max() == 0:
         data[0, 0] = 0  # keep imshow happy with a valid range
 
-    cmap = LinearSegmentedColormap.from_list("task23_mat", ["#F8F8F8", "#444444"])
+    cmap = "cividis"
     vmax = max(data.max(), 1.0)
 
     fig_h = max(3.5, 0.55 * len(top_acts) + 1.5)
@@ -242,11 +248,11 @@ def task23_matrix(pat_df: pd.DataFrame, output_dir: str):
     ax.set_title(f"Violation Count Matrix (top-{len(top_acts)} activities)",
                  fontsize=FONT_TITLE)
 
-    midpoint = vmax * 0.55
+    norm = Normalize(vmin=0, vmax=vmax)
     for ri in range(len(top_acts)):
         for ci in range(len(present_types)):
             val = data[ri, ci]
-            tc  = "white" if val > midpoint else "#222222"
+            tc  = contrasting_text_color(to_hex(_CIVIDIS(norm(val))))
             ax.text(ci, ri, f"{int(val)}", ha="center", va="center",
                     fontsize=FONT_ANNOT, color=tc)
 
@@ -277,9 +283,7 @@ def task23_parallel_sets(pat_df: pd.DataFrame, output_dir: str):
     left_colors  = [_MOVE_COLORS[mt] for mt in move_types]
 
     n_cats = len(right_cats)
-    greys  = ["#CCCCCC", "#BBBBBB", "#AAAAAA", "#999999", "#888888",
-              "#777777", "#666666", "#555555", "#444444", "#333333", "#DDDDDD"]
-    right_colors = [greys[i % len(greys)] for i in range(n_cats)]
+    right_colors = [to_hex(_CIVIDIS(0.15 + 0.70 * (i / max(n_cats - 1, 1)))) for i in range(n_cats)]
 
     fig, ax = plt.subplots(figsize=(10, 5.5))
     ax.axis("off")
@@ -308,7 +312,7 @@ def task23_parallel_sets(pat_df: pd.DataFrame, output_dir: str):
 
 def task23_scatter_plot(pat_df: pd.DataFrame, output_dir: str):
     """One dot per pattern: x = #traces affected, y = total occurrences, colour = move-type."""
-    colors = [_MOVE_COLORS.get(mt, GREY_MED) for mt in pat_df["move_type"]]
+    colors = [_MOVE_COLORS.get(mt, _MOVE_DEFAULT) for mt in pat_df["move_type"]]
     fig, ax = plt.subplots(figsize=(9, 6))
     ax.scatter(pat_df["n_traces"], pat_df["count"], c=colors, s=60, alpha=0.8,
                edgecolors="white", linewidths=0.6)
@@ -357,7 +361,7 @@ def task23_box_plot(pat_df: pd.DataFrame, alignments, output_dir: str):
             continue
         labels.append(row["pattern"])
         data.append(np.array(vals))
-        colors.append(_MOVE_COLORS.get(row["move_type"], GREY_MED))
+        colors.append(_MOVE_COLORS.get(row["move_type"], _MOVE_DEFAULT))
     if not data:
         render_empty_state_svg(os.path.join(output_dir, "task23_box_plot.svg"),
                                "Occurrences per Affected Trace", "No violations found.")
@@ -435,7 +439,7 @@ def task23_calendar(alignments, log, output_dir: str):
         return
     calendar_heatmap(daily, os.path.join(output_dir, "task23_calendar.svg"),
                      title="Daily Total Violation Count",
-                     cbar_label="Violations", vmin=0.0)
+                     cbar_label="Violations", vmin=0.0, cmap="cividis")
 
 
 # ---------------------------------------------------------------------------
@@ -482,3 +486,97 @@ def generate(alignments, output_dir: str, log=None):
     task23_box_plot(pat_df, alignments, output_dir)
     task23_heatmap(pat_df, output_dir)
     task23_calendar(alignments, log, output_dir)
+
+
+# ---------------------------------------------------------------------------
+# Ground truth (free_text answer type)
+# ---------------------------------------------------------------------------
+
+def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
+    """Auto-generate a reference narrative + rubric for admin review.
+
+    Returns empty dict when answer_format != 'free_text'.
+    Rubric keys: top_patterns (list), dominant_move_type (str),
+                 top3_activities (list[str]), top3_patterns (list[str]).
+    """
+    if answer_format != "free_text":
+        return {}
+
+    pat_df = _task23_build_pattern_df(alignments)
+    if pat_df.empty:
+        return {
+            "text": "No guideline violations were found in this log.",
+            "rubric": {
+                "top_patterns": [],
+                "dominant_move_type": None,
+                "top3_activities": [],
+                "top3_patterns": [],
+            },
+        }
+
+    top = pat_df.head(TOP_N).copy()
+
+    # --- Rubric fields ---
+    top_patterns_list = [
+        {
+            "pattern":   r["pattern"],
+            "move_type": r["move_type"],
+            "activity":  r["activity"],
+            "count":     int(r["count"]),
+            "n_traces":  int(r["n_traces"]),
+            "pct":       round(float(r["pct"]), 1),
+        }
+        for r in top[["pattern", "move_type", "activity", "count", "n_traces", "pct"]].to_dict("records")
+    ]
+
+    mt_totals = pat_df.groupby("move_type")["count"].sum()
+    dominant_mt = mt_totals.idxmax()
+    dominant_mt_pct = int(round(100 * mt_totals[dominant_mt] / mt_totals.sum(), 0))
+
+    act_totals = pat_df.groupby("activity")["count"].sum().sort_values(ascending=False)
+    top3_acts  = act_totals.head(3).index.tolist()
+    top3_pats  = top["pattern"].head(3).tolist()
+
+    act_pattern_counts   = pat_df.groupby("activity")["pattern"].nunique()
+    most_affected_act    = act_pattern_counts.idxmax()
+    activity_pat_count   = int(act_pattern_counts[most_affected_act])
+
+    max_traces_idx     = top["n_traces"].idxmax()
+    max_traces_pattern = top.loc[max_traces_idx, "pattern"]
+    max_traces         = int(top.loc[max_traces_idx, "n_traces"])
+
+    total_patterns = len(pat_df)
+    t1 = top.iloc[0]
+
+    # --- Narrative sentences ---
+    s1 = (f"The most frequent guideline violation is '{t1['pattern']}' with "
+          f"{int(t1['count'])} occurrences, affecting {int(t1['n_traces'])} traces "
+          f"({t1['pct']:.1f}%).")
+
+    runners_up = [
+        f"'{r['pattern']}' ({int(r['count'])} occurrences, {r['pct']:.1f}%)"
+        for r in (top.iloc[i] for i in (1, 2) if len(top) > i)
+    ]
+    s2 = f"This is followed by {' and '.join(runners_up)}." if runners_up else ""
+
+    s3 = (f"Across all {total_patterns} violation patterns, {dominant_mt} violations are "
+          f"most prevalent, accounting for {dominant_mt_pct}% of total violation occurrences.")
+
+    s4 = (f"The activity '{most_affected_act}' appears in {activity_pat_count} distinct "
+          f"violation pattern{'s' if activity_pat_count != 1 else ''}, suggesting it is the "
+          f"most problematic step in the process.")
+
+    s5 = (f"Violations involving '{max_traces_pattern}' have the widest impact, appearing "
+          f"in {max_traces} distinct traces, indicating a systemic non-conformance.")
+
+    text = " ".join(s for s in [s1, s2, s3, s4, s5] if s)
+
+    return {
+        "text": text,
+        "rubric": {
+            "top_patterns":       top_patterns_list,
+            "dominant_move_type": dominant_mt,
+            "top3_activities":    top3_acts,
+            "top3_patterns":      top3_pats,
+        },
+    }
