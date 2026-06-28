@@ -478,6 +478,7 @@ def task30_table(agg_df, stats_df, groups, attr, output_dir):
         font_size=10,
         scale_xy=(1, 1.7),
         cell_pad=0.10,
+        header_color=_GROUP_PALETTE[0],
     )
     ax_sum.set_title(f"Conformance per Sub-log ({attr})", fontsize=FONT_TITLE, pad=8)
 
@@ -497,6 +498,7 @@ def task30_table(agg_df, stats_df, groups, attr, output_dir):
             font_size=9,
             scale_xy=(1, 1.7),
             cell_pad=0.09,
+            header_color=_GROUP_PALETTE[0],
         )
     ax_pat.set_title(f"Top-{len(agg_df)} Violation Patterns per Sub-log",
                      fontsize=FONT_TITLE, pad=8)
@@ -527,6 +529,7 @@ def task30_table_and_bar_chart(agg_df, groups, attr, output_dir):
         font_size=8.5,
         scale_xy=(1, 1.7),
         cell_pad=0.09,
+        header_color=_GROUP_PALETTE[0],
     )
     ax_tbl.set_title(f"Top-{len(agg_df)} Violation Patterns ({attr})",
                      fontsize=FONT_TITLE, pad=10)
