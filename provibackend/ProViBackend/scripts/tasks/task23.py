@@ -24,18 +24,23 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib import gridspec
-from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.colors import to_hex, Normalize
 
 from shared import (
     save_svg, make_table, draw_parallel_sets, build_violation_pattern_df,
     alignment_pairs_to_rows, draw_grouped_box_plot, draw_value_heatmap,
-    calendar_heatmap, render_empty_state_svg,
-    GREY_MED, GREY_LIGHT, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    calendar_heatmap, render_empty_state_svg, contrasting_text_color,
+    FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 TOP_N = 15
 
-_MOVE_COLORS = {"Model Move": GREY_MED, "Log Move": GREY_DARK, "Mismatch Move": GREY_LIGHT}
+_CIVIDIS = matplotlib.colormaps["cividis"]
+_MOVE_COLORS = {
+    "Model Move":    to_hex(_CIVIDIS(0.85)),   # soft  (light end)
+    "Log Move":      to_hex(_CIVIDIS(0.50)),   # mid
+    "Mismatch Move": to_hex(_CIVIDIS(0.15)),   # strong (dark end)
+}
 _MOVE_ORDER  = ["Model Move", "Log Move", "Mismatch Move"]
 
 
@@ -74,7 +79,7 @@ def _move_legend(ax, present_types):
 def task23_bar_chart(pat_df: pd.DataFrame, output_dir: str):
     """Bar chart: top-N violation patterns ranked by occurrence count."""
     top    = pat_df.head(TOP_N)
-    colors = [_MOVE_COLORS.get(mt, GREY_MED) for mt in top["move_type"]]
+    colors = [_MOVE_COLORS.get(mt, to_hex(_CIVIDIS(0.50))) for mt in top["move_type"]]
     ymax   = max(int(top["count"].max()), 1)
 
     fig, ax = plt.subplots(figsize=(max(9, len(top) * 1.6), 5.5))
@@ -192,7 +197,7 @@ def task23_table_and_bar_chart(pat_df: pd.DataFrame, output_dir: str):
 
     ax_bar = fig.add_subplot(gs[1])
     x      = np.arange(len(top))
-    colors = [_MOVE_COLORS.get(mt, GREY_MED) for mt in top["move_type"]]
+    colors = [_MOVE_COLORS.get(mt, to_hex(_CIVIDIS(0.50))) for mt in top["move_type"]]
     ax_bar.barh(x, top["count"], color=colors, edgecolor="white")
     ax_bar.set_yticks(x)
     ax_bar.set_yticklabels(top["pattern"], fontsize=FONT_ANNOT - 1)
@@ -227,7 +232,7 @@ def task23_matrix(pat_df: pd.DataFrame, output_dir: str):
     if data.max() == 0:
         data[0, 0] = 0  # keep imshow happy with a valid range
 
-    cmap = LinearSegmentedColormap.from_list("task23_mat", ["#F8F8F8", "#444444"])
+    cmap = "cividis"
     vmax = max(data.max(), 1.0)
 
     fig_h = max(3.5, 0.55 * len(top_acts) + 1.5)
@@ -242,11 +247,12 @@ def task23_matrix(pat_df: pd.DataFrame, output_dir: str):
     ax.set_title(f"Violation Count Matrix (top-{len(top_acts)} activities)",
                  fontsize=FONT_TITLE)
 
-    midpoint = vmax * 0.55
+    norm = Normalize(vmin=0, vmax=vmax)
     for ri in range(len(top_acts)):
         for ci in range(len(present_types)):
             val = data[ri, ci]
-            tc  = "white" if val > midpoint else "#222222"
+            cell_hex = to_hex(_CIVIDIS(norm(val)))
+            tc = contrasting_text_color(cell_hex)
             ax.text(ci, ri, f"{int(val)}", ha="center", va="center",
                     fontsize=FONT_ANNOT, color=tc)
 
@@ -277,9 +283,7 @@ def task23_parallel_sets(pat_df: pd.DataFrame, output_dir: str):
     left_colors  = [_MOVE_COLORS[mt] for mt in move_types]
 
     n_cats = len(right_cats)
-    greys  = ["#CCCCCC", "#BBBBBB", "#AAAAAA", "#999999", "#888888",
-              "#777777", "#666666", "#555555", "#444444", "#333333", "#DDDDDD"]
-    right_colors = [greys[i % len(greys)] for i in range(n_cats)]
+    right_colors = [to_hex(_CIVIDIS(0.15 + 0.70 * (i / max(n_cats - 1, 1)))) for i in range(n_cats)]
 
     fig, ax = plt.subplots(figsize=(10, 5.5))
     ax.axis("off")
@@ -308,7 +312,7 @@ def task23_parallel_sets(pat_df: pd.DataFrame, output_dir: str):
 
 def task23_scatter_plot(pat_df: pd.DataFrame, output_dir: str):
     """One dot per pattern: x = #traces affected, y = total occurrences, colour = move-type."""
-    colors = [_MOVE_COLORS.get(mt, GREY_MED) for mt in pat_df["move_type"]]
+    colors = [_MOVE_COLORS.get(mt, to_hex(_CIVIDIS(0.50))) for mt in pat_df["move_type"]]
     fig, ax = plt.subplots(figsize=(9, 6))
     ax.scatter(pat_df["n_traces"], pat_df["count"], c=colors, s=60, alpha=0.8,
                edgecolors="white", linewidths=0.6)
@@ -357,7 +361,7 @@ def task23_box_plot(pat_df: pd.DataFrame, alignments, output_dir: str):
             continue
         labels.append(row["pattern"])
         data.append(np.array(vals))
-        colors.append(_MOVE_COLORS.get(row["move_type"], GREY_MED))
+        colors.append(_MOVE_COLORS.get(row["move_type"], to_hex(_CIVIDIS(0.50))))
     if not data:
         render_empty_state_svg(os.path.join(output_dir, "task23_box_plot.svg"),
                                "Occurrences per Affected Trace", "No violations found.")
@@ -435,7 +439,7 @@ def task23_calendar(alignments, log, output_dir: str):
         return
     calendar_heatmap(daily, os.path.join(output_dir, "task23_calendar.svg"),
                      title="Daily Total Violation Count",
-                     cbar_label="Violations", vmin=0.0)
+                     cbar_label="Violations", vmin=0.0, cmap="cividis")
 
 
 # ---------------------------------------------------------------------------
