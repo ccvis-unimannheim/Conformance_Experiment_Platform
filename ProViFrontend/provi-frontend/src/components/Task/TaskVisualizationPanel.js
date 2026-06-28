@@ -18,10 +18,17 @@ const TaskVisualizationPanel = ({ svgUrl, taskNumber = 1, loadingSvg = false }) 
   const [loupe,    setLoupe]    = useState({ x: 0, y: 0, relX: 0, relY: 0, w: 0, h: 0 });
   const [scale,    setScale]    = useState(1);
 
-  const imgRef      = useRef(null);
-  const transformRef = useRef(null); // imperative access to zoomIn/zoomOut/resetTransform
+  const imgRef        = useRef(null);
+  const transformRef  = useRef(null);
+  const scaleDebounce = useRef(null);
 
   useEffect(() => { setImgError(false); }, [svgUrl]);
+
+  // onTransformed fires every animation frame; debounce so we re-render once per gesture
+  function handleTransformed(_ref, state) {
+    if (scaleDebounce.current) clearTimeout(scaleDebounce.current);
+    scaleDebounce.current = setTimeout(() => setScale(state.scale), 50);
+  }
 
   const showPlaceholder = !svgUrl || imgError;
   const showLoupe = loupeOn && !showPlaceholder && !loadingSvg;
@@ -103,8 +110,7 @@ const TaskVisualizationPanel = ({ svgUrl, taskNumber = 1, loadingSvg = false }) 
                   initialScale={1}
                   minScale={0.5}
                   maxScale={6}
-                  onZoomStop={(ref) => setScale(ref.state.scale)}
-                  onPanningStop={(ref) => setScale(ref.state.scale)}
+                  onTransformed={handleTransformed}
                   onPanningStart={() => setLoupeOn(false)}
                 >
                   {/* Mouse events on this div — img has pointer-events:none from library CSS */}
@@ -147,7 +153,7 @@ const TaskVisualizationPanel = ({ svgUrl, taskNumber = 1, loadingSvg = false }) 
                     {Math.round(scale * 100)}%
                   </span>
                   <button onClick={() => transformRef.current?.zoomOut()}       style={btnStyle} title="Zoom out"  aria-label="Zoom out">−</button>
-                  <button onClick={() => transformRef.current?.resetTransform()} style={{ ...btnStyle, fontSize: "14px" }} title="Reset zoom" aria-label="Reset zoom">↺</button>
+                  <button onClick={() => { transformRef.current?.resetTransform(); setScale(1); }} style={{ ...btnStyle, fontSize: "14px" }} title="Reset zoom" aria-label="Reset zoom">↺</button>
                 </div>
               </div>
             )}
