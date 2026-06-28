@@ -851,11 +851,12 @@ def draw_value_heatmap(fig, ax, data, row_labels, col_labels,
 
     data: array-like of shape (len(row_labels), len(col_labels)).
     """
-    from matplotlib.colors import LinearSegmentedColormap as _LSC
+    import matplotlib as _mpl
+    from matplotlib.colors import to_hex as _to_hex, Normalize as _Norm
 
     data = np.asarray(data, dtype=float)
     if cmap is None:
-        cmap = _LSC.from_list("shared_value_hm", ["#F8F8F8", "#444444"])
+        cmap = "cividis"
     vmax = max(data.max(), 1.0) if data.size else 1.0
     im = ax.imshow(data, cmap=cmap, vmin=0, vmax=vmax, aspect="auto")
 
@@ -868,13 +869,15 @@ def draw_value_heatmap(fig, ax, data, row_labels, col_labels,
         ax.set_xlabel(xlabel, fontsize=FONT_LABEL)
 
     if annotate:
-        midpoint = vmax * 0.55
+        _cmap_obj = _mpl.colormaps[cmap] if isinstance(cmap, str) else cmap
+        _norm = _Norm(vmin=0, vmax=vmax)
         for ri in range(len(row_labels)):
             for ci in range(len(col_labels)):
                 val = data[ri, ci]
-                text_color = "white" if val > midpoint else "#222222"
+                cell_hex = _to_hex(_cmap_obj(_norm(val)))
                 ax.text(ci, ri, cell_fmt.format(val),
-                        ha="center", va="center", fontsize=FONT_ANNOT, color=text_color)
+                        ha="center", va="center", fontsize=FONT_ANNOT,
+                        color=contrasting_text_color(cell_hex))
 
     cbar = fig.colorbar(im, ax=ax, fraction=0.04, pad=0.02)
     cbar.set_label(cbar_label, fontsize=FONT_ANNOT)
