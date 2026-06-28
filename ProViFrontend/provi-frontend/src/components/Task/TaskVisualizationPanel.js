@@ -1,48 +1,62 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import {
+  TransformWrapper,
+  TransformComponent,
+  useControls,
+} from "react-zoom-pan-pinch";
 
 const LOUPE_R = 80;
 const MAGNIFY = 2.5;
+
+const btnStyle = {
+  background: "none", border: "none", cursor: "pointer",
+  fontSize: "16px", fontWeight: 700, color: "#3c5f90",
+  padding: "2px 6px", borderRadius: "4px", lineHeight: 1,
+};
+
+function ZoomControls({ scale }) {
+  const { zoomIn, zoomOut, resetTransform } = useControls();
+  return (
+    <div style={{
+      position: "absolute", bottom: "12px", right: "12px",
+      display: "flex", alignItems: "center", gap: "4px",
+      background: "white", borderRadius: "8px",
+      boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+      padding: "4px 8px", zIndex: 10,
+    }}>
+      <button onClick={zoomIn} style={btnStyle} title="Zoom in" aria-label="Zoom in">+</button>
+      <span style={{ fontSize: "12px", fontWeight: 600, color: "#374151", minWidth: "38px", textAlign: "center" }}>
+        {Math.round(scale * 100)}%
+      </span>
+      <button onClick={zoomOut} style={btnStyle} title="Zoom out" aria-label="Zoom out">−</button>
+      <button onClick={resetTransform} style={{ ...btnStyle, fontSize: "14px" }} title="Reset zoom" aria-label="Reset zoom">↺</button>
+    </div>
+  );
+}
 
 const TaskVisualizationPanel = ({ svgUrl, taskNumber = 1, loadingSvg = false }) => {
   const [imgError, setImgError] = useState(false);
   const [loupeOn,  setLoupeOn]  = useState(false);
   const [loupe,    setLoupe]    = useState({ x: 0, y: 0, relX: 0, relY: 0, w: 0, h: 0 });
+  const [scale,    setScale]    = useState(1);
 
-  const imgRef  = useRef(null);
-  const rectRef = useRef(null); // cached bounding rect — updated on load + resize
+  const imgRef = useRef(null);
 
   useEffect(() => { setImgError(false); }, [svgUrl]);
-
-  // Cache rect on mount and window resize
-  useEffect(() => {
-    function updateRect() {
-      if (imgRef.current) rectRef.current = imgRef.current.getBoundingClientRect();
-    }
-    updateRect();
-    window.addEventListener("resize", updateRect);
-    return () => window.removeEventListener("resize", updateRect);
-  }, [svgUrl]); // re-run when svgUrl changes (new img loaded)
 
   const showPlaceholder = !svgUrl || imgError;
   const showLoupe = loupeOn && !showPlaceholder && !loadingSvg;
 
   function handleMouseMove(e) {
-    // Refresh cached rect if not yet set with valid dimensions (img may not have loaded at mount time)
-    if (!rectRef.current?.width && imgRef.current) {
-      rectRef.current = imgRef.current.getBoundingClientRect();
-    }
-    const rect = rectRef.current;
-    if (!rect?.width) return;
+    if (!imgRef.current) return;
+    // Always get a fresh rect — stale cache gives wrong coords after zoom/pan
+    const rect = imgRef.current.getBoundingClientRect();
+    if (!rect.width) return;
     const relX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
     const relY = Math.max(0, Math.min(e.clientY - rect.top,  rect.height));
     setLoupe({ x: e.clientX, y: e.clientY, relX, relY, w: rect.width, h: rect.height });
-  }
-
-  // Cache rect when img finishes loading
-  function handleImgLoad() {
-    if (imgRef.current) rectRef.current = imgRef.current.getBoundingClientRect();
   }
 
   return (
@@ -56,8 +70,11 @@ const TaskVisualizationPanel = ({ svgUrl, taskNumber = 1, loadingSvg = false }) 
           border: "1px solid #f0f0f0",
           position: "relative",
         }}>
-          {/* Visualization area */}
-          <div style={{ height: "calc(100vh - 12rem)", minHeight: "460px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{
+            height: "calc(100vh - 12rem)", minHeight: "460px",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            position: "relative",
+          }}>
             {loadingSvg ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem" }}>
                 <div style={{
@@ -95,29 +112,45 @@ const TaskVisualizationPanel = ({ svgUrl, taskNumber = 1, loadingSvg = false }) 
                 </span>
               </div>
             ) : (
-              // Mouse handlers on <img> directly — avoids loupe misfiring in container padding
-              <img
-                ref={imgRef}
-                src={svgUrl}
-                alt={`Task ${taskNumber} visualization`}
-                onLoad={handleImgLoad}
-                onError={() => setImgError(true)}
-                onMouseEnter={() => setLoupeOn(true)}
-                onMouseLeave={() => setLoupeOn(false)}
-                onMouseMove={handleMouseMove}
-                style={{
-                  maxWidth: "100%", maxHeight: "calc(100vh - 12rem)",
-                  objectFit: "contain",
-                  cursor: "crosshair",
-                  display: "block",
-                }}
-              />
+              <TransformWrapper
+                initialScale={1}
+                minScale={0.5}
+                maxScale={6}
+                wheel={{ step: 0.1 }}
+                doubleClick={{ mode: "zoomIn" }}
+                onZoomStop={(ref) => setScale(ref.state.scale)}
+                onPanningStop={(ref) => setScale(ref.state.scale)}
+                onPanningStart={() => setLoupeOn(false)}
+              >
+                <div style={{ position: "relative", width: "100%", height: "100%" }}>
+                  <TransformComponent
+                    wrapperStyle={{ width: "100%", height: "100%" }}
+                    contentStyle={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
+                  >
+                    <img
+                      ref={imgRef}
+                      src={svgUrl}
+                      alt={`Task ${taskNumber} visualization`}
+                      onError={() => setImgError(true)}
+                      onMouseEnter={() => setLoupeOn(true)}
+                      onMouseLeave={() => setLoupeOn(false)}
+                      onMouseMove={handleMouseMove}
+                      style={{
+                        maxWidth: "100%", maxHeight: "calc(100vh - 12rem)",
+                        objectFit: "contain",
+                        cursor: "crosshair",
+                        display: "block",
+                      }}
+                    />
+                  </TransformComponent>
+                  <ZoomControls scale={scale} />
+                </div>
+              </TransformWrapper>
             )}
           </div>
         </div>
       </section>
 
-      {/* Magnifier loupe — CSS background-image avoids async second-img load (blob URL) */}
       {showLoupe && (
         <div
           style={{
@@ -137,8 +170,7 @@ const TaskVisualizationPanel = ({ svgUrl, taskNumber = 1, loadingSvg = false }) 
             backgroundRepeat: "no-repeat",
             backgroundColor: "white",
           }}
-        >
-        </div>
+        />
       )}
     </>
   );
