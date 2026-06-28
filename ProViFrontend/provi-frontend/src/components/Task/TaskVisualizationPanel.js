@@ -18,7 +18,8 @@ const TaskVisualizationPanel = ({ svgUrl, taskNumber = 1, loadingSvg = false }) 
   const [loupe,    setLoupe]    = useState({ x: 0, y: 0, relX: 0, relY: 0, w: 0, h: 0 });
   const [scale,    setScale]    = useState(1);
 
-  const imgRef = useRef(null);
+  const imgRef      = useRef(null);
+  const transformRef = useRef(null); // imperative access to zoomIn/zoomOut/resetTransform
 
   useEffect(() => { setImgError(false); }, [svgUrl]);
 
@@ -27,11 +28,12 @@ const TaskVisualizationPanel = ({ svgUrl, taskNumber = 1, loadingSvg = false }) 
 
   function handleMouseMove(e) {
     if (!imgRef.current) return;
+    // Get fresh rect every time — correct after zoom/pan
     const rect = imgRef.current.getBoundingClientRect();
     if (!rect.width) return;
     const relX = e.clientX - rect.left;
     const relY = e.clientY - rect.top;
-    // Hide loupe if cursor is outside the actual image (in wrapper padding)
+    // Only show loupe when cursor is over the image itself
     if (relX < 0 || relY < 0 || relX > rect.width || relY > rect.height) {
       setLoupeOn(false);
       return;
@@ -93,17 +95,21 @@ const TaskVisualizationPanel = ({ svgUrl, taskNumber = 1, loadingSvg = false }) 
                 </span>
               </div>
             ) : (
-              <TransformWrapper
-                initialScale={1}
-                minScale={0.5}
-                maxScale={6}
-                onZoomStop={(ref) => setScale(ref.state.scale)}
-                onPanningStop={(ref) => setScale(ref.state.scale)}
-                onPanningStart={() => setLoupeOn(false)}
-              >
-                {({ zoomIn, zoomOut, resetTransform }) => (
+              /* position:relative container — controls absolutely positioned here,
+                 outside TransformWrapper to avoid stacking-context interception */
+              <div style={{ position: "relative", width: "100%", height: "100%" }}>
+                <TransformWrapper
+                  ref={transformRef}
+                  initialScale={1}
+                  minScale={0.5}
+                  maxScale={6}
+                  onZoomStop={(ref) => setScale(ref.state.scale)}
+                  onPanningStop={(ref) => setScale(ref.state.scale)}
+                  onPanningStart={() => setLoupeOn(false)}
+                >
+                  {/* Mouse events on this div — img has pointer-events:none from library CSS */}
                   <div
-                    style={{ position: "relative", width: "100%", height: "100%" }}
+                    style={{ width: "100%", height: "100%" }}
                     onMouseMove={handleMouseMove}
                     onMouseLeave={() => setLoupeOn(false)}
                   >
@@ -124,26 +130,26 @@ const TaskVisualizationPanel = ({ svgUrl, taskNumber = 1, loadingSvg = false }) 
                         }}
                       />
                     </TransformComponent>
-
-                    {/* Zoom controls — render-prop vars guarantee correct context */}
-                    <div style={{
-                      position: "absolute", bottom: "12px", right: "12px",
-                      display: "flex", alignItems: "center", gap: "4px",
-                      background: "white", borderRadius: "8px",
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
-                      padding: "4px 8px", zIndex: 20,
-                      pointerEvents: "all",
-                    }}>
-                      <button onClick={zoomIn}        style={btnStyle} title="Zoom in"   aria-label="Zoom in">+</button>
-                      <span style={{ fontSize: "12px", fontWeight: 600, color: "#374151", minWidth: "38px", textAlign: "center" }}>
-                        {Math.round(scale * 100)}%
-                      </span>
-                      <button onClick={zoomOut}       style={btnStyle} title="Zoom out"  aria-label="Zoom out">−</button>
-                      <button onClick={resetTransform} style={{ ...btnStyle, fontSize: "14px" }} title="Reset zoom" aria-label="Reset zoom">↺</button>
-                    </div>
                   </div>
-                )}
-              </TransformWrapper>
+                </TransformWrapper>
+
+                {/* Controls outside TransformWrapper — no stacking context conflicts,
+                    uses imperative ref API to call zoomIn/zoomOut/resetTransform */}
+                <div style={{
+                  position: "absolute", bottom: "12px", right: "12px",
+                  display: "flex", alignItems: "center", gap: "4px",
+                  background: "white", borderRadius: "8px",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+                  padding: "4px 8px", zIndex: 20,
+                }}>
+                  <button onClick={() => transformRef.current?.zoomIn()}        style={btnStyle} title="Zoom in"   aria-label="Zoom in">+</button>
+                  <span style={{ fontSize: "12px", fontWeight: 600, color: "#374151", minWidth: "38px", textAlign: "center" }}>
+                    {Math.round(scale * 100)}%
+                  </span>
+                  <button onClick={() => transformRef.current?.zoomOut()}       style={btnStyle} title="Zoom out"  aria-label="Zoom out">−</button>
+                  <button onClick={() => transformRef.current?.resetTransform()} style={{ ...btnStyle, fontSize: "14px" }} title="Reset zoom" aria-label="Reset zoom">↺</button>
+                </div>
+              </div>
             )}
           </div>
         </div>
