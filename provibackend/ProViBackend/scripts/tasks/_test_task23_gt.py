@@ -50,5 +50,6 @@ assert empty == {}, f"expected empty dict for wrong format, got: {empty}"
 graceful = compute_ground_truth(None, [], None, None, {}, "free_text")
 assert isinstance(graceful, dict), "empty alignments must return dict"
 assert "text" in graceful,         "empty alignments must still return 'text'"
+assert "rubric" in graceful,       "empty alignments must still return 'rubric'"
 
 print("All tests passed.")
