@@ -31,6 +31,32 @@ IDIOMS = [
     "table_bar_chart",
 ]
 
+# ---------------------------------------------------------------------------
+# Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6)
+#
+# Task 34 (AUTO): representative trace is deterministically the worst-fitness
+# trace (highest violation count, then lowest fitness). No admin parameter
+# needed — GT is fully computable from the alignment output.
+# ---------------------------------------------------------------------------
+GT_TIER = "AUTO"
+
+PARAM_SPEC = []
+
+ANSWER_FORMATS = [
+    {"key": "mc-multi", "gt_shape": "mc", "decisive_default": True},
+]
+
+RUBRIC = (
+    "A complete answer correctly identifies the activities where violations occur "
+    "in the representative (worst-fitness) trace and the type of each violation "
+    "(Move on Model = skipped activity, Move on Log = extra/inserted activity, "
+    "Mismatch Move = wrong activity executed). Award full marks for correctly "
+    "naming the top violated activities with their violation types. Award partial "
+    "marks for correctly identifying the activities without the types, or for "
+    "identifying most but not all violated activities. Deduct marks for "
+    "incorrectly including activities that have no violations in the trace."
+)
+
 import os
 import numpy as np
 import matplotlib
@@ -825,6 +851,68 @@ def task34_parallel_sets(log_act_v, output_dir):
     ax.axis("off")
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task34_parallel_sets.svg"))
+
+
+# ── Ground truth ─────────────────────────────────────────────────────────────
+
+def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
+    """mc-multi: which activities have violations in the worst-fitness trace.
+
+    Correct options  = activities with at least one violation in the
+                       representative trace (worst by violation count, then
+                       fitness), labelled with their dominant violation type.
+    Incorrect options = activities that appear synchronously (no violations)
+                       in the same trace, used as distractors.
+    """
+    import random as _rnd
+
+    if answer_format != "mc-multi":
+        return {"options": []}
+    if not alignments:
+        return {"options": []}
+
+    ctxs = _build_contexts(alignments, max_traces=30)
+    if not ctxs:
+        return {"options": []}
+
+    rows = ctxs[0]["rows"]
+    act_counts = _trace_activity_violations(rows)
+    if not act_counts:
+        return {"options": []}
+
+    conformant_acts = sorted(
+        {r["activity"] for r in rows
+         if not _is_violation(r) and r["activity"] != ">>"}
+        - set(act_counts.keys())
+    )
+
+    _DOM_LABEL = {
+        "mom":      "Move on Model — skipped activity",
+        "mol":      "Move on Log — extra activity",
+        "mismatch": "Mismatch Move — wrong activity",
+    }
+
+    options = []
+
+    # Correct: all violated activities, most-violated first (cap at 10)
+    for act in sorted(act_counts, key=lambda a: sum(act_counts[a].values()), reverse=True)[:10]:
+        dom_key = max(act_counts[act], key=act_counts[act].get)
+        options.append({
+            "label":   f"'{act}' — {_DOM_LABEL[dom_key]}",
+            "value":   f"violated::{act}",
+            "correct": True,
+        })
+
+    # Incorrect: conformant activities from the same trace (cap at 5)
+    for act in conformant_acts[:5]:
+        options.append({
+            "label":   f"'{act}' — no violation",
+            "value":   f"conformant::{act}",
+            "correct": False,
+        })
+
+    _rnd.Random(42).shuffle(options)
+    return {"options": options}
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
