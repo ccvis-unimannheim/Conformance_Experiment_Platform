@@ -178,6 +178,7 @@ export default function TaskExecutionPage() {
   const [currentIdiomIndex, setCurrentIdiomIndex] = useState(0);
   const [svgUrl, setSvgUrl]                       = useState(null);
   const [loadingTasks, setLoadingTasks]           = useState(true);
+  const [loadError, setLoadError]                 = useState(null);
   const [loadingSvg, setLoadingSvg]               = useState(false);
   const [showBanner, setShowBanner]               = useState(true);
   const [showDismissHint, setShowDismissHint]     = useState(false);
@@ -208,10 +209,15 @@ export default function TaskExecutionPage() {
         });
         if (!trialsRes.ok) throw new Error(`Trials fetch failed: HTTP ${trialsRes.status}`);
         const trialsData = await trialsRes.json();
-        setTaskGroups(groupTrialsByTask(trialsData.trials ?? []));
+        const groups = groupTrialsByTask(trialsData.trials ?? []);
+        setTaskGroups(groups);
+        if (groups.length === 0) {
+          setLoadError("This experiment has no tasks to display. It may not have been generated or published correctly.");
+        }
 
       } catch (error) {
         console.error("Error fetching tasks:", error.message);
+        setLoadError(`Could not load the experiment: ${error.message}`);
       } finally {
         setLoadingTasks(false);
       }
@@ -383,6 +389,20 @@ export default function TaskExecutionPage() {
         <main style={{ flexGrow: 1, paddingTop: showBanner ? "8rem" : "5.5rem", paddingBottom: "2rem", paddingLeft: "1.5rem", paddingRight: "1.5rem", maxWidth: "1800px", margin: "0 auto", width: "100%" }}>
           {showSkeleton ? (
             <LoadingSkeleton />
+          ) : (loadError || taskGroups.length === 0) ? (
+            <div style={{
+              maxWidth: "32rem", margin: "4rem auto", textAlign: "center",
+              background: "white", border: "1px solid #e4e9ea", borderRadius: "12px",
+              padding: "2.5rem 2rem", boxShadow: "0 2px 12px rgba(45,52,53,0.06)",
+            }}>
+              <div style={{ fontSize: "2rem", marginBottom: "0.75rem" }}>📭</div>
+              <h2 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#2d3435", marginBottom: "0.5rem" }}>
+                No tasks to display
+              </h2>
+              <p style={{ fontSize: "0.875rem", color: "#5a6061", lineHeight: 1.6 }}>
+                {loadError || "This experiment has no tasks to display."}
+              </p>
+            </div>
           ) : (
             <>
               {!isFirstIdiom && (
