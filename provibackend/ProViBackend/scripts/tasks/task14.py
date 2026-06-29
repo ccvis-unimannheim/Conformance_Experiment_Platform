@@ -99,6 +99,9 @@ from shared import (
 # ---------------------------------------------------------------------------
 
 _MOVE_TYPES = ["Model Move", "Log Move", "Mismatch Move"]
+# Conformant + violation types, in display order (Synchronous first as the
+# baseline). Used so every idiom shows synchronous moves alongside violations.
+_ALL_TYPES = ["Synchronous Move"] + _MOVE_TYPES
 
 _TYPE_COLOR = {
     "Model Move":      GREY_MED,
@@ -106,6 +109,10 @@ _TYPE_COLOR = {
     "Mismatch Move":   GREY_LIGHT,
     "Synchronous Move": GREY_LIGHTER,
 }
+
+# SVG dash pattern marking that an activity is (also) a synchronous/conformant
+# move on the Flow+ (BPMN) idiom — lets a node read as "both" at a glance.
+_SYNC_DASH = "6 4"
 
 # Domain-agnostic descriptions for each violation type
 _TYPE_DESC = {
@@ -161,6 +168,43 @@ def _type_counts(ctx):
     return counts
 
 
+def _type_counts_all(ctx):
+    """Return {move_type: count} over ALL steps, incl. Synchronous Move.
+
+    Used by the idioms that show synchronous (conformant) moves next to the
+    violation types for consistency across Task 14.
+    """
+    counts = {mt: 0 for mt in _ALL_TYPES}
+    for r in ctx["rows"]:
+        mt = r["moveType"]
+        if mt in counts:
+            counts[mt] += 1
+    return counts
+
+
+def _all_step_rows(ctx):
+    """cell_text for every trace step (synchronous + violations), in order."""
+    return [
+        [str(r["step"]), _activity_for_row(r), r["moveType"]]
+        for r in ctx["rows"]
+    ]
+
+
+def _build_act_types_map(rows):
+    """Map activity name -> set of move types it exhibits across the trace.
+
+    Keeps every move type per activity — including Synchronous Move — so the
+    Flow+ idiom can mark an activity that is *both* conformant and a violation
+    (rather than a single last-deviation-wins label).
+    """
+    act_types = {}
+    for r in rows:
+        act = _activity_for_row(r)
+        if act and act not in _MISSING_TOKENS:
+            act_types.setdefault(act, set()).add(r["moveType"])
+    return act_types
+
+
 def _activity_for_row(row):
     """Return the activity label for a violation row (domain-agnostic anchor)."""
     mt = row["moveType"]
@@ -173,32 +217,17 @@ def _activity_for_row(row):
     return lm if lm not in _MISSING_TOKENS else str(row["model_move"])
 
 
-def _build_act_type_map(violations):
-    """Map activity name -> violation type (last deviation per activity wins)."""
-    act_type = {}
-    for r in violations:
-        act = _activity_for_row(r)
-        if act and act not in _MISSING_TOKENS:
-            act_type[act] = r["moveType"]
-    return act_type
-
-
 # ---------------------------------------------------------------------------
 # Idiom 1: table
 # ---------------------------------------------------------------------------
 
 def task14_table(ctx, output_dir):
-    """Annotation table: each violation step with step number, activity, type, description."""
+    """Move classification table: every trace step (synchronous + violations)."""
     out = os.path.join(output_dir, "task14_table.svg")
-    violations = ctx["violations"]
-    if not violations:
-        render_empty_state_svg(out, "Violation Classification", "No violations in this trace.")
+    cell_text = _all_step_rows(ctx)
+    if not cell_text:
+        render_empty_state_svg(out, "Move Classification", "No trace steps.")
         return
-
-    cell_text = [
-        [str(r["step"]), _activity_for_row(r), r["moveType"]]
-        for r in violations
-    ]
 
     fig_h = max(3.2, 1.5 + len(cell_text) * 0.42)
     fig, ax = plt.subplots(figsize=(12, fig_h))
@@ -206,14 +235,14 @@ def task14_table(ctx, output_dir):
     make_table(
         ax,
         cell_text=cell_text,
-        col_labels=["Step", "Activity", "Violation Type"],
+        col_labels=["Step", "Activity", "Move Type"],
         bbox=[0.02, 0.05, 0.96, 0.78],
         col_widths=[0.12, 0.48, 0.40],
         font_size=9.5,
         scale_xy=(1, 1.7),
     )
     ax.set_title(
-        f"Violation Classification — {ctx['trace_label']}  (fitness {ctx['fitness']:.4f})",
+        f"Move Classification — {ctx['trace_label']}  (fitness {ctx['fitness']:.4f})",
         fontsize=FONT_TITLE, pad=10,
     )
     fig.tight_layout(pad=1.2)
@@ -225,19 +254,19 @@ def task14_table(ctx, output_dir):
 # ---------------------------------------------------------------------------
 
 def task14_bar_chart(ctx, output_dir):
-    """Bar chart: number of each violation type within the representative trace."""
+    """Bar chart: count of each move type (synchronous + violations) in the trace."""
     out = os.path.join(output_dir, "task14_bar_chart.svg")
-    counts = _type_counts(ctx)
-    present = [(mt, counts[mt]) for mt in _MOVE_TYPES if counts[mt] > 0]
+    counts = _type_counts_all(ctx)
+    present = [(mt, counts[mt]) for mt in _ALL_TYPES if counts[mt] > 0]
     if not present:
-        render_empty_state_svg(out, "Violation Type Distribution", "No violations in this trace.")
+        render_empty_state_svg(out, "Move Type Distribution", "No trace steps.")
         return
 
     labels, vals = zip(*present)
     colors = [_TYPE_COLOR[mt] for mt in labels]
     ymax = max(vals)
 
-    fig, ax = plt.subplots(figsize=(7, 5.5))
+    fig, ax = plt.subplots(figsize=(7.5, 5.5))
     bars = ax.bar(labels, vals, color=colors, edgecolor="white", width=0.55, alpha=0.90)
     for bar, v in zip(bars, vals):
         ax.text(
@@ -247,7 +276,7 @@ def task14_bar_chart(ctx, output_dir):
         )
     ax.set_ylabel("Occurrences in Trace", fontsize=FONT_LABEL)
     ax.set_title(
-        f"Violation Type Distribution — {ctx['trace_label']}",
+        f"Move Type Distribution — {ctx['trace_label']}",
         fontsize=FONT_TITLE,
     )
     ax.set_ylim(0, ymax * 1.22)
@@ -258,12 +287,12 @@ def task14_bar_chart(ctx, output_dir):
 
     legend_handles = [
         mpatches.Patch(facecolor=_TYPE_COLOR[mt], label=mt)
-        for mt in _MOVE_TYPES if counts[mt] > 0
+        for mt in _ALL_TYPES if counts[mt] > 0
     ]
     ax.legend(
         handles=legend_handles,
-        loc="lower center", bbox_to_anchor=(0.5, -0.25),
-        ncol=3, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT,
+        loc="lower center", bbox_to_anchor=(0.5, -0.27),
+        ncol=4, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT,
     )
     fig.tight_layout(pad=1.2)
     save_svg(fig, out)
@@ -337,17 +366,13 @@ def task14_flow_chart_and_table(ctx, output_dir):
     """Chevron flow strip (top) + violation classification table (bottom)."""
     out = os.path.join(output_dir, "task14_flow_chart_and_table.svg")
     rows = ctx["rows"]
-    violations = ctx["violations"]
     nodes = chevron_nodes_from_alignment_rows(rows)
 
     if not nodes:
-        render_empty_state_svg(out, "Trace Flow & Violation Classification", "No trace steps.")
+        render_empty_state_svg(out, "Trace Flow & Move Classification", "No trace steps.")
         return
 
-    cell_text = [
-        [str(r["step"]), _activity_for_row(r), r["moveType"]]
-        for r in violations
-    ] if violations else [["—", "No violations", "—"]]
+    cell_text = _all_step_rows(ctx) or [["—", "No trace steps", "—"]]
 
     n_rows = len(cell_text) + 1
     fig_w = max(18.0, chevron_figure_width(nodes))
@@ -367,13 +392,13 @@ def task14_flow_chart_and_table(ctx, output_dir):
     make_table(
         ax_tbl,
         cell_text=cell_text,
-        col_labels=["Step", "Activity", "Violation Type"],
+        col_labels=["Step", "Activity", "Move Type"],
         bbox=[0.0, 0.0, 1.0, 1.0],
         col_widths=[0.10, 0.50, 0.40],
         font_size=9,
         scale_xy=(1, 1.5),
     )
-    ax_tbl.set_title("Violation Classification", fontsize=FONT_TITLE, pad=7)
+    ax_tbl.set_title("Move Classification", fontsize=FONT_TITLE, pad=7)
 
     legend_handles = [
         mpatches.Patch(facecolor=GREY_LIGHTER,  label="Synchronous (Conformant)"),
@@ -387,7 +412,7 @@ def task14_flow_chart_and_table(ctx, output_dir):
         ncol=2, fontsize=FONT_ANNOT, frameon=True, fancybox=False, edgecolor="#cccccc",
     )
     fig.suptitle(
-        f"Violation Classification — {ctx['trace_label']}  (fitness {ctx['fitness']:.4f})",
+        f"Move Classification — {ctx['trace_label']}  (fitness {ctx['fitness']:.4f})",
         fontsize=FONT_TITLE, y=0.99,
     )
     fig.tight_layout(pad=1.2)
@@ -395,53 +420,90 @@ def task14_flow_chart_and_table(ctx, output_dir):
 
 
 # ---------------------------------------------------------------------------
-# Idiom 5: flow_chart_elaborate (BPMN annotated by violation type)
+# Flow+ (BPMN) shared styling
+#
+# Fill colour encodes the (worst) move type at an activity; a DASHED node
+# outline marks that the activity is *also* a synchronous (conformant) move
+# somewhere in the trace. That makes "both" activities — a violation that also
+# occurs conformantly — readable at a glance, which the old solid-fill-only
+# encoding could not show.
+# ---------------------------------------------------------------------------
+
+_BPMN_FILL = {
+    "Model Move":    "#999999",
+    "Log Move":      "#555555",
+    "Mismatch Move": "#777777",
+}
+_BPMN_CONFORM_FILL = "#E8E8E8"   # in trace, only synchronous (conformant) moves
+_BPMN_ABSENT_FILL  = "#F4F4F4"   # activity not present in this trace
+
+_BPMN_SUMMARY = ("Node colour = move type at this activity; a dashed outline "
+                 "marks an activity that is also a synchronous (conformant) move.")
+
+
+def _bpmn_fill_for_types(types):
+    """Fill for an activity's set of move types: worst violation wins
+    (Model > Log > Mismatch); else conformant grey if only synchronous; else
+    None when the activity does not appear in the trace at all."""
+    for mt in _MOVE_TYPES:
+        if mt in types:
+            return _BPMN_FILL[mt]
+    if "Synchronous Move" in types:
+        return _BPMN_CONFORM_FILL
+    return None
+
+
+def _make_bpmn_node_style_fn(ctx):
+    """Build a node_style_fn returning the optional 5th element (dash pattern)."""
+    act_types = _build_act_types_map(ctx["rows"])
+
+    def node_style_fn(eid, elem):
+        if elem.get("kind") != "task":
+            return "white", "#888888", 2, "#333333"
+        types = act_types.get(elem.get("name", ""), set())
+        fill = _bpmn_fill_for_types(types)
+        dash = _SYNC_DASH if "Synchronous Move" in types else None
+        if fill is None:
+            return _BPMN_ABSENT_FILL, "#bbbbbb", 1.2, "#333333", None
+        return fill, "#333333", 2.5, contrasting_text_color(fill), dash
+
+    return node_style_fn
+
+
+def _bpmn_legend():
+    return [
+        (_BPMN_ABSENT_FILL,  "#bbbbbb", 1.0, "Not in this trace"),
+        (_BPMN_CONFORM_FILL, "#333333", 1.5, "Synchronous (conformant)", _SYNC_DASH),
+        (_BPMN_FILL["Model Move"],    "#333333", 1.0, "Model Move"),
+        (_BPMN_FILL["Log Move"],      "#333333", 1.0, "Log Move"),
+        (_BPMN_FILL["Mismatch Move"], "#333333", 1.0, "Mismatch Move"),
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Idiom 5: flow_chart_elaborate (BPMN annotated by move type)
 # ---------------------------------------------------------------------------
 
 def task14_flow_chart_elaborate(ctx, model_path, output_dir):
-    """BPMN diagram with activity nodes coloured by their violation type."""
+    """BPMN diagram with activity nodes coloured by move type; dashed = synchronous."""
     out = os.path.join(output_dir, "task14_flow_chart_elaborate.svg")
     if not model_path or not os.path.exists(model_path):
-        render_empty_state_svg(out, "Violation Classification on Model", "No BPMN model available.")
+        render_empty_state_svg(out, "Move Classification on Model", "No BPMN model available.")
         return
     try:
         parsed = parse_bpmn_model(model_path)
     except Exception as e:
         logger.warning(f"      task14: BPMN parse failed: {e}")
-        render_empty_state_svg(out, "Violation Classification on Model", "Could not parse BPMN model.")
+        render_empty_state_svg(out, "Move Classification on Model", "Could not parse BPMN model.")
         return
 
-    act_type = _build_act_type_map(ctx["violations"])
-
-    _fill = {
-        "Model Move":    "#999999",
-        "Log Move":      "#555555",
-        "Mismatch Move": "#777777",
-    }
-
-    def node_style_fn(eid, elem):
-        if elem.get("kind") != "task":
-            return "white", "#888888", 2, "#333333"
-        mt = act_type.get(elem.get("name", ""))
-        if mt:
-            fill = _fill[mt]
-            tc = "white" if int(fill.lstrip("#")[0:2], 16) < 0x99 else "#222222"
-            return fill, "#333333", 2.5, tc
-        return "#E8E8E8", "#888888", 1.5, "#333333"
-
-    legend = [
-        ("#E8E8E8", "#888888", 1.0, "Conformant (no violation)"),
-        ("#999999", "#333333", 1.0, "Model Move"),
-        ("#555555", "#333333", 1.0, "Log Move"),
-        ("#777777", "#333333", 1.0, "Mismatch Move"),
-    ]
     render_bpmn_annotated(
         parsed, out,
-        title=f"Violation Classification on Model — {ctx['trace_label']}  "
+        title=f"Move Classification on Model — {ctx['trace_label']}  "
               f"(fitness {ctx['fitness']:.4f})",
-        summary="Node colour = violation type at this activity in the representative trace.",
-        node_style_fn=node_style_fn,
-        legend_items=legend,
+        summary=_BPMN_SUMMARY,
+        node_style_fn=_make_bpmn_node_style_fn(ctx),
+        legend_items=_bpmn_legend(),
     )
 
 
@@ -450,62 +512,36 @@ def task14_flow_chart_elaborate(ctx, model_path, output_dir):
 # ---------------------------------------------------------------------------
 
 def task14_flow_chart_elaborate_table(ctx, model_path, output_dir):
-    """BPMN diagram (top) + annotation table (bottom)."""
+    """BPMN diagram (top) + move classification table (bottom)."""
     out = os.path.join(output_dir, "task14_flow_chart_elaborate_table.svg")
     if not model_path or not os.path.exists(model_path):
-        render_empty_state_svg(out, "Violation Classification on Model + Table",
+        render_empty_state_svg(out, "Move Classification on Model + Table",
                                "No BPMN model available.")
         return
-    if not ctx["violations"]:
-        render_empty_state_svg(out, "Violation Classification on Model + Table",
-                               "No violations in this trace.")
+    if not ctx["rows"]:
+        render_empty_state_svg(out, "Move Classification on Model + Table",
+                               "No trace steps.")
         return
     try:
         parsed = parse_bpmn_model(model_path)
     except Exception as e:
         logger.warning(f"      task14: BPMN parse failed: {e}")
-        render_empty_state_svg(out, "Violation Classification on Model + Table",
+        render_empty_state_svg(out, "Move Classification on Model + Table",
                                "Could not parse BPMN model.")
         return
 
-    act_type = _build_act_type_map(ctx["violations"])
-    _fill = {
-        "Model Move":    "#999999",
-        "Log Move":      "#555555",
-        "Mismatch Move": "#777777",
-    }
-
-    def node_style_fn(eid, elem):
-        if elem.get("kind") != "task":
-            return "white", "#888888", 2, "#333333"
-        mt = act_type.get(elem.get("name", ""))
-        if mt:
-            fill = _fill[mt]
-            tc = "white" if int(fill.lstrip("#")[0:2], 16) < 0x99 else "#222222"
-            return fill, "#333333", 2.5, tc
-        return "#E8E8E8", "#888888", 1.5, "#333333"
-
-    legend = [
-        ("#E8E8E8", "#888888", 1.0, "Conformant"),
-        ("#999999", "#333333", 1.0, "Model Move"),
-        ("#555555", "#333333", 1.0, "Log Move"),
-        ("#777777", "#333333", 1.0, "Mismatch Move"),
-    ]
-    table_cols = ["Step", "Activity", "Violation Type"]
-    table_rows = [
-        [str(r["step"]), _activity_for_row(r), r["moveType"]]
-        for r in ctx["violations"]
-    ]
+    table_cols = ["Step", "Activity", "Move Type"]
+    table_rows = _all_step_rows(ctx)
     panels = [{
         "parsed": parsed,
-        "node_style_fn": node_style_fn,
+        "node_style_fn": _make_bpmn_node_style_fn(ctx),
         "subtitle": (f"{ctx['trace_label']} · fitness {ctx['fitness']:.4f} · "
-                     "node colour = violation type"),
+                     "node colour = move type · dashed = synchronous"),
     }]
     compose_bpmn_panels(
         panels, out,
-        title="Violation Classification on Model — with Annotation Table",
-        legend_items=legend,
+        title="Move Classification on Model — with Annotation Table",
+        legend_items=_bpmn_legend(),
         table_rows=table_rows,
         table_cols=table_cols,
     )
@@ -516,17 +552,13 @@ def task14_flow_chart_elaborate_table(ctx, model_path, output_dir):
 # ---------------------------------------------------------------------------
 
 def task14_table_bar_chart(ctx, output_dir):
-    """Composite: annotation table (left) + violation type bar chart (right)."""
+    """Composite: move classification table (left) + move type bar chart (right)."""
     out = os.path.join(output_dir, "task14_table_bar_chart.svg")
-    violations = ctx["violations"]
 
-    cell_text = [
-        [str(r["step"]), _activity_for_row(r), r["moveType"]]
-        for r in violations
-    ] if violations else [["—", "No violations", "—"]]
+    cell_text = _all_step_rows(ctx) or [["—", "No trace steps", "—"]]
 
-    counts = _type_counts(ctx)
-    present = [(mt, counts[mt]) for mt in _MOVE_TYPES if counts[mt] > 0]
+    counts = _type_counts_all(ctx)
+    present = [(mt, counts[mt]) for mt in _ALL_TYPES if counts[mt] > 0]
 
     fig_h = max(4.5, 1.4 + len(cell_text) * 0.42)
     fig = plt.figure(figsize=(16, fig_h))
@@ -539,7 +571,7 @@ def task14_table_bar_chart(ctx, output_dir):
     make_table(
         ax_tbl,
         cell_text=cell_text,
-        col_labels=["Step", "Activity", "Violation Type"],
+        col_labels=["Step", "Activity", "Move Type"],
         bbox=[0.01, max(0.05, 0.85 - tbl_frac), 0.98, tbl_frac],
         col_widths=[0.12, 0.45, 0.43],
         font_size=9,
@@ -559,17 +591,17 @@ def task14_table_bar_chart(ctx, output_dir):
             )
         ax_bar.set_ylim(0, ymax * 1.18)
         ax_bar.set_ylabel("Occurrences", fontsize=FONT_LABEL)
-        ax_bar.tick_params(axis="x", labelrotation=0)
+        ax_bar.tick_params(axis="x", labelrotation=20)
     else:
         ax_bar.axis("off")
-        ax_bar.text(0.5, 0.5, "No violations", ha="center", va="center",
+        ax_bar.text(0.5, 0.5, "No trace steps", ha="center", va="center",
                     fontsize=FONT_ANNOT, color="#888888", transform=ax_bar.transAxes)
     ax_bar.spines[["top", "right"]].set_visible(False)
     ax_bar.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax_bar.set_axisbelow(True)
 
     fig.suptitle(
-        f"Violation Classification Summary — {ctx['trace_label']}  "
+        f"Move Classification Summary — {ctx['trace_label']}  "
         f"(fitness {ctx['fitness']:.4f})",
         fontsize=FONT_TITLE, y=0.99,
     )

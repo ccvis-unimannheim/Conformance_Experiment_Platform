@@ -561,6 +561,40 @@ def render_counts_tile_metric(conform: int, non_conform: int, out_path: str,
     fig.tight_layout()
     save_svg(fig, out_path)
 
+
+def render_distribution_tile_metric(rows, out_path: str, title: str = "Distribution",
+                                    caption: str = None):
+    """Tile variant showing labelled rows (one (label, value) pair each).
+
+    ``rows`` is a list of (label, value) pairs; row spacing adapts to their count
+    so 2–7 rows all fit. ``caption`` adds a small line at the bottom (e.g. a
+    derivation hint). The tile shows raw quantities only — NO single aggregate
+    ratio/percentage — so a degree-discovery task can present the ingredients of
+    the conformance rate (e.g. trace count + summed fitness) without handing the
+    analyst the aggregated number; the analyst derives it themselves.
+    """
+    fig, ax = plt.subplots(figsize=(4, 3.2))
+    _draw_tile_box(ax)
+    ax.text(0.5, 0.88, title,
+            transform=ax.transAxes, ha="center", va="center",
+            fontsize=FONT_TITLE, color="#555555")
+    n = max(len(rows), 1)
+    top = 0.66
+    bottom = 0.30 if caption else 0.12
+    step = (top - bottom) / max(n - 1, 1) if n > 1 else 0.0
+    for i, (label, value) in enumerate(rows):
+        y = top - i * step
+        ax.text(0.13, y, label, transform=ax.transAxes,
+                ha="left", va="center", fontsize=FONT_LABEL, color="#555555")
+        ax.text(0.87, y, value, transform=ax.transAxes,
+                ha="right", va="center", fontsize=FONT_TITLE + 1, color="#333333")
+    if caption:
+        ax.text(0.5, 0.15, caption, transform=ax.transAxes,
+                ha="center", va="center", fontsize=FONT_ANNOT, color="#777777",
+                style="italic")
+    fig.tight_layout()
+    save_svg(fig, out_path)
+
 # ---------------------------------------------------------------------------
 # Shared zero-state renderer  (used by task23-style empty outputs)
 # ---------------------------------------------------------------------------
@@ -1133,10 +1167,15 @@ def render_conformance_line_graph(df, out_path, *,
 
 def render_conformance_horizon_chart(df, out_path, *,
                                      time_granularity: str = DEFAULT_TIME_GRANULARITY,
-                                     title: str = "Process Conformance Over Time"):
+                                     title: str = "Process Conformance Over Time",
+                                     value_labels: bool = False):
     """Horizon chart: filled area above/below the overall mean (granularity-aware).
 
     Area above mean -> dark grey (higher conformance); below -> light grey.
+
+    value_labels: when True, annotate each time bin with its mean-fitness
+    percentage (same opt-in semantics as render_conformance_line_graph), so the
+    horizon chart lets participants read off exact values like the line graph.
     """
     import matplotlib.ticker as _mticker
 
@@ -1161,13 +1200,25 @@ def render_conformance_horizon_chart(df, out_path, *,
                     color=GREY_DARK, alpha=0.75, label="Above mean (higher conformance)")
     ax.fill_between(x, mean_val, y, where=(y <= mean_val), interpolate=True,
                     color=GREY_LIGHTER, alpha=0.75, label="Below mean (lower conformance)")
-    ax.plot(x, y, color="#444444", linewidth=0.9, alpha=0.5)
+    ax.plot(x, y, color="#444444", linewidth=0.9, alpha=0.5,
+            marker="o", markersize=3)
     ax.axhline(mean_val, color="#555555", linewidth=1.2, linestyle="--")
+
+    if value_labels:
+        # Offset each label away from the mean line (up for above-mean bins,
+        # down for below-mean) so it sits in the open area, not over the fill.
+        for xi, yi in zip(x, y):
+            above = yi >= mean_val
+            ax.annotate(f"{yi * 100:.1f}%", (xi, yi),
+                        textcoords="offset points",
+                        xytext=(0, 7 if above else -7),
+                        ha="center", va="bottom" if above else "top",
+                        fontsize=FONT_ANNOT - 1, color=GREY_DARK)
     ax.annotate(f"Mean: {mean_val:.0%}", xy=(1.01, mean_val),
                 xycoords=("axes fraction", "data"),
                 fontsize=FONT_ANNOT, color="#555555", va="center")
 
-    y_pad = max((y.max() - y.min()) * 0.15, 0.01)
+    y_pad = max((y.max() - y.min()) * (0.28 if value_labels else 0.15), 0.02)
     ax.set_ylim(max(0.0, y.min() - y_pad), min(1.0, y.max() + y_pad))
     ax.yaxis.set_major_formatter(_mticker.PercentFormatter(xmax=1.0))
 
@@ -1613,12 +1664,19 @@ def bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn=None, *, ox=0.0, oy=0
         elem = elements.get(eid, {"kind": "task", "name": ""})
         kind = elem["kind"]; name = elem.get("name", "")
         x, y, w, h = tx(b["x"]), ty(b["y"]), b["width"], b["height"]
-        fill, stroke, sw, tc = node_style_fn(eid, elem)
+        # node_style_fn may return a 4-tuple (fill, stroke, stroke_width,
+        # text_color) or, optionally, a 5-tuple whose last element is an SVG
+        # stroke-dasharray string (e.g. "6 4") used to draw a dashed node
+        # outline. None/"" keeps the outline solid (backward compatible).
+        style = node_style_fn(eid, elem)
+        fill, stroke, sw, tc = style[0], style[1], style[2], style[3]
+        dash = style[4] if len(style) > 4 else None
+        dash_attr = f' stroke-dasharray="{dash}"' if dash else ""
 
         if kind == "task":
             out.append(
                 f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" '
-                f'rx="7" ry="7" fill="{fill}" stroke="{stroke}" stroke-width="{sw}"/>'
+                f'rx="7" ry="7" fill="{fill}" stroke="{stroke}" stroke-width="{sw}"{dash_attr}/>'
             )
             lines = _bpmn_label_lines(name, w)
             gap = 10.5; sy = y + h / 2.0 - (len(lines) - 1) * gap / 2.0
@@ -1631,7 +1689,7 @@ def bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn=None, *, ox=0.0, oy=0
         elif kind in {"exclusiveGateway", "parallelGateway"}:
             cx, cy = x + w / 2.0, y + h / 2.0
             pts_str = f"{cx:.1f},{y:.1f} {x+w:.1f},{cy:.1f} {cx:.1f},{y+h:.1f} {x:.1f},{cy:.1f}"
-            out.append(f'<polygon points="{pts_str}" fill="{fill}" stroke="{stroke}" stroke-width="{sw}"/>')
+            out.append(f'<polygon points="{pts_str}" fill="{fill}" stroke="{stroke}" stroke-width="{sw}"{dash_attr}/>')
             marker = "+" if kind == "parallelGateway" else "X"
             g_fs = max(13.0, min(w, h) * 0.34)
             out.append(
@@ -1644,7 +1702,7 @@ def bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn=None, *, ox=0.0, oy=0
             sw2 = 3 if kind == "endEvent" else 2
             out.append(
                 f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="{r:.1f}" fill="{fill}" '
-                f'stroke="{stroke}" stroke-width="{sw2}"/>'
+                f'stroke="{stroke}" stroke-width="{sw2}"{dash_attr}/>'
             )
             if kind == "startEvent":
                 out.append(
@@ -1662,11 +1720,17 @@ def bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn=None, *, ox=0.0, oy=0
 
 def _bpmn_legend_lines(legend_items, y, x0=24.0):
     out = []
-    for i, (lf, ls, lsw, lbl) in enumerate(legend_items):
+    for i, item in enumerate(legend_items):
+        # Legend item is (fill, stroke, stroke_width, label) or, optionally, a
+        # 5-tuple whose last element is an SVG stroke-dasharray for a dashed
+        # swatch outline (mirrors node_style_fn's optional 5th element).
+        lf, ls, lsw, lbl = item[0], item[1], item[2], item[3]
+        ldash = item[4] if len(item) > 4 else None
+        ldash_attr = f' stroke-dasharray="{ldash}"' if ldash else ""
         lx = x0 + i * 265
         out.append(
             f'<rect x="{lx:.1f}" y="{y - 11:.1f}" width="22" height="12" '
-            f'fill="{lf}" stroke="{ls}" stroke-width="{lsw}"/>'
+            f'fill="{lf}" stroke="{ls}" stroke-width="{lsw}"{ldash_attr}/>'
         )
         out.append(
             f'<text x="{lx + 30:.1f}" y="{y:.1f}" font-family="Arial, sans-serif" '
