@@ -89,9 +89,9 @@ def task23_bar_chart(pat_df: pd.DataFrame, output_dir: str):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + ymax * 0.012,
                 f"{int(val)}", ha="center", va="bottom", fontsize=FONT_ANNOT - 1)
 
-    act_labels = [p.split(" (")[0] for p in top["pattern"]]
+    act_labels = [p.replace(" (", "\n(") for p in top["pattern"]]
     ax.set_xticks(range(len(top)))
-    ax.set_xticklabels(act_labels, fontsize=FONT_ANNOT - 1)
+    ax.set_xticklabels(act_labels, fontsize=FONT_ANNOT - 1, ha="center")
     ax.set_ylabel("Occurrences", fontsize=FONT_LABEL)
     ax.set_title(f"Top-{len(top)} Violation Patterns by Frequency", fontsize=FONT_TITLE)
     ax.set_ylim(0, ymax * 1.16)
@@ -201,6 +201,7 @@ def task23_table_and_bar_chart(pat_df: pd.DataFrame, output_dir: str):
     ax_bar.barh(x, top["count"], color=colors, edgecolor="white")
     ax_bar.set_yticks(x)
     ax_bar.set_yticklabels(top["pattern"], fontsize=FONT_ANNOT - 1)
+    ax_bar.invert_yaxis()   # rank 1 at top, matching table row order
     ax_bar.set_xlabel("Occurrences", fontsize=FONT_LABEL)
     ax_bar.legend(
         handles=[mpatches.Patch(color=_MOVE_COLORS[mt], label=mt)
@@ -281,19 +282,26 @@ def task23_parallel_sets(pat_df: pd.DataFrame, output_dir: str):
     left_labels  = [f"{mt}\n(n={int(move_totals.get(mt, 0))})" for mt in move_types]
     left_colors  = [_MOVE_COLORS[mt] for mt in move_types]
 
+    act_totals_all = pat_df.groupby("activity")["count"].sum()
+    other_count    = int(pat_df[~pat_df["activity"].isin(top_acts)]["count"].sum()) if has_other else 0
+    right_labels_n = (
+        [f"{act}\n(n={int(act_totals_all.get(act, 0))})" for act in top_acts]
+        + ([f"Other\n(n={other_count})"] if has_other else [])
+    )
+
     n_cats = len(right_cats)
     right_colors = [to_hex(_CIVIDIS(0.15 + 0.70 * (i / max(n_cats - 1, 1)))) for i in range(n_cats)]
 
-    fig, ax = plt.subplots(figsize=(10, 5.5))
+    fig, ax = plt.subplots(figsize=(12, 5.5))
     ax.axis("off")
-    ax.set_xlim(-0.05, 1.05)
+    ax.set_xlim(-0.05, 1.40)
     ax.set_ylim(-0.05, 1.15)
     ax.set_title("Parallel Sets: Move Type vs. Activity", fontsize=FONT_TITLE, pad=12)
 
     draw_parallel_sets(
         ax,
         left_labels=left_labels,
-        right_labels=right_cats,
+        right_labels=right_labels_n,
         matrix=matrix,
         left_colors=left_colors,
         right_colors=right_colors,
