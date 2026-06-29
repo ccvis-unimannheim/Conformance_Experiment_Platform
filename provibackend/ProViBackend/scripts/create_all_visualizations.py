@@ -42,6 +42,8 @@ import argparse
 import os
 import re
 import sys
+import pickle
+import hashlib
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -238,6 +240,76 @@ def _resolve_dataset_paths(dataset_dir: str, experiment_id: str | None = None):
     os.makedirs(output_dir, exist_ok=True)
 
     return log_path, model_path, output_dir
+
+
+# ---------------------------------------------------------------------------
+# Alignment cache
+#
+# PM4Py optimal alignments are NON-DETERMINISTIC: a trace with several optimal
+# alignments may be diagnosed differently across runs, so the same deviation can
+# be classified as a Move-on-Model in one run and a Move-on-Log (or not at all)
+# in another. The /specify violation picker and the generation/ground-truth step
+# run alignments at different times, so without a shared result they would report
+# inconsistent violation frequencies (e.g. 6.6% on /specify vs 3% in the ground
+# truth). We therefore compute alignments ONCE per dataset and cache them on disk
+# (keyed by the log+model file signature), so every consumer sees identical data.
+# ---------------------------------------------------------------------------
+
+def _alignments_cache_path(dataset_dir: str) -> str:
+    return os.path.join(dataset_dir, "cache", "alignments.pkl")
+
+
+def _input_signature(log_path: str, model_path: str) -> str:
+    """Stable signature of the dataset's log + model files (size + mtime).
+
+    Re-uploading a log/model changes the signature and invalidates the cache.
+    """
+    h = hashlib.md5()
+    for p in (log_path, model_path):
+        try:
+            st = os.stat(p)
+            h.update(f"{os.path.basename(p)}:{st.st_size}:{st.st_mtime_ns}".encode())
+        except OSError:
+            h.update(p.encode())
+    return h.hexdigest()
+
+
+def get_or_compute_alignments(dataset_dir: str, log=None, net=None, im=None, fm=None):
+    """Return this dataset's alignments, loading the on-disk cache when valid.
+
+    Computing alignments is both expensive and non-deterministic, so the result
+    is cached per dataset and reused by the /specify violation enumeration, the
+    visualization render, and the ground-truth computation — guaranteeing they
+    all agree. Pass already-loaded `log`/`net`/`im`/`fm` to avoid reloading when
+    the caller has them (cache miss only).
+    """
+    log_path, model_path, _ = _resolve_dataset_paths(dataset_dir, None)
+    sig = _input_signature(log_path, model_path)
+    cache_path = _alignments_cache_path(dataset_dir)
+
+    if os.path.exists(cache_path):
+        try:
+            with open(cache_path, "rb") as f:
+                blob = pickle.load(f)
+            if isinstance(blob, dict) and blob.get("sig") == sig:
+                return blob["alignments"]
+        except Exception:
+            logger.exception("Failed to read alignments cache at %s; recomputing", cache_path)
+
+    if log is None:
+        log = load_event_log(log_path)
+    if net is None or im is None or fm is None:
+        net, im, fm = load_model(model_path)
+    alignments = run_alignments(log, net, im, fm)
+
+    try:
+        os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+        with open(cache_path, "wb") as f:
+            pickle.dump({"sig": sig, "alignments": alignments}, f)
+    except Exception:
+        logger.exception("Failed to write alignments cache at %s", cache_path)
+
+    return alignments
 
 
 # ---------------------------------------------------------------------------
@@ -446,10 +518,7 @@ def get_log_violations(dataset_dir: str) -> list[dict]:
     from collections import Counter
     from shared import classify_step as _classify_step
 
-    log_path, model_path, _ = _resolve_dataset_paths(dataset_dir, experiment_id=None)
-    log        = load_event_log(log_path)
-    net, im, fm = load_model(model_path)
-    alignments = run_alignments(log, net, im, fm)
+    alignments = get_or_compute_alignments(dataset_dir)
 
     trace_coverage: Counter = Counter()
     n_traces = len(alignments)
@@ -491,7 +560,10 @@ def generate_for_task_instances(dataset_dir: str, experiment_id: str,
     log         = load_event_log(log_path)
     compare_attribute = _auto_detect_compare_attribute(log, "AMOUNT_REQ")
     net, im, fm = load_model(model_path)
-    alignments  = run_alignments(log, net, im, fm)
+    # Reuse the cached alignments shared with /specify's violation enumeration so
+    # idiom frequencies and ground truth match what the admin saw when selecting
+    # violations (PM4Py alignments are non-deterministic — see get_or_compute_alignments).
+    alignments  = get_or_compute_alignments(dataset_dir, log, net, im, fm)
     fitness_df  = fitness_summary_dataframe(alignments)
 
     _TASK_MODULE = {
