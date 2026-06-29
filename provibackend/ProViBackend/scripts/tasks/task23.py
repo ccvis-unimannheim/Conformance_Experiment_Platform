@@ -32,9 +32,11 @@ from shared import (
     FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
-TOP_N = 15
+TOP_N    = 10   # max items shown in most charts (patterns or activities)
+TOP_N_PS = 7    # stricter cap for parallel sets (right-side two-line labels)
 
-_CIVIDIS = matplotlib.colormaps["cividis"]
+_CIVIDIS   = matplotlib.colormaps["cividis"]
+_CIVIDIS_R = matplotlib.colormaps["cividis_r"]  # reversed: 0=yellow, high=dark
 _MOVE_DEFAULT = to_hex(_CIVIDIS(0.50))         # mid (fallback for unknown move types)
 _MOVE_COLORS = {
     "Model Move":    to_hex(_CIVIDIS(0.85)),   # soft  (light end)
@@ -82,19 +84,20 @@ def task23_bar_chart(pat_df: pd.DataFrame, output_dir: str):
     colors = [_MOVE_COLORS.get(mt, _MOVE_DEFAULT) for mt in top["move_type"]]
     ymax   = max(int(top["count"].max()), 1)
 
-    fig, ax = plt.subplots(figsize=(max(9, len(top) * 1.6), 5.5))
+    fig, ax = plt.subplots(figsize=(max(9, len(top) * 1.6), 6.5))
     bars = ax.bar(range(len(top)), top["count"], color=colors,
                   edgecolor="white", width=0.65)
-    for bar, val in zip(bars, top["count"]):
+    for bar, row in zip(bars, top.itertuples()):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + ymax * 0.012,
-                f"{int(val)}", ha="center", va="bottom", fontsize=FONT_ANNOT - 1)
+                f"{int(row.count)} ({row.pct:.1f}%)\ntr={int(row.n_traces)}",
+                ha="center", va="bottom", fontsize=FONT_ANNOT - 2, linespacing=1.4)
 
     act_labels = [p.replace(" (", "\n(") for p in top["pattern"]]
     ax.set_xticks(range(len(top)))
     ax.set_xticklabels(act_labels, fontsize=FONT_ANNOT - 1, ha="center")
     ax.set_ylabel("Occurrences", fontsize=FONT_LABEL)
-    ax.set_title(f"Top-{len(top)} Violation Patterns by Frequency", fontsize=FONT_TITLE)
-    ax.set_ylim(0, ymax * 1.16)
+    ax.set_title(f"Top-{len(top)} Violation Patterns by Frequency", fontsize=FONT_TITLE, pad=8)
+    ax.set_ylim(0, ymax * 1.28)
     _move_legend(ax, set(top["move_type"]))
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
@@ -113,21 +116,29 @@ def task23_stacked_bar(pat_df: pd.DataFrame, output_dir: str):
               .sum().unstack(fill_value=0).reindex(top_acts, fill_value=0))
     present_types = [mt for mt in _MOVE_ORDER if mt in pivot.columns]
 
-    x       = np.arange(len(top_acts))
-    bottoms = np.zeros(len(top_acts))
+    x                = np.arange(len(top_acts))
+    bottoms          = np.zeros(len(top_acts))
+    total_violations = int(pat_df["count"].sum())
+    min_seg          = total_violations * 0.04   # skip label if segment < 4% of total
 
-    fig, ax = plt.subplots(figsize=(max(8, len(top_acts) * 0.9), 5.5))
+    fig, ax = plt.subplots(figsize=(max(8, len(top_acts) * 1.1), 6.0))
     for mt in present_types:
         vals = pivot[mt].values
         ax.bar(x, vals, bottom=bottoms, color=_MOVE_COLORS[mt],
                edgecolor="white", linewidth=0.5, label=mt)
+        tc = contrasting_text_color(_MOVE_COLORS[mt])
+        for xi, (v, b) in enumerate(zip(vals, bottoms)):
+            if v >= min_seg:
+                pct = 100 * v / total_violations
+                ax.text(xi, b + v / 2, f"{int(v)}\n({pct:.1f}%)", ha="center", va="center",
+                        fontsize=FONT_ANNOT - 2, color=tc, fontweight="bold", linespacing=1.3)
         bottoms += vals
 
     ax.set_xticks(x)
     ax.set_xticklabels(top_acts, rotation=0, fontsize=FONT_ANNOT - 1)
     ax.set_ylabel("Violation count", fontsize=FONT_LABEL)
     ax.set_title(f"Violation Composition per Activity (top-{len(top_acts)})",
-                 fontsize=FONT_TITLE)
+                 fontsize=FONT_TITLE, pad=8)
     handles, labels = ax.get_legend_handles_labels()
     ax.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, -0.25),
               ncol=max(1, len(handles)), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
@@ -164,7 +175,7 @@ def task23_table(pat_df: pd.DataFrame, output_dir: str):
         cell_pad=0.09,
         highlight_last_row=True,
     )
-    ax.set_title(f"Top-{len(top)} Violation Patterns", fontsize=FONT_TITLE, pad=4)
+    ax.set_title(f"Top-{len(top)} Violation Patterns", fontsize=FONT_TITLE, pad=8)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task23_table.svg"))
 
@@ -193,7 +204,7 @@ def task23_table_and_bar_chart(pat_df: pd.DataFrame, output_dir: str):
         scale_xy=(1, 1.7),
         cell_pad=0.09,
     )
-    ax_tbl.set_title(f"Top-{len(top)} Violation Patterns", fontsize=FONT_TITLE, pad=4)
+    fig.suptitle(f"Top-{len(top)} Violation Patterns", fontsize=FONT_TITLE, y=1.02)
 
     ax_bar = fig.add_subplot(gs[1])
     x      = np.arange(len(top))
@@ -206,8 +217,9 @@ def task23_table_and_bar_chart(pat_df: pd.DataFrame, output_dir: str):
     ax_bar.legend(
         handles=[mpatches.Patch(color=_MOVE_COLORS[mt], label=mt)
                  for mt in _MOVE_ORDER if mt in set(top["move_type"])],
-        frameon=False, fontsize=FONT_ANNOT,
-        loc="upper right", bbox_to_anchor=(1.0, -0.12), ncol=3,
+        loc="lower center", bbox_to_anchor=(0.5, -0.25),
+        ncol=len([mt for mt in _MOVE_ORDER if mt in set(top["move_type"])]),
+        frameon=True, framealpha=0.9, fontsize=FONT_ANNOT,
         columnspacing=1.4, handletextpad=0.5,
     )
     ax_bar.spines[["top", "right"]].set_visible(False)
@@ -233,11 +245,12 @@ def task23_matrix(pat_df: pd.DataFrame, output_dir: str):
     if data.max() == 0:
         data[0, 0] = 0  # keep imshow happy with a valid range
 
-    cmap = "cividis"
+    cmap = "cividis_r"   # 0 = yellow (light), high = dark
     vmax = max(data.max(), 1.0)
 
-    fig_h = max(3.5, 0.55 * len(top_acts) + 1.5)
-    fig, ax = plt.subplots(figsize=(max(5, len(present_types) * 2.0), fig_h))
+    total_violations = float(pat_df["count"].sum())
+    fig_h = max(3.5, 0.75 * len(top_acts) + 1.5)
+    fig, ax = plt.subplots(figsize=(max(5, len(present_types) * 2.5), fig_h))
     im = ax.imshow(data, cmap=cmap, vmin=0, vmax=vmax, aspect="auto")
 
     ax.set_xticks(range(len(present_types)))
@@ -246,15 +259,16 @@ def task23_matrix(pat_df: pd.DataFrame, output_dir: str):
     ax.set_yticklabels(top_acts, fontsize=FONT_ANNOT - 1)
     ax.set_xlabel("Move Type", fontsize=FONT_LABEL)
     ax.set_title(f"Violation Count Matrix (top-{len(top_acts)} activities)",
-                 fontsize=FONT_TITLE)
+                 fontsize=FONT_TITLE, pad=8)
 
     norm = Normalize(vmin=0, vmax=vmax)
     for ri in range(len(top_acts)):
         for ci in range(len(present_types)):
             val = data[ri, ci]
-            tc  = contrasting_text_color(to_hex(_CIVIDIS(norm(val))))
-            ax.text(ci, ri, f"{int(val)}", ha="center", va="center",
-                    fontsize=FONT_ANNOT, color=tc)
+            tc  = contrasting_text_color(to_hex(_CIVIDIS_R(norm(val))))
+            pct = 100 * val / total_violations if total_violations > 0 else 0
+            ax.text(ci, ri, f"{int(val)}\n({pct:.1f}%)", ha="center", va="center",
+                    fontsize=FONT_ANNOT - 1, color=tc, linespacing=1.3)
 
     cbar = fig.colorbar(im, ax=ax, fraction=0.04, pad=0.02)
     cbar.set_label("Count", fontsize=FONT_ANNOT)
@@ -266,8 +280,8 @@ def task23_parallel_sets(pat_df: pd.DataFrame, output_dir: str):
     """Parallel Sets: move type (left) × activity top-N + Other (right)."""
     move_types = [mt for mt in _MOVE_ORDER if mt in pat_df["move_type"].values]
     act_totals = pat_df.groupby("activity")["count"].sum().sort_values(ascending=False)
-    top_acts   = act_totals.head(TOP_N).index.tolist()
-    has_other  = len(act_totals) > TOP_N
+    top_acts   = act_totals.head(TOP_N_PS).index.tolist()
+    has_other  = len(act_totals) > TOP_N_PS
     right_cats = top_acts + (["Other"] if has_other else [])
 
     matrix = np.zeros((len(move_types), len(right_cats)), dtype=int)
@@ -278,25 +292,29 @@ def task23_parallel_sets(pat_df: pd.DataFrame, output_dir: str):
         if has_other:
             matrix[mi, -1] = int(sub[~sub["activity"].isin(top_acts)]["count"].sum())
 
-    move_totals  = pat_df.groupby("move_type")["count"].sum()
-    left_labels  = [f"{mt}\n(n={int(move_totals.get(mt, 0))})" for mt in move_types]
+    move_totals      = pat_df.groupby("move_type")["count"].sum()
+    total_violations = int(pat_df["count"].sum())
+    left_labels  = [
+        f"{mt}\n(n={int(move_totals.get(mt, 0))}, {100 * move_totals.get(mt, 0) / total_violations:.0f}%)"
+        for mt in move_types
+    ]
     left_colors  = [_MOVE_COLORS[mt] for mt in move_types]
 
-    act_totals_all = pat_df.groupby("activity")["count"].sum()
     other_count    = int(pat_df[~pat_df["activity"].isin(top_acts)]["count"].sum()) if has_other else 0
     right_labels_n = (
-        [f"{act}\n(n={int(act_totals_all.get(act, 0))})" for act in top_acts]
-        + ([f"Other\n(n={other_count})"] if has_other else [])
+        [f"{act}\n(n={int(act_totals.get(act, 0))}, {100 * act_totals.get(act, 0) / total_violations:.0f}%)"
+         for act in top_acts]
+        + ([f"Other\n(n={other_count}, {100 * other_count / total_violations:.0f}%)"] if has_other else [])
     )
 
     n_cats = len(right_cats)
     right_colors = [to_hex(_CIVIDIS(0.15 + 0.70 * (i / max(n_cats - 1, 1)))) for i in range(n_cats)]
 
-    fig, ax = plt.subplots(figsize=(12, 5.5))
+    fig, ax = plt.subplots(figsize=(14, 5.5))
     ax.axis("off")
-    ax.set_xlim(-0.05, 1.40)
+    ax.set_xlim(-0.40, 1.40)   # symmetric around 0.50 (diagram center) → title auto-centers
     ax.set_ylim(-0.05, 1.15)
-    ax.set_title("Parallel Sets: Move Type vs. Activity", fontsize=FONT_TITLE, pad=12)
+    ax.set_title("Parallel Sets: Move Type vs. Activity", fontsize=FONT_TITLE, pad=8)
 
     draw_parallel_sets(
         ax,
