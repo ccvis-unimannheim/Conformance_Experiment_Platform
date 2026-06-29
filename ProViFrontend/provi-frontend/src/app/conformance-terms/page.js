@@ -214,18 +214,18 @@ export default function ConformanceTermsPage() {
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
 
-              {/* ── Conformant / Non-conformant Traces */}
+              {/* ── Conformant / Nonconformant Traces */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>route</span>
                   <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
-                    Conformant and Non-conformant Traces
+                    Conformant and Nonconformant Traces
                   </h2>
                 </div>
                 <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
                   A <strong>trace</strong> is a sequence of recorded activities belonging to one case of the process.
                   A trace is <strong>conformant</strong> if it can be fully replayed on the model without deviation,
-                  and <strong>non-conformant</strong> if it contains activities that violate the model's prescribed steps.
+                  and <strong>nonconformant</strong> if it contains activities that violate the model's prescribed steps.
                 </p>
 
                 <Collapsible label="See examples">
@@ -239,7 +239,7 @@ export default function ConformanceTermsPage() {
                     }}>
                       <span className="material-symbols-outlined" style={{ color: "#15803d", fontSize: "1.2rem", flexShrink: 0, marginTop: "0.1rem" }}>check_circle</span>
                       <p style={{ margin: 0, fontSize: "0.875rem", color: C.onSurface, lineHeight: 1.7 }}>
-                        A <strong>conformant trace</strong> can be fully replayed on the process model without any deviation — every activity in the trace follows a path that the model allows.
+                        A <strong>conformant trace</strong> can be fully replayed on the process model without any deviation. Every activity follows a path that the model allows.
                       </p>
                     </div>
                     <div style={{
@@ -251,7 +251,7 @@ export default function ConformanceTermsPage() {
                     }}>
                       <span className="material-symbols-outlined" style={{ color: "#dc2626", fontSize: "1.2rem", flexShrink: 0, marginTop: "0.1rem" }}>cancel</span>
                       <p style={{ margin: 0, fontSize: "0.875rem", color: C.onSurface, lineHeight: 1.7 }}>
-                        A <strong>non-conformant trace</strong> contains at least one activity that violates the model's prescribed behaviour — it cannot be replayed without skipping or inserting steps.
+                        A <strong>nonconformant trace</strong> contains at least one activity that violates the model's prescribed behaviour. It cannot be replayed without skipping or inserting steps.
                       </p>
                     </div>
                   </div>
@@ -274,13 +274,32 @@ export default function ConformanceTermsPage() {
                 </p>
 
                 <Collapsible label="Types of deviations">
-                  <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: "0 0 0.75rem" }}>
-                    Deviations occur when:
-                  </p>
-                  <ul style={{ margin: 0, paddingLeft: "1.5rem", fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8 }}>
-                    <li>an activity was executed in a case that the model does not allow at that point, or</li>
-                    <li>an activity required by the model was not executed in the case.</li>
-                  </ul>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+                    <div style={{
+                      display: "flex", alignItems: "flex-start", gap: "0.875rem",
+                      padding: "0.875rem 1rem",
+                      backgroundColor: "#fef2f2",
+                      border: "1px solid #fecaca",
+                      borderRadius: "0.5rem",
+                    }}>
+                      <span className="material-symbols-outlined" style={{ color: "#dc2626", fontSize: "1.1rem", flexShrink: 0, marginTop: "0.15rem" }}>add_circle</span>
+                      <p style={{ margin: 0, fontSize: "0.875rem", color: C.onSurface, lineHeight: 1.7 }}>
+                        <strong>Extra activity:</strong> An activity was executed in a case that the model does not allow at that point.
+                      </p>
+                    </div>
+                    <div style={{
+                      display: "flex", alignItems: "flex-start", gap: "0.875rem",
+                      padding: "0.875rem 1rem",
+                      backgroundColor: "#fffbeb",
+                      border: "1px solid #fde68a",
+                      borderRadius: "0.5rem",
+                    }}>
+                      <span className="material-symbols-outlined" style={{ color: "#d97706", fontSize: "1.1rem", flexShrink: 0, marginTop: "0.15rem" }}>remove_circle</span>
+                      <p style={{ margin: 0, fontSize: "0.875rem", color: C.onSurface, lineHeight: 1.7 }}>
+                        <strong>Missing activity:</strong> An activity required by the model was not executed in the case.
+                      </p>
+                    </div>
+                  </div>
                 </Collapsible>
               </section>
 
