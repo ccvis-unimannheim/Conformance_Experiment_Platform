@@ -1,31 +1,96 @@
 """
-tasks/task11.py – Task 11: Summarize Guideline Violations
+tasks/task11.py – Task 11: Predefined Guideline Violation(s)
 Goal: Describe · Means: Summarize · Characteristics: Guideline violations
 
-Question: How often did a specific guideline violation occur?
+Question: How often did predefined guideline violation(s) occur?
 
 Visualizations (all SVG, white-grey-black palette):
-  bar_chart                     – per-activity total violation count
-  pie_chart                     – violation type proportions
-  heatmap                       – activity × type count with marginals + %
-  table                         – Pareto ranked table with cumulative %
-  table_bar_chart               – Pareto table + gradient bar chart
-  stacked_bar                   – 100% normalized type distribution per activity
-  flow_chart_elaborate_bpmn     – BPMN heatmap (frequency annotation)
-  flow_chart_elaborate_bpmn_table – BPMN heatmap + Pareto table
+  bar_chart                     – trace count per predefined violation
+  heatmap                       – activity × type grid for selected violations
+  table                         – violations ranked by trace frequency
+  table_bar_chart               – table + gradient bar chart
+  flow_chart_elaborate_bpmn_table – BPMN heatmap + violation frequency table
 """
 
 import logging
 logger = logging.getLogger(__name__)
 
 IDIOMS = [
-    "bar_chart", "pie_chart", "heatmap",
-    "table", "table_bar_chart", "stacked_bar",
-    "flow_chart_elaborate_bpmn", "flow_chart_elaborate_bpmn_table",
+    "bar_chart", "heatmap",
+    "table", "table_bar_chart",
+    "flow_chart_elaborate_bpmn_table",
 ]
 
+# ---------------------------------------------------------------------------
+# Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8;
+# design doc §2 row 11)
+#
+# Task 11 (SEMI): trace-level frequency of a set of predefined violations.
+# The admin picks one or more (activity, move_type) pairs from the log;
+# every idiom shows how many traces each one appears in (% of all traces).
+# ---------------------------------------------------------------------------
+GT_TIER = "SEMI"
+
+PARAM_SPEC = [
+    {
+        "key": "target_violations",
+        "label": "Predefined violation(s) to summarize",
+        "widget": "select-many",
+        "source": "log.violations",
+        "required": True,
+    },
+]
+
+ANSWER_FORMATS = [
+    {"key": "pct-set",   "gt_shape": "labelled-set", "decisive_default": True},
+    {"key": "free-text", "gt_shape": "reference",     "decisive_default": False},
+]
+
+RUBRIC = (
+    "A strong answer states the trace-level frequency of each predefined violation — "
+    "i.e. the percentage of all traces in which that violation appears at least once — "
+    "for every violation in the specified set. "
+    "Full credit requires a correct percentage for each violation, rounded to the nearest "
+    "whole number. Partial credit for values within ±5 percentage points of the true value, "
+    "or for correctly ranking violations by trace frequency. No credit for raw occurrence "
+    "counts rather than trace-level percentages, or for percentages relative to a subset "
+    "of traces rather than the full log."
+)
+
+
+def validate_params(log, params) -> list:
+    violations = params.get("target_violations")
+    if not violations or (isinstance(violations, list) and len(violations) == 0):
+        return ["At least one guideline violation must be selected."]
+    return []
+
+
+def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
+    """Trace-level frequency per selected violation, shaped for the chosen answer format.
+
+    pct-set: one labelled row per violation, value = % of all traces (rounded), correct=True.
+    free-text: falls through to the static RUBRIC; no value is computed.
+    """
+    if answer_format == "free-text":
+        return {}
+    trace_coverage, n_traces = _extract_trace_coverage(alignments)
+    violations = params.get("target_violations") or []
+    selected = _resolve_violations(violations, trace_coverage)
+    if not selected:
+        return {"value": None, "options": []}
+    options = []
+    for act, vt in selected:
+        count = trace_coverage.get((act, vt), 0)
+        pct = count / n_traces * 100 if n_traces > 0 else 0
+        options.append({
+            "label": f"{act} · {vt}",
+            "value": f"{round(pct)}%",
+            "correct": True,
+        })
+    return {"value": None, "options": options}
+
+
 import os
-import html as _html
 import io as _io
 import base64 as _base64
 import re as _re
@@ -36,7 +101,6 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 import matplotlib.colors as mcolors
 
 from shared import save_svg, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
@@ -50,20 +114,13 @@ _HDR_BG   = "#333333"
 _CMAP_SEQ = "Greys"
 
 _VTYPES = ["Move on Model", "Move on Log", "Mismatch Move"]
-_VTYPE_COLOR = {
-    "Move on Model": _C_LIGHT,
-    "Move on Log":   _C_MED,
-    "Mismatch Move": _C_DARK,
-}
 _VTYPE_SHORT = {
     "Move on Model": "MoM",
     "Move on Log":   "MoL",
     "Mismatch Move": "MM",
 }
 
-_TOP_N = 12
-
-# Accepts full names or short codes (MoM/MoL/MM) when parsing a target spec.
+# Accepts full names or short codes when parsing a violation spec.
 _VTYPE_FROM_TOKEN = {
     "mom": "Move on Model", "move on model": "Move on Model",
     "mol": "Move on Log",   "move on log":   "Move on Log",
@@ -71,22 +128,38 @@ _VTYPE_FROM_TOKEN = {
 }
 
 
-# ── Target-violation selection ────────────────────────────────────────────────
+# ── Data extraction ───────────────────────────────────────────────────────────
 
-def _resolve_target(target_violation, activity_type):
-    """Normalise a target-violation spec to an (activity, vtype) key that exists in
-    activity_type, or None if it cannot be matched.
+def _extract_trace_coverage(alignments):
+    """Returns (trace_coverage Counter, n_traces int).
 
-    Accepts a 2-tuple/list (activity, move_type) or a string "activity|move_type"
-    (also "activity::move_type"); the move_type may be a full name or a short code
-    (MoM / MoL / MM).
+    trace_coverage maps (activity, vtype) → number of distinct traces in which
+    that violation appears at least once.
     """
-    if target_violation is None:
+    trace_coverage = Counter()
+    n_traces = len(alignments)
+    for aln in alignments:
+        seen = set()
+        for step in aln.get("alignment", []):
+            if not isinstance(step, (list, tuple)) or len(step) < 2:
+                continue
+            act, vtype = _classify_step(step[0], step[1])
+            if act is None:
+                continue
+            seen.add((act, vtype))
+        for pair in seen:
+            trace_coverage[pair] += 1
+    return trace_coverage, n_traces
+
+
+def _resolve_target(spec, trace_coverage):
+    """Parse one 'activity|move_type' string to an (act, vt) key present in trace_coverage."""
+    if spec is None:
         return None
-    if isinstance(target_violation, (tuple, list)) and len(target_violation) == 2:
-        act, vt = str(target_violation[0]).strip(), str(target_violation[1]).strip()
+    if isinstance(spec, (tuple, list)) and len(spec) == 2:
+        act, vt = str(spec[0]).strip(), str(spec[1]).strip()
     else:
-        s = str(target_violation).strip()
+        s = str(spec).strip()
         if "|" in s:
             act, vt = s.rsplit("|", 1)
         elif "::" in s:
@@ -96,62 +169,36 @@ def _resolve_target(target_violation, activity_type):
         act, vt = act.strip(), vt.strip()
     vt = _VTYPE_FROM_TOKEN.get(vt.lower(), vt)
     key = (act, vt)
-    return key if key in activity_type else None
+    return key if key in trace_coverage else None
 
 
-def _available_pairs_str(activity_type, limit=40):
-    """Human-readable list of available (activity | move_type) pairs, most frequent first."""
-    pairs = sorted(activity_type.items(), key=lambda kv: -kv[1])
-    shown = ", ".join(f"({a} | {vt}: {c})" for (a, vt), c in pairs[:limit])
-    more = "" if len(pairs) <= limit else f"  … (+{len(pairs) - limit} more)"
-    return shown + more
+def _resolve_violations(target_violations, trace_coverage):
+    """Resolve a list of 'activity|move_type' specs to (act, vt) tuples present in data.
+
+    Preserves order; silently drops specs that cannot be matched.
+    """
+    if not target_violations:
+        return []
+    if isinstance(target_violations, str):
+        target_violations = [target_violations]
+    seen = set()
+    resolved = []
+    for spec in target_violations:
+        key = _resolve_target(spec, trace_coverage)
+        if key is not None and key not in seen:
+            seen.add(key)
+            resolved.append(key)
+    return resolved
 
 
-def _focus_caption(target, target_count, target_pct):
-    """Single-line caption naming the focus violation and its frequency / %."""
-    if not target:
-        return ""
-    act, vt = target
-    return (f"Focus violation:  {_short_label(act, 30)}  ·  {vt}   →   "
-            f"{target_count:,} occurrences  ({target_pct:.1f}% of all violations)")
-
-
-def _add_focus_caption(fig, target, target_count, target_pct):
-    """Draw the focus caption along the bottom of a figure (no-op without a target)."""
-    cap = _focus_caption(target, target_count, target_pct)
-    if cap:
-        fig.text(0.5, 0.012, cap, ha="center", va="bottom",
-                 fontsize=FONT_ANNOT, color=_C_DARK, fontweight="bold")
-
-
-# ── Data extraction (identical logic to task09) ───────────────────────────────
-
-def _extract_data(alignments):
-    """Returns (activity_type Counter, activity_totals Counter, type_totals Counter, n_violations int)."""
-    activity_type = Counter()
-    for aln in alignments:
-        for step in aln.get("alignment", []):
-            if not isinstance(step, (list, tuple)) or len(step) < 2:
-                continue
-            act, vtype = _classify_step(step[0], step[1])
-            if act is None:
-                continue
-            activity_type[(act, vtype)] += 1
-
-    activity_totals = Counter()
-    type_totals     = Counter()
-    for (act, vtype), cnt in activity_type.items():
-        activity_totals[act]   += cnt
-        type_totals[vtype]     += cnt
-    return activity_type, activity_totals, type_totals, sum(activity_type.values())
-
-
-def _top_activities(activity_totals, n=_TOP_N):
-    return [act for act, _ in activity_totals.most_common(n)]
-
+# ── Label / layout helpers ────────────────────────────────────────────────────
 
 def _short_label(label, max_len=26):
     return label if len(label) <= max_len else label[:max_len - 1] + "…"
+
+
+def _violation_label(act, vt, max_act_len=26):
+    return f"{_short_label(act, max_act_len)} · {_VTYPE_SHORT.get(vt, vt)}"
 
 
 def _save_empty(output_dir, filename, message="No data available"):
@@ -167,151 +214,96 @@ def _no_violations(output_dir, name):
                 "No guideline violations found in this log.")
 
 
-# ── Idiom 1: Bar Chart — per-activity total violation count ───────────────────
+def _sorted_selected(selected, trace_coverage):
+    """Return selected pairs sorted by trace count descending."""
+    return sorted(selected, key=lambda p: -trace_coverage.get(p, 0))
 
-def task11_bar_chart(activity_totals, n_violations, output_dir,
-                     target=None, target_count=0, target_pct=0.0):
-    """Horizontal bar per activity, sorted by total violations; the target
-    violation's activity is highlighted and its frequency / % captioned."""
-    if not activity_totals:
+
+# ── Idiom 1: Bar Chart — trace count per predefined violation ─────────────────
+
+def task11_bar_chart(selected, trace_coverage, n_traces, output_dir):
+    """Horizontal bar per selected violation, sorted by trace count descending.
+
+    Each bar shows the number of traces in which that violation occurs,
+    labelled with the count and its percentage of all traces.
+    """
+    if not selected:
         _no_violations(output_dir, "bar_chart")
         return
 
-    top_acts = _top_activities(activity_totals, _TOP_N)
-    # Make sure the focus activity is visible even if it falls outside the top-N.
-    if target and target[0] not in top_acts:
-        top_acts = top_acts + [target[0]]
-    counts   = [activity_totals[a] for a in top_acts]
-    pcts     = [c / n_violations * 100 if n_violations > 0 else 0 for c in counts]
-
-    # Shade each bar by its relative rank: darker = more violations
-    max_c = max(counts) if counts else 1
+    data = [(act, vt, trace_coverage.get((act, vt), 0))
+            for act, vt in _sorted_selected(selected, trace_coverage)]
+    labels = [_violation_label(act, vt) for act, vt, _ in data]
+    counts = [c for _, _, c in data]
+    pcts   = [c / n_traces * 100 if n_traces > 0 else 0 for c in counts]
+    max_c  = max(counts) if counts else 1
     shades = [str(round(1 - (c / max_c) * 0.72, 3)) for c in counts]
 
-    n      = len(top_acts)
-    fig_h  = max(3.5, n * 0.55 + 2.0)
+    n      = len(data)
+    fig_h  = max(3.5, n * 0.70 + 2.2)
     fig, ax = plt.subplots(figsize=(12, fig_h))
     ax.set_facecolor("#fafbfc")
 
-    for i, (act, cnt, pct, shade) in enumerate(zip(top_acts, counts, pcts, shades)):
-        is_target = bool(target and act == target[0])
-        ax.barh(i, cnt, color=shade,
-                edgecolor=(_C_DARK if is_target else "white"),
-                linewidth=(2.6 if is_target else 0.6), height=0.65)
+    for i, (lbl, cnt, pct, shade) in enumerate(zip(labels, counts, pcts, shades)):
+        ax.barh(i, cnt, color=shade, edgecolor=_C_DARK, linewidth=0.8, height=0.65)
         ax.text(cnt + max_c * 0.012, i,
-                f"{cnt:,}  ({pct:.1f}%)" + ("  ◀ focus" if is_target else ""),
-                va="center", fontsize=FONT_ANNOT,
-                color=_C_DARK, fontweight=("bold" if is_target else "normal"))
+                f"{cnt:,} traces  ({pct:.1f}%)",
+                va="center", fontsize=FONT_ANNOT, color=_C_DARK)
 
     ax.set_yticks(range(n))
-    ax.set_yticklabels([_short_label(a, 32) for a in top_acts], fontsize=FONT_ANNOT)
+    ax.set_yticklabels(labels, fontsize=FONT_ANNOT)
     ax.invert_yaxis()
-    ax.set_xlabel("Number of violations", fontsize=FONT_LABEL)
+    ax.set_xlabel("Number of traces containing this violation", fontsize=FONT_LABEL)
     ax.set_title(
-        f"Guideline Violation Frequency by Activity  (top {n})\n"
-        f"{n_violations:,} total violations across all activities",
+        f"Predefined Violation Frequency  ({n} violation{'s' if n != 1 else ''})\n"
+        f"Bars = traces in which the violation appears at least once  ·  "
+        f"{n_traces:,} total traces",
         fontsize=FONT_TITLE,
     )
     ax.spines[["top", "right"]].set_visible(False)
     ax.xaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    ax.set_xlim(0, max_c * 1.32)
-
-    _add_focus_caption(fig, target, target_count, target_pct)
-    fig.tight_layout(rect=[0, 0.05, 1, 1])
+    ax.set_xlim(0, max_c * 1.42)
+    fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task11_bar_chart.svg"))
 
 
-# ── Idiom 2: Pie Chart — violation type proportions ───────────────────────────
+# ── Idiom 2: Heatmap — activity × type for selected violations ────────────────
 
-def task11_pie_chart(type_totals, n_violations, output_dir,
-                     target=None, target_count=0, target_pct=0.0):
-    """2-slice pie: the focus violation vs. all other violations — directly showing
-    what share of all violations the target accounts for."""
-    if not n_violations:
-        _no_violations(output_dir, "pie_chart")
-        return
-    if not target:
-        # No focus selected (no violations): fall back to a type breakdown.
-        types  = [t for t in _VTYPES if type_totals.get(t, 0) > 0]
-        if not types:
-            _no_violations(output_dir, "pie_chart")
-            return
-        counts = [type_totals[t] for t in types]
-        colors = [_VTYPE_COLOR[t] for t in types]
-        labels = types
-    else:
-        act, vt = target
-        other = max(n_violations - target_count, 0)
-        counts = [target_count, other]
-        colors = [_C_DARK, _C_XLIGHT]
-        labels = [f"{_short_label(act, 22)} · {_VTYPE_SHORT.get(vt, vt)}",
-                  "All other violations"]
+def task11_heatmap(selected, trace_coverage, n_traces, output_dir):
+    """Activity × violation-type grid restricted to the selected violations.
 
-    def _autopct(pct):
-        cnt = int(round(pct / 100 * n_violations))
-        return f"{pct:.1f}%\n({cnt:,})"
-
-    fig, ax = plt.subplots(figsize=(8, 6))
-    wedges, _texts, autotexts = ax.pie(
-        counts,
-        labels=None,
-        colors=colors,
-        autopct=_autopct,
-        startangle=140,
-        pctdistance=0.72,
-        explode=([0.06, 0.0] if target else None),
-        wedgeprops={"edgecolor": "white", "linewidth": 2},
-    )
-    for atext, clr in zip(autotexts, colors):
-        atext.set_fontsize(FONT_ANNOT)
-        r = int(clr[1:3], 16)
-        atext.set_color("white" if r < 150 else _C_DARK)
-
-    ax.legend(
-        wedges, [f"{lbl}  ({c:,})" for lbl, c in zip(labels, counts)],
-        loc="lower center",
-        bbox_to_anchor=(0.5, -0.08),
-        fontsize=FONT_ANNOT,
-        frameon=True, framealpha=0.9,
-        ncol=min(len(labels), 2),
-    )
-    title = ("Focus Violation vs. All Other Violations"
-             if target else "Guideline Violations by Type")
-    ax.set_title(f"{title}\n{n_violations:,} total violations",
-                 fontsize=FONT_TITLE, pad=16)
-    _add_focus_caption(fig, target, target_count, target_pct)
-    fig.tight_layout(rect=[0, 0.05, 1, 1])
-    save_svg(fig, os.path.join(output_dir, "task11_pie_chart.svg"))
-
-
-# ── Idiom 3: Heatmap — activity × type with marginal totals ──────────────────
-
-def task11_heatmap(activity_type, activity_totals, type_totals, n_violations, output_dir,
-                   target=None, target_count=0, target_pct=0.0):
-    """Activity × violation-type heatmap (colour = count) with row/column marginal
-    totals; the target (activity, move_type) cell is boxed. Cells carry no numbers,
-    matching the other tasks' heatmaps."""
-    if not activity_totals:
+    Rows = distinct activities in the selection (ordered by descending total
+    trace coverage across their selected move types).  Columns = the subset of
+    the three move types that appears at least once among the selected pairs,
+    in canonical order.  Cell = # traces containing that (activity, type) pair;
+    annotated with count and %; unselected cells are left at 0 and shown pale.
+    """
+    if not selected:
         _no_violations(output_dir, "heatmap")
         return
 
-    top_acts    = _top_activities(activity_totals, _TOP_N)
-    if target and target[0] not in top_acts:
-        top_acts = top_acts + [target[0]]
-    short_labels = [_short_label(a, 30) for a in top_acts]
-    n           = len(top_acts)
+    selected_set = set(selected)
 
-    # Core matrix (activities × types)
-    mat = np.array([
-        [activity_type.get((a, vt), 0) for vt in _VTYPES]
-        for a in top_acts
-    ], dtype=float)
+    # Determine axes — only the vtypes that appear in the selection, canonical order
+    selected_vtypes = [vt for vt in _VTYPES if any(vt == v for _, v in selected)]
 
-    row_totals = mat.sum(axis=1)
-    col_totals = mat.sum(axis=0)
+    # Activities ordered by descending sum of trace coverage across their selected vtypes
+    act_score = {}
+    for act, vt in selected:
+        act_score[act] = act_score.get(act, 0) + trace_coverage.get((act, vt), 0)
+    selected_acts = sorted(act_score, key=lambda a: -act_score[a])
 
-    fig_h  = max(4.5, n * 0.62 + 2.5)
+    n_rows = len(selected_acts)
+    n_cols = len(selected_vtypes)
+
+    mat = np.zeros((n_rows, n_cols))
+    for i, act in enumerate(selected_acts):
+        for j, vt in enumerate(selected_vtypes):
+            if (act, vt) in selected_set:
+                mat[i, j] = trace_coverage.get((act, vt), 0)
+
+    fig_h  = max(3.5, n_rows * 0.70 + 2.5)
     fig, ax = plt.subplots(figsize=(10, fig_h))
     ax.set_facecolor("#fafbfc")
 
@@ -319,83 +311,69 @@ def task11_heatmap(activity_type, activity_totals, type_totals, n_violations, ou
     im   = ax.imshow(mat, cmap=_CMAP_SEQ, aspect="auto",
                      norm=mcolors.PowerNorm(gamma=0.5, vmin=0, vmax=vmax))
 
-    ax.set_xticks(range(len(_VTYPES)))
-    ax.set_xticklabels(_VTYPES, fontsize=FONT_LABEL)
-    ax.set_yticks(range(n))
-    ax.set_yticklabels(short_labels, fontsize=FONT_ANNOT)
+    ax.set_xticks(range(n_cols))
+    ax.set_xticklabels(selected_vtypes, fontsize=FONT_LABEL)
+    ax.set_yticks(range(n_rows))
+    ax.set_yticklabels([_short_label(a, 30) for a in selected_acts], fontsize=FONT_ANNOT)
 
-    # Cells are not annotated with numbers, for consistency with the heatmaps in
-    # the other tasks — colour intensity encodes the count, marginals give totals,
-    # and the focus cell is boxed below.
+    # Annotate each selected cell with count + %
+    for i in range(n_rows):
+        for j in range(n_cols):
+            val = int(mat[i, j])
+            if val > 0:
+                pct = val / n_traces * 100 if n_traces > 0 else 0
+                brightness = mat[i, j] / vmax
+                tc = "white" if brightness > 0.55 else _C_DARK
+                ax.text(j, i, f"{val:,}\n({pct:.1f}%)",
+                        ha="center", va="center",
+                        fontsize=max(FONT_ANNOT - 1, 6), color=tc)
 
-    # Colorbar
-    cbar = fig.colorbar(im, ax=ax, fraction=0.025, pad=0.01)
-    cbar.set_label("Violation count", fontsize=FONT_ANNOT)
+    cbar = fig.colorbar(im, ax=ax, fraction=0.03, pad=0.01)
+    cbar.set_label("Traces containing violation", fontsize=FONT_ANNOT)
     cbar.outline.set_visible(False)
 
-    # Right-side row totals annotation
-    for i, rt in enumerate(row_totals):
-        pct = rt / n_violations * 100 if n_violations > 0 else 0
-        ax.text(len(_VTYPES) + 0.08, i,
-                f"  {int(rt):,}  ({pct:.1f}%)",
-                va="center", fontsize=FONT_ANNOT - 1, color=_C_MED)
-
-    # Column totals at bottom
-    ax.text(-0.6, n + 0.12, "Total:", fontsize=FONT_ANNOT - 1,
-            color=_C_MED, va="top", transform=ax.transData)
-    for j, ct in enumerate(col_totals):
-        pct = ct / n_violations * 100 if n_violations > 0 else 0
-        ax.text(j, n + 0.12, f"{int(ct):,}\n({pct:.1f}%)",
-                ha="center", va="top",
-                fontsize=FONT_ANNOT - 1, color=_C_MED)
-
-    # The focus cell is named in the caption below; no in-cell frame (it cluttered
-    # the heatmap). The focus violation's count/% is carried by the caption.
-
-    ax.set_xlim(-0.5, len(_VTYPES) - 0.5)
-    ax.set_ylim(n - 0.5, -0.5)
     ax.set_title(
-        f"Violation Frequency: Activity × Type  (top {n})\n"
-        f"Colour = violation count  ·  row/column totals at the margins",
+        "Predefined Violation Frequency: Activity × Type\n"
+        f"Cell = # traces containing that violation  ·  {n_traces:,} total traces",
         fontsize=FONT_TITLE,
     )
     ax.tick_params(axis="both", length=0)
     for spine in ax.spines.values():
         spine.set_visible(False)
 
-    _add_focus_caption(fig, target, target_count, target_pct)
-    fig.tight_layout(rect=[0, 0.05, 1, 1])
+    fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task11_heatmap.svg"))
 
 
-# ── Idiom 4: Table — Pareto ranked table with cumulative % ───────────────────
+# ── Idiom 3: Table — violations ranked by trace frequency ─────────────────────
 
-def task11_table(activity_totals, type_totals, n_violations, output_dir,
-                 target=None, target_count=0, target_pct=0.0):
-    """Ranked table: Rank | Activity | MoM | MoL | MM | Total | %Total | Cum%.
-    The target violation's activity row is highlighted."""
-    if not activity_totals:
+def task11_table(selected, trace_coverage, n_traces, output_dir):
+    """Ranked table: Rank | Violation | # Traces | % of All Traces.
+
+    Rows correspond 1-to-1 to the selected violations, sorted descending by
+    trace count.  Percentages are independent (no cumulative column — traces
+    containing multiple violations overlap).
+    """
+    if not selected:
         _no_violations(output_dir, "table")
         return
 
-    top_acts = _top_activities(activity_totals, _TOP_N)
-    if target and target[0] not in top_acts:
-        top_acts = top_acts + [target[0]]
-    target_row_idx = top_acts.index(target[0]) if target and target[0] in top_acts else -1
-    rows     = []
-    cum      = 0.0
-    for rank, act in enumerate(top_acts, 1):
-        total = activity_totals[act]
-        pct   = total / n_violations * 100 if n_violations > 0 else 0
-        cum  += pct
-        rows.append([str(rank), _short_label(act, 30),
-                     total, f"{pct:.1f}%", f"{cum:.1f}%"])
+    data = [(act, vt, trace_coverage.get((act, vt), 0))
+            for act, vt in _sorted_selected(selected, trace_coverage)]
 
-    col_headers = ["#", "Activity", "Total Violations", "% of All", "Cumulative %"]
-    col_widths  = [0.05, 0.42, 0.20, 0.15, 0.15]
+    rows = []
+    for rank, (act, vt, count) in enumerate(data, 1):
+        pct = count / n_traces * 100 if n_traces > 0 else 0
+        rows.append([str(rank), _short_label(act, 32),
+                     _VTYPE_SHORT.get(vt, vt),
+                     f"{count:,}",
+                     f"{pct:.1f}%"])
+
+    col_headers = ["#", "Activity", "Type", "# Traces", "% of All"]
+    col_widths  = [0.05, 0.42, 0.16, 0.20, 0.14]
 
     n_rows = len(rows)
-    fig_h  = max(3.5, n_rows * 0.50 + 2.2)
+    fig_h  = max(3.5, n_rows * 0.52 + 2.4)
     fig, ax = plt.subplots(figsize=(13, fig_h))
     ax.axis("off")
 
@@ -418,84 +396,56 @@ def task11_table(activity_totals, type_totals, n_violations, output_dir,
     for i, row in enumerate(rows):
         y_top = t - (i + 2) * row_h
         x     = l
-        is_target_row = (i == target_row_idx)
-        bg    = "#cfcfcf" if is_target_row else ("#f5f5f5" if i % 2 == 0 else "white")
-        # Highlight the cumulative column when it crosses 50% / 80%
-        cum_val = float(row[-1].replace("%", ""))
+        bg    = "#f5f5f5" if i % 2 == 0 else "white"
         for j, (val, cw) in enumerate(zip(row, col_widths)):
-            cell_bg = bg
-            if j == 4 and not is_target_row:  # Cumulative %
-                if cum_val <= 50.0:
-                    cell_bg = "#e8e8e8"
-                elif cum_val <= 80.0:
-                    cell_bg = "#f0f0f0"
             ax.add_patch(plt.Rectangle((x, y_top), cw * tw, row_h,
-                                       fc=cell_bg,
-                                       ec=(_C_DARK if is_target_row else "#cccccc"),
-                                       linewidth=(1.4 if is_target_row else 0.6),
+                                       fc=bg, ec="#cccccc", linewidth=0.6,
                                        transform=ax.transAxes, clip_on=False))
-            ha = "left" if j == 1 else "center"
-            px = x + 0.008 if j == 1 else x + cw * tw * 0.5
+            ha = "left" if j in (1, 2) else "center"
+            px = x + 0.008 if j in (1, 2) else x + cw * tw * 0.5
             ax.text(px, y_top + row_h * 0.5, str(val),
                     ha=ha, va="center", fontsize=FONT_ANNOT,
-                    color=_C_DARK, fontweight=("bold" if is_target_row else "normal"),
-                    transform=ax.transAxes)
+                    color=_C_DARK, transform=ax.transAxes)
             x += cw * tw
 
-    # Footer: type totals
-    footer_y = b - 0.01
-    type_summary = "  ·  ".join(
-        f"{_VTYPE_SHORT[vt]}: {type_totals.get(vt, 0):,}"
-        for vt in _VTYPES if type_totals.get(vt, 0) > 0
-    )
-    ax.text(l, footer_y,
-            f"Total: {n_violations:,} violations  ({type_summary})",
-            ha="left", va="top", fontsize=FONT_ANNOT - 1,
-            color=_C_MED, transform=ax.transAxes)
-
     ax.set_title(
-        f"Guideline Violation Frequency — Pareto Ranking  (top {n_rows})",
+        f"Predefined Violation Frequency  ({n_rows} violation{'s' if n_rows != 1 else ''})\n"
+        f"% = traces containing that violation ÷ {n_traces:,} total traces",
         fontsize=FONT_TITLE, pad=14,
     )
-    _add_focus_caption(fig, target, target_count, target_pct)
-    fig.tight_layout(rect=[0, 0.05, 1, 1])
+    fig.tight_layout(rect=[0, 0.02, 1, 1])
     save_svg(fig, os.path.join(output_dir, "task11_table.svg"))
 
 
-# ── Idiom 5: Table & Bar Chart — Pareto table + gradient horizontal bars ──────
+# ── Idiom 4: Table & Bar Chart ────────────────────────────────────────────────
 
-def task11_table_bar_chart(activity_totals, type_totals, n_violations, output_dir,
-                           target=None, target_count=0, target_pct=0.0):
-    """Left: compact Pareto table. Right: gradient horizontal bars sorted by count.
-    The target violation's activity row and bar are highlighted."""
-    if not activity_totals:
+def task11_table_bar_chart(selected, trace_coverage, n_traces, output_dir):
+    """Left: compact violation table. Right: gradient horizontal bars by trace count."""
+    if not selected:
         _no_violations(output_dir, "table_bar_chart")
         return
 
-    top_acts = _top_activities(activity_totals, _TOP_N)
-    if target and target[0] not in top_acts:
-        top_acts = top_acts + [target[0]]
-    target_row_idx = top_acts.index(target[0]) if target and target[0] in top_acts else -1
-    counts   = [activity_totals[a] for a in top_acts]
-    n        = len(top_acts)
-    max_c    = max(counts) if counts else 1
+    data = [(act, vt, trace_coverage.get((act, vt), 0))
+            for act, vt in _sorted_selected(selected, trace_coverage)]
+    n     = len(data)
+    max_c = max(c for _, _, c in data) if data else 1
 
-    cum  = 0.0
     rows = []
-    for act, cnt in zip(top_acts, counts):
-        pct  = cnt / n_violations * 100 if n_violations > 0 else 0
-        cum += pct
-        rows.append([_short_label(act, 22), f"{cnt:,}", f"{pct:.1f}%", f"{cum:.1f}%"])
+    for act, vt, count in data:
+        pct = count / n_traces * 100 if n_traces > 0 else 0
+        rows.append([_violation_label(act, vt, 22),
+                     f"{count:,}",
+                     f"{pct:.1f}%"])
 
     fig, (ax_tbl, ax_bar) = plt.subplots(
-        1, 2, figsize=(16, max(4.0, n * 0.60 + 2.5)),
+        1, 2, figsize=(16, max(4.0, n * 0.65 + 2.5)),
         gridspec_kw={"width_ratios": [3, 4]},
     )
 
-    # ── Left: table ──────────────────────────────────────────────────────────
+    # ── Left: table ───────────────────────────────────────────────────────────
     ax_tbl.axis("off")
-    col_headers = ["Activity", "Count", "% of All", "Cum%"]
-    col_widths  = [0.48, 0.18, 0.18, 0.16]
+    col_headers = ["Violation", "# Traces", "% of All"]
+    col_widths  = [0.64, 0.20, 0.16]
     t     = 0.94
     row_h = (t - 0.04) / (n + 1)
     tw    = 0.97
@@ -513,140 +463,57 @@ def task11_table_bar_chart(activity_totals, type_totals, n_violations, output_di
     for i, row in enumerate(rows):
         y_top = t - (i + 2) * row_h
         x     = 0.015
-        is_target_row = (i == target_row_idx)
-        bg    = "#cfcfcf" if is_target_row else ("#f5f5f5" if i % 2 == 0 else "white")
+        bg    = "#f5f5f5" if i % 2 == 0 else "white"
         for j, (val, cw) in enumerate(zip(row, col_widths)):
             ax_tbl.add_patch(plt.Rectangle((x, y_top), cw * tw, row_h,
-                                           fc=bg,
-                                           ec=(_C_DARK if is_target_row else "#cccccc"),
-                                           linewidth=(1.4 if is_target_row else 0.6),
+                                           fc=bg, ec="#cccccc", linewidth=0.6,
                                            transform=ax_tbl.transAxes, clip_on=False))
             ha = "left" if j == 0 else "center"
             px = x + 0.008 if j == 0 else x + cw * tw * 0.5
             ax_tbl.text(px, y_top + row_h * 0.5, str(val),
                         ha=ha, va="center", fontsize=FONT_ANNOT,
-                        color=_C_DARK, fontweight=("bold" if is_target_row else "normal"),
-                        transform=ax_tbl.transAxes)
+                        color=_C_DARK, transform=ax_tbl.transAxes)
             x += cw * tw
 
-    # ── Right: gradient bars (darker = more violations) ───────────────────────
+    # ── Right: gradient bars ──────────────────────────────────────────────────
     ax_bar.set_facecolor("#fafbfc")
-    for i, (act, cnt) in enumerate(zip(top_acts, counts)):
+    for i, (act, vt, cnt) in enumerate(data):
         shade = str(round(1 - (cnt / max_c) * 0.72, 3))
-        is_target_row = (i == target_row_idx)
         ax_bar.barh(i, cnt, color=shade,
-                    edgecolor=(_C_DARK if is_target_row else "white"),
-                    linewidth=(2.6 if is_target_row else 0.6), height=0.65)
+                    edgecolor=_C_DARK, linewidth=0.8, height=0.65)
+        pct = cnt / n_traces * 100 if n_traces > 0 else 0
         ax_bar.text(cnt + max_c * 0.012, i,
-                    f"{cnt:,}" + ("  ◀ focus" if is_target_row else ""),
-                    va="center", fontsize=FONT_ANNOT, color=_C_DARK,
-                    fontweight=("bold" if is_target_row else "normal"))
+                    f"{cnt:,}  ({pct:.1f}%)",
+                    va="center", fontsize=FONT_ANNOT, color=_C_DARK)
 
+    bar_labels = [_violation_label(act, vt, 24) for act, vt, _ in data]
     ax_bar.set_yticks(range(n))
-    ax_bar.set_yticklabels([_short_label(a, 24) for a in top_acts], fontsize=FONT_ANNOT)
+    ax_bar.set_yticklabels(bar_labels, fontsize=FONT_ANNOT)
     ax_bar.invert_yaxis()
-    ax_bar.set_xlabel("Violation count", fontsize=FONT_LABEL)
-    ax_bar.set_title("Frequency  (darker = more violations)", fontsize=FONT_TITLE)
+    ax_bar.set_xlabel("Traces containing violation", fontsize=FONT_LABEL)
+    ax_bar.set_title("Frequency  (darker = more traces)", fontsize=FONT_TITLE)
     ax_bar.spines[["top", "right"]].set_visible(False)
     ax_bar.xaxis.grid(True, linestyle="--", alpha=0.3)
     ax_bar.set_axisbelow(True)
-    ax_bar.set_xlim(0, max_c * 1.30)
+    ax_bar.set_xlim(0, max_c * 1.38)
 
     fig.suptitle(
-        f"Violation Frequency Ranking  (top {n})  ·  {n_violations:,} total violations",
+        f"Predefined Violation Frequency  ({n} violation{'s' if n != 1 else ''})"
+        f"  ·  {n_traces:,} total traces",
         fontsize=FONT_TITLE + 1, y=1.01,
     )
-    _add_focus_caption(fig, target, target_count, target_pct)
-    fig.tight_layout(rect=[0, 0.05, 1, 1])
+    fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task11_table_bar_chart.svg"))
 
 
-# ── Idiom 6: Stacked Bar — 100% normalized type distribution ─────────────────
-
-def task11_stacked_bar(activity_type, activity_totals, output_dir,
-                       target=None, target_count=0, target_pct=0.0):
-    """100% normalized stacked bar: type proportion within each activity.
-    The target violation's segment (activity row × move_type) is outlined."""
-    if not activity_totals:
-        _no_violations(output_dir, "stacked_bar")
-        return
-
-    top_acts     = _top_activities(activity_totals, _TOP_N)
-    if target and target[0] not in top_acts:
-        top_acts = top_acts + [target[0]]
-    target_row_idx = top_acts.index(target[0]) if target and target[0] in top_acts else -1
-    short_labels = [_short_label(a, 30) for a in top_acts]
-    n            = len(top_acts)
-
-    # Compute proportions
-    fracs = {vt: [] for vt in _VTYPES}
-    for act in top_acts:
-        total = activity_totals[act]
-        for vt in _VTYPES:
-            cnt = activity_type.get((act, vt), 0)
-            fracs[vt].append(cnt / total * 100 if total > 0 else 0)
-
-    fig_h  = max(4, n * 0.62 + 2.2)
-    fig, ax = plt.subplots(figsize=(13, fig_h))
-    ax.set_facecolor("#fafbfc")
-
-    lefts = np.zeros(n)
-    for vt in _VTYPES:
-        vals = np.array(fracs[vt])
-        bars = ax.barh(range(n), vals, left=lefts,
-                       color=_VTYPE_COLOR[vt], label=vt,
-                       edgecolor="white", linewidth=0.5, height=0.65)
-        # Annotate segments > 8%; outline the focus segment
-        for i, (bar, pct) in enumerate(zip(bars, vals)):
-            if target and vt == target[1] and i == target_row_idx:
-                bar.set_edgecolor(_C_DARK)
-                bar.set_linewidth(2.6)
-                bar.set_zorder(5)
-            if pct > 8:
-                cx = bar.get_x() + bar.get_width() / 2
-                bv = int(_VTYPE_COLOR[vt][1:3], 16)
-                tc = "white" if bv < 150 else _C_DARK
-                # zorder above the (possibly raised) focus bar so the % stays visible
-                ax.text(cx, i, f"{pct:.0f}%",
-                        ha="center", va="center",
-                        fontsize=max(FONT_ANNOT - 1, 6.5), color=tc, zorder=6)
-        lefts += vals
-
-    ax.set_yticks(range(n))
-    ax.set_yticklabels(short_labels, fontsize=FONT_ANNOT)
-    ax.invert_yaxis()
-    ax.set_xlabel("Proportion of violations (%)", fontsize=FONT_LABEL)
-    ax.set_xlim(0, 100)
-    ax.set_title(
-        f"Violation Type Distribution per Activity  (top {n})\n"
-        "Each bar = 100%  ·  segments show proportion of each violation type",
-        fontsize=FONT_TITLE,
-    )
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
-    ax.set_axisbelow(True)
-    ax.legend(
-        loc="lower center",
-        bbox_to_anchor=(0.5, -0.25),
-        ncol=3,
-        fontsize=FONT_ANNOT,
-        frameon=True,
-        framealpha=0.9,
-    )
-
-    _add_focus_caption(fig, target, target_count, target_pct)
-    fig.tight_layout(rect=[0, 0.06, 1, 1])
-    save_svg(fig, os.path.join(output_dir, "task11_stacked_bar.svg"))
-
-
-# ── BPMN helpers (imported from task09) ──────────────────────────────────────
+# ── BPMN helpers ──────────────────────────────────────────────────────────────
 
 def _import_task09_bpmn():
     try:
-        from tasks.task09 import _make_bpmn_violation_svg, _violation_shade, _short_label as _sl09
+        from tasks.task09 import _make_bpmn_violation_svg
     except ImportError:
-        from task09 import _make_bpmn_violation_svg, _violation_shade, _short_label as _sl09
-    return _make_bpmn_violation_svg, _violation_shade
+        from task09 import _make_bpmn_violation_svg
+    return _make_bpmn_violation_svg
 
 
 def _svg_dims(svg_str):
@@ -658,52 +525,31 @@ def _svg_dims(svg_str):
     return None, None
 
 
-# ── Idiom 7: Flow Chart Elaborate BPMN ───────────────────────────────────────
+# ── Idiom 5: Flow Chart Elaborate BPMN & Table ────────────────────────────────
 
-def task11_flow_chart_elaborate_bpmn(activity_totals, model_path, output_dir):
-    if model_path is None:
-        _save_empty(output_dir, "task11_flow_chart_elaborate_bpmn.svg",
-                    "No process model provided — Flow+ requires a BPMN file.")
-        return
-    if not activity_totals:
-        _no_violations(output_dir, "flow_chart_elaborate_bpmn")
-        return
-    try:
-        _make_bpmn_violation_svg, _ = _import_task09_bpmn()
-    except Exception:
-        _save_empty(output_dir, "task11_flow_chart_elaborate_bpmn.svg",
-                    "Could not load BPMN helpers from task09.")
-        return
-    svg = _make_bpmn_violation_svg(activity_totals, model_path)
-    if svg is None:
-        _save_empty(output_dir, "task11_flow_chart_elaborate_bpmn.svg",
-                    "Could not parse process model.")
-        return
-    path = os.path.join(output_dir, "task11_flow_chart_elaborate_bpmn.svg")
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(svg)
+def task11_flow_chart_elaborate_bpmn_table(selected, trace_coverage, n_traces,
+                                           activity_trace_count, model_path, output_dir):
+    """Composite SVG: BPMN heatmap (top, coloured by per-activity trace coverage)
+    + violation frequency table (bottom, one row per selected violation).
 
-
-# ── Idiom 8: Flow Chart Elaborate BPMN & Table ────────────────────────────────
-
-def task11_flow_chart_elaborate_bpmn_table(activity_totals, type_totals, n_violations, model_path, output_dir,
-                                           target=None, target_count=0, target_pct=0.0):
-    """Composite SVG: BPMN heatmap (top) + Pareto table (bottom).
-    The table title names the focus violation and its frequency / %."""
-    if not activity_totals:
+    activity_trace_count maps activity → # traces containing any selected violation
+    there (computed with proper set-union in generate(), so no double-counting).
+    """
+    if not selected:
         _no_violations(output_dir, "flow_chart_elaborate_bpmn_table")
         return
 
-    # ── Pareto table SVG ──────────────────────────────────────────────────────
-    top_acts = _top_activities(activity_totals, _TOP_N)
-    n_rows   = len(top_acts)
+    # ── Violation table SVG ───────────────────────────────────────────────────
+    data = [(act, vt, trace_coverage.get((act, vt), 0))
+            for act, vt in _sorted_selected(selected, trace_coverage)]
+    n_rows   = len(data)
     tbl_w_in = 14.0
-    tbl_h_in = max(3.5, n_rows * 0.48 + 2.0)
+    tbl_h_in = max(3.0, n_rows * 0.50 + 2.2)
     tbl_fig, tbl_ax = plt.subplots(figsize=(tbl_w_in, tbl_h_in))
     tbl_ax.axis("off")
 
-    col_headers = ["#", "Activity", "Total Violations", "% of All", "Cumulative %"]
-    col_widths  = [0.05, 0.42, 0.20, 0.15, 0.15]
+    col_headers = ["#", "Activity", "Type", "# Traces", "% of All"]
+    col_widths  = [0.05, 0.42, 0.16, 0.20, 0.14]
     t     = 0.94
     l     = 0.02
     tw    = 0.96
@@ -719,13 +565,10 @@ def task11_flow_chart_elaborate_bpmn_table(activity_totals, type_totals, n_viola
                     color="white", fontweight="bold", transform=tbl_ax.transAxes)
         x += cw * tw
 
-    cum = 0.0
-    for i, act in enumerate(top_acts):
-        total = activity_totals[act]
-        pct   = total / n_violations * 100 if n_violations > 0 else 0
-        cum  += pct
+    for i, (act, vt, count) in enumerate(data):
+        pct     = count / n_traces * 100 if n_traces > 0 else 0
         row_vals = [str(i + 1), _short_label(act, 32),
-                    f"{total:,}", f"{pct:.1f}%", f"{cum:.1f}%"]
+                    _VTYPE_SHORT.get(vt, vt), f"{count:,}", f"{pct:.1f}%"]
         y_top = t - (i + 2) * row_h
         x     = l
         bg    = "#f5f5f5" if i % 2 == 0 else "white"
@@ -733,22 +576,18 @@ def task11_flow_chart_elaborate_bpmn_table(activity_totals, type_totals, n_viola
             tbl_ax.add_patch(plt.Rectangle((x, y_top), cw * tw, row_h,
                                            fc=bg, ec="#eeeeee", linewidth=0.4,
                                            transform=tbl_ax.transAxes, clip_on=False))
-            ha = "left" if j == 1 else "center"
-            px = x + 0.008 if j == 1 else x + cw * tw * 0.5
+            ha = "left" if j in (1, 2) else "center"
+            px = x + 0.008 if j in (1, 2) else x + cw * tw * 0.5
             tbl_ax.text(px, y_top + row_h * 0.5, str(val),
                         ha=ha, va="center", fontsize=FONT_ANNOT,
                         color=_C_DARK, transform=tbl_ax.transAxes)
             x += cw * tw
 
-    type_summary = "  ·  ".join(
-        f"{_VTYPE_SHORT[vt]}: {type_totals.get(vt, 0):,}"
-        for vt in _VTYPES if type_totals.get(vt, 0) > 0
+    tbl_ax.set_title(
+        f"Predefined Violation Frequency  ({n_rows} violation{'s' if n_rows != 1 else ''})  "
+        f"·  {n_traces:,} total traces  ·  % = traces containing violation",
+        fontsize=FONT_TITLE, pad=14,
     )
-    _title = f"Violation Frequency Ranking  (top {n_rows})  ·  {n_violations:,} total  ({type_summary})"
-    _cap = _focus_caption(target, target_count, target_pct)
-    if _cap:
-        _title += "\n" + _cap
-    tbl_ax.set_title(_title, fontsize=FONT_TITLE, pad=14)
     tbl_fig.tight_layout()
 
     buf = _io.BytesIO()
@@ -760,17 +599,17 @@ def task11_flow_chart_elaborate_bpmn_table(activity_totals, type_totals, n_viola
     if tbl_w is None:
         tbl_w, tbl_h = tbl_w_in * 72, tbl_h_in * 72
 
-    # ── BPMN SVG ──────────────────────────────────────────────────────────────
+    # ── BPMN SVG — coloured by per-activity trace coverage ───────────────────
     bpmn_svg = None
-    if model_path is not None:
+    if model_path is not None and activity_trace_count:
         try:
-            _make_bpmn_violation_svg, _ = _import_task09_bpmn()
-            bpmn_svg = _make_bpmn_violation_svg(activity_totals, model_path)
+            _make_bpmn_violation_svg = _import_task09_bpmn()
+            bpmn_svg = _make_bpmn_violation_svg(activity_trace_count, model_path)
         except Exception:
-            pass
+            logger.exception("task11: failed to render BPMN for flow_chart_elaborate_bpmn_table")
 
+    path = os.path.join(output_dir, "task11_flow_chart_elaborate_bpmn_table.svg")
     if bpmn_svg is None:
-        path = os.path.join(output_dir, "task11_flow_chart_elaborate_bpmn_table.svg")
         with open(path, "w", encoding="utf-8") as f:
             f.write(tbl_svg_str)
         return
@@ -797,71 +636,81 @@ def task11_flow_chart_elaborate_bpmn_table(activity_totals, type_totals, n_viola
         f'         x="0" y="{bpmn_h:.1f}" width="{bpmn_w:.1f}" height="{tbl_h_scl:.1f}"/>',
         '</svg>',
     ])
-    path = os.path.join(output_dir, "task11_flow_chart_elaborate_bpmn_table.svg")
     with open(path, "w", encoding="utf-8") as f:
         f.write(composite)
 
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
-def generate(log, alignments, output_dir, model_path=None, target_violation=None):
+def generate(log, alignments, output_dir, model_path=None, target_violations=None):
     """Generate all Task 11 SVGs into output_dir.
 
-    target_violation: the specific guideline violation to focus on, as an
-    (activity, move_type) pair or "activity|move_type" string (move_type may be a
-    full name or a short code MoM/MoL/MM). When omitted, the most frequent
-    violation in the log is auto-selected (and logged). Every idiom then displays
-    that violation's frequency / % of all violations. If the specified violation
-    is absent from the log, a clear error lists the available pairs and empty-state
-    SVGs are written instead of crashing.
+    target_violations: list of 'activity|move_type' strings (the predefined set
+    chosen by the admin on /specify). Each identifies one (activity, move_type)
+    pair to summarise. Move type may be a full name or a short code (MoM/MoL/MM).
+
+    When omitted or empty, all distinct violations in the log are shown (fallback
+    for legacy / CLI use). Unresolvable specs (activity not in log, etc.) are
+    silently dropped and logged.
     """
     os.makedirs(output_dir, exist_ok=True)
-    logger.info("\n--- Generating Task 11 visualizations (Summarize guideline violations) ---")
+    logger.info("\n--- Generating Task 11 visualizations (Predefined guideline violations) ---")
 
-    activity_type, activity_totals, type_totals, n_violations = _extract_data(alignments)
+    trace_coverage, n_traces = _extract_trace_coverage(alignments)
 
-    if not activity_totals:
+    if not trace_coverage:
         logger.warning("      Skipped Task 11: no violations found in alignments.")
         for name in IDIOMS:
             _save_empty(output_dir, f"task11_{name}.svg",
                         "No guideline violations found in this log.")
         return
 
-    # Resolve the focus (target) violation.
-    if target_violation is not None:
-        target = _resolve_target(target_violation, activity_type)
-        if target is None:
+    # Resolve the predefined set.
+    if target_violations:
+        selected = _resolve_violations(target_violations, trace_coverage)
+        if not selected:
             logger.error(
-                f"      task11: target violation '{target_violation}' not found in the log. "
-                f"Available (activity | move_type) pairs: "
-                f"{_available_pairs_str(activity_type)}"
+                "task11: none of the specified violations were found in the log. "
+                "Specified: %s. Available: %s",
+                target_violations,
+                [f"{a}|{v}" for (a, v) in trace_coverage.most_common(20)],
             )
             for name in IDIOMS:
                 _save_empty(output_dir, f"task11_{name}.svg",
-                            f"Target violation '{target_violation}' not found in this log.")
+                            "None of the specified violations were found in this log.")
             return
+        dropped = [s for s in (target_violations if isinstance(target_violations, list)
+                               else [target_violations])
+                   if _resolve_target(s, trace_coverage) is None]
+        if dropped:
+            logger.warning("task11: unresolved violation specs (ignored): %s", dropped)
     else:
-        target = max(activity_type.items(), key=lambda kv: kv[1])[0]
-        logger.info(
-            f"      task11: no target violation specified — auto-selected most frequent: "
-            f"({target[0]} | {target[1]}) with {activity_type[target]} occurrence(s)."
-        )
+        # Fallback: show all violations sorted by trace count
+        selected = [pair for pair, _ in trace_coverage.most_common()]
+        logger.info("task11: no violations specified — showing all %d distinct violations.",
+                    len(selected))
 
-    target_count = activity_type.get(target, 0)
-    target_pct = target_count / n_violations * 100 if n_violations else 0.0
-    logger.info(f"      -> Focus violation: ({target[0]} | {target[1]})  "
-                f"{target_count} occ.  ({target_pct:.1f}% of {n_violations} total)")
+    logger.info("task11: %d violation(s) selected, %d total traces.", len(selected), n_traces)
 
-    task11_bar_chart(activity_totals, n_violations, output_dir, target, target_count, target_pct)
-    task11_pie_chart(type_totals, n_violations, output_dir, target, target_count, target_pct)
-    task11_heatmap(activity_type, activity_totals, type_totals, n_violations, output_dir,
-                   target, target_count, target_pct)
-    task11_table(activity_totals, type_totals, n_violations, output_dir,
-                 target, target_count, target_pct)
-    task11_table_bar_chart(activity_totals, type_totals, n_violations, output_dir,
-                           target, target_count, target_pct)
-    task11_stacked_bar(activity_type, activity_totals, output_dir,
-                       target, target_count, target_pct)
-    task11_flow_chart_elaborate_bpmn(activity_totals, model_path, output_dir)
-    task11_flow_chart_elaborate_bpmn_table(activity_totals, type_totals, n_violations, model_path, output_dir,
-                                           target, target_count, target_pct)
+    # Compute per-activity trace coverage (set-union across selected vtypes) for the BPMN.
+    selected_set = set(selected)
+    activity_trace_count: Counter = Counter()
+    for aln in alignments:
+        seen_acts: set = set()
+        for step in aln.get("alignment", []):
+            if not isinstance(step, (list, tuple)) or len(step) < 2:
+                continue
+            act, vtype = _classify_step(step[0], step[1])
+            if act is None:
+                continue
+            if (act, vtype) in selected_set and act not in seen_acts:
+                seen_acts.add(act)
+                activity_trace_count[act] += 1
+
+    task11_bar_chart(selected, trace_coverage, n_traces, output_dir)
+    task11_heatmap(selected, trace_coverage, n_traces, output_dir)
+    task11_table(selected, trace_coverage, n_traces, output_dir)
+    task11_table_bar_chart(selected, trace_coverage, n_traces, output_dir)
+    task11_flow_chart_elaborate_bpmn_table(
+        selected, trace_coverage, n_traces, activity_trace_count, model_path, output_dir
+    )

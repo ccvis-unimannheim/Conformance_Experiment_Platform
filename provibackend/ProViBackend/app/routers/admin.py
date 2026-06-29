@@ -19,6 +19,7 @@ try:
         generate_for_task_instances,
         get_log_activities,
         get_log_time_granularities,
+        get_log_violations,
         _FILE_RENAME,
         _TASK_RENAME_SKIP,
     )
@@ -31,6 +32,7 @@ except ImportError:
     generate_for_task_instances = None
     get_log_activities = None
     get_log_time_granularities = None
+    get_log_violations = None
     _FILE_RENAME = {}
     _TASK_RENAME_SKIP = {}
 
@@ -80,6 +82,9 @@ GUIDELINE_FILENAME = "Guideline.bpmn"
 _LOG_ACTIVITIES_CACHE: dict[str, list[str]] = {}
 # Cache of dataset-meaningful time-bin granularities (task07), same rationale.
 _LOG_TIME_GRANULARITIES_CACHE: dict[str, list[str]] = {}
+# Cache of distinct (activity, move_type) violation pairs (task11); alignment
+# computation is expensive, so results are cached in-process per dataset_id.
+_LOG_VIOLATIONS_CACHE: dict[str, list[dict]] = {}
 
 
 def _dataset_activities(dataset_id: str) -> list[str]:
@@ -104,12 +109,29 @@ def _dataset_time_granularities(dataset_id: str) -> list[str]:
     return grans
 
 
+def _dataset_violations(dataset_id: str) -> list[dict]:
+    """Distinct (activity, move_type) violation pairs for this dataset (cached).
+
+    Each element is {"value": "activity|move_type", "label": "activity · Type  (N traces, X%)"}.
+    Alignment computation runs once on first call; subsequent calls return the cache.
+    """
+    if dataset_id in _LOG_VIOLATIONS_CACHE:
+        return _LOG_VIOLATIONS_CACHE[dataset_id]
+    if get_log_violations is None:
+        return []
+    violations = get_log_violations(str(DATA_DIRECTORY / dataset_id))
+    _LOG_VIOLATIONS_CACHE[dataset_id] = violations
+    return violations
+
+
 # Maps a PARAM_SPEC entry's `source` to the dataset-candidate enumerator.
-def _param_candidates(source: str, dataset_id: str) -> list[str]:
+def _param_candidates(source: str, dataset_id: str) -> list:
     if source == "log.activities":
         return _dataset_activities(dataset_id)
     if source == "log.time_granularities":
         return _dataset_time_granularities(dataset_id)
+    if source == "log.violations":
+        return _dataset_violations(dataset_id)
     return []
 
 

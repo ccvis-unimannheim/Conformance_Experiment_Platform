@@ -266,7 +266,7 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
     def cmp_attr():                return p.get("compare_attribute", compare_attribute)
     def time_granularity():        return p.get("time_granularity", "month")
     def conformance_bins():        return p.get("conformance_bins", None)
-    def target_violation():        return p.get("target_violation", None)
+    def target_violations():       return p.get("target_violations", None)
     def conformant_threshold():
         raw = p.get("conformant_threshold")
         return 1.0 if (raw is None or raw == "") else float(raw)
@@ -282,7 +282,7 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
         "task08": lambda d: task08.generate(log, alignments, d, high_cooccurrence_threshold=high_cooccurrence()),
         "task09": lambda d: task09.generate(log, alignments, d, model_path=model_path),
         "task10": lambda d: task10.generate(fitness_df, d, log=log, conformance_bins=conformance_bins()),
-        "task11": lambda d: task11.generate(log, alignments, d, model_path=model_path, target_violation=target_violation()),
+        "task11": lambda d: task11.generate(log, alignments, d, model_path=model_path, target_violations=target_violations()),
         "task12": lambda d: task12.generate(log, alignments, d),
         "task13": lambda d: task13.generate(log, alignments, model_path, d),
         "task14": lambda d: task14.generate(alignments, model_path, d),
@@ -432,6 +432,47 @@ def get_log_time_granularities(dataset_dir: str) -> list[str]:
     except Exception:
         logger.exception("Failed to enumerate time granularities for %s", dataset_dir)
         return ordered
+
+
+def get_log_violations(dataset_dir: str) -> list[dict]:
+    """Distinct (activity, move_type) pairs that appear in this dataset's alignments.
+
+    Returns a list of {"value": "activity|move_type", "label": "activity · Type  (N traces, X%)"}
+    dicts, sorted by trace coverage descending.  Powers task11's /specify 'log.violations'
+    source (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §5, §14).
+
+    Alignment computation is expensive; the result is cached in admin.py per dataset_id.
+    """
+    from collections import Counter
+    from shared import classify_step as _classify_step
+
+    log_path, model_path, _ = _resolve_dataset_paths(dataset_dir, experiment_id=None)
+    log        = load_event_log(log_path)
+    net, im, fm = load_model(model_path)
+    alignments = run_alignments(log, net, im, fm)
+
+    trace_coverage: Counter = Counter()
+    n_traces = len(alignments)
+    for aln in alignments:
+        seen: set = set()
+        for step in aln.get("alignment", []):
+            if not isinstance(step, (list, tuple)) or len(step) < 2:
+                continue
+            act, vtype = _classify_step(step[0], step[1])
+            if act is None:
+                continue
+            seen.add((act, vtype))
+        for pair in seen:
+            trace_coverage[pair] += 1
+
+    options = []
+    for (act, vt), count in trace_coverage.most_common():
+        pct = count / n_traces * 100 if n_traces > 0 else 0
+        options.append({
+            "value": f"{act}|{vt}",
+            "label": f"{act} · {vt}  ({count:,} traces, {pct:.1f}%)",
+        })
+    return options
 
 
 def generate_for_task_instances(dataset_dir: str, experiment_id: str,

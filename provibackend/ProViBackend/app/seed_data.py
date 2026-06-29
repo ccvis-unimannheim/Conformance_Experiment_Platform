@@ -86,9 +86,9 @@ CANONICAL_TASKS = [
     },
     {
         "task_key": "task11",
-        "label": "How often did a specific guideline violation occur?",
-        "description": "Summarize guideline violation frequency per activity and type across the entire event log.",
-        "answer_type": "multiple_choice",
+        "label": "How often did predefined guideline violation(s) occur?",
+        "description": "Summarize trace-level frequency of predefined guideline violations across the entire event log.",
+        "answer_type": "pct-set",
     },
     {
         "task_key": "task12",
