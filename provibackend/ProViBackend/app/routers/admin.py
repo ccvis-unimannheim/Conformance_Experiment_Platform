@@ -1146,12 +1146,35 @@ async def get_preview_svg(
 # ---------------------------------------------------------------------------
 # Idiom-level sample preview (used by the Select Idiom page)
 # ---------------------------------------------------------------------------
-# SVGs are generated once with default params + sample data and stored
-# permanently at SAMPLE_DATA_DIR/output/__idiom_preview/{task_key}/{idiom_key}.svg.
-# Generation is on-demand (triggered by POST) and cached in memory.
+# SVGs are stored at SAMPLE_DATA_DIR/output/__idiom_preview/{task_key}/{idiom_key}.svg.
+# Pre-generated SVGs committed to the repo are baked into the Docker image and
+# served immediately (status "ready") without any runtime generation.
+# On-demand generation is still supported as a fallback for tasks without
+# pre-generated SVGs.
 
 _IDIOM_PREVIEW_EXP_ID = "__idiom_preview"
 _idiom_preview_status: dict[str, str] = {}  # task_key → "generating"|"ready"|"failed"
+
+_IDIOM_PREVIEW_BASE = SAMPLE_DATA_DIR / "output" / _IDIOM_PREVIEW_EXP_ID
+
+
+def _idiom_svgs_exist(task_key: str) -> bool:
+    """Return True if at least one pre-generated SVG exists on disk for this task."""
+    task_dir = _IDIOM_PREVIEW_BASE / task_key
+    return task_dir.is_dir() and any(task_dir.glob("*.svg"))
+
+
+def _preload_idiom_preview_status():
+    """Scan disk at startup and mark any task with existing SVGs as ready."""
+    if not _IDIOM_PREVIEW_BASE.is_dir():
+        return
+    for task_dir in _IDIOM_PREVIEW_BASE.iterdir():
+        if task_dir.is_dir() and any(task_dir.glob("*.svg")):
+            _idiom_preview_status[task_dir.name] = "ready"
+            _logger.info("[idiom-preview] Pre-loaded static SVGs for %s", task_dir.name)
+
+
+_preload_idiom_preview_status()
 
 
 def _run_idiom_preview_task(task_key: str):
@@ -1172,14 +1195,19 @@ def _run_idiom_preview_task(task_key: str):
 
 @router.post("/idiom-preview/{task_key}", tags=["admin"])
 async def generate_idiom_preview(task_key: str, background_tasks: BackgroundTasks):
-    """Trigger sample-data preview generation for one task (idempotent).
+    """Serve pre-generated SVGs immediately if available; otherwise generate on demand.
 
-    SVGs are generated with default parameters using the bundled sample dataset.
-    Already-generated results are served from cache without re-running.
+    If static SVGs are already on disk (committed to the image), returns "ready"
+    instantly without scheduling any background work.
     """
     current = _idiom_preview_status.get(task_key, "idle")
     if current in ("generating", "ready"):
         return JSONResponse({"status": current})
+
+    # If SVGs were committed to the repo and baked into the image, use them directly.
+    if _idiom_svgs_exist(task_key):
+        _idiom_preview_status[task_key] = "ready"
+        return JSONResponse({"status": "ready"})
 
     if generate_for_task_instances is None:
         raise HTTPException(status_code=503, detail="Visualization pipeline unavailable.")
@@ -1199,10 +1227,52 @@ async def generate_idiom_preview(task_key: str, background_tasks: BackgroundTask
     return JSONResponse({"status": "generating"})
 
 
+@router.post("/idiom-preview-all", tags=["admin"])
+async def generate_all_idiom_previews(background_tasks: BackgroundTasks):
+    """Trigger idiom preview generation for every task in the database.
+
+    Tasks whose SVGs already exist on disk are skipped (already ready).
+    Returns a per-task status snapshot so the caller can track progress.
+    """
+    tasks = dbc.get_query_db("Task", query={})
+    task_keys = [t["task_key"] for t in tasks if t.get("task_key")]
+
+    _sample_input = SAMPLE_DATA_DIR / "input"
+    _has_dir   = _sample_input.is_dir()
+    _has_log   = _has_dir and (any(_sample_input.glob("*.xes")) or any(_sample_input.glob("*.csv")))
+    _has_model = _has_dir and any(_sample_input.glob("*.bpmn"))
+    sample_ready = _has_log and _has_model
+
+    snapshot: dict[str, str] = {}
+    for tk in task_keys:
+        current = _idiom_preview_status.get(tk, "idle")
+        if current in ("generating", "ready"):
+            snapshot[tk] = current
+            continue
+        if _idiom_svgs_exist(tk):
+            _idiom_preview_status[tk] = "ready"
+            snapshot[tk] = "ready"
+            continue
+        if not sample_ready or generate_for_task_instances is None:
+            snapshot[tk] = "skipped"
+            continue
+        _idiom_preview_status[tk] = "generating"
+        background_tasks.add_task(_run_idiom_preview_task, tk)
+        snapshot[tk] = "generating"
+
+    return JSONResponse({"tasks": snapshot})
+
+
 @router.get("/idiom-preview/{task_key}/status", tags=["admin"])
 async def get_idiom_preview_status(task_key: str):
     """Return the generation status for one task's idiom previews."""
-    return JSONResponse({"status": _idiom_preview_status.get(task_key, "idle")})
+    status = _idiom_preview_status.get(task_key, "idle")
+    # Catch the case where SVGs exist on disk but memory cache was not populated
+    # (e.g. server restarted mid-session).
+    if status == "idle" and _idiom_svgs_exist(task_key):
+        _idiom_preview_status[task_key] = "ready"
+        status = "ready"
+    return JSONResponse({"status": status})
 
 
 @router.get("/idiom-preview/{task_key}/{idiom_key}", tags=["admin"])
