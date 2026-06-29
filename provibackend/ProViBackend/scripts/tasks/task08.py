@@ -568,13 +568,6 @@ def generate(log, alignments, output_dir: str,
     logger.info("\n--- Generating Task 8 visualizations (Violation co-occurrence patterns) ---")
 
     n_traces = len(log)
-    thr_frac  = high_cooccurrence_threshold
-    thr_count = thr_frac * n_traces if thr_frac is not None else None
-    if thr_frac is not None:
-        logger.info(f"      High co-occurrence threshold: {thr_frac * 100:.0f}% "
-                    f"(≥ {thr_count:.0f} of {n_traces} traces)")
-    else:
-        logger.info("      High co-occurrence threshold: not set (no annotation)")
     violation_sets, violation_freq, cooccurrence = _extract_violation_data(alignments)
 
     n_with_viols = sum(1 for vs in violation_sets if vs)
@@ -588,7 +581,12 @@ def generate(log, alignments, output_dir: str,
                         "No guideline violations detected in this log")
         return
 
-    task08_heatmap(violation_freq, cooccurrence, output_dir, thr_count, thr_frac)
-    task08_matrix(violation_freq, cooccurrence, output_dir, thr_count, thr_frac)
-    task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count, thr_frac)
-    task08_table(violation_freq, cooccurrence, n_traces, output_dir, thr_count, thr_frac)
+    # High co-occurrence hints are intentionally NOT drawn on the visualizations
+    # (passing thr_count/thr_frac = None disables the footer caption, the heatmap
+    # reference line and the matrix cell outlines). They are being moved to the
+    # participant view instead. The high_cooccurrence_threshold still drives the
+    # ground truth via compute_ground_truth (which reads it from params directly).
+    task08_heatmap(violation_freq, cooccurrence, output_dir, None, None)
+    task08_matrix(violation_freq, cooccurrence, output_dir, None, None)
+    task08_network_diagram(violation_freq, cooccurrence, output_dir, None, None)
+    task08_table(violation_freq, cooccurrence, n_traces, output_dir, None, None)
