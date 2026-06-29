@@ -22,14 +22,21 @@ _SEED_NAMESPACE = uuid.UUID("00000000-0000-0000-0000-000000000001")
 
 
 def _seed_collection(collection_name: str, items: list, key_field: str):
-    """Upsert canonical items — inserts missing ones, leaves existing ones untouched."""
+    """Upsert canonical items — code is the source of truth for canonical content.
+
+    Canonical fields (label, description, answer_type, …) are `$set` on every
+    startup so edits to seed_data.py propagate to existing documents; the `_id`
+    is only assigned on insert. Any non-canonical fields already on the document
+    (not present in seed_data) are left untouched.
+    """
     db = dbc.connect_to_database()
     for item in items:
         doc = dict(item)
-        doc["_id"] = str(uuid.uuid5(_SEED_NAMESPACE, item[key_field]))
+        doc.pop("_id", None)
+        _id = str(uuid.uuid5(_SEED_NAMESPACE, item[key_field]))
         db[collection_name].update_one(
-            {"_id": doc["_id"]},
-            {"$setOnInsert": doc},
+            {"_id": _id},
+            {"$set": doc, "$setOnInsert": {"_id": _id}},
             upsert=True,
         )
 

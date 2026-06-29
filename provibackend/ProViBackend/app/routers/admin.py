@@ -780,17 +780,27 @@ def _validate_task_instances(exp: dict) -> list[str]:
             key = entry.get("key")
             label = entry.get("label", key)
             val = params.get(key)
-            if entry.get("required") and (val is None or val == ""):
+            is_empty = val is None or val == "" or (isinstance(val, list) and len(val) == 0)
+            if entry.get("required") and is_empty:
                 errors.append(f"{task_key}: '{label}' is required.")
                 continue
             source = entry.get("source")
-            if source and val not in (None, ""):
+            if source and not is_empty:
                 try:
                     candidates = _param_candidates(source, dataset_id)
                 except Exception:
                     candidates = []
-                if candidates and val not in candidates:
-                    errors.append(f"{task_key}: '{val}' is not a valid {label} — not found in the event log.")
+                # Candidates may be plain strings (e.g. log.activities) or
+                # {value, label} dicts (e.g. log.violations); compare on value.
+                candidate_values = [c if isinstance(c, str) else c.get("value") for c in candidates]
+                if candidate_values:
+                    # select-many params hold a list of values; scalar params hold one.
+                    selected_values = val if isinstance(val, list) else [val]
+                    for sv in selected_values:
+                        if sv not in candidate_values:
+                            errors.append(
+                                f"{task_key}: '{sv}' is not a valid {label} — not found in the event log."
+                            )
 
         # Task-specific semantic validation (e.g. the condition must split the log).
         validate = task_registry.get_validate_params(task_key)
