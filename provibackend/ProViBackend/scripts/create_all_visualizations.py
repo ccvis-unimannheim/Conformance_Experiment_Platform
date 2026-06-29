@@ -683,7 +683,10 @@ def run_pipeline(dataset_dir: str, experiment_id: str | None = None,
     compare_attribute = _auto_detect_compare_attribute(log, compare_attribute)
     logger.info(f"Compare attribute (resolved): {compare_attribute}")
     net, im, fm = load_model(model_path)
-    alignments  = run_alignments(log, net, im, fm)
+    # Reuse the per-dataset alignment cache so the CLI pipeline, the /specify
+    # violation enumeration and the backend generation all see identical
+    # (deterministic) alignments — PM4Py alignments are otherwise non-deterministic.
+    alignments  = get_or_compute_alignments(dataset_dir, log, net, im, fm)
     fitness_df  = fitness_summary_dataframe(alignments)
 
     def out(task_name: str) -> str:
