@@ -395,6 +395,7 @@ def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer
     """Auto-generate a reference narrative + rubric for admin review.
 
     Returns empty dict when answer_format != 'free-text'.
+    Return keys: reference (str narrative), rubric (dict).
     Rubric keys: top_patterns (list), dominant_move_type (str),
                  top3_activities (list[str]), top3_patterns (list[str]).
     """
@@ -404,7 +405,7 @@ def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer
     pat_df = _task23_build_pattern_df(alignments)
     if pat_df.empty:
         return {
-            "text": "No guideline violations were found in this log.",
+            "reference": "No guideline violations were found in this log.",
             "rubric": {
                 "top_patterns": [],
                 "dominant_move_type": None,
@@ -471,7 +472,7 @@ def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer
     text = " ".join(s for s in [s1, s2, s3, s4, s5] if s)
 
     return {
-        "text": text,
+        "reference": text,
         "rubric": {
             "top_patterns":       top_patterns_list,
             "dominant_move_type": dominant_mt,
