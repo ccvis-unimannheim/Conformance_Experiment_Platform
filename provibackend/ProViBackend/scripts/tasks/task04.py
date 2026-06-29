@@ -15,7 +15,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "scatter_plot", "table",
+IDIOMS = ["bar_chart", "table",
           "line_graph", "table_bar_chart",
           "matrix", "heatmap"]
 
@@ -184,62 +184,6 @@ def task04_table(vdf: pd.DataFrame, output_dir: str, total_variants: int = 0):
     save_svg(fig, os.path.join(output_dir, "task04_table.svg"))
 
 
-def task04_scatter_plot(vdf: pd.DataFrame, output_dir: str):
-    """Scatter of the selected top-N variants; x = trace count (log scale if wide),
-    y = fitness. Every shown variant is labelled (not just the most frequent)."""
-    counts  = vdf["count"].values.astype(float)
-    fitness = vdf["fitness"].values
-    colors  = [GREY_MED if f >= 1.0 else GREY_LIGHT for f in fitness]
-
-    use_log = counts.max() / max(counts.min(), 1) > 20
-
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.scatter(counts, fitness, c=colors, s=40, alpha=0.75, edgecolors="white", linewidths=0.5)
-
-    # Label every shown variant; alternate the y-offset when x-positions are close
-    # (pixel offsets keep labels attached to their point on both linear and log x).
-    prev_log_x   = None
-    prev_y_off   = 6
-    for _, row in vdf.iterrows():
-        log_x = np.log10(max(row["count"], 1))
-        if prev_log_x is not None and abs(log_x - prev_log_x) < 0.15:
-            y_off = -13 if prev_y_off >= 0 else 8
-        else:
-            y_off = 6
-        prev_log_x = log_x
-        prev_y_off = y_off
-        ax.annotate(
-            row["label"],
-            (row["count"], row["fitness"]),
-            textcoords="offset points", xytext=(5, y_off),
-            fontsize=FONT_ANNOT - 1, color="#333333",
-        )
-
-    if use_log:
-        ax.set_xscale("log")
-        ax.set_xlabel("Variant size (#traces, log scale)", fontsize=FONT_LABEL)
-    else:
-        ax.set_xlabel("Variant size (#traces)", fontsize=FONT_LABEL)
-
-    ax.set_ylabel("Fitness (0–1)", fontsize=FONT_LABEL)
-    ax.set_ylim(-0.05, 1.1)
-    ax.set_title("Variant Frequency vs. Conformance Fitness", fontsize=FONT_TITLE)
-
-    import matplotlib.patches as mpatches
-    ax.legend(
-        handles=[
-            mpatches.Patch(color=GREY_MED,   label="Conformant"),
-            mpatches.Patch(color=GREY_LIGHT, label="Non-conformant"),
-        ],
-        frameon=False, fontsize=FONT_ANNOT,
-    )
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.4)
-    ax.set_axisbelow(True)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task04_scatter_plot.svg"))
-
-
 # ---------------------------------------------------------------------------
 def task04_line_graph(vdf: pd.DataFrame, output_dir: str):
     """Fitness profile across frequency-ranked variants (x = rank, y = fitness)."""
@@ -382,6 +326,5 @@ def generate(log, fitness_df, output_dir: str, top_n: int = TOP_N):
     task04_table(top_vdf, output_dir, total_variants=n_total)
     task04_table_bar_chart(top_vdf, output_dir, total_variants=n_total)
     task04_matrix(top_vdf, output_dir)
-    task04_scatter_plot(top_vdf, output_dir)
     task04_line_graph(top_vdf, output_dir)
     task04_heatmap(top_vdf, output_dir)
