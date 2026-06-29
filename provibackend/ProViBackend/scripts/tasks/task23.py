@@ -16,6 +16,27 @@ logger = logging.getLogger(__name__)
 IDIOMS = ["bar_chart", "stacked_bar", "table", "table_and_bar_chart", "matrix",
           "parallel_sets"]
 
+GT_TIER = "SEMI"
+
+PARAM_SPEC = []
+
+ANSWER_FORMATS = [
+    {"key": "free-text", "gt_shape": "reference", "decisive_default": False},
+]
+
+RUBRIC = (
+    "A complete answer names at least the two most frequent violation patterns with their "
+    "occurrence counts or relative frequencies, identifies which move type (Model Move, "
+    "Log Move, or Mismatch Move) dominates across all violations, and notes at least one "
+    "activity-level characteristic that distinguishes patterns from one another "
+    "(e.g. an activity that only appears as a Model Move, or the activity with the highest "
+    "total violation count). Award full marks for correctly covering frequency, move-type "
+    "distribution, and at least one distinguishing activity-level insight. Award partial "
+    "marks when frequency and move type are covered but no activity-level comparison is "
+    "made. Deduct marks for incorrect counts, wrong move-type attribution, or unsupported "
+    "claims about severity."
+)
+
 import os
 import numpy as np
 import pandas as pd
@@ -367,17 +388,17 @@ def generate(alignments, output_dir: str, log=None):
 
 
 # ---------------------------------------------------------------------------
-# Ground truth (free_text answer type)
+# Ground truth (free-text answer type)
 # ---------------------------------------------------------------------------
 
 def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
     """Auto-generate a reference narrative + rubric for admin review.
 
-    Returns empty dict when answer_format != 'free_text'.
+    Returns empty dict when answer_format != 'free-text'.
     Rubric keys: top_patterns (list), dominant_move_type (str),
                  top3_activities (list[str]), top3_patterns (list[str]).
     """
-    if answer_format != "free_text":
+    if answer_format != "free-text":
         return {}
 
     pat_df = _task23_build_pattern_df(alignments)
