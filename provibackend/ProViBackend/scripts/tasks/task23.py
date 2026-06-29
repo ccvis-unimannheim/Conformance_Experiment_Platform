@@ -14,7 +14,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 IDIOMS = ["bar_chart", "stacked_bar", "table", "table_and_bar_chart", "matrix",
-          "parallel_sets", "scatter_plot", "box_plot", "heatmap", "calendar"]
+          "parallel_sets"]
 
 import os
 import numpy as np
@@ -28,8 +28,7 @@ from matplotlib.colors import to_hex, Normalize
 
 from shared import (
     save_svg, make_table, draw_parallel_sets, build_violation_pattern_df,
-    alignment_pairs_to_rows, draw_grouped_box_plot, draw_value_heatmap,
-    calendar_heatmap, render_empty_state_svg, contrasting_text_color,
+    contrasting_text_color,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
@@ -307,150 +306,11 @@ def task23_parallel_sets(pat_df: pd.DataFrame, output_dir: str):
 
 
 # ---------------------------------------------------------------------------
-# Medium idioms
-# ---------------------------------------------------------------------------
-
-def task23_scatter_plot(pat_df: pd.DataFrame, output_dir: str):
-    """One dot per pattern: x = #traces affected, y = total occurrences, colour = move-type."""
-    colors = [_MOVE_COLORS.get(mt, _MOVE_DEFAULT) for mt in pat_df["move_type"]]
-    fig, ax = plt.subplots(figsize=(9, 6))
-    ax.scatter(pat_df["n_traces"], pat_df["count"], c=colors, s=60, alpha=0.8,
-               edgecolors="white", linewidths=0.6)
-    for _, row in pat_df.head(8).iterrows():
-        ax.annotate(row["activity"], (row["n_traces"], row["count"]),
-                    textcoords="offset points", xytext=(5, 3),
-                    fontsize=FONT_ANNOT - 1, color="#333333")
-    ax.set_xlabel("# Traces affected", fontsize=FONT_LABEL)
-    ax.set_ylabel("Total occurrences", fontsize=FONT_LABEL)
-    ax.set_title("Violation Patterns: Reach vs. Frequency", fontsize=FONT_TITLE)
-    _move_legend(ax, set(pat_df["move_type"]))
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.grid(True, linestyle="--", alpha=0.45)
-    ax.set_axisbelow(True)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task23_scatter_plot.svg"))
-
-
-def _per_trace_pattern_counts(alignments) -> dict:
-    """pattern -> list of per-trace occurrence counts among affected traces."""
-    from collections import Counter, defaultdict
-    out = defaultdict(list)
-    for result in alignments:
-        c = Counter()
-        for step in alignment_pairs_to_rows(result.get("alignment", [])):
-            if step["moveType"] == "Synchronous Move":
-                continue
-            activity = (step["model_move"] if step["moveType"] == "Model Move"
-                        else step["log_move"])
-            if not activity or activity in {"-", "None", "(skip)"}:
-                continue
-            c[f"{activity} ({step['moveType']})"] += 1
-        for pat, n in c.items():
-            out[pat].append(n)
-    return out
-
-
-def task23_box_plot(pat_df: pd.DataFrame, alignments, output_dir: str):
-    """Per top-N pattern: distribution of per-trace occurrence counts among affected traces."""
-    top = pat_df.head(TOP_N)
-    per_pat = _per_trace_pattern_counts(alignments)
-    labels, data, colors = [], [], []
-    for _, row in top.iterrows():
-        vals = per_pat.get(row["pattern"], [])
-        if not vals:
-            continue
-        labels.append(row["pattern"])
-        data.append(np.array(vals))
-        colors.append(_MOVE_COLORS.get(row["move_type"], _MOVE_DEFAULT))
-    if not data:
-        render_empty_state_svg(os.path.join(output_dir, "task23_box_plot.svg"),
-                               "Occurrences per Affected Trace", "No violations found.")
-        return
-    # Anchor the y-axis at 0 with headroom so boxes are visible even when every
-    # affected trace has the same occurrence count (degenerate = flat line at 1).
-    all_vals = np.concatenate(data)
-    gmax = float(all_vals.max())
-    degenerate = float(np.ptp(all_vals)) == 0.0
-    fig, ax = plt.subplots(figsize=(max(8, len(labels) * 1.0), 6))
-    draw_grouped_box_plot(ax, data, labels, colors,
-                          ylabel="Occurrences per affected trace",
-                          ylim=(0, max(2.0, gmax * 1.3)))
-    ax.tick_params(axis="x", labelrotation=40)
-    for lbl in ax.get_xticklabels():
-        lbl.set_ha("right")
-    title = f"Per-trace Occurrence Spread (top-{len(labels)} patterns)"
-    if degenerate:
-        ax.text(0.5, 0.97,
-                f"Every affected trace exhibits each pattern exactly {int(gmax)}× "
-                f"— no spread.",
-                transform=ax.transAxes, ha="center", va="top",
-                fontsize=FONT_ANNOT, color="#888888")
-    ax.set_title(title, fontsize=FONT_TITLE)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task23_box_plot.svg"))
-
-
-def task23_heatmap(pat_df: pd.DataFrame, output_dir: str):
-    """Activity × move-type, counts, continuous colour (complements the matrix)."""
-    act_totals = pat_df.groupby("activity")["count"].sum().sort_values(ascending=False)
-    top_acts = act_totals.head(TOP_N).index.tolist()
-    present_types = [mt for mt in _MOVE_ORDER if mt in pat_df["move_type"].values]
-    data = np.zeros((len(top_acts), len(present_types)))
-    for ai, act in enumerate(top_acts):
-        for ci, mt in enumerate(present_types):
-            mask = (pat_df["activity"] == act) & (pat_df["move_type"] == mt)
-            data[ai, ci] = float(pat_df.loc[mask, "count"].sum())
-    fig_h = max(3.5, 0.55 * len(top_acts) + 1.5)
-    fig, ax = plt.subplots(figsize=(max(5, len(present_types) * 2.0), fig_h))
-    draw_value_heatmap(fig, ax, data, top_acts, present_types, xlabel="Move Type",
-                       cbar_label="Count", annotate=False)
-    ax.set_title(f"Violation Count Heatmap (top-{len(top_acts)} activities)", fontsize=FONT_TITLE)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task23_heatmap.svg"))
-
-
-def task23_calendar(alignments, log, output_dir: str):
-    """Single calendar: daily total violation count."""
-    if log is None:
-        render_empty_state_svg(os.path.join(output_dir, "task23_calendar.svg"),
-                               "Daily Violation Count", "Event log unavailable for dates.")
-        return
-    import pandas as _pd
-    daily = {}
-    for i, result in enumerate(alignments):
-        try:
-            trace = log[i]
-        except Exception:
-            continue
-        if not trace:
-            continue
-        ts = trace[0].get("time:timestamp")
-        if ts is None:
-            continue
-        n_viol = sum(1 for s in alignment_pairs_to_rows(result.get("alignment", []))
-                     if s["moveType"] != "Synchronous Move")
-        if n_viol == 0:
-            continue
-        d = _pd.Timestamp(ts).normalize()
-        daily[d] = daily.get(d, 0) + n_viol
-    if not daily:
-        render_empty_state_svg(os.path.join(output_dir, "task23_calendar.svg"),
-                               "Daily Violation Count", "No timestamped violations.")
-        return
-    calendar_heatmap(daily, os.path.join(output_dir, "task23_calendar.svg"),
-                     title="Daily Total Violation Count",
-                     cbar_label="Violations", vmin=0.0, cmap="cividis")
-
-
-# ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
 
 def generate(alignments, output_dir: str, log=None):
-    """Generate all Task ID 23 SVGs into output_dir.
-
-    log is optional and only used by the calendar idiom (daily violation count).
-    """
+    """Generate all Task ID 23 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 23 visualizations ---")
 
@@ -465,10 +325,6 @@ def generate(alignments, output_dir: str, log=None):
             ("task23_table_and_bar_chart.svg", "Violation Patterns"),
             ("task23_matrix.svg",              "Violation Count Matrix"),
             ("task23_parallel_sets.svg",       "Move Type vs. Activity"),
-            ("task23_scatter_plot.svg",        "Violation Patterns: Reach vs. Frequency"),
-            ("task23_box_plot.svg",            "Occurrences per Affected Trace"),
-            ("task23_heatmap.svg",             "Violation Count Heatmap"),
-            ("task23_calendar.svg",            "Daily Violation Count"),
         ]:
             _empty_svg(output_dir, fname, title)
         return
@@ -482,10 +338,6 @@ def generate(alignments, output_dir: str, log=None):
     task23_table_and_bar_chart(pat_df, output_dir)
     task23_matrix(pat_df, output_dir)
     task23_parallel_sets(pat_df, output_dir)
-    task23_scatter_plot(pat_df, output_dir)
-    task23_box_plot(pat_df, alignments, output_dir)
-    task23_heatmap(pat_df, output_dir)
-    task23_calendar(alignments, log, output_dir)
 
 
 # ---------------------------------------------------------------------------
