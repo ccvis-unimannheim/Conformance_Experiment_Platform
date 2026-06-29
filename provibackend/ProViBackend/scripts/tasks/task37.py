@@ -280,7 +280,7 @@ def task37_boxplot(data, output_dir):
     ax.set_facecolor("#fafbfc")
 
     bp = ax.boxplot(
-        plot_data, labels=labels, patch_artist=True,
+        plot_data, tick_labels=labels, patch_artist=True,
         medianprops=dict(color=_C_DARK, linewidth=2),
         whiskerprops=dict(color=_C_MED, linewidth=1.2),
         capprops=dict(color=_C_MED, linewidth=1.2),
