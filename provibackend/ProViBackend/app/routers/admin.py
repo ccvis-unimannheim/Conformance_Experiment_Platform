@@ -309,6 +309,22 @@ async def download_experiment_answers(experiment_id: str):
         df_answers["idiom_key"] = df_answers["idiom_id"].map(lambda x: idiom_lookup.get(x, {}).get("idiom_key", ""))
         df_answers["idiom_name"] = df_answers["idiom_id"].map(lambda x: idiom_lookup.get(x, {}).get("idiom_name", ""))
 
+        # Add ground truth from experiment task_instances
+        exp_doc = dbc.get_document("Experiment", {"_id": experiment_id})
+        gt_by_task = {}
+        if exp_doc:
+            for ti in exp_doc.get("task_instances", []):
+                gt_by_task[ti.get("task_id")] = {
+                    "ground_truth": ti.get("ground_truth"),
+                    "answer_format": ti.get("answer_format"),
+                }
+        df_answers["ground_truth"] = df_answers["task_id"].map(
+            lambda x: str(gt_by_task.get(x, {}).get("ground_truth", "")) if gt_by_task.get(x, {}).get("ground_truth") is not None else ""
+        )
+        df_answers["answer_format"] = df_answers["task_id"].map(
+            lambda x: gt_by_task.get(x, {}).get("answer_format", "")
+        )
+
         if "response_time_ms" in df_answers.columns:
             df_answers["response_time_s"] = (df_answers["response_time_ms"] / 1000).round(2)
             df_answers = df_answers.drop(columns=["response_time_ms"])

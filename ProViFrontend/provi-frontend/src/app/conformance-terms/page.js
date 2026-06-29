@@ -59,10 +59,10 @@ export default function ConformanceTermsPage() {
               fontSize: "1.875rem", fontWeight: 700,
               color: C.primary, letterSpacing: "-0.02em", marginBottom: "0.5rem",
             }}>
-              Key Concept: Fitness
+              Key Concepts in Conformance Checking
             </h1>
             <p style={{ fontSize: "0.875rem", color: C.onVariant, maxWidth: "36rem", margin: "0 auto", lineHeight: 1.6 }}>
-              Before you begin the tasks, please read the following definition. It explains the core metric used throughout this study.
+              Before you begin the tasks, please read the following definitions. They explain the core concepts used throughout this study.
             </p>
           </header>
 
@@ -177,6 +177,121 @@ export default function ConformanceTermsPage() {
                       <strong>Partial fitness.</strong> A trace is considered <em>fitting</em> if it corresponds to a
                       valid execution sequence of the model, and <em>non-fitting</em> if there is any deviation. Values
                       between 0 and 1 reflect the proportion of fitting traces in the log.
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+
+              {/* Conformant / Non-conformant Trace */}
+              <section>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
+                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>route</span>
+                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
+                    Conformant and Non-conformant Traces
+                  </h2>
+                </div>
+                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: "0 0 1rem" }}>
+                  A <strong>trace</strong> is a sequence of recorded activities belonging to one case of the process.
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                  <div style={{
+                    display: "flex", alignItems: "flex-start", gap: "1rem",
+                    padding: "1rem 1.25rem",
+                    backgroundColor: "#f0fdf4",
+                    border: "1px solid #bbf7d0",
+                    borderRadius: "0.5rem",
+                  }}>
+                    <span className="material-symbols-outlined" style={{ color: "#15803d", fontSize: "1.2rem", flexShrink: 0, marginTop: "0.1rem" }}>check_circle</span>
+                    <p style={{ margin: 0, fontSize: "0.875rem", color: C.onSurface, lineHeight: 1.7 }}>
+                      A <strong>conformant trace</strong> can be fully replayed on the process model without any deviation — every activity in the trace follows a path that the model allows.
+                    </p>
+                  </div>
+                  <div style={{
+                    display: "flex", alignItems: "flex-start", gap: "1rem",
+                    padding: "1rem 1.25rem",
+                    backgroundColor: "#fef2f2",
+                    border: "1px solid #fecaca",
+                    borderRadius: "0.5rem",
+                  }}>
+                    <span className="material-symbols-outlined" style={{ color: "#dc2626", fontSize: "1.2rem", flexShrink: 0, marginTop: "0.1rem" }}>cancel</span>
+                    <p style={{ margin: 0, fontSize: "0.875rem", color: C.onSurface, lineHeight: 1.7 }}>
+                      A <strong>non-conformant trace</strong> contains at least one activity that violates the model's prescribed behaviour — it cannot be replayed without skipping or inserting steps.
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+
+              {/* Deviation */}
+              <section>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
+                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>warning</span>
+                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
+                    Deviation
+                  </h2>
+                </div>
+                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: "0 0 1rem" }}>
+                  A <strong>deviation</strong> (or violation) is a mismatch between the behaviour recorded in the event
+                  log and the behaviour prescribed by the process model. Deviations occur when:
+                </p>
+                <ul style={{ margin: 0, paddingLeft: "1.5rem", fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8 }}>
+                  <li>an activity was executed in a case that the model does not allow at that point, or</li>
+                  <li>an activity required by the model was not executed in the case.</li>
+                </ul>
+              </section>
+
+              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+
+              {/* Move on Log / Move on Model / Synchronous Move */}
+              <section>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
+                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>compare_arrows</span>
+                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
+                    Alignment Move Types
+                  </h2>
+                </div>
+                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: "0 0 1rem" }}>
+                  An <strong>alignment</strong> compares a trace from the event log with a process model step by step.
+                  Each step is classified as one of three move types:
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                  <div style={{
+                    display: "flex", alignItems: "flex-start", gap: "1rem",
+                    padding: "1rem 1.25rem",
+                    backgroundColor: "#f0fdf4",
+                    border: "1px solid #bbf7d0",
+                    borderRadius: "0.5rem",
+                  }}>
+                    <span className="material-symbols-outlined" style={{ color: "#15803d", fontSize: "1.2rem", flexShrink: 0, marginTop: "0.1rem" }}>sync</span>
+                    <p style={{ margin: 0, fontSize: "0.875rem", color: C.onSurface, lineHeight: 1.7 }}>
+                      <strong>Synchronous Move:</strong> The activity appears in both the trace and the model at the same step — no deviation occurs.
+                    </p>
+                  </div>
+                  <div style={{
+                    display: "flex", alignItems: "flex-start", gap: "1rem",
+                    padding: "1rem 1.25rem",
+                    backgroundColor: "#fef2f2",
+                    border: "1px solid #fecaca",
+                    borderRadius: "0.5rem",
+                  }}>
+                    <span className="material-symbols-outlined" style={{ color: "#dc2626", fontSize: "1.2rem", flexShrink: 0, marginTop: "0.1rem" }}>description</span>
+                    <p style={{ margin: 0, fontSize: "0.875rem", color: C.onSurface, lineHeight: 1.7 }}>
+                      <strong>Move on Log:</strong> An activity appears in the trace but is not expected by the model at this point — the process executed something the model does not allow.
+                    </p>
+                  </div>
+                  <div style={{
+                    display: "flex", alignItems: "flex-start", gap: "1rem",
+                    padding: "1rem 1.25rem",
+                    backgroundColor: "#fffbeb",
+                    border: "1px solid #fde68a",
+                    borderRadius: "0.5rem",
+                  }}>
+                    <span className="material-symbols-outlined" style={{ color: "#d97706", fontSize: "1.2rem", flexShrink: 0, marginTop: "0.1rem" }}>account_tree</span>
+                    <p style={{ margin: 0, fontSize: "0.875rem", color: C.onSurface, lineHeight: 1.7 }}>
+                      <strong>Move on Model:</strong> The model requires an activity, but it does not appear in the trace — the process skipped a step that the model prescribes.
                     </p>
                   </div>
                 </div>
