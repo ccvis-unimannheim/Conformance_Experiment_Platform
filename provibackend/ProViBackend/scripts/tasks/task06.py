@@ -223,7 +223,7 @@ def task06_box_plot(df, output_dir: str):
     fig, ax = plt.subplots(figsize=(5, 5))
     ax.boxplot(
         vals,
-        labels=["Log"],
+        tick_labels=["Log"],
         widths=0.4,
         medianprops=dict(color="#333333", linewidth=2),
         boxprops=dict(color="#555555"),
