@@ -21,9 +21,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "scatter_plot", "table", "table_bar_chart",
+IDIOMS = ["bar_chart", "table", "table_bar_chart",
           "parallel_sets", "stacked_bar", "box_plot", "matrix",
-          "heatmap", "calendar"]
+          "heatmap"]
 
 # ---------------------------------------------------------------------------
 # Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8)
@@ -166,7 +166,7 @@ from matplotlib.colors import to_hex
 from shared import (
     save_svg, make_table, draw_parallel_sets, alignment_pairs_to_rows,
     draw_grouped_rate_bars, draw_composition_stacked_bars,
-    draw_value_heatmap, draw_grouped_box_plot, calendar_small_multiples,
+    draw_value_heatmap, draw_grouped_box_plot,
     render_empty_state_svg, format_threshold,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
@@ -176,7 +176,7 @@ TOP_N = 10
 # MAX_CATEGORICAL_GROUPS most frequent (rest -> "Other")
 MAX_CATEGORICAL_GROUPS = 4
 
-_CIVIDIS = matplotlib.colormaps["cividis"]
+_CIVIDIS = matplotlib.colormaps["cividis_r"]
 
 # Sub-log palette: 5 well-separated stops across the cividis ramp
 _GROUP_PALETTE = [to_hex(_CIVIDIS(p)) for p in (0.15, 0.85, 0.40, 0.65, 0.28)]
@@ -394,47 +394,6 @@ def task30_bar_chart(agg_df, groups, attr, output_dir):
     save_svg(fig, os.path.join(output_dir, "task30_bar_chart.svg"))
 
 
-def task30_scatter_plot(trace_df, groups, meta, attr, output_dir):
-    """Numeric attribute: x = value, y = fitness, colour = sub-log, split line.
-    Categorical: jittered strip per sub-log, y = fitness."""
-    colors = dict(zip(groups, _group_colors(groups)))
-    rng = np.random.default_rng(42)
-
-    fig, ax = plt.subplots(figsize=(10, 5))
-    if meta["type"] == "numeric":
-        for g in groups:
-            sub = trace_df[trace_df["group"] == g]
-            if sub.empty:
-                continue
-            ax.scatter(sub["value"], sub["fitness"], c=colors[g], s=14,
-                       alpha=0.55, linewidths=0, label=g)
-        ax.axvline(meta["median"], color="#444444", linestyle="--", linewidth=1.2)
-        ax.text(meta["median"], 1.07, f"median = {format_threshold(meta['median'])}",
-                ha="center", va="bottom", fontsize=FONT_ANNOT, color="#444444")
-        ax.set_xlabel(f"{attr} (case attribute)", fontsize=FONT_LABEL)
-    else:
-        for gi, g in enumerate(groups):
-            sub = trace_df[trace_df["group"] == g]
-            if sub.empty:
-                continue
-            jitter = rng.uniform(-0.18, 0.18, size=len(sub))
-            ax.scatter(gi + jitter, sub["fitness"], c=colors[g], s=14,
-                       alpha=0.55, linewidths=0, label=g)
-        ax.set_xticks(range(len(groups)))
-        ax.set_xticklabels(groups, rotation=15, ha="right", fontsize=FONT_ANNOT)
-        ax.set_xlabel(f"Sub-log ({attr})", fontsize=FONT_LABEL)
-
-    ax.set_ylabel("Fitness (0–1)", fontsize=FONT_LABEL)
-    ax.set_ylim(-0.05, 1.15)
-    ax.set_title(f"Per-trace Fitness by {attr}", fontsize=FONT_TITLE)
-    ax.legend(frameon=False, fontsize=FONT_ANNOT, title="Sub-log",
-              title_fontsize=FONT_ANNOT, loc="lower right")
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
-    ax.set_axisbelow(True)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task30_scatter_plot.svg"))
-
 
 def _pattern_table_data(agg_df, groups):
     """(cell_text, col_labels, col_widths) for the violation-pattern section."""
@@ -478,7 +437,6 @@ def task30_table(agg_df, stats_df, groups, attr, output_dir):
         font_size=10,
         scale_xy=(1, 1.7),
         cell_pad=0.10,
-        header_color=_GROUP_PALETTE[0],
     )
     ax_sum.set_title(f"Conformance per Sub-log ({attr})", fontsize=FONT_TITLE, pad=8)
 
@@ -498,7 +456,6 @@ def task30_table(agg_df, stats_df, groups, attr, output_dir):
             font_size=9,
             scale_xy=(1, 1.7),
             cell_pad=0.09,
-            header_color=_GROUP_PALETTE[0],
         )
     ax_pat.set_title(f"Top-{len(agg_df)} Violation Patterns per Sub-log",
                      fontsize=FONT_TITLE, pad=8)
@@ -529,7 +486,6 @@ def task30_table_and_bar_chart(agg_df, groups, attr, output_dir):
         font_size=8.5,
         scale_xy=(1, 1.7),
         cell_pad=0.09,
-        header_color=_GROUP_PALETTE[0],
     )
     ax_tbl.set_title(f"Top-{len(agg_df)} Violation Patterns ({attr})",
                      fontsize=FONT_TITLE, pad=10)
@@ -650,7 +606,7 @@ def task30_matrix(agg_df, groups, attr, output_dir):
     fig, ax = plt.subplots(figsize=(max(5, len(groups) * 2.2), fig_h))
     draw_value_heatmap(fig, ax, data, patterns, groups,
                        xlabel=f"Sub-log ({attr})", cbar_label="Rate (%)",
-                       cell_fmt="{:.1f}%", annotate=True, cmap="cividis")
+                       cell_fmt="{:.1f}%", annotate=True, cmap="cividis_r")
     ax.set_title("Violation Rate Matrix (%)", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task30_matrix.svg"))
@@ -669,49 +625,11 @@ def task30_heatmap(agg_df, groups, attr, output_dir):
     fig, ax = plt.subplots(figsize=(max(5, len(groups) * 2.2), fig_h))
     draw_value_heatmap(fig, ax, data, patterns, groups, xlabel=f"Sub-log ({attr})",
                        cbar_label="Rate (%)", annotate=False, rotate_xticks=20,
-                       cmap="cividis")
+                       cmap="cividis_r")
     ax.set_title("Violation Rate Heatmap (%)", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task30_heatmap.svg"))
 
-
-def _daily_nonconf_share(log, assignment, fitness_df, groups):
-    """group -> {date -> share of non-conformant case starts on that day}."""
-    import pandas as pd
-
-    is_fit = {int(r["trace_index"]): bool(r["is_fit"]) for _, r in fitness_df.iterrows()}
-    accum = {g: {} for g in groups}  # date -> [n_total, n_nonconf]
-    for i, trace in enumerate(log):
-        if i >= len(assignment) or assignment[i] is None or not trace:
-            continue
-        ts = trace[0].get("time:timestamp")
-        if ts is None:
-            continue
-        g = assignment[i]
-        d = pd.Timestamp(ts).normalize()
-        cell = accum[g].setdefault(d, [0, 0])
-        cell[0] += 1
-        if not is_fit.get(i, True):
-            cell[1] += 1
-    return {g: {d: (nc / tot if tot else 0.0) for d, (tot, nc) in accum[g].items()}
-            for g in groups}
-
-
-def task30_calendar(log, assignment, fitness_df, groups, attr, output_dir):
-    """Small-multiple calendar per sub-log: daily share of non-conformant case starts."""
-    per_group = _daily_nonconf_share(log, assignment, fitness_df, groups)
-    if not any(per_group.values()):
-        render_empty_state_svg(os.path.join(output_dir, "task30_calendar.svg"),
-                               "Daily Non-conformance Share per Sub-log",
-                               "No timestamped case starts.")
-        return
-    calendar_small_multiples(
-        per_group,
-        os.path.join(output_dir, "task30_calendar.svg"),
-        title=f"Daily Non-conformance Share per Sub-log ({attr})",
-        cbar_label="Share non-conformant", vmin=0.0, vmax=1.0,
-        cmap="cividis",
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -720,7 +638,6 @@ def task30_calendar(log, assignment, fitness_df, groups, attr, output_dir):
 
 _ALL_FNAMES_TITLES = [
     ("task30_bar_chart.svg",           "Violation Rates by Sub-log"),
-    ("task30_scatter_plot.svg",        "Per-trace Fitness by Attribute"),
     ("task30_table.svg",               "Conformance per Sub-log"),
     ("task30_table_and_bar_chart.svg", "Violation Patterns per Sub-log"),
     ("task30_parallel_sets.svg",       "Sub-log vs. Violation Pattern"),
@@ -728,7 +645,6 @@ _ALL_FNAMES_TITLES = [
     ("task30_box_plot.svg",            "Fitness Distribution per Sub-log"),
     ("task30_matrix.svg",              "Violation Rate Matrix"),
     ("task30_heatmap.svg",             "Violation Rate Heatmap"),
-    ("task30_calendar.svg",            "Daily Non-conformance Share per Sub-log"),
 ]
 
 
@@ -779,7 +695,6 @@ def generate(log, fitness_df, alignments, output_dir: str,
             logger.warning(f"      task30: sub-log '{g}' has no violations.")
 
     task30_bar_chart(agg_df, groups, compare_attribute, output_dir)
-    task30_scatter_plot(trace_df, groups, meta, compare_attribute, output_dir)
     task30_table(agg_df, stats_df, groups, compare_attribute, output_dir)
     task30_table_and_bar_chart(agg_df, groups, compare_attribute, output_dir)
     task30_parallel_sets(agg_df, viol_df, stats_df, groups, compare_attribute, output_dir)
@@ -787,4 +702,3 @@ def generate(log, fitness_df, alignments, output_dir: str,
     task30_box_plot(trace_df, groups, compare_attribute, output_dir)
     task30_matrix(agg_df, groups, compare_attribute, output_dir)
     task30_heatmap(agg_df, groups, compare_attribute, output_dir)
-    task30_calendar(log, assignment, fitness_df, groups, compare_attribute, output_dir)

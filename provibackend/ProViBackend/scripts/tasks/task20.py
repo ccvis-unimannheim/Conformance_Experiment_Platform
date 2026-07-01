@@ -28,6 +28,44 @@ IDIOMS = ["bar_chart", "scatter_plot", "table", "table_bar_chart", "flow_chart_t
           "flow_chart_elaborate_table", "parallel_sets",
           "flow_chart_elaborate", "network_diagram", "tree"]
 
+# ---------------------------------------------------------------------------
+# Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8; design doc §2 row 20)
+#
+# Task 20 (MANUAL): "Discover reasons / root causes" — which control-flow, data,
+# resource, or time attributes lead to guideline violations. Like its sibling
+# task13 (the attribute-evidence companion), the answer is irreducibly
+# interpretive: the decision tree / attribute-evidence idioms surface candidate
+# root causes, but naming THE reason is an analyst judgement, so no decisive GT
+# value is auto-computed. Plan §6 classifies #20 under MANUAL; the admin provides
+# a reference answer seeded from the static RUBRIC below.
+#
+# Mirrors task13's contract deliberately (same Reasons family): PARAM_SPEC = []
+# (candidate attributes stay the shared hard-coded CANDIDATE_ATTRIBUTES set used
+# by every idiom, guaranteeing GT-vs-visual consistency), free-text answer format.
+# ---------------------------------------------------------------------------
+GT_TIER = "MANUAL"
+
+PARAM_SPEC = []
+
+ANSWER_FORMATS = [
+    {"key": "free-text", "gt_shape": "reference", "decisive_default": False},
+]
+
+RUBRIC = (
+    "A strong answer identifies one or more concrete attributes — of the "
+    "control-flow (e.g. trace length, a present/absent activity), data (e.g. a "
+    "case-level value such as requested amount), resource, or time (e.g. case "
+    "duration) — that distinguish violating from conforming cases, and states the "
+    "direction of each effect (e.g. longer cases, or amounts above a threshold, "
+    "exhibit more violations). The answer should read the evidence as a root cause "
+    "(the attribute condition under which violations concentrate) rather than "
+    "merely restating frequencies. Partial credit for correctly naming a "
+    "discriminating attribute without giving its direction or threshold. No credit "
+    "for vague claims unsupported by the visualized decision-tree / attribute "
+    "evidence."
+)
+
+
 import os
 import numpy as np
 import pandas as pd

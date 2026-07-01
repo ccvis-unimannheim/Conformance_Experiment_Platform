@@ -1,10 +1,22 @@
 """
 tasks/task25.py – Task ID 25: Explore / Discover / Process conformance.
 
-The analyst discovers the overall conformance degree themself from raw /
-per-entity data. Core principle: NO aggregated conformance number appears in
-any of this task's figures — no overall fitness, no percentage, no mean line,
-no summary row. Reuses the centrally computed per-trace fitness.
+The analyst discovers the overall conformance degree (= conformance rate, i.e.
+**fitness**) themself from the per-trace data. Three core principles:
+
+  * **One vocabulary — fitness (0–1).** Every idiom speaks the same conformance-
+    rate language as the GT (mean per-trace fitness). NO idiom reduces the log to
+    a binary conformant-vs-non-conformant split: a trace with fitness 0.9 is
+    *mostly* conformant, and a binary count would mislead the analyst toward a far
+    lower conformance estimate than the true rate (the answer the GT buckets).
+  * **Discovery, not description.** No single aggregated conformance number is
+    handed over (no overall fitness value, no mean line, no summary row).
+  * **Derivable, not binned.** Every idiom shows the EXACT per-trace fitness — never
+    coarse value ranges/bins. Binning into ranges would hide where inside a range
+    the traces sit (all at 0.61 vs all at 0.79 give very different rates), so the
+    true rate could not be recovered. With exact per-trace values the analyst can
+    compute the rate themself, and all idioms are equivalent ("fair") in letting
+    them do so. Reuses the centrally computed per-trace fitness.
 
 Public API:
     generate(log, fitness_df, output_dir)
@@ -17,15 +29,16 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["tile_metric", "bar_chart", "scatter_plot", "table"]
+IDIOMS = ["tile_metric", "bar_chart", "table"]
 
 # ---------------------------------------------------------------------------
 # Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8)
 #
 # Task 25 (AUTO): no hyperparameters — the analyst discovers the overall
-# conformance degree from the visualisation. GT is the same scalar fitness
-# as task06 (mean per-trace fitness × 100, rounded). count-set format
-# additionally exposes the raw conformant / non-conformant trace counts.
+# conformance degree from the visualisation. GT is the same conformance rate as
+# task06 (mean per-trace fitness × 100, rounded): mc-single buckets the rate,
+# mc-multi poses fitness-distribution statements — both stay in the fitness
+# vocabulary the idioms render (no binary conformant/non-conformant counts).
 # ---------------------------------------------------------------------------
 GT_TIER = "AUTO"
 
@@ -44,8 +57,13 @@ def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer
     mean_fit = float(fitness_df["fitness"].mean()) if len(fitness_df) > 0 else 0.0
     pct = round(mean_fit * 100)
     total = len(fitness_df)
-    conform = int(fitness_df["is_fit"].sum())
-    non_conform = total - conform
+    # Thresholds derived from the EXACT per-trace fitness (the same values the
+    # idioms render), so every answer option is recoverable from the visualisation
+    # — no binary conformant/non-conformant count, no coarse range that hides where
+    # inside it the traces sit.
+    fit = fitness_df["fitness"].to_numpy(dtype=float)
+    high = int((fit >= 0.8).sum())   # fitness 0.8 or higher
+    low  = int((fit < 0.4).sum())    # fitness below 0.4
 
     if answer_format == "mc-single":
         # 4 percentage buckets; exactly one is correct.
@@ -61,32 +79,33 @@ def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer
             options.append({"label": label, "value": label, "correct": correct})
         return {"options": options}
 
-    # mc-multi: statements that may each be objectively true or false.
+    # mc-multi: statements in the fitness vocabulary, each objectively true/false
+    # and each derivable from the per-trace fitness distribution the idioms show.
     statements = [
         {
-            "label": "More than half of all traces conform to the process model.",
-            "value": "majority_conform",
-            "correct": conform > non_conform,
-        },
-        {
-            "label": "The overall conformance rate exceeds 75%.",
-            "value": "above_75",
+            "label": "The overall conformance rate (mean fitness) exceeds 75%.",
+            "value": "rate_above_75",
             "correct": pct > 75,
         },
         {
-            "label": "Fewer than 25% of traces deviate from the model.",
-            "value": "low_deviation",
-            "correct": (non_conform / total * 100 < 25) if total > 0 else False,
+            "label": "Most traces have a fitness of 0.8 or higher.",
+            "value": "majority_high_fitness",
+            "correct": high > (total - high),
         },
         {
-            "label": "There are more non-conformant than conformant traces.",
-            "value": "majority_nonconform",
-            "correct": non_conform > conform,
+            "label": "Some traces have a fitness below 0.4.",
+            "value": "some_low_fitness",
+            "correct": low > 0,
         },
         {
-            "label": "All traces fully conform to the process model.",
-            "value": "all_conform",
-            "correct": non_conform == 0,
+            "label": "The overall conformance rate (mean fitness) is below 50%.",
+            "value": "rate_below_50",
+            "correct": pct < 50,
+        },
+        {
+            "label": "Every trace has a fitness of 0.8 or higher.",
+            "value": "all_high_fitness",
+            "correct": total > 0 and high == total,
         },
     ]
     random.shuffle(statements)
@@ -94,51 +113,59 @@ def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer
 
 
 import os
+import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from shared import (
-    save_svg, make_table, render_counts_tile_metric,
-    GREY_MED, GREY_LIGHT, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    save_svg, make_table, render_distribution_tile_metric,
+    GREY_MED, FONT_TITLE, FONT_LABEL,
 )
 
 
 # ---------------------------------------------------------------------------
 # Visualizations
+#
+# Every idiom shows the EXACT per-trace fitness (no value ranges/bins), so the
+# analyst can recover the overall conformance rate, and no idiom prints it.
 # ---------------------------------------------------------------------------
 
 def task25_tile_metric(df, output_dir: str):
-    """Tile Metric (discovery variant): raw counts only — no ratio, no percentage."""
-    conform = int(df["is_fit"].sum())
-    non_conform = len(df) - conform
-    render_counts_tile_metric(
-        conform, non_conform,
+    """Tile Metric (discovery variant): the two raw ingredients of the conformance
+    rate — trace count and the summed per-trace fitness — but NOT the rate itself.
+    The analyst divides to recover it (caption states how). No binned ranges, no
+    handed-over aggregate."""
+    total = len(df)
+    fit_sum = float(df["fitness"].sum())
+    rows = [
+        ("Number of traces", str(total)),
+        ("Sum of per-trace fitness", f"{fit_sum:.2f}"),
+    ]
+    render_distribution_tile_metric(
+        rows,
         os.path.join(output_dir, "task25_tile_metric.svg"),
+        title="Conformance Ingredients",
+        caption="Conformance rate = sum ÷ traces",
     )
 
 
 def task25_bar_chart(df, output_dir: str):
-    """Exactly two bars: conformant vs non-conformant trace counts, counts as labels."""
-    conform = int(df["is_fit"].sum())
-    non_conform = len(df) - conform
-    ymax = max(conform, non_conform, 1)
+    """One bar per trace, sorted by fitness (ascending) — exact per-trace fitness,
+    no binning. The full sorted shape lets the overall rate be computed; no single
+    aggregate is drawn (no mean line), no binary conformant/non-conformant split."""
+    fit_sorted = np.sort(df["fitness"].to_numpy(dtype=float))
+    n = len(fit_sorted)
 
-    fig, ax = plt.subplots(figsize=(6, 5))
-    bars = ax.bar(
-        ["Conformant Traces", "Non-conformant Traces"],
-        [conform, non_conform],
-        color=[GREY_MED, GREY_LIGHT], edgecolor="white", width=0.5,
-    )
-    for bar, val in zip(bars, [conform, non_conform]):
-        ax.text(
-            bar.get_x() + bar.get_width() / 2,
-            bar.get_height() + ymax * 0.015,
-            str(val), ha="center", va="bottom", fontsize=FONT_ANNOT,
-        )
-    ax.set_ylabel("Number of Traces", fontsize=FONT_LABEL)
-    ax.set_title("Conformant vs. Non-conformant Traces", fontsize=FONT_TITLE)
-    ax.set_ylim(0, ymax * 1.15)
+    fig, ax = plt.subplots(figsize=(8.5, 5))
+    pos = np.arange(n)
+    # Thin, edgeless bars so a large log reads as a continuous sorted-fitness curve.
+    ax.bar(pos, fit_sorted, color=GREY_MED, width=1.0, linewidth=0)
+    ax.set_xlabel("Traces (sorted by fitness)", fontsize=FONT_LABEL)
+    ax.set_ylabel("Fitness (0–1)", fontsize=FONT_LABEL)
+    ax.set_title("Per-Trace Fitness, Sorted", fontsize=FONT_TITLE)
+    ax.set_ylim(0, 1.05)
+    ax.set_xlim(-0.5, max(n - 0.5, 0.5))
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
@@ -146,47 +173,36 @@ def task25_bar_chart(df, output_dir: str):
     save_svg(fig, os.path.join(output_dir, "task25_bar_chart.svg"))
 
 
-def task25_scatter_plot(df, output_dir: str):
-    """One neutral-coloured dot per trace; x = chronological index, y = fitness.
-
-    No mean/aggregate annotation (task06's scatter scaffolding minus its
-    aggregate decorations and conformance colouring).
-    """
-    fig, ax = plt.subplots(figsize=(10, 4))
-    ax.scatter(df["trace_index"], df["fitness"], c=GREY_MED, s=15, alpha=0.6, linewidths=0)
-    ax.set_xlabel("Traces in Log ordered by time", fontsize=FONT_LABEL)
-    ax.set_ylabel("Fitness (0–1)", fontsize=FONT_LABEL)
-    ax.set_ylim(-0.05, 1.1)
-    ax.set_title("Fitness per Trace", fontsize=FONT_TITLE)
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.4)
-    ax.set_axisbelow(True)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task25_scatter_plot.svg"))
-
-
 def task25_table(df, output_dir: str):
-    """Conformance summary row: #Traces | #Conformant | % Conformant | Overall Fitness."""
-    total           = len(df)
-    conform         = int(df["is_fit"].sum())
-    pct_conform     = (conform / total * 100) if total else 0.0
-    overall_fitness = float(df["fitness"].mean()) if total else 0.0
-
-    cell_text = [[str(total), str(conform), f"{pct_conform:.2f}%", f"{overall_fitness:.4f}"]]
-    fig_h = max(3.6, 1.45 + len(cell_text) * 0.58)
-    fig, ax = plt.subplots(figsize=(10.0, fig_h))
+    """Frequency table of the EXACT per-trace fitness values: Fitness | # Traces |
+    % of Traces, one row per distinct value (descending). No ranges/bins, so the
+    weighted mean — the overall conformance rate — is exactly computable; no
+    handed-over aggregate row."""
+    total = len(df)
+    # Group by the exact fitness value (rounded to 3 dp — fitness precision is far
+    # finer than the answer buckets, so this hides nothing the rate needs).
+    counts = (
+        df["fitness"].round(3)
+        .value_counts()
+        .sort_index(ascending=False)
+    )
+    cell_text = [
+        [f"{val:.3f}", str(int(c)), f"{(c / total * 100):.1f}%" if total else "0.0%"]
+        for val, c in counts.items()
+    ]
+    fig_h = max(3.0, 1.0 + len(cell_text) * 0.32)
+    fig, ax = plt.subplots(figsize=(8.0, fig_h))
     ax.axis("off")
     make_table(
         ax,
         cell_text=cell_text,
-        col_labels=["#Traces", "#Conformant", "% Conformant", "Overall Fitness"],
-        bbox=[0.03, 0.04, 0.94, 0.80],
-        col_widths=[0.24, 0.26, 0.26, 0.24],
-        font_size=11,
-        scale_xy=(1.12, 2.05),
-        cell_pad=0.14,
+        col_labels=["Fitness (0–1)", "# Traces", "% of Traces"],
+        bbox=[0.08, 0.03, 0.84, 0.86],
+        col_widths=[0.40, 0.30, 0.30],
+        font_size=10,
+        cell_pad=0.08,
     )
-    ax.set_title("Conformance Summary", fontsize=FONT_TITLE, pad=10)
+    ax.set_title("Per-Trace Fitness Values", fontsize=FONT_TITLE, pad=10)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task25_table.svg"))
 
@@ -206,5 +222,4 @@ def generate(log, fitness_df, output_dir: str, model_path: str = None):
 
     task25_tile_metric(fitness_df, output_dir)
     task25_bar_chart(fitness_df, output_dir)
-    task25_scatter_plot(fitness_df, output_dir)
     task25_table(fitness_df, output_dir)

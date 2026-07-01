@@ -42,6 +42,8 @@ import argparse
 import os
 import re
 import sys
+import pickle
+import hashlib
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -241,6 +243,76 @@ def _resolve_dataset_paths(dataset_dir: str, experiment_id: str | None = None):
 
 
 # ---------------------------------------------------------------------------
+# Alignment cache
+#
+# PM4Py optimal alignments are NON-DETERMINISTIC: a trace with several optimal
+# alignments may be diagnosed differently across runs, so the same deviation can
+# be classified as a Move-on-Model in one run and a Move-on-Log (or not at all)
+# in another. The /specify violation picker and the generation/ground-truth step
+# run alignments at different times, so without a shared result they would report
+# inconsistent violation frequencies (e.g. 6.6% on /specify vs 3% in the ground
+# truth). We therefore compute alignments ONCE per dataset and cache them on disk
+# (keyed by the log+model file signature), so every consumer sees identical data.
+# ---------------------------------------------------------------------------
+
+def _alignments_cache_path(dataset_dir: str) -> str:
+    return os.path.join(dataset_dir, "cache", "alignments.pkl")
+
+
+def _input_signature(log_path: str, model_path: str) -> str:
+    """Stable signature of the dataset's log + model files (size + mtime).
+
+    Re-uploading a log/model changes the signature and invalidates the cache.
+    """
+    h = hashlib.md5()
+    for p in (log_path, model_path):
+        try:
+            st = os.stat(p)
+            h.update(f"{os.path.basename(p)}:{st.st_size}:{st.st_mtime_ns}".encode())
+        except OSError:
+            h.update(p.encode())
+    return h.hexdigest()
+
+
+def get_or_compute_alignments(dataset_dir: str, log=None, net=None, im=None, fm=None):
+    """Return this dataset's alignments, loading the on-disk cache when valid.
+
+    Computing alignments is both expensive and non-deterministic, so the result
+    is cached per dataset and reused by the /specify violation enumeration, the
+    visualization render, and the ground-truth computation — guaranteeing they
+    all agree. Pass already-loaded `log`/`net`/`im`/`fm` to avoid reloading when
+    the caller has them (cache miss only).
+    """
+    log_path, model_path, _ = _resolve_dataset_paths(dataset_dir, None)
+    sig = _input_signature(log_path, model_path)
+    cache_path = _alignments_cache_path(dataset_dir)
+
+    if os.path.exists(cache_path):
+        try:
+            with open(cache_path, "rb") as f:
+                blob = pickle.load(f)
+            if isinstance(blob, dict) and blob.get("sig") == sig:
+                return blob["alignments"]
+        except Exception:
+            logger.exception("Failed to read alignments cache at %s; recomputing", cache_path)
+
+    if log is None:
+        log = load_event_log(log_path)
+    if net is None or im is None or fm is None:
+        net, im, fm = load_model(model_path)
+    alignments = run_alignments(log, net, im, fm)
+
+    try:
+        os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+        with open(cache_path, "wb") as f:
+            pickle.dump({"sig": sig, "alignments": alignments}, f)
+    except Exception:
+        logger.exception("Failed to write alignments cache at %s", cache_path)
+
+    return alignments
+
+
+# ---------------------------------------------------------------------------
 # Per-task generator dispatch
 #
 # One callable per task_key, each reading its hyperparameters from a `params`
@@ -266,7 +338,7 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
     def cmp_attr():                return p.get("compare_attribute", compare_attribute)
     def time_granularity():        return p.get("time_granularity", "month")
     def conformance_bins():        return p.get("conformance_bins", None)
-    def target_violation():        return p.get("target_violation", None)
+    def target_violations():       return p.get("target_violations", None)
     def conformant_threshold():
         raw = p.get("conformant_threshold")
         return 1.0 if (raw is None or raw == "") else float(raw)
@@ -282,7 +354,7 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
         "task08": lambda d: task08.generate(log, alignments, d, high_cooccurrence_threshold=high_cooccurrence()),
         "task09": lambda d: task09.generate(log, alignments, d, model_path=model_path),
         "task10": lambda d: task10.generate(fitness_df, d, log=log, conformance_bins=conformance_bins()),
-        "task11": lambda d: task11.generate(log, alignments, d, model_path=model_path, target_violation=target_violation()),
+        "task11": lambda d: task11.generate(log, alignments, d, model_path=model_path, target_violations=target_violations()),
         "task12": lambda d: task12.generate(log, alignments, d),
         "task13": lambda d: task13.generate(log, alignments, model_path, d),
         "task14": lambda d: task14.generate(alignments, model_path, d),
@@ -434,6 +506,44 @@ def get_log_time_granularities(dataset_dir: str) -> list[str]:
         return ordered
 
 
+def get_log_violations(dataset_dir: str) -> list[dict]:
+    """Distinct (activity, move_type) pairs that appear in this dataset's alignments.
+
+    Returns a list of {"value": "activity|move_type", "label": "activity · Type  (N traces, X%)"}
+    dicts, sorted by trace coverage descending.  Powers task11's /specify 'log.violations'
+    source (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §5, §14).
+
+    Alignment computation is expensive; the result is cached in admin.py per dataset_id.
+    """
+    from collections import Counter
+    from shared import classify_step as _classify_step
+
+    alignments = get_or_compute_alignments(dataset_dir)
+
+    trace_coverage: Counter = Counter()
+    n_traces = len(alignments)
+    for aln in alignments:
+        seen: set = set()
+        for step in aln.get("alignment", []):
+            if not isinstance(step, (list, tuple)) or len(step) < 2:
+                continue
+            act, vtype = _classify_step(step[0], step[1])
+            if act is None:
+                continue
+            seen.add((act, vtype))
+        for pair in seen:
+            trace_coverage[pair] += 1
+
+    options = []
+    for (act, vt), count in trace_coverage.most_common():
+        pct = count / n_traces * 100 if n_traces > 0 else 0
+        options.append({
+            "value": f"{act}|{vt}",
+            "label": f"{act} · {vt}  ({count:,} traces, {pct:.1f}%)",
+        })
+    return options
+
+
 def generate_for_task_instances(dataset_dir: str, experiment_id: str,
                                 instances: list[dict]) -> dict:
     """Render + compute ground truth for one dataset's task_instances.
@@ -450,7 +560,10 @@ def generate_for_task_instances(dataset_dir: str, experiment_id: str,
     log         = load_event_log(log_path)
     compare_attribute = _auto_detect_compare_attribute(log, "AMOUNT_REQ")
     net, im, fm = load_model(model_path)
-    alignments  = run_alignments(log, net, im, fm)
+    # Reuse the cached alignments shared with /specify's violation enumeration so
+    # idiom frequencies and ground truth match what the admin saw when selecting
+    # violations (PM4Py alignments are non-deterministic — see get_or_compute_alignments).
+    alignments  = get_or_compute_alignments(dataset_dir, log, net, im, fm)
     fitness_df  = fitness_summary_dataframe(alignments)
 
     _TASK_MODULE = {
@@ -570,7 +683,10 @@ def run_pipeline(dataset_dir: str, experiment_id: str | None = None,
     compare_attribute = _auto_detect_compare_attribute(log, compare_attribute)
     logger.info(f"Compare attribute (resolved): {compare_attribute}")
     net, im, fm = load_model(model_path)
-    alignments  = run_alignments(log, net, im, fm)
+    # Reuse the per-dataset alignment cache so the CLI pipeline, the /specify
+    # violation enumeration and the backend generation all see identical
+    # (deterministic) alignments — PM4Py alignments are otherwise non-deterministic.
+    alignments  = get_or_compute_alignments(dataset_dir, log, net, im, fm)
     fitness_df  = fitness_summary_dataframe(alignments)
 
     def out(task_name: str) -> str:

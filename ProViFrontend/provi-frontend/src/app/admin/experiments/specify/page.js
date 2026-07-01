@@ -54,23 +54,41 @@ function ParamField({ entry, value, onChange }) {
 
   if (entry.widget === "select-many") {
     const selected = Array.isArray(value) ? value : [];
+    if (options.length === 0) {
+      return (
+        <p className="text-sm text-on-surface/60 italic">
+          No candidates available for this dataset yet.
+        </p>
+      );
+    }
+    function toggle(optValue) {
+      if (selected.includes(optValue)) {
+        onChange(selected.filter((v) => v !== optValue));
+      } else {
+        onChange([...selected, optValue]);
+      }
+    }
     return (
-      <select
-        multiple
-        value={selected}
-        onChange={(e) => onChange(Array.from(e.target.selectedOptions, (o) => o.value))}
-        className="w-full text-sm border border-border-subtle rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
-      >
+      <div className="flex flex-col gap-0.5 max-h-72 overflow-y-auto border border-border-subtle rounded-lg px-3 py-2 bg-white">
         {options.map((opt) => {
           const optValue = typeof opt === "string" ? opt : opt.value;
           const optLabel = typeof opt === "string" ? opt : opt.label ?? opt.value;
           return (
-            <option key={optValue} value={optValue}>
-              {optLabel}
-            </option>
+            <label
+              key={optValue}
+              className="flex items-center gap-2 text-sm py-0.5 px-1 rounded cursor-pointer hover:bg-gray-50"
+            >
+              <input
+                type="checkbox"
+                checked={selected.includes(optValue)}
+                onChange={() => toggle(optValue)}
+                className="accent-primary"
+              />
+              <span>{optLabel}</span>
+            </label>
           );
         })}
-      </select>
+      </div>
     );
   }
 
@@ -232,13 +250,16 @@ function SpecifyContent() {
         const existing = ti.parameters || {};
         const vals = { ...existing };
         paramSpec.forEach((entry) => {
-          if (vals[entry.key] === undefined) vals[entry.key] = entry.default ?? "";
+          const emptyDefault = entry.widget === "select-many" ? [] : "";
+          if (vals[entry.key] === undefined) vals[entry.key] = entry.default ?? emptyDefault;
           // If the entry has dataset-backed candidates and the stored value is no longer
-          // valid for the current dataset, reset to default so the user re-selects.
+          // valid for the current dataset, drop the stale value(s) so the user re-selects.
           if (entry.options?.length > 0) {
             const validValues = entry.options.map((o) => (typeof o === "string" ? o : o.value));
-            if (vals[entry.key] && !validValues.includes(vals[entry.key])) {
-              vals[entry.key] = entry.default ?? "";
+            if (Array.isArray(vals[entry.key])) {
+              vals[entry.key] = vals[entry.key].filter((v) => validValues.includes(v));
+            } else if (vals[entry.key] && !validValues.includes(vals[entry.key])) {
+              vals[entry.key] = entry.default ?? emptyDefault;
             }
           }
         });
@@ -262,7 +283,9 @@ function SpecifyContent() {
       const spec = paramSpecs[ti.task_id] || [];
       const vals = paramValues[ti.task_id] || {};
       for (const entry of spec) {
-        if (entry.required && (vals[entry.key] === undefined || vals[entry.key] === "")) {
+        const v = vals[entry.key];
+        const empty = v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
+        if (entry.required && empty) {
           const task = tasksById[ti.task_id];
           missing.push(`${task?.task_key || ti.task_id}: ${entry.label || entry.key}`);
         }

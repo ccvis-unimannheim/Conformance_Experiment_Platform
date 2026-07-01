@@ -21,7 +21,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "scatter_plot", "table", "table_and_bar_chart", "stacked_bar", "matrix"]
+IDIOMS = ["bar_chart", "table", "table_and_bar_chart", "stacked_bar", "matrix"]
 
 # ---------------------------------------------------------------------------
 # Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8)
@@ -83,7 +83,7 @@ from matplotlib import gridspec
 from shared import (
     save_svg, make_table,
     draw_composition_stacked_bars, draw_value_heatmap,
-    render_empty_state_svg, format_threshold, place_scatter_labels,
+    render_empty_state_svg, format_threshold,
     GREY_MED, GREY_LIGHT, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
@@ -613,54 +613,6 @@ def task03_matrix(presence_df: pd.DataFrame, throughput_buckets, variant_df: pd.
     save_svg(fig, path)
 
 
-def task03_scatter_plot(trace_rows: list, output_dir: str):
-    """Scatter of activity presence: one point per activity,
-    x = presence rate in Conformant traces, y = presence rate in Non-conformant
-    traces. Points far from the y=x diagonal are the strongest differentiators.
-
-    Labels use the shared cluster-aware, non-overlapping callout helper
-    (place_scatter_labels) — no external adjustText dependency, so labels never
-    pile up on top of each other.
-    """
-    path = os.path.join(output_dir, "task03_scatter_plot.svg")
-    full = _task03_activity_presence_df(trace_rows, top_n=10**9)
-    if full.empty:
-        render_empty_state_svg(
-            path, "Activity Presence: Conformant vs. Non-conformant",
-            "No activities found.")
-        return
-
-    fig, ax = plt.subplots(figsize=(8, 7.5))
-    ax.plot([0, 100], [0, 100], color="#999999", linestyle="--", linewidth=1.0, zorder=1)
-    # Placed mid-diagonal (open space) so it never collides with the label-dense
-    # top-right corner where many activities cluster near (100, 100).
-    ax.text(60, 60, "equal presence", rotation=45, rotation_mode="anchor",
-            ha="center", va="bottom", fontsize=FONT_ANNOT - 1, color="#888888")
-
-    ax.scatter(full["Conformant"], full["Non-conformant"],
-               c=GREY_MED, s=40, alpha=0.75, linewidths=0, zorder=3)
-
-    ax.set_xlim(-5, 115)
-    ax.set_ylim(-5, 115)
-    ax.set_xlabel("Presence rate in Conformant traces (%)", fontsize=FONT_LABEL)
-    ax.set_ylabel("Presence rate in Non-conformant traces (%)", fontsize=FONT_LABEL)
-    ax.set_title("Activity Presence: Conformant vs. Non-conformant", fontsize=FONT_TITLE)
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.5)
-    ax.set_axisbelow(True)
-
-    # Label the strongest differentiators with cluster-aware, non-crossing callouts.
-    labeled = full.head(TOP_N)
-    place_scatter_labels(
-        ax,
-        [(row["Conformant"], row["Non-conformant"], row["activity"])
-         for _, row in labeled.iterrows()],
-    )
-
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, path)
-
-
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
@@ -768,7 +720,6 @@ def generate(log, fitness_df, output_dir: str, conformant_threshold: float = 1.0
                 f"top-{len(variant_df)} variants extracted.")
 
     task03_bar_chart(presence_df, throughput_buckets, variant_df, output_dir)
-    task03_scatter_plot(trace_rows, output_dir)
     task03_table(presence_df, throughput_df, variant_df, output_dir)
     task03_table_and_bar_chart(presence_df, throughput_df, variant_df, output_dir)
 

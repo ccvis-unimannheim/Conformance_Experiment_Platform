@@ -19,6 +19,7 @@ try:
         generate_for_task_instances,
         get_log_activities,
         get_log_time_granularities,
+        get_log_violations,
         _FILE_RENAME,
         _TASK_RENAME_SKIP,
     )
@@ -31,6 +32,7 @@ except ImportError:
     generate_for_task_instances = None
     get_log_activities = None
     get_log_time_granularities = None
+    get_log_violations = None
     _FILE_RENAME = {}
     _TASK_RENAME_SKIP = {}
 
@@ -80,6 +82,9 @@ GUIDELINE_FILENAME = "Guideline.bpmn"
 _LOG_ACTIVITIES_CACHE: dict[str, list[str]] = {}
 # Cache of dataset-meaningful time-bin granularities (task07), same rationale.
 _LOG_TIME_GRANULARITIES_CACHE: dict[str, list[str]] = {}
+# Cache of distinct (activity, move_type) violation pairs (task11); alignment
+# computation is expensive, so results are cached in-process per dataset_id.
+_LOG_VIOLATIONS_CACHE: dict[str, list[dict]] = {}
 
 
 def _dataset_activities(dataset_id: str) -> list[str]:
@@ -104,12 +109,29 @@ def _dataset_time_granularities(dataset_id: str) -> list[str]:
     return grans
 
 
+def _dataset_violations(dataset_id: str) -> list[dict]:
+    """Distinct (activity, move_type) violation pairs for this dataset (cached).
+
+    Each element is {"value": "activity|move_type", "label": "activity · Type  (N traces, X%)"}.
+    Alignment computation runs once on first call; subsequent calls return the cache.
+    """
+    if dataset_id in _LOG_VIOLATIONS_CACHE:
+        return _LOG_VIOLATIONS_CACHE[dataset_id]
+    if get_log_violations is None:
+        return []
+    violations = get_log_violations(str(DATA_DIRECTORY / dataset_id))
+    _LOG_VIOLATIONS_CACHE[dataset_id] = violations
+    return violations
+
+
 # Maps a PARAM_SPEC entry's `source` to the dataset-candidate enumerator.
-def _param_candidates(source: str, dataset_id: str) -> list[str]:
+def _param_candidates(source: str, dataset_id: str) -> list:
     if source == "log.activities":
         return _dataset_activities(dataset_id)
     if source == "log.time_granularities":
         return _dataset_time_granularities(dataset_id)
+    if source == "log.violations":
+        return _dataset_violations(dataset_id)
     return []
 
 
@@ -286,6 +308,22 @@ async def download_experiment_answers(experiment_id: str):
                 idiom_lookup[iid] = {"idiom_key": doc.get("idiom_key", ""), "idiom_name": doc.get("label", "")}
         df_answers["idiom_key"] = df_answers["idiom_id"].map(lambda x: idiom_lookup.get(x, {}).get("idiom_key", ""))
         df_answers["idiom_name"] = df_answers["idiom_id"].map(lambda x: idiom_lookup.get(x, {}).get("idiom_name", ""))
+
+        # Add ground truth from experiment task_instances
+        exp_doc = dbc.get_document("Experiment", {"_id": experiment_id})
+        gt_by_task = {}
+        if exp_doc:
+            for ti in exp_doc.get("task_instances", []):
+                gt_by_task[ti.get("task_id")] = {
+                    "ground_truth": ti.get("ground_truth"),
+                    "answer_format": ti.get("answer_format"),
+                }
+        df_answers["ground_truth"] = df_answers["task_id"].map(
+            lambda x: str(gt_by_task.get(x, {}).get("ground_truth", "")) if gt_by_task.get(x, {}).get("ground_truth") is not None else ""
+        )
+        df_answers["answer_format"] = df_answers["task_id"].map(
+            lambda x: gt_by_task.get(x, {}).get("answer_format", "")
+        )
 
         if "response_time_ms" in df_answers.columns:
             df_answers["response_time_s"] = (df_answers["response_time_ms"] / 1000).round(2)
@@ -758,17 +796,27 @@ def _validate_task_instances(exp: dict) -> list[str]:
             key = entry.get("key")
             label = entry.get("label", key)
             val = params.get(key)
-            if entry.get("required") and (val is None or val == ""):
+            is_empty = val is None or val == "" or (isinstance(val, list) and len(val) == 0)
+            if entry.get("required") and is_empty:
                 errors.append(f"{task_key}: '{label}' is required.")
                 continue
             source = entry.get("source")
-            if source and val not in (None, ""):
+            if source and not is_empty:
                 try:
                     candidates = _param_candidates(source, dataset_id)
                 except Exception:
                     candidates = []
-                if candidates and val not in candidates:
-                    errors.append(f"{task_key}: '{val}' is not a valid {label} — not found in the event log.")
+                # Candidates may be plain strings (e.g. log.activities) or
+                # {value, label} dicts (e.g. log.violations); compare on value.
+                candidate_values = [c if isinstance(c, str) else c.get("value") for c in candidates]
+                if candidate_values:
+                    # select-many params hold a list of values; scalar params hold one.
+                    selected_values = val if isinstance(val, list) else [val]
+                    for sv in selected_values:
+                        if sv not in candidate_values:
+                            errors.append(
+                                f"{task_key}: '{sv}' is not a valid {label} — not found in the event log."
+                            )
 
         # Task-specific semantic validation (e.g. the condition must split the log).
         validate = task_registry.get_validate_params(task_key)
@@ -1098,12 +1146,35 @@ async def get_preview_svg(
 # ---------------------------------------------------------------------------
 # Idiom-level sample preview (used by the Select Idiom page)
 # ---------------------------------------------------------------------------
-# SVGs are generated once with default params + sample data and stored
-# permanently at SAMPLE_DATA_DIR/output/__idiom_preview/{task_key}/{idiom_key}.svg.
-# Generation is on-demand (triggered by POST) and cached in memory.
+# SVGs are stored at SAMPLE_DATA_DIR/output/__idiom_preview/{task_key}/{idiom_key}.svg.
+# Pre-generated SVGs committed to the repo are baked into the Docker image and
+# served immediately (status "ready") without any runtime generation.
+# On-demand generation is still supported as a fallback for tasks without
+# pre-generated SVGs.
 
 _IDIOM_PREVIEW_EXP_ID = "__idiom_preview"
 _idiom_preview_status: dict[str, str] = {}  # task_key → "generating"|"ready"|"failed"
+
+_IDIOM_PREVIEW_BASE = SAMPLE_DATA_DIR / "output" / _IDIOM_PREVIEW_EXP_ID
+
+
+def _idiom_svgs_exist(task_key: str) -> bool:
+    """Return True if at least one pre-generated SVG exists on disk for this task."""
+    task_dir = _IDIOM_PREVIEW_BASE / task_key
+    return task_dir.is_dir() and any(task_dir.glob("*.svg"))
+
+
+def _preload_idiom_preview_status():
+    """Scan disk at startup and mark any task with existing SVGs as ready."""
+    if not _IDIOM_PREVIEW_BASE.is_dir():
+        return
+    for task_dir in _IDIOM_PREVIEW_BASE.iterdir():
+        if task_dir.is_dir() and any(task_dir.glob("*.svg")):
+            _idiom_preview_status[task_dir.name] = "ready"
+            _logger.info("[idiom-preview] Pre-loaded static SVGs for %s", task_dir.name)
+
+
+_preload_idiom_preview_status()
 
 
 def _run_idiom_preview_task(task_key: str):
@@ -1124,14 +1195,19 @@ def _run_idiom_preview_task(task_key: str):
 
 @router.post("/idiom-preview/{task_key}", tags=["admin"])
 async def generate_idiom_preview(task_key: str, background_tasks: BackgroundTasks):
-    """Trigger sample-data preview generation for one task (idempotent).
+    """Serve pre-generated SVGs immediately if available; otherwise generate on demand.
 
-    SVGs are generated with default parameters using the bundled sample dataset.
-    Already-generated results are served from cache without re-running.
+    If static SVGs are already on disk (committed to the image), returns "ready"
+    instantly without scheduling any background work.
     """
     current = _idiom_preview_status.get(task_key, "idle")
     if current in ("generating", "ready"):
         return JSONResponse({"status": current})
+
+    # If SVGs were committed to the repo and baked into the image, use them directly.
+    if _idiom_svgs_exist(task_key):
+        _idiom_preview_status[task_key] = "ready"
+        return JSONResponse({"status": "ready"})
 
     if generate_for_task_instances is None:
         raise HTTPException(status_code=503, detail="Visualization pipeline unavailable.")
@@ -1151,10 +1227,52 @@ async def generate_idiom_preview(task_key: str, background_tasks: BackgroundTask
     return JSONResponse({"status": "generating"})
 
 
+@router.post("/idiom-preview-all", tags=["admin"])
+async def generate_all_idiom_previews(background_tasks: BackgroundTasks):
+    """Trigger idiom preview generation for every task in the database.
+
+    Tasks whose SVGs already exist on disk are skipped (already ready).
+    Returns a per-task status snapshot so the caller can track progress.
+    """
+    tasks = dbc.get_query_db("Task", query={})
+    task_keys = [t["task_key"] for t in tasks if t.get("task_key")]
+
+    _sample_input = SAMPLE_DATA_DIR / "input"
+    _has_dir   = _sample_input.is_dir()
+    _has_log   = _has_dir and (any(_sample_input.glob("*.xes")) or any(_sample_input.glob("*.csv")))
+    _has_model = _has_dir and any(_sample_input.glob("*.bpmn"))
+    sample_ready = _has_log and _has_model
+
+    snapshot: dict[str, str] = {}
+    for tk in task_keys:
+        current = _idiom_preview_status.get(tk, "idle")
+        if current in ("generating", "ready"):
+            snapshot[tk] = current
+            continue
+        if _idiom_svgs_exist(tk):
+            _idiom_preview_status[tk] = "ready"
+            snapshot[tk] = "ready"
+            continue
+        if not sample_ready or generate_for_task_instances is None:
+            snapshot[tk] = "skipped"
+            continue
+        _idiom_preview_status[tk] = "generating"
+        background_tasks.add_task(_run_idiom_preview_task, tk)
+        snapshot[tk] = "generating"
+
+    return JSONResponse({"tasks": snapshot})
+
+
 @router.get("/idiom-preview/{task_key}/status", tags=["admin"])
 async def get_idiom_preview_status(task_key: str):
     """Return the generation status for one task's idiom previews."""
-    return JSONResponse({"status": _idiom_preview_status.get(task_key, "idle")})
+    status = _idiom_preview_status.get(task_key, "idle")
+    # Catch the case where SVGs exist on disk but memory cache was not populated
+    # (e.g. server restarted mid-session).
+    if status == "idle" and _idiom_svgs_exist(task_key):
+        _idiom_preview_status[task_key] = "ready"
+        status = "ready"
+    return JSONResponse({"status": status})
 
 
 @router.get("/idiom-preview/{task_key}/{idiom_key}", tags=["admin"])
