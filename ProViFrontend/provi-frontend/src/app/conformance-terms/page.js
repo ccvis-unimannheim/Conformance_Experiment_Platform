@@ -137,10 +137,27 @@ export default function ConformanceTermsPage() {
                     Fitness
                   </h2>
                 </div>
-                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
+                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: "0 0 1rem" }}>
                   <strong>Fitness</strong> measures the ability of a process model to explain the execution of a process
                   as recorded in an event log — how well the model covers the observed behaviour.
                 </p>
+                <div style={{
+                  display: "flex", alignItems: "flex-start", gap: "0.75rem",
+                  padding: "0.75rem 1rem",
+                  backgroundColor: "#eef2f8",
+                  border: "1px solid #b8cce4",
+                  borderLeft: "3px solid #00305e",
+                  borderRadius: "0.5rem",
+                  marginBottom: "1rem",
+                }}>
+                  <span className="material-symbols-outlined" style={{ color: "#00305e", fontSize: "1.1rem", flexShrink: 0, marginTop: "0.1rem" }}>info</span>
+                  <p style={{ margin: 0, fontSize: "0.875rem", color: C.onSurface, lineHeight: 1.7 }}>
+                    <strong>Fitness</strong> and <strong>conformance rate</strong> refer to the same measure.
+                    Fitness is expressed as a decimal (0–1); conformance rate is the same value as a percentage.
+                    For example, a fitness of <strong>0.75</strong> equals a conformance rate of <strong>75%</strong>.
+                    Both terms are used interchangeably in this study.
+                  </p>
+                </div>
 
                 <Collapsible label="How it is calculated">
                   <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: "0 0 1rem" }}>

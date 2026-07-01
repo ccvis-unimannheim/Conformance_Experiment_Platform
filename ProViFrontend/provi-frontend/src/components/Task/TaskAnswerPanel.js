@@ -117,135 +117,146 @@ const TaskAnswerPanel = ({
   };
 
   return (
-    <aside style={{ display: "flex", flexDirection: "column", gap: "1.5rem", position: "sticky", top: "5rem", maxHeight: "calc(100vh - 6rem)", overflowY: "auto", scrollbarWidth: "none" }}>
-      <div style={cardStyle}>
+    <aside style={{
+      display: "flex", flexDirection: "column",
+      position: "sticky", top: "5rem",
+      maxHeight: "calc(100vh - 6rem)",
+    }}>
+      <div style={{ ...cardStyle, display: "flex", flexDirection: "column", minHeight: 0, padding: 0 }}>
 
-        {/* Task Label with toggle info */}
-        {taskLabel && (
-          <div style={{ marginBottom: "1rem", paddingBottom: "1rem", borderBottom: "1px solid #f0f0f0" }}>
-            <div style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem" }}>
-              <p
-                style={{
-                  fontSize: "1.05rem",
-                  fontWeight: 700,
-                  color: "#00305e",
-                  lineHeight: 1.5,
-                  margin: 0,
-                  flex: 1,
-                }}
-              >
-                {taskLabel}
-              </p>
-              {taskDesc && (
-                <button
-                  type="button"
-                  onClick={() => setShowTaskTooltip(v => !v)}
-                  title="About this task"
+        {/* Scrollable content */}
+        <div style={{ flex: 1, overflowY: "auto", scrollbarWidth: "none", padding: "2rem" }}>
+
+          {/* Task Label with toggle info */}
+          {taskLabel && (
+            <div style={{ marginBottom: "1rem", paddingBottom: "1rem", borderBottom: "1px solid #f0f0f0" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem" }}>
+                <p
                   style={{
-                    flexShrink: 0,
-                    background: "none",
-                    border: "1px solid #cbd5e1",
-                    borderRadius: "50%",
-                    width: "1.4rem",
-                    height: "1.4rem",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "0.72rem",
+                    fontSize: "1.05rem",
                     fontWeight: 700,
-                    color: showTaskTooltip ? "white" : "#5a6061",
-                    backgroundColor: showTaskTooltip ? "#00305e" : "transparent",
-                    cursor: "pointer",
-                    marginTop: "0.15rem",
-                    transition: "background-color 0.15s, color 0.15s",
+                    color: "#00305e",
+                    lineHeight: 1.5,
+                    margin: 0,
+                    flex: 1,
                   }}
                 >
-                  i
-                </button>
+                  {taskLabel}
+                </p>
+                {taskDesc && (
+                  <button
+                    type="button"
+                    onClick={() => setShowTaskTooltip(v => !v)}
+                    title="About this task"
+                    style={{
+                      flexShrink: 0,
+                      background: "none",
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "50%",
+                      width: "1.4rem",
+                      height: "1.4rem",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "0.72rem",
+                      fontWeight: 700,
+                      color: showTaskTooltip ? "white" : "#5a6061",
+                      backgroundColor: showTaskTooltip ? "#00305e" : "transparent",
+                      cursor: "pointer",
+                      marginTop: "0.15rem",
+                      transition: "background-color 0.15s, color 0.15s",
+                    }}
+                  >
+                    i
+                  </button>
+                )}
+              </div>
+
+              {showTaskTooltip && taskDesc && (
+                <div style={{
+                  marginTop: "0.75rem",
+                  backgroundColor: "#f0f4f8",
+                  color: "#2d3435",
+                  padding: "0.75rem 0.875rem",
+                  borderRadius: "0.4rem",
+                  fontSize: "0.8rem",
+                  lineHeight: 1.6,
+                  borderLeft: "3px solid #00305e",
+                }}>
+                  {taskDesc}
+                </div>
               )}
             </div>
+          )}
 
-            {showTaskTooltip && taskDesc && (
-              <div style={{
-                marginTop: "0.75rem",
-                backgroundColor: "#f0f4f8",
-                color: "#2d3435",
-                padding: "0.75rem 0.875rem",
-                borderRadius: "0.4rem",
-                fontSize: "0.8rem",
-                lineHeight: 1.6,
-                borderLeft: "3px solid #00305e",
-              }}>
-                {taskDesc}
-              </div>
-            )}
-          </div>
-        )}
+          {/* Idiom expandable description */}
+          {idiomDesc && (
+            <div style={{
+              marginBottom: "1.25rem",
+              border: "1px solid #eef0f0",
+              borderRadius: "0.5rem",
+              overflow: "hidden",
+            }}>
+              <button
+                type="button"
+                onClick={() => setIdiomExpanded(!idiomExpanded)}
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "0.6rem 0.875rem",
+                  backgroundColor: "#f8f9fa",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: "0.72rem",
+                  fontWeight: 700,
+                  color: "#5a6061",
+                  letterSpacing: "0.1em",
+                  textTransform: "uppercase",
+                  textAlign: "left",
+                }}
+              >
+                <span>About this visualization</span>
+                <span style={{ fontSize: "0.65rem", color: "#9ca3af" }}>
+                  {idiomExpanded ? "▲" : "▼"}
+                </span>
+              </button>
+              {idiomExpanded && (
+                <div style={{
+                  padding: "0.875rem",
+                  backgroundColor: "white",
+                  fontSize: "0.8rem",
+                  color: "#5a6061",
+                  lineHeight: 1.7,
+                  borderTop: "1px solid #eef0f0",
+                }}>
+                  {idiomDesc}
+                </div>
+              )}
+            </div>
+          )}
 
-        {/* Idiom expandable description */}
-        {idiomDesc && (
-          <div style={{
-            marginBottom: "1.25rem",
-            border: "1px solid #eef0f0",
-            borderRadius: "0.5rem",
-            overflow: "hidden",
-          }}>
-            <button
-              type="button"
-              onClick={() => setIdiomExpanded(!idiomExpanded)}
-              style={{
-                width: "100%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "0.6rem 0.875rem",
-                backgroundColor: "#f8f9fa",
-                border: "none",
-                cursor: "pointer",
-                fontSize: "0.72rem",
-                fontWeight: 700,
-                color: "#5a6061",
-                letterSpacing: "0.1em",
-                textTransform: "uppercase",
-                textAlign: "left",
-              }}
-            >
-              <span>About this visualization</span>
-              <span style={{ fontSize: "0.65rem", color: "#9ca3af" }}>
-                {idiomExpanded ? "▲" : "▼"}
-              </span>
-            </button>
-            {idiomExpanded && (
-              <div style={{
-                padding: "0.875rem",
-                backgroundColor: "white",
-                fontSize: "0.8rem",
-                color: "#5a6061",
-                lineHeight: 1.7,
-                borderTop: "1px solid #eef0f0",
-              }}>
-                {idiomDesc}
-              </div>
-            )}
-          </div>
-        )}
+          {/* Answer section */}
+          <h2 style={headerStyle}>Your Answer</h2>
 
-        {/* Answer section */}
-        <h2 style={headerStyle}>Your Answer</h2>
+          <form id="answer-form" onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            <AnswerInput
+              answerType={answerType}
+              answerFormat={answerFormat}
+              options={options}
+              value={answer}
+              onChange={setAnswer}
+            />
+          </form>
+        </div>
 
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-          <AnswerInput
-            answerType={answerType}
-            answerFormat={answerFormat}
-            options={options}
-            value={answer}
-            onChange={setAnswer}
-          />
-
-          <button type="submit" disabled={submitting} style={submitBtnStyle}>
+        {/* Submit button — always visible at bottom */}
+        <div style={{ padding: "1rem 2rem", borderTop: "1px solid #f0f0f0", backgroundColor: "white", borderRadius: "0 0 0.75rem 0.75rem" }}>
+          <button type="submit" form="answer-form" disabled={submitting} style={{ ...submitBtnStyle, marginTop: 0 }}>
             {submitting ? "Saving…" : isLastTask ? "Finish Experiment" : "Submit & Next →"}
           </button>
-        </form>
+        </div>
       </div>
     </aside>
   );
