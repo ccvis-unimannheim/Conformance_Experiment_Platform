@@ -73,6 +73,7 @@ services:
       - "443:443"
     volumes:
       - /etc/ssl/cc-vis:/etc/ssl/cc-vis:ro
+      - /etc/nginx-secrets/.htpasswd:/etc/nginx/.htpasswd:ro
     depends_on:
       - provibackend
       - provifrontend
