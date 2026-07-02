@@ -21,8 +21,8 @@ const C = {
   white:         "#ffffff",
 };
 
-const LIKERT_COLORS = ["#22c55e", "#84cc16", "#facc15", "#fb923c", "#ef4444"];
-const LIKERT_BG     = ["#f0fdf4", "#f7fee7", "#fefce8", "#fff7ed", "#fef2f2"];
+const LIKERT_COLORS = ["#00305e", "#00305e", "#00305e", "#00305e", "#00305e"];
+const LIKERT_BG     = ["#e8eef5", "#e8eef5", "#e8eef5", "#e8eef5", "#e8eef5"];
 
 const QUESTIONS = [
   {
