@@ -24,8 +24,6 @@ RUN apt-get install -y graphviz
 
 RUN apt-get install -y curl
 
-COPY ./tests /code/tests
-
 COPY ./ProViBackend /code/ProViBackend
 
 CMD ["fastapi", "run", "ProViBackend/app/main.py", "--proxy-headers", "--port", "80"]
