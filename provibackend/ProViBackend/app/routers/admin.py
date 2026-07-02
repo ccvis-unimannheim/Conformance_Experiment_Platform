@@ -1143,6 +1143,33 @@ async def get_preview_svg(
     return _FileResponse(svg_path, media_type="image/svg+xml")
 
 
+@router.get("/experiments/{experiment_id}/vis/{task_key}/{idiom_key}", tags=["admin"])
+async def get_generated_vis_svg(experiment_id: str, task_key: str, idiom_key: str):
+    """Serve the actual generated SVG for the admin overview preview.
+
+    Reads from DATA_DIRECTORY/{dataset_id}/output/{experiment_id}/{task_key}/{idiom_key}.svg.
+    Returns 404 if generation has not been run yet.
+    """
+    exp = dbc.get_document("Experiment", {"_id": experiment_id})
+    if not exp:
+        raise HTTPException(status_code=404, detail="Experiment not found.")
+    dataset_id = next(
+        (ti.get("dataset_id") for ti in exp.get("task_instances", [])
+         if _task_key_for(ti.get("task_id")) == task_key),
+        None,
+    )
+    if not dataset_id:
+        raise HTTPException(status_code=404, detail=f"No dataset found for task '{task_key}'.")
+    svg_path = DATA_DIRECTORY / dataset_id / "output" / experiment_id / task_key / f"{idiom_key}.svg"
+    if not svg_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Visualization not generated yet: {task_key}/{idiom_key}.",
+        )
+    from fastapi.responses import FileResponse as _FileResponse
+    return _FileResponse(svg_path, media_type="image/svg+xml")
+
+
 # ---------------------------------------------------------------------------
 # Idiom-level sample preview (used by the Select Idiom page)
 # ---------------------------------------------------------------------------

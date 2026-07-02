@@ -16,6 +16,7 @@ provibackend/ProVibackend/data/
 provibackend/ProViBackend/scripts/generate_all_local.py
 check_idioms.py
 PALETTE_GUIDE.md
+provibackend/ProViBackend/scripts/sample_data/
 
 # OS
 .DS_Store
