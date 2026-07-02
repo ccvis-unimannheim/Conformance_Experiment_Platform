@@ -22,17 +22,21 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.patches import FancyBboxPatch
+from matplotlib.colors import to_hex
 
 import numpy as np
 
 # ---------------------------------------------------------------------------
-# Greyscale palette  – greyscale only, throughout all visualizations.
-# Named by shade (dark → lighter), not by hue.
+# Cividis palette  – perceptually uniform, used throughout all visualizations.
+# Named by semantic role; cividis runs dark-navy (0.0) → yellow-green (1.0).
 # ---------------------------------------------------------------------------
-GREY_DARK    = "#333333"   # dark grey    (strongest emphasis / deviation)
-GREY_MED     = "#666666"   # medium grey  (primary category / model moves)
-GREY_LIGHT   = "#999999"   # light grey   (secondary category / mismatch)
-GREY_LIGHTER = "#CCCCCC"   # lighter grey (conformant / synchronous)
+CIVIDIS   = matplotlib.colormaps["cividis"]
+CIVIDIS_R = matplotlib.colormaps["cividis_r"]  # reversed: 0=yellow, high=dark
+_CIV      = CIVIDIS
+GREY_DARK    = to_hex(_CIV(0.15))  # dark navy    (strongest emphasis / Log Move)
+GREY_MED     = to_hex(_CIV(0.45))  # olive-grey   (primary category / Model Move)
+GREY_LIGHT   = to_hex(_CIV(0.68))  # light olive  (secondary category / Mismatch)
+GREY_LIGHTER = to_hex(_CIV(0.90))  # yellow-green (conformant / Synchronous)
 
 # ---------------------------------------------------------------------------
 # Color utilities
@@ -87,7 +91,7 @@ def style_table(
     ncols: int,
     nrows: int,
     header_rows: int = 1,
-    header_color: str = "#555555",
+    header_color: str = GREY_DARK,
     zebra: bool = True,
     odd_color: str = "#FFFFFF",
     even_color: str = "#F0F0F0",
@@ -124,7 +128,7 @@ def make_table(
     font_size: float = FONT_TABLE,
     scale_xy=(1.0, 1.7),
     header_rows: int = 1,
-    header_color: str = "#555555",
+    header_color: str = GREY_DARK,
     zebra: bool = True,
     highlight_last_row: bool = False,
     cell_pad: float = None,
@@ -823,9 +827,8 @@ def build_violation_pattern_df(alignments):
 # Shared group-comparison renderers  (factored out of task05; also used by task30)
 # ---------------------------------------------------------------------------
 
-# Grey shades used for pattern segments in composition stacked bars
-COMPOSITION_GREYS = ["#555555", "#777777", "#999999", "#BBBBBB", "#CCCCCC",
-                     "#AAAAAA", "#888888", "#666666", "#444444", "#333333"]
+# Cividis shades used for pattern segments in composition stacked bars
+COMPOSITION_GREYS = [to_hex(_CIV(0.10 + 0.80 * i / 9)) for i in range(10)]
 
 
 def draw_grouped_rate_bars(ax, n_cats, group_labels, rates, group_colors,
@@ -890,7 +893,7 @@ def draw_value_heatmap(fig, ax, data, row_labels, col_labels,
 
     data = np.asarray(data, dtype=float)
     if cmap is None:
-        cmap = "cividis"
+        cmap = CIVIDIS_R
     vmax = max(data.max(), 1.0) if data.size else 1.0
     im = ax.imshow(data, cmap=cmap, vmin=0, vmax=vmax, aspect="auto")
 
@@ -1778,7 +1781,7 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
                         table_rows=None, table_cols=None,
                         legend_below_panels=True, legend_center=True,
                         table_stretch: bool = False,
-                        table_header_bg: str = "#555555"):
+                        table_header_bg: str = GREY_DARK):
     """Compose several BPMN panels (stacked vertically) + an optional table into one SVG.
 
     panels: list of {"parsed", "node_style_fn", "faded_flow_fn"(opt), "subtitle"}.
@@ -2063,9 +2066,7 @@ def draw_parallel_sets(
 
     if right_colors is None:
         n = len(right_labels)
-        _greys = ["#F0F0F0", "#D4D4D4", "#B8B8B8", "#9C9C9C", "#777777",
-                  "#555555", "#444444", "#333333"]
-        right_colors = [_greys[i % len(_greys)] for i in range(n)]
+        right_colors = [to_hex(_CIV(0.15 + 0.70 * i / max(n - 1, 1))) for i in range(n)]
 
     ctrl_x  = (x_left + x_right) / 2.0
     g_hts   = matrix.sum(axis=1) / total

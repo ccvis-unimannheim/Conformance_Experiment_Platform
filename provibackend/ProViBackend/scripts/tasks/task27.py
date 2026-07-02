@@ -246,7 +246,7 @@ def task27_parallel_sets(vdf: pd.DataFrame, output_dir: str):
 
 # Cell categories (code order = drawing precedence; higher code wins per cell)
 _REL_ABSENT, _REL_CONFORM, _REL_UNEXPECTED, _REL_SKIPPED = 0, 1, 2, 3
-_REL_COLORS = ["#FFFFFF", GREY_LIGHTER, GREY_DARK, GREY_MED]
+_REL_COLORS = ["#FFFFFF", GREY_LIGHT, GREY_DARK, GREY_MED]
 _REL_LABELS = ["Absent", "Contained (conform)", "Unexpected (log move)",
                "Skipped (model move)"]
 

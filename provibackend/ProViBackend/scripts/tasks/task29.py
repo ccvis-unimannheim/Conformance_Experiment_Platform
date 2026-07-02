@@ -614,17 +614,12 @@ def task29_parallel_sets(alignments, output_dir: str):
     ax.set_ylim(-0.05, 1.15)
     ax.set_title("Parallel Sets: Violation Type × Activity", fontsize=FONT_TITLE, pad=12)
 
-    grey_scale = ["#CCCCCC", "#AAAAAA", "#999999", "#888888", "#777777",
-                  "#666666", "#555555", "#444444", "#333333", "#222222", "#BBBBBB", "#DDDDDD", "#EEEEEE"]
-    right_colors = [grey_scale[i % len(grey_scale)] for i in range(n_right)]
-
     draw_parallel_sets(
         ax,
         left_labels=_VTYPES,
         right_labels=right_labels,
         matrix=matrix,
         left_colors=[_VTYPE_COLOR[vt] for vt in _VTYPES],
-        right_colors=right_colors,
         left_title="Violation Type",
         right_title="Activity",
     )

@@ -84,16 +84,16 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
-from shared import save_svg, FONT_TITLE, FONT_ANNOT
+from shared import save_svg, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS, CIVIDIS_R, FONT_TITLE, FONT_ANNOT
 
-# ── Greyscale palette (consistent with platform style) ──────────────────────
-_C_DARK   = "#222222"   # highest emphasis (= black bars, dark nodes)
-_C_MED    = "#666666"   # secondary
-_C_LIGHT  = "#aaaaaa"   # tertiary / background nodes
-_C_BG     = "#f5f5f5"   # panel / cell backgrounds
-_HDR_BG   = "#333333"   # table header background
-_HDR_FG   = "white"     # table header text
-_CMAP_SEQ = "Greys"     # sequential: white → black
+# ── Cividis palette ──────────────────────────────────────────────────────────
+_C_DARK   = GREY_DARK      # dark navy   (highest emphasis)
+_C_MED    = GREY_MED       # olive-grey  (secondary)
+_C_LIGHT  = GREY_LIGHT     # light olive (tertiary)
+_C_BG     = "#f5f5f5"      # panel / cell backgrounds
+_HDR_BG   = GREY_DARK      # table header background
+_HDR_FG   = "white"        # table header text
+_CMAP_SEQ = CIVIDIS_R      # sequential: yellow-green → dark navy (high = dark)
 
 # Max violations shown in most idioms (keeps charts readable)
 _TOP_N = 12

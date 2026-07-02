@@ -229,7 +229,7 @@ def task16_bar_chart(viol_df, s, output_dir):
     bottoms = np.zeros(len(top_acts))
     for mt in cols_present:
         vals = pivot[mt].to_numpy(dtype=float)
-        ax.barh(y, vals, left=bottoms, color=_MOVE_COLOR.get(mt, "#AAAAAA"),
+        ax.barh(y, vals, left=bottoms, color=_MOVE_COLOR.get(mt, GREY_LIGHT),
                 label=mt, edgecolor="white", linewidth=0.5, height=0.6)
         bottoms += vals
 
@@ -531,7 +531,7 @@ def task16_table_bar_chart(viol_df, s, output_dir):
             for act in top_acts
         ], dtype=float)
         ax_bar.barh(y, vals, left=bottoms,
-                    color=_MOVE_COLOR.get(mt, "#AAAAAA"),
+                    color=_MOVE_COLOR.get(mt, GREY_LIGHT),
                     label=mt, edgecolor="white", linewidth=0.4, height=0.55)
         bottoms += vals
 
@@ -590,9 +590,9 @@ def task16_parallel_sets(viol_df, s, output_dir):
         f"{a[:14] + '…' if len(a) > 14 else a}\n(n={act_totals[a]})"
         for a in top_acts
     ]
-    left_colors  = ["#555555"] * len(top_acts)
+    left_colors  = [GREY_DARK] * len(top_acts)
     right_labels = keep_mts
-    right_colors  = [_MOVE_COLOR.get(mt, "#AAAAAA") for mt in keep_mts]
+    right_colors  = [_MOVE_COLOR.get(mt, GREY_LIGHT) for mt in keep_mts]
 
     fig, ax = plt.subplots(figsize=(11, 5.5))
     ax.axis("off")

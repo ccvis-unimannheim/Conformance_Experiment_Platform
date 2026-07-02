@@ -126,7 +126,7 @@ CANDIDATE_ATTRIBUTES = ["AMOUNT_REQ", "org:resource", THROUGHPUT_KEY]
 NUMERIC_BUCKETS = 4   # quantile buckets for a numeric attribute's bar/parallel dim
 MAX_CATEGORIES  = 5   # top categories kept for a categorical attribute (rest -> "Other")
 
-_GREY_PALETTE = [GREY_MED, GREY_LIGHT, "#333333", "#CCCCCC", "#888888"]
+_GREY_PALETTE = [GREY_MED, GREY_LIGHT, GREY_DARK, GREY_LIGHTER]
 
 # Stems + titles for the empty-state fallback (one per idiom).
 _EMPTY_STEMS = [

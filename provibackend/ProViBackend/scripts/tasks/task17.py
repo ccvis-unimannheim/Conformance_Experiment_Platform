@@ -44,6 +44,7 @@ from shared import (
     render_empty_state_svg, contrasting_text_color,
     parse_bpmn_model, render_bpmn_annotated, compose_bpmn_panels,
     draw_value_heatmap, chevron_figure_width, draw_chevron_strip,
+    GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
@@ -52,19 +53,14 @@ from tasks.task26 import _lighten, _squarify_layout
 
 TOP_N = 12
 
-# Move types are the conformance algorithm's neutral classification of a deviation:
-#   Model Move    – activity required by the guideline but skipped in the log
-#   Log Move      – unexpected extra activity present in the log
-#   Mismatch Move – recorded step differs from the prescribed one
-# Greyscale palette (house style), no value ordering implied.
 MOVE_TYPES = ["Model Move", "Log Move", "Mismatch Move"]
 MOVE_TYPE_COLORS = {
-    "Model Move":    "#555555",
-    "Log Move":      "#999999",
-    "Mismatch Move": "#CCCCCC",
+    "Model Move":    GREY_MED,
+    "Log Move":      GREY_DARK,
+    "Mismatch Move": GREY_LIGHT,
 }
 _MOVE_RANK = {m: i for i, m in enumerate(MOVE_TYPES)}
-_BAR_COLOR = "#9A9A9A"
+_BAR_COLOR = GREY_MED
 
 
 # ---------------------------------------------------------------------------
@@ -266,7 +262,7 @@ def task17_table_bar_chart(df, output_dir):
 def task17_matrix(df, output_dir):
     pivot, top_acts, move_types = _activity_movetype_pivot(df)
     data = pivot.values.astype(float)
-    cmap = LinearSegmentedColormap.from_list("task17_mat", ["#F8F8F8", "#444444"])
+    cmap = CIVIDIS
     vmax = max(data.max(), 1.0)
 
     fig_h = max(3.5, 0.55 * len(top_acts) + 1.5)
@@ -451,16 +447,13 @@ def task17_parallel_sets(df, output_dir):
 
     mt_tot = {m: int(df.loc[df["move_type"] == m, "count"].sum()) for m in move_types}
     left_labels = [f"{m}\n(n={mt_tot[m]})" for m in move_types]
-    greys = ["#CCCCCC", "#BBBBBB", "#AAAAAA", "#999999", "#888888", "#777777",
-             "#666666", "#555555", "#444444", "#333333", "#DDDDDD"]
-    right_colors = [greys[i % len(greys)] for i in range(len(right_cats))]
 
     fig, ax = plt.subplots(figsize=(10, 5.5))
     ax.axis("off"); ax.set_xlim(-0.05, 1.05); ax.set_ylim(-0.05, 1.15)
     ax.set_title("Parallel Sets: Deviation Type vs. Activity", fontsize=FONT_TITLE, pad=12)
     draw_parallel_sets(ax, left_labels=left_labels, right_labels=right_cats,
                        matrix=matrix, left_colors=[_move_color(m) for m in move_types],
-                       right_colors=right_colors, left_title="Deviation type",
+                       left_title="Deviation type",
                        right_title="Activity")
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task17_parallel_sets.svg"))
