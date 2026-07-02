@@ -327,9 +327,6 @@ def task23_parallel_sets(pat_df: pd.DataFrame, output_dir: str):
         + ([f"Other\n(n={other_count}, {100 * other_count / total_violations:.0f}%)"] if has_other else [])
     )
 
-    n_cats = len(right_cats)
-    right_colors = [to_hex(CIVIDIS(0.15 + 0.70 * (i / max(n_cats - 1, 1)))) for i in range(n_cats)]
-
     fig, ax = plt.subplots(figsize=(14, 5.5))
     ax.axis("off")
     ax.set_xlim(-0.40, 1.40)   # symmetric around 0.50 (diagram center) → title auto-centers
@@ -342,7 +339,6 @@ def task23_parallel_sets(pat_df: pd.DataFrame, output_dir: str):
         right_labels=right_labels_n,
         matrix=matrix,
         left_colors=left_colors,
-        right_colors=right_colors,
         left_title="Move Type",
         right_title="Activity",
     )

@@ -32,7 +32,7 @@ from shared import (
     save_svg, make_table, draw_parallel_sets, build_violation_pattern_df,
     render_empty_state_svg, contrasting_text_color,
     parse_bpmn_model, render_bpmn_annotated, draw_value_heatmap,
-    GREY_DARK, GREY_LIGHT, GREY_LIGHTER, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    GREY_DARK, GREY_MED, GREY_LIGHT, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 TOP_N = 12
@@ -75,8 +75,8 @@ def resolve_severity(activity: str, move_type: str) -> str:
 
 
 # Consistent severity colours across ALL idioms of this task
-# (greyscale palette per house style: dark = grave).
-SEVERITY_COLORS = {"High": GREY_DARK, "Medium": GREY_LIGHT, "Low": GREY_LIGHTER}
+# (monotone cividis gradient: dark = grave, light = benign).
+SEVERITY_COLORS = {"High": GREY_DARK, "Medium": GREY_MED, "Low": GREY_LIGHT}
 _SEVERITY_RANK = {s: i for i, s in enumerate(SEVERITY_LEVELS)}
 
 
@@ -527,10 +527,6 @@ def task26_parallel_sets(pat_df: pd.DataFrame, output_dir: str):
     left_labels = [f"{s}\n(n={sev[s]})" for s in SEVERITY_LEVELS]
     left_colors = [SEVERITY_COLORS[s] for s in SEVERITY_LEVELS]
 
-    greys = ["#CCCCCC", "#BBBBBB", "#AAAAAA", "#999999", "#888888",
-             "#777777", "#666666", "#555555", "#444444", "#333333", "#DDDDDD"]
-    right_colors = [greys[i % len(greys)] for i in range(len(right_cats))]
-
     fig, ax = plt.subplots(figsize=(10, 5.5))
     ax.axis("off")
     ax.set_xlim(-0.05, 1.05)
@@ -543,7 +539,6 @@ def task26_parallel_sets(pat_df: pd.DataFrame, output_dir: str):
         right_labels=right_cats,
         matrix=matrix,
         left_colors=left_colors,
-        right_colors=right_colors,
         left_title="Severity",
         right_title="Activity",
     )

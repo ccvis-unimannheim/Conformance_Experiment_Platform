@@ -38,7 +38,7 @@ from shared import (
     draw_value_heatmap, draw_rate_matrix, draw_grouped_box_plot,
     draw_grouped_rate_bars,
     render_empty_state_svg, format_threshold,
-    GREY_MED, GREY_LIGHT, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    GREY_MED, GREY_LIGHT, GREY_DARK, GREY_LIGHTER, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 # Reuse the proven sub-log split + violation classification from task30.
@@ -48,8 +48,8 @@ from tasks.task30 import (
 )
 
 TOP_N = 10
-_GROUP_PALETTE = [GREY_MED, GREY_LIGHT, "#333333", "#CCCCCC", "#888888"]
-_PARETO_BAR = "#9A9A9A"      # medium grey for frequency bars
+_GROUP_PALETTE = [GREY_MED, GREY_LIGHT, GREY_DARK, GREY_LIGHTER]
+_PARETO_BAR = GREY_MED
 
 
 def _group_colors(groups: list) -> list:
@@ -418,15 +418,12 @@ def task32_parallel_sets(agg_df, viol_df, groups, attr, output_dir):
     ax.set_title(f"Parallel Sets: Sub-process ({attr}) vs. Violation",
                  fontsize=FONT_TITLE, pad=12)
 
-    grey_scale = ["#CCCCCC", "#AAAAAA", "#999999", "#888888", "#777777",
-                  "#666666", "#555555", "#444444", "#333333", "#222222", "#BBBBBB"]
     draw_parallel_sets(
         ax,
         left_labels=left_labels,
         right_labels=cats,
         matrix=matrix,
         left_colors=_group_colors(groups),
-        right_colors=[grey_scale[i % len(grey_scale)] for i in range(len(cats))],
         left_title="Sub-process",
         right_title="Violation",
     )

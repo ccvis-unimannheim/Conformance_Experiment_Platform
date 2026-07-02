@@ -94,7 +94,7 @@ CAT_MID    = to_hex(CIVIDIS(0.50))   # Move on Log         (#7d7c78 grey)
 CAT_SOFT   = to_hex(CIVIDIS(0.20))   # Move on Model       (#35456c navy blue)
 _C_BG      = "#f5f5f5"
 _HDR_BG    = CAT_STRONG    # dark navy (#243c6e) — matches cividis palette
-_CMAP      = "cividis"
+_CMAP      = CIVIDIS
 
 # Violation type → bar / node color
 _MOVE_COLORS = {
