@@ -1776,7 +1776,8 @@ def render_bpmn_annotated(parsed, out_path, *, title, summary,
 
 def compose_bpmn_panels(panels, out_path, *, title, legend_items,
                         table_rows=None, table_cols=None,
-                        legend_below_panels=True, legend_center=True):
+                        legend_below_panels=True, legend_center=True,
+                        table_stretch: bool = False):
     """Compose several BPMN panels (stacked vertically) + an optional table into one SVG.
 
     panels: list of {"parsed", "node_style_fn", "faded_flow_fn"(opt), "subtitle"}.
@@ -1810,7 +1811,8 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
 
     table_lines = []
     if table_rows and table_cols:
-        col_w, row_h = 200.0, 22.0
+        col_w = max(200.0, max_w / len(table_cols)) if table_stretch else 200.0
+        row_h = 22.0
         table_total_w = col_w * len(table_cols)
         # Pre-compute canvas width so we can center the table horizontally
         legend_min_w = 24.0 + 265.0 * len(legend_items)
@@ -1882,13 +1884,18 @@ CHEVRON_MIN_WIDTH  = 6.15
 CHEVRON_CHAR_WIDTH = 0.42
 
 
-def chevron_layout(nodes):
-    """Return chevron x positions/widths sized from label content, plus total span."""
+def chevron_layout(nodes, uniform_width=False):
+    """Return chevron x positions/widths sized from label content, plus total span.
+
+    uniform_width=True forces every chevron to the width of the widest label.
+    """
     widths = []
     for node in nodes:
         longest = max(len(line) for line in str(node["label"]).splitlines())
         content_w = CHEVRON_DEPTH * 2.0 + 2.65 + longest * CHEVRON_CHAR_WIDTH
         widths.append(max(CHEVRON_MIN_WIDTH, content_w))
+    if uniform_width and widths:
+        widths = [max(widths)] * len(widths)
     x_cursor = 0.0
     layout = []
     for width in widths:
@@ -1914,9 +1921,11 @@ def _chevron_font_size(label, width, base_fontsize):
     return max(8.5, base_fontsize * available / estimated)
 
 
-def draw_chevron_strip(ax, nodes, fontsize=10, y_pad: float = 0.18):
+def draw_chevron_strip(ax, nodes, fontsize=10, y_pad: float = 0.18,
+                       uniform_width: bool = False):
     """Draw one chevron strip (list of {label, color} nodes) onto *ax*.
 
+    uniform_width=True makes every chevron the same width (widest label wins).
     Returns the horizontal span so callers can align multiple strips.
     """
     from matplotlib.patches import Polygon as _Polygon
@@ -1924,7 +1933,7 @@ def draw_chevron_strip(ax, nodes, fontsize=10, y_pad: float = 0.18):
     ax.set_aspect("auto")
     ax.axis("off")
     h = CHEVRON_HEIGHT
-    layout, span = chevron_layout(nodes)
+    layout, span = chevron_layout(nodes, uniform_width=uniform_width)
     for i, node in enumerate(nodes):
         base_x = layout[i]["x"]
         width  = layout[i]["width"]

@@ -31,6 +31,41 @@ IDIOMS = [
     "table_bar_chart",
 ]
 
+# ---------------------------------------------------------------------------
+# Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6)
+#
+# Task 34 (SEMI): admin picks which ranked trace to use as the representative
+# (0 = worst by violation count, 1 = second worst, etc.). GT is then computed
+# for that specific trace; generate() renders the same trace in all detail idioms.
+# ---------------------------------------------------------------------------
+GT_TIER = "SEMI"
+
+PARAM_SPEC = [
+    {
+        "key":      "violated_activity",
+        "label":    "Activity to highlight violations for (the worst-fitness trace where this activity is violated will be shown)",
+        "widget":   "select-one",
+        "source":   "log.violated_activities_task34",
+        "options":  [],
+        "default":  None,
+        "required": False,
+    },
+]
+
+ANSWER_FORMATS = [
+    {"key": "mc-multi", "gt_shape": "mc", "decisive_default": True},
+]
+
+RUBRIC = (
+    "A complete answer correctly identifies the activities where violations occur "
+    "in the representative (worst-fitness) trace and the type of each violation "
+    "(Move on Model = skipped activity, Move on Log = extra/inserted activity). "
+    "Award full marks for correctly naming the top violated activities with their "
+    "violation types. Award partial marks for correctly identifying the activities "
+    "without the types, or for identifying most but not all violated activities. "
+    "Deduct marks for incorrectly including activities that have no violations in the trace."
+)
+
 import os
 import numpy as np
 import matplotlib
@@ -38,10 +73,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib import gridspec
+from matplotlib.colors import to_hex, Normalize
 
 from shared import (
     save_svg,
-    GREY_MED, GREY_LIGHTER, GREY_DARK, GREY_LIGHT,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT,
     chevron_figure_width, draw_chevron_strip,
     draw_value_heatmap,
@@ -52,46 +87,26 @@ from shared import (
     classify_step,
 )
 
-def _chevron_nodes(rows):
-    """Map task34 alignment rows to chevron nodes with correct move-type colors.
-    task34 uses 'Synchronous'/'Move on Model'/'Move on Log'/'Mismatch Move'
-    (different from the shared helper which expects 'Synchronous Move'/'Model Move').
-    """
-    nodes = []
-    for r in rows:
-        mt = r["moveType"]
-        if mt == "Synchronous":
-            nodes.append({"label": r["log_move"],   "color": GREY_LIGHTER})
-        elif mt == "Move on Model":
-            nodes.append({"label": r["model_move"], "color": GREY_MED})
-        elif mt == "Mismatch Move":
-            nodes.append({"label": f"{r['log_move']} / {r['model_move']}", "color": GREY_LIGHT})
-        else:  # Move on Log
-            nodes.append({"label": r["log_move"],   "color": GREY_DARK})
-    return nodes
+# ── Palette (cividis — PALETTE_GUIDE.md) ─────────────────────────────────────
+_CIVIDIS   = matplotlib.colormaps["cividis"]
+CAT_STRONG = to_hex(_CIVIDIS(0.15))   # dark accent / text  (#243c6e)
+CAT_MID    = to_hex(_CIVIDIS(0.50))   # Move on Log         (#7d7c78 grey)
+CAT_SOFT   = to_hex(_CIVIDIS(0.20))   # Move on Model       (#35456c navy blue)
+_C_BG      = "#f5f5f5"
+_HDR_BG    = CAT_STRONG    # dark navy (#243c6e) — matches cividis palette
+_CMAP      = "cividis"
 
-
-# ── Color constants (aligned with task08/09/35) ───────────────────────────────
-_C_DARK  = "#222222"
-_C_MED   = "#666666"
-_C_LIGHT = "#aaaaaa"
-_C_BG    = "#f5f5f5"
-_HDR_BG  = "#333333"
-_CMAP    = "Greys"
-
-# Violation type → dot / bar color
+# Violation type → bar / node color
 _MOVE_COLORS = {
-    "Synchronous":   "#CCCCCC",   # GREY_LIGHTER  — conformant
-    "Move on Model": _C_LIGHT,    # aaaaaa — skipped activity
-    "Move on Log":   _C_MED,      # 666666 — extra activity
-    "Mismatch Move": _C_DARK,     # 222222 — mismatch
+    "Synchronous":   "#e0e0e0",  # light grey — conformant (neutral, readable)
+    "Move on Model": CAT_SOFT,   # skipped activity
+    "Move on Log":   CAT_MID,    # extra activity
 }
 
-# Table row colors (task28 style)
-_SYNC_ROW = "#F2F2F2"
-_MOM_ROW  = "#E0E0E0"
-_MOL_ROW  = "#C8C8C8"
-_MIS_ROW  = "#D8D8D8"
+# Table row fills (cividis-sampled)
+_SYNC_ROW = to_hex(_CIVIDIS(0.97))
+_MOM_ROW  = to_hex(_CIVIDIS(0.85))
+_MOL_ROW  = to_hex(_CIVIDIS(0.50))
 _COL_LABELS = ["Step", "Log Move", "Model Move", "Status"]
 _COL_WIDTHS = [0.065, 0.375, 0.375, 0.185]
 
@@ -113,17 +128,21 @@ def _extract_label(val):
 def _parse_alignment(result):
     """Return list of step-dicts from one pm4py alignment result."""
     rows = []
-    for i, (log_v, model_v) in enumerate(result.get("alignment") or []):
+    step_num = 0
+    for (log_v, model_v) in (result.get("alignment") or []):
         ll = _extract_label(log_v)
         ml = _extract_label(model_v)
         if ll == ">>" and ml == ">>":
             continue
         act, mt = classify_step(ll, ml)
+        if mt == "Mismatch Move":
+            continue
         if mt is None:
             mt = "Synchronous"
             act = ll
+        step_num += 1
         rows.append({
-            "step":       i + 1,
+            "step":       step_num,
             "log_move":   ll,
             "model_move": ml,
             "status":     mt,
@@ -158,17 +177,16 @@ def _build_contexts(alignments, max_traces=30):
 
 
 def _trace_activity_violations(rows):
-    """Per-activity {mom, mol, mismatch} counts for one trace."""
+    """Per-activity {mom, mol} counts for one trace."""
     counts = {}
     for r in rows:
         mt = r["moveType"]
         a  = r["activity"]
-        if a == ">>" or mt == "Synchronous":
+        if a == ">>" or mt not in ("Move on Model", "Move on Log"):
             continue
-        counts.setdefault(a, {"mom": 0, "mol": 0, "mismatch": 0})
-        if   mt == "Move on Model": counts[a]["mom"]      += 1
-        elif mt == "Move on Log":   counts[a]["mol"]      += 1
-        else:                       counts[a]["mismatch"] += 1
+        counts.setdefault(a, {"mom": 0, "mol": 0})
+        if mt == "Move on Model": counts[a]["mom"] += 1
+        else:                     counts[a]["mol"] += 1
     return counts
 
 
@@ -179,12 +197,11 @@ def _log_activity_violations(alignments):
         for r in _parse_alignment(result):
             mt = r["moveType"]
             a  = r["activity"]
-            if a == ">>" or mt == "Synchronous":
+            if a == ">>" or mt not in ("Move on Model", "Move on Log"):
                 continue
-            totals.setdefault(a, {"mom": 0, "mol": 0, "mismatch": 0})
-            if   mt == "Move on Model": totals[a]["mom"]      += 1
-            elif mt == "Move on Log":   totals[a]["mol"]      += 1
-            else:                       totals[a]["mismatch"] += 1
+            totals.setdefault(a, {"mom": 0, "mol": 0})
+            if mt == "Move on Model": totals[a]["mom"] += 1
+            else:                     totals[a]["mol"] += 1
     return totals
 
 
@@ -220,7 +237,7 @@ def _draw_alignment_table(ax, rows, bbox, font_size=10.5):
             cell.set_text_props(color="white")
         else:
             cell.set_facecolor("#F5F5F5" if r % 2 == 0 else "#FFFFFF")
-            cell.set_text_props(color=_C_DARK)
+            cell.set_text_props(color=CAT_STRONG)
 
 
 def _add_trace_heading(fig, ctx, *, x=0.055, y=0.86):
@@ -237,72 +254,106 @@ def _move_legend():
         mpatches.Patch(color=_MOVE_COLORS["Synchronous"],   label="Synchronous (conform)"),
         mpatches.Patch(color=_MOVE_COLORS["Move on Model"], label="Move on Model (skipped)"),
         mpatches.Patch(color=_MOVE_COLORS["Move on Log"],   label="Move on Log (extra)"),
-        mpatches.Patch(color=_MOVE_COLORS["Mismatch Move"], label="Mismatch Move"),
     ]
+
+
+def _chevron_nodes(rows):
+    nodes = []
+    for r in rows:
+        mt = r["moveType"]
+        if mt == "Synchronous":
+            nodes.append({"label": r["log_move"],   "color": _MOVE_COLORS["Synchronous"]})
+        elif mt == "Move on Model":
+            nodes.append({"label": r["model_move"], "color": _MOVE_COLORS["Move on Model"]})
+        elif mt == "Move on Log":
+            nodes.append({"label": r["log_move"],   "color": _MOVE_COLORS["Move on Log"]})
+    return nodes
 
 
 # ── Idiom 1: bar_chart — most violated activities (log-level) ────────────────
 
 def task34_bar_chart(ctx, output_dir):
-    """Horizontal bar: activities with violations in the worst-fitness trace.
-    Bar color = dominant violation type. Trace-level answer to WHERE violations occur.
+    """Horizontal bar: all activities in the trace, violated ones colored by type,
+    conformant ones in light grey. Gives full context for WHERE violations occur.
     """
-    act_counts = _trace_activity_violations(ctx["rows"])
+    rows       = ctx["rows"]
+    act_counts = _trace_activity_violations(rows)
     if not act_counts:
         _no_violations(output_dir, "bar_chart")
         return
 
-    totals = {a: sum(v.values()) for a, v in act_counts.items()}
-    if not any(totals.values()):
-        _no_violations(output_dir, "bar_chart")
-        return
+    # Collect all activities that appear in the trace (preserve first-seen order)
+    seen, ordered = set(), []
+    for r in rows:
+        a = r["activity"]
+        if a and a != ">>" and a not in seen:
+            seen.add(a)
+            ordered.append(a)
 
-    acts   = sorted(totals, key=lambda a: totals[a], reverse=True)[:15]
+    totals = {a: sum(act_counts[a].values()) if a in act_counts else 0
+              for a in ordered}
+
+    # Sort: violated first (by count desc), then conformant in trace order
+    violated   = sorted([a for a in ordered if totals[a] > 0],
+                        key=lambda a: totals[a], reverse=True)[:12]
+    conformant = [a for a in ordered if totals[a] == 0]
+    acts   = violated + conformant
     counts = [totals[a] for a in acts]
-    total_viol = sum(counts)
-    pcts   = [c / total_viol * 100 if total_viol else 0 for c in counts]
 
-    def _dom_color(a):
-        v = act_counts[a]
-        dom = max(v, key=v.get)
-        return {"mom": _C_LIGHT, "mol": _C_MED, "mismatch": _C_DARK}[dom]
+    total_viol = sum(totals[a] for a in violated)
 
-    colors = [_dom_color(a) for a in acts]
+    def _color(a):
+        if totals[a] == 0:
+            return _MOVE_COLORS["Synchronous"]
+        dom = max(act_counts[a], key=act_counts[a].get)
+        return {"mom": CAT_SOFT, "mol": CAT_MID}[dom]
 
-    fig_h = max(3.5, len(acts) * 0.55 + 1.8)
+    colors = [_color(a) for a in acts]
+
+    fig_h = max(3.5, len(acts) * 0.52 + 1.8)
     fig, ax = plt.subplots(figsize=(11, fig_h))
     ax.set_facecolor("#fafbfc")
 
+    max_count = max(counts) if any(c > 0 for c in counts) else 1
     bars = ax.barh(range(len(acts)), counts, color=colors,
-                   edgecolor="white", linewidth=0.8, height=0.55)
+                   edgecolor="white", linewidth=0.8, height=0.52)
 
-    for i, (bar, cnt, pct) in enumerate(zip(bars, counts, pcts)):
-        ax.text(bar.get_width() + max(counts) * 0.015, i,
-                f"{cnt:,}  ({pct:.1f}%)",
-                va="center", fontsize=FONT_ANNOT, color=_C_DARK)
+    for i, (bar, cnt) in enumerate(zip(bars, counts)):
+        if cnt > 0:
+            pct = cnt / total_viol * 100 if total_viol else 0
+            ax.text(bar.get_width() + max_count * 0.015, i,
+                    f"{cnt:,}  ({pct:.0f}%)",
+                    va="center", fontsize=FONT_ANNOT, color=CAT_STRONG)
+        else:
+            ax.text(max_count * 0.015, i, "no violation",
+                    va="center", fontsize=FONT_ANNOT - 0.5, color="#aaaaaa",
+                    style="italic")
 
     ax.set_yticks(range(len(acts)))
     ax.set_yticklabels(acts, fontsize=FONT_ANNOT)
     ax.invert_yaxis()
     ax.set_xlabel("Number of violations", fontsize=FONT_LABEL)
     ax.xaxis.set_major_locator(plt.MaxNLocator(integer=True))
-    ax.set_xlim(0, max(counts) * 1.35)
+    ax.set_xlim(0, max_count * 1.4)
     ax.set_title(
-        f"Violated Activities — {ctx['trace_label']}  (fitness = {ctx['fitness']:.4f})\n"
-        "color = dominant violation type   ·   label = count (% of trace violations)",
+        f"Activity Violations — {ctx['trace_label']}  (fitness = {ctx['fitness']:.4f})",
         fontsize=FONT_TITLE, pad=8,
     )
     ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.35)
     ax.set_axisbelow(True)
 
+    # Divider line between violated and conformant sections
+    if violated and conformant:
+        ax.axhline(len(violated) - 0.5, color="#cccccc", linewidth=1.0, linestyle="--")
+
     legend_handles = [
-        mpatches.Patch(color=_C_LIGHT, label="Move on Model (dominant)"),
-        mpatches.Patch(color=_C_MED,   label="Move on Log (dominant)"),
-        mpatches.Patch(color=_C_DARK,  label="Mismatch Move (dominant)"),
+        mpatches.Patch(color=CAT_SOFT,                    label="Move on Model (skipped)"),
+        mpatches.Patch(color=CAT_MID,                     label="Move on Log (extra)"),
+        mpatches.Patch(color=_MOVE_COLORS["Synchronous"], label="Synchronous (no violation)"),
     ]
     ax.legend(handles=legend_handles,
-              loc="lower center", bbox_to_anchor=(0.5, -0.25),
+              loc="lower center", bbox_to_anchor=(0.5, -0.22),
               ncol=3, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
 
     fig.tight_layout(pad=1.2)
@@ -320,8 +371,7 @@ def task34_stacked_bar(ctx, output_dir):
 
     acts     = sorted(act_counts, key=lambda a: sum(act_counts[a].values()), reverse=True)
     mom_vals = [act_counts[a]["mom"]      for a in acts]
-    mol_vals = [act_counts[a]["mol"]      for a in acts]
-    mis_vals = [act_counts[a]["mismatch"] for a in acts]
+    mol_vals = [act_counts[a]["mol"] for a in acts]
 
     # Each row ~0.55 in; min 2.0, max 14.0
     fig_h = min(max(2.0, len(acts) * 0.55 + 1.8), 14.0)
@@ -330,21 +380,18 @@ def task34_stacked_bar(ctx, output_dir):
     ax.set_facecolor("#fafbfc")
 
     y    = range(len(acts))
-    ax.barh(y, mom_vals, color=_C_LIGHT, label="Move on Model (skipped)",
+    ax.barh(y, mom_vals, color=CAT_SOFT, label="Move on Model (skipped)",
             edgecolor="white", height=bar_h)
     left = mom_vals
-    ax.barh(y, mol_vals, left=left, color=_C_MED, label="Move on Log (extra)",
-            edgecolor="white", height=bar_h)
-    left = [a + b for a, b in zip(mom_vals, mol_vals)]
-    ax.barh(y, mis_vals, left=left, color=_C_DARK, label="Mismatch Move",
+    ax.barh(y, mol_vals, left=left, color=CAT_MID, label="Move on Log (extra)",
             edgecolor="white", height=bar_h)
 
-    totals = [a + b + c for a, b, c in zip(mom_vals, mol_vals, mis_vals)]
+    totals = [a + b for a, b in zip(mom_vals, mol_vals)]
     max_total = max(totals) if totals else 1
     for i, tot in enumerate(totals):
         if tot > 0:
             ax.text(tot + max_total * 0.015, i, str(tot), va="center",
-                    fontsize=FONT_ANNOT, color=_C_DARK)
+                    fontsize=FONT_ANNOT, color=CAT_STRONG)
 
     ax.set_yticks(list(y))
     ax.set_yticklabels(acts, fontsize=FONT_ANNOT)
@@ -401,21 +448,19 @@ def task34_flow_chart_table(ctx, output_dir):
     ax_bot = fig.add_subplot(gs[1])
 
     ax_top.axis("off")
-    tbl_frac = min(0.88, 10.0 / fig_w)
-    tbl_x0   = (1.0 - tbl_frac) / 2
-    _add_trace_heading(fig, ctx, x=tbl_x0, y=0.92)
+    _add_trace_heading(fig, ctx, x=0.05, y=0.92)
     _draw_alignment_table(ax_top, rows,
-                          bbox=[tbl_x0, 0.04, tbl_frac, 0.66], font_size=9.4)
+                          bbox=[0.0, 0.04, 1.0, 0.70], font_size=9.4)
 
-    draw_chevron_strip(ax_bot, nodes, fontsize=11)
+    draw_chevron_strip(ax_bot, nodes, fontsize=11, uniform_width=True)
     ax_bot.set_title("Trace Alignment", fontsize=FONT_TITLE, pad=7)
 
     legend_handles = [
-        mpatches.Patch(facecolor=GREY_LIGHTER, edgecolor="black", linewidth=0.75,
+        mpatches.Patch(facecolor=_MOVE_COLORS["Synchronous"],   edgecolor="black", linewidth=0.75,
                        label="Synchronous (conform)"),
-        mpatches.Patch(facecolor=GREY_MED,  edgecolor="black", linewidth=0.75,
+        mpatches.Patch(facecolor=_MOVE_COLORS["Move on Model"], edgecolor="black", linewidth=0.75,
                        label="Move on Model (skipped)"),
-        mpatches.Patch(facecolor=GREY_DARK,   edgecolor="black", linewidth=0.75,
+        mpatches.Patch(facecolor=_MOVE_COLORS["Move on Log"],   edgecolor="black", linewidth=0.75,
                        label="Move on Log (extra)"),
     ]
     fig.legend(handles=legend_handles, loc="lower center",
@@ -443,7 +488,7 @@ def task34_flow_chart_elaborate_table(ctx, model_path, output_dir):
         return
 
     # Build activity → worst violation type mapping for this trace
-    priority  = {"Move on Log": 3, "Move on Model": 2, "Mismatch Move": 1, "Synchronous": 0}
+    priority  = {"Move on Model": 2, "Move on Log": 1, "Synchronous": 0}
     act_status = {}
     for r in ctx["rows"]:
         act, mt = r["activity"], r["moveType"]
@@ -455,19 +500,17 @@ def task34_flow_chart_elaborate_table(ctx, model_path, output_dir):
         name = elem.get("name", "")
         kind = elem.get("kind", "task")
         if kind != "task":
-            return ("#F5F5F5", "#CCCCCC", 1.0, _C_DARK)
+            return ("#F5F5F5", "#CCCCCC", 1.0, CAT_STRONG)
         mt = act_status.get(name)
-        if mt == "Move on Model":  return (_C_LIGHT, "#888888", 1.5, _C_DARK)
-        if mt == "Move on Log":    return (_C_MED,   "#555555", 1.5, "white")
-        if mt == "Mismatch Move":  return (_C_DARK,  "#111111", 1.5, "white")
-        if mt == "Synchronous":    return ("#F5F5F5", "#AAAAAA", 1.0, _C_DARK)
-        return ("#FAFAFA", "#CCCCCC", 1.0, "#AAAAAA")   # not in this trace
+        if mt == "Move on Model":  return (CAT_SOFT, "#888888", 1.5, contrasting_text_color(CAT_SOFT))
+        if mt == "Move on Log":    return (CAT_MID,  "#555555", 1.5, contrasting_text_color(CAT_MID))
+        if mt == "Synchronous":    return (_MOVE_COLORS["Synchronous"], "#888888", 1.0, CAT_STRONG)
+        return ("#FAFAFA", "#CCCCCC", 1.0, "#444444")   # not in this trace
 
     legend_items = [
-        ("#F5F5F5", "#AAAAAA", 1.0, "Synchronous (conform)"),
-        (_C_LIGHT,  "#888888", 1.5, "Move on Model (skipped)"),
-        (_C_MED,    "#555555", 1.5, "Move on Log (extra)"),
-        (_C_DARK,   "#111111", 1.5, "Mismatch Move"),
+        (_MOVE_COLORS["Synchronous"], "#888888", 1.0, "Synchronous (conform)"),
+        (CAT_SOFT,  "#888888", 1.5, "Move on Model (skipped)"),
+        (CAT_MID,   "#555555", 1.5, "Move on Log (extra)"),
         ("#FAFAFA", "#CCCCCC", 1.0, "Not in trace"),
     ]
     summary = (f"{ctx['trace_label']}   |   "
@@ -481,6 +524,7 @@ def task34_flow_chart_elaborate_table(ctx, model_path, output_dir):
         legend_items=legend_items,
         table_rows=_cell_text(ctx["rows"]),
         table_cols=_COL_LABELS,
+        table_stretch=True,
     )
 
 
@@ -527,7 +571,9 @@ def task34_heatmap(ctxs, output_dir):
     draw_value_heatmap(fig, ax, matrix,
                        row_labels=trace_labels,
                        col_labels=acts,
-                       rotate_xticks=45)
+                       rotate_xticks=45,
+                       cbar_label="Violation count",
+                       cell_fmt="{:.0f}")
     ax.set_title(
         f"Violation Count per Activity — Top {len(show)} Most Violated Traces",
         fontsize=FONT_TITLE, pad=9,
@@ -539,15 +585,15 @@ def task34_heatmap(ctxs, output_dir):
 # ── Idiom 7: table_bar_chart — trace summary table + log-level bar chart ──────
 
 def task34_table_bar_chart(ctxs, log_act_v, output_dir):
-    """Left panel: top-10 worst traces (table).
-    Right panel: violated activities in the worst trace (bar chart, colored by dominant type)."""
+    """Left panel: alignment detail table for the representative trace.
+    Right panel: violated activities bar chart (colored by dominant type)."""
     if not ctxs:
         _no_violations(output_dir, "table_bar_chart")
         return
 
-    show     = ctxs[:10]
-    worst    = ctxs[0]
-    act_v    = _trace_activity_violations(worst["rows"])
+    worst = ctxs[0]
+    rows  = worst["rows"]
+    act_v = _trace_activity_violations(rows)
     if not act_v:
         _no_violations(output_dir, "table_bar_chart")
         return
@@ -559,41 +605,26 @@ def task34_table_bar_chart(ctxs, log_act_v, output_dir):
     def _dom_color(a):
         v = act_v[a]
         dom = max(v, key=v.get)
-        return {"mom": _C_LIGHT, "mol": _C_MED, "mismatch": _C_DARK}[dom]
+        return {"mom": CAT_SOFT, "mol": CAT_MID}[dom]
 
     colors = [_dom_color(a) for a in top_acts]
 
-    fig_h = max(5.0, max(len(show), len(top_acts)) * 0.38 + 3.0)
-    fig   = plt.figure(figsize=(20, fig_h), layout="constrained")
-    gs    = gridspec.GridSpec(1, 2, width_ratios=[1, 1.6], figure=fig)
+    tbl_h  = max(2.5, len(rows)     * 0.38 + 1.5)
+    bar_h  = max(2.5, len(top_acts) * 0.55 + 1.5)
+    fig_h  = tbl_h + bar_h + 1.5
+    fig    = plt.figure(figsize=(14, fig_h), layout="constrained")
+    gs     = gridspec.GridSpec(2, 1, height_ratios=[tbl_h, bar_h], figure=fig)
     ax_tbl = fig.add_subplot(gs[0])
     ax_bar = fig.add_subplot(gs[1])
 
-    # ── Left: trace summary table ──
+    # ── Left: alignment detail table (matches other combined idioms) ──
     ax_tbl.axis("off")
-    tbl_data = [
-        [c["trace_label"], f"{c['fitness']:.4f}", str(c["n_violations"])]
-        for c in show
-    ]
-    tbl = ax_tbl.table(
-        cellText=tbl_data,
-        colLabels=["Trace", "Fitness", "Violations"],
-        colWidths=[0.38, 0.32, 0.30],
-        cellLoc="center",
-        bbox=[0.02, 0.04, 0.96, 0.86],
+    _draw_alignment_table(ax_tbl, rows, bbox=[0.0, 0.0, 1.0, 1.0])
+    ax_tbl.set_title(
+        f"Alignment — {worst['trace_label']}  "
+        f"(fitness = {worst['fitness']:.4f}, violations = {worst['n_violations']})",
+        fontsize=FONT_TITLE, pad=8,
     )
-    tbl.auto_set_font_size(False)
-    tbl.set_fontsize(FONT_ANNOT)
-    for (r, c), cell in tbl.get_celld().items():
-        cell.set_edgecolor("#e0e0e0")
-        if r == 0:
-            cell.set_facecolor(_HDR_BG)
-            cell.set_text_props(color="white")
-        else:
-            cell.set_facecolor("#f5f5f5" if r % 2 == 0 else "white")
-            cell.set_text_props(color=_C_DARK)
-    ax_tbl.set_title(f"Top {len(show)} Most Violated Traces",
-                     fontsize=FONT_TITLE, pad=8)
 
     # ── Right: bar chart (one bar per activity, colored by dominant type) ──
     ax_bar.set_facecolor("#fafbfc")
@@ -604,7 +635,7 @@ def task34_table_bar_chart(ctxs, log_act_v, output_dir):
 
     for i, (bar, cnt) in enumerate(zip(bars, counts)):
         ax_bar.text(bar.get_width() + max(counts) * 0.015, i,
-                    f"{cnt:,}", va="center", fontsize=FONT_ANNOT, color=_C_DARK)
+                    f"{cnt:,}", va="center", fontsize=FONT_ANNOT, color=CAT_STRONG)
 
     ax_bar.set_yticks(list(y))
     ax_bar.set_yticklabels(top_acts, fontsize=FONT_ANNOT)
@@ -623,9 +654,8 @@ def task34_table_bar_chart(ctxs, log_act_v, output_dir):
     ax_bar.set_axisbelow(True)
 
     legend_handles = [
-        mpatches.Patch(color=_C_LIGHT, label="Move on Model (dominant)"),
-        mpatches.Patch(color=_C_MED,   label="Move on Log (dominant)"),
-        mpatches.Patch(color=_C_DARK,  label="Mismatch Move (dominant)"),
+        mpatches.Patch(color=CAT_SOFT, label="Move on Model (dominant)"),
+        mpatches.Patch(color=CAT_MID,  label="Move on Log (dominant)"),
     ]
     ax_bar.legend(handles=legend_handles, loc="lower right", fontsize=FONT_ANNOT,
                   frameon=True, fancybox=False, edgecolor="#cccccc")
@@ -641,18 +671,18 @@ def task34_flow_chart_basic(ctx, output_dir):
     nodes = _chevron_nodes(rows)
     fig_w = max(14.0, chevron_figure_width(nodes))
     fig, ax = plt.subplots(figsize=(fig_w, 3.8))
-    draw_chevron_strip(ax, nodes, fontsize=11)
+    draw_chevron_strip(ax, nodes, fontsize=11, uniform_width=True)
     ax.set_title(
         f"Trace Alignment — {ctx['trace_label']}  "
         f"(fitness = {ctx['fitness']:.4f}, violations = {ctx['n_violations']})",
         fontsize=FONT_TITLE, pad=8,
     )
     legend_handles = [
-        mpatches.Patch(facecolor=GREY_LIGHTER, edgecolor="black", linewidth=0.75,
+        mpatches.Patch(facecolor=_MOVE_COLORS["Synchronous"],   edgecolor="black", linewidth=0.75,
                        label="Synchronous (conform)"),
-        mpatches.Patch(facecolor=GREY_MED,  edgecolor="black", linewidth=0.75,
+        mpatches.Patch(facecolor=_MOVE_COLORS["Move on Model"], edgecolor="black", linewidth=0.75,
                        label="Move on Model (skipped)"),
-        mpatches.Patch(facecolor=GREY_DARK,   edgecolor="black", linewidth=0.75,
+        mpatches.Patch(facecolor=_MOVE_COLORS["Move on Log"],   edgecolor="black", linewidth=0.75,
                        label="Move on Log (extra)"),
     ]
     fig.legend(handles=legend_handles, loc="lower center",
@@ -677,7 +707,7 @@ def task34_flow_chart_elaborate(ctx, model_path, output_dir):
                                "Could not parse BPMN model.")
         return
 
-    priority  = {"Move on Log": 3, "Move on Model": 2, "Mismatch Move": 1, "Synchronous": 0}
+    priority  = {"Move on Model": 2, "Move on Log": 1, "Synchronous": 0}
     act_status = {}
     for r in ctx["rows"]:
         act, mt = r["activity"], r["moveType"]
@@ -689,19 +719,17 @@ def task34_flow_chart_elaborate(ctx, model_path, output_dir):
         name = elem.get("name", "")
         kind = elem.get("kind", "task")
         if kind != "task":
-            return ("#F5F5F5", "#CCCCCC", 1.0, _C_DARK)
+            return ("#F5F5F5", "#CCCCCC", 1.0, CAT_STRONG)
         mt = act_status.get(name)
-        if mt == "Move on Model":  return (_C_LIGHT, "#888888", 1.5, _C_DARK)
-        if mt == "Move on Log":    return (_C_MED,   "#555555", 1.5, "white")
-        if mt == "Mismatch Move":  return (_C_DARK,  "#111111", 1.5, "white")
-        if mt == "Synchronous":    return ("#F5F5F5", "#AAAAAA", 1.0, _C_DARK)
-        return ("#FAFAFA", "#CCCCCC", 1.0, "#AAAAAA")
+        if mt == "Move on Model":  return (CAT_SOFT, "#888888", 1.5, contrasting_text_color(CAT_SOFT))
+        if mt == "Move on Log":    return (CAT_MID,  "#555555", 1.5, contrasting_text_color(CAT_MID))
+        if mt == "Synchronous":    return (_MOVE_COLORS["Synchronous"], "#888888", 1.0, CAT_STRONG)
+        return ("#FAFAFA", "#CCCCCC", 1.0, "#444444")
 
     legend_items = [
-        ("#F5F5F5", "#AAAAAA", 1.0, "Synchronous (conform)"),
-        (_C_LIGHT,  "#888888", 1.5, "Move on Model (skipped)"),
-        (_C_MED,    "#555555", 1.5, "Move on Log (extra)"),
-        (_C_DARK,   "#111111", 1.5, "Mismatch Move"),
+        (_MOVE_COLORS["Synchronous"], "#888888", 1.0, "Synchronous (conform)"),
+        (CAT_SOFT,  "#888888", 1.5, "Move on Model (skipped)"),
+        (CAT_MID,   "#555555", 1.5, "Move on Log (extra)"),
         ("#FAFAFA", "#CCCCCC", 1.0, "Not in trace"),
     ]
     summary = (f"{ctx['trace_label']}   |   Fitness: {ctx['fitness']:.4f}"
@@ -760,11 +788,12 @@ def task34_matrix(act_freqs, cooccur, output_dir):
     ax.set_yticks(range(n))
     ax.set_yticklabels(acts, fontsize=FONT_ANNOT)
 
-    thresh = mat.max() / 2.0
+    mat_max = mat.max() if mat.max() > 0 else 1.0
     for i in range(n):
         for j in range(n):
             val   = int(mat[i, j])
-            color = "white" if mat[i, j] > thresh else _C_DARK
+            cell_hex = to_hex(_CIVIDIS(mat[i, j] / mat_max))
+            color = contrasting_text_color(cell_hex)
             ax.text(j, i, str(val), ha="center", va="center",
                     fontsize=max(FONT_ANNOT - 1, 6), color=color, fontweight="bold")
 
@@ -786,8 +815,8 @@ def task34_parallel_sets(log_act_v, output_dir):
         _no_violations(output_dir, "parallel_sets")
         return
 
-    vtypes = ["Move on Model", "Move on Log", "Mismatch Move"]
-    vkeys  = ["mom", "mol", "mismatch"]
+    vtypes = ["Move on Model", "Move on Log"]
+    vkeys  = ["mom", "mol"]
     top_acts = sorted(log_act_v, key=lambda a: sum(log_act_v[a].values()),
                       reverse=True)[:10]
     if not top_acts:
@@ -800,7 +829,7 @@ def task34_parallel_sets(log_act_v, output_dir):
         _no_violations(output_dir, "parallel_sets")
         return
 
-    vtype_colors = [_C_LIGHT, _C_MED, _C_DARK]
+    vtype_colors = [CAT_SOFT, CAT_MID]
     act_greys    = [plt.cm.Greys(0.15 + 0.65 * i / max(len(top_acts) - 1, 1))
                     for i in range(len(top_acts))]
     act_colors   = [f"#{int(c[0]*255):02x}{int(c[1]*255):02x}{int(c[2]*255):02x}"
@@ -827,10 +856,96 @@ def task34_parallel_sets(log_act_v, output_dir):
     save_svg(fig, os.path.join(output_dir, "task34_parallel_sets.svg"))
 
 
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _pick_ctx(ctxs, params):
+    """Return the representative context based on admin params.
+
+    If `violated_activity` is set, picks the worst-fitness context where that
+    activity has a violation.  Falls back to ctxs[0] (overall worst) if the
+    activity is not found or no param is set.
+    """
+    activity = (params.get("violated_activity") or "").strip()
+    if activity:
+        for ctx in ctxs:
+            if any(r["activity"] == activity and _is_violation(r)
+                   for r in ctx["rows"]):
+                return ctx
+    return ctxs[0]
+
+
+# ── Ground truth ─────────────────────────────────────────────────────────────
+
+def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
+    """mc-multi: which activities have violations in the admin-selected trace.
+
+    Correct options  = activities with at least one violation in the
+                       representative trace at position `trace_rank` (0 = worst
+                       by violation count, then fitness), labelled with their
+                       dominant violation type.
+    Incorrect options = activities that appear synchronously (no violations)
+                       in the same trace, used as distractors.
+    """
+    import random as _rnd
+
+    if answer_format != "mc-multi":
+        return {"options": []}
+    if not alignments:
+        return {"options": []}
+
+    ctxs = _build_contexts(alignments, max_traces=30)
+    if not ctxs:
+        return {"options": []}
+
+    rows = _pick_ctx(ctxs, params)["rows"]
+    act_counts = _trace_activity_violations(rows)
+    if not act_counts:
+        return {"options": []}
+
+    conformant_acts = sorted(
+        {r["activity"] for r in rows
+         if not _is_violation(r) and r["activity"] != ">>"}
+        - set(act_counts.keys())
+    )
+
+    _DOM_LABEL = {
+        "mom": "Move on Model — skipped activity",
+        "mol": "Move on Log — extra activity",
+    }
+
+    options = []
+
+    # Correct: all violated activities, most-violated first (cap at 10)
+    for act in sorted(act_counts, key=lambda a: sum(act_counts[a].values()), reverse=True)[:10]:
+        dom_key = max(act_counts[act], key=act_counts[act].get)
+        options.append({
+            "label":   f"'{act}' — {_DOM_LABEL[dom_key]}",
+            "value":   f"violated::{act}",
+            "correct": True,
+        })
+
+    # Incorrect: conformant activities from the same trace (cap at 5)
+    for act in conformant_acts[:5]:
+        options.append({
+            "label":   f"'{act}' — no violation",
+            "value":   f"conformant::{act}",
+            "correct": False,
+        })
+
+    _rnd.Random(42).shuffle(options)
+    return {"options": options}
+
+
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def generate(log, alignments, output_dir, model_path=None):
-    """Generate all Task 34 SVGs into output_dir."""
+def generate(log, alignments, output_dir, model_path=None, violated_activity=None):
+    """Generate all Task 34 SVGs into output_dir.
+
+    violated_activity : str | None
+        Activity name chosen by the admin on /specify. The worst-fitness trace
+        where this activity is violated will be used as the representative trace.
+        Defaults to None (falls back to the overall worst-fitness trace).
+    """
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 34 visualizations ---")
 
@@ -847,7 +962,7 @@ def generate(log, alignments, output_dir, model_path=None):
             _no_violations(output_dir, k)
         return
 
-    worst    = ctxs[0]
+    worst = _pick_ctx(ctxs, {"violated_activity": violated_activity})
     log_act  = _log_activity_violations(alignments)
     act_freq, cooccur = _build_activity_cooccurrence(alignments)
 
