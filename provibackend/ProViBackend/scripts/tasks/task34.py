@@ -525,6 +525,7 @@ def task34_flow_chart_elaborate_table(ctx, model_path, output_dir):
         table_rows=_cell_text(ctx["rows"]),
         table_cols=_COL_LABELS,
         table_stretch=True,
+        table_header_bg=_HDR_BG,
     )
 
 
@@ -584,26 +585,37 @@ def task34_heatmap(ctxs, output_dir):
 
 # ── Idiom 7: table_bar_chart — trace summary table + log-level bar chart ──────
 
-def task34_table_bar_chart(ctxs, log_act_v, output_dir):
-    """Left panel: alignment detail table for the representative trace.
-    Right panel: violated activities bar chart (colored by dominant type)."""
-    if not ctxs:
+def task34_table_bar_chart(worst, log_act_v, output_dir):
+    """Top panel: alignment detail table for the representative trace.
+    Bottom panel: all activities bar chart (violated colored, conformant grey)."""
+    if worst is None:
         _no_violations(output_dir, "table_bar_chart")
         return
 
-    worst = ctxs[0]
     rows  = worst["rows"]
     act_v = _trace_activity_violations(rows)
     if not act_v:
         _no_violations(output_dir, "table_bar_chart")
         return
 
-    totals   = {a: sum(v.values()) for a, v in act_v.items()}
-    top_acts = sorted(totals, key=lambda a: totals[a], reverse=True)[:15]
-    counts   = [totals[a] for a in top_acts]
+    # Collect all activities in trace order
+    seen, ordered = set(), []
+    for r in rows:
+        a = r["activity"]
+        if a and a != ">>" and a not in seen:
+            seen.add(a); ordered.append(a)
+
+    totals = {a: sum(act_v[a].values()) if a in act_v else 0 for a in ordered}
+    violated   = sorted([a for a in ordered if totals[a] > 0],
+                        key=lambda a: totals[a], reverse=True)[:12]
+    conformant = [a for a in ordered if totals[a] == 0]
+    top_acts   = violated + conformant
+    counts     = [totals[a] for a in top_acts]
 
     def _dom_color(a):
-        v = act_v[a]
+        if totals[a] == 0:
+            return "#d0d0d0"
+        v   = act_v[a]
         dom = max(v, key=v.get)
         return {"mom": CAT_SOFT, "mol": CAT_MID}[dom]
 
@@ -617,7 +629,7 @@ def task34_table_bar_chart(ctxs, log_act_v, output_dir):
     ax_tbl = fig.add_subplot(gs[0])
     ax_bar = fig.add_subplot(gs[1])
 
-    # ── Left: alignment detail table (matches other combined idioms) ──
+    # ── Top: alignment detail table ──
     ax_tbl.axis("off")
     _draw_alignment_table(ax_tbl, rows, bbox=[0.0, 0.0, 1.0, 1.0])
     ax_tbl.set_title(
@@ -626,27 +638,33 @@ def task34_table_bar_chart(ctxs, log_act_v, output_dir):
         fontsize=FONT_TITLE, pad=8,
     )
 
-    # ── Right: bar chart (one bar per activity, colored by dominant type) ──
+    # ── Bottom: bar chart (all activities; violated colored, conformant grey) ──
     ax_bar.set_facecolor("#fafbfc")
-    y     = range(len(top_acts))
-    bar_h = 0.45
-    bars  = ax_bar.barh(y, counts, color=colors, edgecolor="white",
-                        linewidth=0.8, height=bar_h)
+    _bar_h = 0.45
+    y      = range(len(top_acts))
+    bars   = ax_bar.barh(y, counts, color=colors, edgecolor="white",
+                         linewidth=0.8, height=_bar_h)
 
+    max_count = max((c for c in counts if c > 0), default=1)
     for i, (bar, cnt) in enumerate(zip(bars, counts)):
-        ax_bar.text(bar.get_width() + max(counts) * 0.015, i,
-                    f"{cnt:,}", va="center", fontsize=FONT_ANNOT, color=CAT_STRONG)
+        label = f"{cnt:,}" if cnt > 0 else "no violation"
+        ax_bar.text(bar.get_width() + max_count * 0.015, i,
+                    label, va="center", fontsize=FONT_ANNOT,
+                    color=CAT_STRONG if cnt > 0 else "#888888")
+
+    if violated and conformant:
+        ax_bar.axhline(len(violated) - 0.5, color="#cccccc", linewidth=1.0, linestyle="--")
 
     ax_bar.set_yticks(list(y))
     ax_bar.set_yticklabels(top_acts, fontsize=FONT_ANNOT)
     ax_bar.invert_yaxis()
-    pad = max(0.8, bar_h)
+    pad = max(0.8, _bar_h)
     ax_bar.set_ylim(len(top_acts) - 1 + pad, -pad)
     ax_bar.set_xlabel("Violation count", fontsize=FONT_LABEL)
     ax_bar.xaxis.set_major_locator(plt.MaxNLocator(integer=True))
-    ax_bar.set_xlim(0, max(counts) * 1.2)
+    ax_bar.set_xlim(0, max_count * 1.2)
     ax_bar.set_title(
-        f"Violated Activities — {worst['trace_label']}  (fitness = {worst['fitness']:.4f})",
+        f"Activities — {worst['trace_label']}  (fitness = {worst['fitness']:.4f})",
         fontsize=FONT_TITLE, pad=8,
     )
     ax_bar.spines[["top", "right"]].set_visible(False)
@@ -656,6 +674,7 @@ def task34_table_bar_chart(ctxs, log_act_v, output_dir):
     legend_handles = [
         mpatches.Patch(color=CAT_SOFT, label="Move on Model (dominant)"),
         mpatches.Patch(color=CAT_MID,  label="Move on Log (dominant)"),
+        mpatches.Patch(color="#d0d0d0", label="Conformant (no violation)"),
     ]
     ax_bar.legend(handles=legend_handles, loc="lower right", fontsize=FONT_ANNOT,
                   frameon=True, fancybox=False, edgecolor="#cccccc")
@@ -981,4 +1000,4 @@ def generate(log, alignments, output_dir, model_path=None, violated_activity=Non
     task34_heatmap(ctxs[:20],                       output_dir)
     task34_matrix(act_freq, cooccur,                output_dir)
     task34_parallel_sets(log_act,                   output_dir)
-    task34_table_bar_chart(ctxs, log_act,           output_dir)
+    task34_table_bar_chart(worst, log_act,          output_dir)

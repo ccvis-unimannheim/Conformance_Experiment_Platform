@@ -1777,7 +1777,8 @@ def render_bpmn_annotated(parsed, out_path, *, title, summary,
 def compose_bpmn_panels(panels, out_path, *, title, legend_items,
                         table_rows=None, table_cols=None,
                         legend_below_panels=True, legend_center=True,
-                        table_stretch: bool = False):
+                        table_stretch: bool = False,
+                        table_header_bg: str = "#555555"):
     """Compose several BPMN panels (stacked vertically) + an optional table into one SVG.
 
     panels: list of {"parsed", "node_style_fn", "faded_flow_fn"(opt), "subtitle"}.
@@ -1821,7 +1822,7 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
         ty0 = y_cursor + 6.0
         table_lines.append(
             f'<rect x="{tx0:.1f}" y="{ty0:.1f}" '
-            f'width="{table_total_w:.1f}" height="{row_h:.1f}" fill="#555555"/>'
+            f'width="{table_total_w:.1f}" height="{row_h:.1f}" fill="{table_header_bg}"/>'
         )
         for ci, col in enumerate(table_cols):
             table_lines.append(
