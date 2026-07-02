@@ -22,17 +22,20 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.patches import FancyBboxPatch
+from matplotlib.colors import to_hex
 
 import numpy as np
 
 # ---------------------------------------------------------------------------
-# Greyscale palette  – greyscale only, throughout all visualizations.
-# Named by shade (dark → lighter), not by hue.
+# Cividis palette  – perceptually uniform, used throughout all visualizations.
+# Named by semantic role; cividis runs dark-navy (0.0) → yellow-green (1.0).
 # ---------------------------------------------------------------------------
-GREY_DARK    = "#333333"   # dark grey    (strongest emphasis / deviation)
-GREY_MED     = "#666666"   # medium grey  (primary category / model moves)
-GREY_LIGHT   = "#999999"   # light grey   (secondary category / mismatch)
-GREY_LIGHTER = "#CCCCCC"   # lighter grey (conformant / synchronous)
+CIVIDIS   = matplotlib.colormaps["cividis"]
+_CIV      = CIVIDIS
+GREY_DARK    = to_hex(_CIV(0.15))  # dark navy    (strongest emphasis / Log Move)
+GREY_MED     = to_hex(_CIV(0.45))  # olive-grey   (primary category / Model Move)
+GREY_LIGHT   = to_hex(_CIV(0.68))  # light olive  (secondary category / Mismatch)
+GREY_LIGHTER = to_hex(_CIV(0.90))  # yellow-green (conformant / Synchronous)
 
 # ---------------------------------------------------------------------------
 # Color utilities
@@ -823,9 +826,8 @@ def build_violation_pattern_df(alignments):
 # Shared group-comparison renderers  (factored out of task05; also used by task30)
 # ---------------------------------------------------------------------------
 
-# Grey shades used for pattern segments in composition stacked bars
-COMPOSITION_GREYS = ["#555555", "#777777", "#999999", "#BBBBBB", "#CCCCCC",
-                     "#AAAAAA", "#888888", "#666666", "#444444", "#333333"]
+# Cividis shades used for pattern segments in composition stacked bars
+COMPOSITION_GREYS = [to_hex(_CIV(0.10 + 0.80 * i / 9)) for i in range(10)]
 
 
 def draw_grouped_rate_bars(ax, n_cats, group_labels, rates, group_colors,
@@ -2063,9 +2065,7 @@ def draw_parallel_sets(
 
     if right_colors is None:
         n = len(right_labels)
-        _greys = ["#F0F0F0", "#D4D4D4", "#B8B8B8", "#9C9C9C", "#777777",
-                  "#555555", "#444444", "#333333"]
-        right_colors = [_greys[i % len(_greys)] for i in range(n)]
+        right_colors = [to_hex(_CIV(0.15 + 0.70 * i / max(n - 1, 1))) for i in range(n)]
 
     ctrl_x  = (x_left + x_right) / 2.0
     g_hts   = matrix.sum(axis=1) / total
