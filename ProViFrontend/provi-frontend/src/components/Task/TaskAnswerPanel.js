@@ -21,6 +21,7 @@ const TaskAnswerPanel = ({
   totalTasks = 1,
   currentTaskIndex = 0,
   onAnswerSubmit,
+  paramHints = [],
 }) => {
   const router = useRouter();
   const [answer, setAnswer] = useState(() => initialAnswer(answerType, options));
@@ -234,6 +235,46 @@ const TaskAnswerPanel = ({
                   {idiomDesc}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Parameter hints callout */}
+          {paramHints.length > 0 && (
+            <div style={{
+              background: "#f0f4f8",
+              borderLeft: "3px solid #00305e",
+              borderRadius: "0 0.375rem 0.375rem 0",
+              padding: "0.625rem 0.75rem",
+              marginBottom: "0.875rem",
+            }}>
+              <p style={{
+                fontSize: "0.62rem",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.12em",
+                color: "#5a6061",
+                margin: "0 0 0.375rem 0",
+              }}>
+                Chart parameters
+              </p>
+              {paramHints.map((hint, i) => (
+                <div key={i} style={{ display: "flex", gap: "0.3rem", fontSize: "0.72rem", lineHeight: 1.8 }}>
+                  <span style={{
+                    fontWeight: 700,
+                    color: "#00305e",
+                    flexShrink: 0,
+                    overflow: "hidden",
+                    display: "-webkit-box",
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: "vertical",
+                  }}>
+                    {hint.label}:
+                  </span>
+                  <span style={{ fontFamily: "monospace", color: "#2d3435" }}>
+                    {hint.value}
+                  </span>
+                </div>
+              ))}
             </div>
           )}
 
