@@ -22,7 +22,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 IDIOMS = ["bar_chart", "table", "table_bar_chart",
-          "parallel_sets", "stacked_bar", "box_plot", "matrix",
+          "parallel_sets", "stacked_bar", "matrix",
           "heatmap"]
 
 # ---------------------------------------------------------------------------
@@ -166,7 +166,7 @@ from matplotlib.colors import to_hex
 from shared import (
     save_svg, make_table, draw_parallel_sets, alignment_pairs_to_rows,
     draw_grouped_rate_bars, draw_composition_stacked_bars,
-    draw_value_heatmap, draw_grouped_box_plot,
+    draw_value_heatmap,
     render_empty_state_svg, format_threshold,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
@@ -377,20 +377,23 @@ def task30_bar_chart(agg_df, groups, attr, output_dir):
         return
     patterns = agg_df["pattern"].tolist()
 
-    fig, ax = plt.subplots(figsize=(max(9, len(patterns) * 1.1), 5.5))
+    fig, ax = plt.subplots(figsize=(max(13, len(patterns) * 2.0), 6.0))
     x = draw_grouped_rate_bars(ax, len(patterns), groups, _rates(agg_df, groups),
                                _group_colors(groups))
     ax.set_xticks(x)
-    ax.set_xticklabels(patterns, fontsize=FONT_ANNOT - 1)
+    ax.set_xticklabels(
+        [p.replace(" (", "\n(") for p in patterns],
+        fontsize=FONT_ANNOT - 1, ha="center", rotation=0,
+    )
     ax.set_ylabel("% of sub-log traces exhibiting violation", fontsize=FONT_LABEL)
     ax.set_title(f"Top-{len(patterns)} Violation Patterns per Sub-log ({attr})",
                  fontsize=FONT_TITLE)
-    ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.25),
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.28),
               ncol=3, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout(pad=1.2)
+    fig.tight_layout(pad=1.2, rect=[0, 0.14, 1, 1])
     save_svg(fig, os.path.join(output_dir, "task30_bar_chart.svg"))
 
 
@@ -471,7 +474,7 @@ def task30_table_and_bar_chart(agg_df, groups, attr, output_dir):
             "Violation Patterns per Sub-log", "No violations found.")
         return
 
-    fig = plt.figure(figsize=(16, max(4.5, 1.2 + len(agg_df) * 0.50)))
+    fig = plt.figure(figsize=(16, max(5.0, 1.5 + len(agg_df) * 0.50)))
     gs = gridspec.GridSpec(1, 2, width_ratios=[1.5, 1.0], wspace=0.35)
 
     ax_tbl = fig.add_subplot(gs[0])
@@ -481,14 +484,12 @@ def task30_table_and_bar_chart(agg_df, groups, attr, output_dir):
         ax_tbl,
         cell_text=cell_text,
         col_labels=col_labels,
-        bbox=[0.01, 0.05, 0.98, 0.82],
+        bbox=[0.01, 0.05, 0.98, 0.85],
         col_widths=col_widths,
         font_size=8.5,
         scale_xy=(1, 1.7),
         cell_pad=0.09,
     )
-    ax_tbl.set_title(f"Top-{len(agg_df)} Violation Patterns ({attr})",
-                     fontsize=FONT_TITLE, pad=10)
 
     ax_bar = fig.add_subplot(gs[1])
     patterns = agg_df["pattern"].tolist()
@@ -499,12 +500,18 @@ def task30_table_and_bar_chart(agg_df, groups, attr, output_dir):
     ax_bar.set_yticklabels(patterns, fontsize=FONT_ANNOT - 1)
     ax_bar.invert_yaxis()
     ax_bar.set_xlabel("% of sub-log traces", fontsize=FONT_LABEL)
-    ax_bar.legend(frameon=False, fontsize=FONT_ANNOT - 1)
+    ax_bar.legend(
+        loc="lower center", bbox_to_anchor=(0.5, -0.28),
+        ncol=len(groups), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT - 1,
+    )
     ax_bar.spines[["top", "right"]].set_visible(False)
     ax_bar.xaxis.grid(True, linestyle="--", alpha=0.5)
     ax_bar.set_axisbelow(True)
 
-    fig.tight_layout(pad=1.2)
+    # Title centred over both subplots
+    fig.suptitle(f"Top-{len(agg_df)} Violation Patterns ({attr})",
+                 fontsize=FONT_TITLE)
+    fig.tight_layout(pad=1.2, rect=[0, 0.12, 1, 0.95])
     save_svg(fig, os.path.join(output_dir, "task30_table_and_bar_chart.svg"))
 
 
@@ -570,6 +577,11 @@ def task30_stacked_bar(agg_df, groups, attr, output_dir):
     ax.set_title(f"Violation Pattern Composition per Sub-log ({attr})",
                  fontsize=FONT_TITLE)
     ax.tick_params(axis="x", labelrotation=0)
+    ax.set_xticklabels(
+        [g.replace(" ≤ ", "\n≤ ").replace(" > ", "\n> ").replace(" = ", "\n= ")
+         for g in groups],
+        fontsize=FONT_ANNOT,
+    )
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
@@ -579,18 +591,6 @@ def task30_stacked_bar(agg_df, groups, attr, output_dir):
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task30_stacked_bar.svg"))
 
-
-def task30_box_plot(trace_df, groups, attr, output_dir):
-    """Per-trace fitness distribution per sub-log — the conformance-difference view."""
-    colors = _group_colors(groups)
-    data = [trace_df.loc[trace_df["group"] == g, "fitness"].values for g in groups]
-
-    fig, ax = plt.subplots(figsize=(max(4.5, len(groups) * 1.9), 6))
-    draw_grouped_box_plot(ax, data, groups, colors, ylabel="Fitness (0.0 – 1.0)")
-    ax.tick_params(axis="x", labelrotation=15)
-    ax.set_title(f"Fitness Distribution per Sub-log ({attr})", fontsize=FONT_TITLE)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task30_box_plot.svg"))
 
 
 def task30_matrix(agg_df, groups, attr, output_dir):
@@ -607,6 +607,11 @@ def task30_matrix(agg_df, groups, attr, output_dir):
     draw_value_heatmap(fig, ax, data, patterns, groups,
                        xlabel=f"Sub-log ({attr})", cbar_label="Rate (%)",
                        cell_fmt="{:.1f}%", annotate=True, cmap="cividis_r")
+    ax.set_xticklabels(
+        [g.replace(" ≤ ", "\n≤ ").replace(" > ", "\n> ").replace(" = ", "\n= ")
+         for g in groups],
+        fontsize=FONT_ANNOT,
+    )
     ax.set_title("Violation Rate Matrix (%)", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task30_matrix.svg"))
@@ -642,7 +647,6 @@ _ALL_FNAMES_TITLES = [
     ("task30_table_and_bar_chart.svg", "Violation Patterns per Sub-log"),
     ("task30_parallel_sets.svg",       "Sub-log vs. Violation Pattern"),
     ("task30_stacked_bar.svg",         "Violation Composition per Sub-log"),
-    ("task30_box_plot.svg",            "Fitness Distribution per Sub-log"),
     ("task30_matrix.svg",              "Violation Rate Matrix"),
     ("task30_heatmap.svg",             "Violation Rate Heatmap"),
 ]
@@ -699,6 +703,5 @@ def generate(log, fitness_df, alignments, output_dir: str,
     task30_table_and_bar_chart(agg_df, groups, compare_attribute, output_dir)
     task30_parallel_sets(agg_df, viol_df, stats_df, groups, compare_attribute, output_dir)
     task30_stacked_bar(agg_df, groups, compare_attribute, output_dir)
-    task30_box_plot(trace_df, groups, compare_attribute, output_dir)
     task30_matrix(agg_df, groups, compare_attribute, output_dir)
     task30_heatmap(agg_df, groups, compare_attribute, output_dir)

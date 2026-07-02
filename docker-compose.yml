@@ -54,8 +54,8 @@ services:
     build:
       context: ./ProViFrontend
       args:
-        NEXT_PUBLIC_API_BASE: https://cc-vis.rz.uni-mannheim.de/api
-        NEXT_PUBLIC_API_URL: https://cc-vis.rz.uni-mannheim.de/api
+        NEXT_PUBLIC_API_BASE: https://0c6d5248-f6a7-4d49-bc79-a6e8c34de13d.ma.bw-cloud-instance.org/api
+        NEXT_PUBLIC_API_URL: https://0c6d5248-f6a7-4d49-bc79-a6e8c34de13d.ma.bw-cloud-instance.org/api
     container_name: provifrontend
     restart: unless-stopped
     ports:
@@ -74,6 +74,7 @@ services:
       - "443:443"
     volumes:
       - /etc/ssl/cc-vis:/etc/ssl/cc-vis:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
       - /etc/nginx-secrets/.htpasswd:/etc/nginx/.htpasswd:ro
     depends_on:
       - provibackend
