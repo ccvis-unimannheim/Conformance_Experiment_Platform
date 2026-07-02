@@ -74,7 +74,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
-from shared import save_svg, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
+from shared import save_svg, make_table, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
 
 # ── Cividis palette ───────────────────────────────────────────────────────────
 _C_DARK   = GREY_DARK
@@ -417,41 +417,17 @@ def task12_table(stats, output_dir):
     fig_h  = max(3.5, n_rows * 0.55 + 2.0)
     fig, ax = plt.subplots(figsize=(12, fig_h))
     ax.axis("off")
-
-    t  = 0.94
-    b  = 0.06
-    l  = 0.02
-    tw = 0.96
-    row_h = (t - b) / (n_rows + 1)
-
-    # Header
-    x = l
-    for hdr, cw in zip(col_headers, col_widths):
-        ax.add_patch(plt.Rectangle((x, t - row_h), cw * tw, row_h,
-                                   fc=_HDR_BG, ec="#333333", linewidth=0.5,
-                                   transform=ax.transAxes, clip_on=False))
-        ax.text(x + cw * tw * 0.5, t - row_h * 0.5, hdr,
-                ha="center", va="center", fontsize=FONT_ANNOT,
-                color="white", transform=ax.transAxes)
-        x += cw * tw
-
-    # Rows — all white except the Total row which keeps grey
-    for i, row in enumerate(rows):
-        y_top = t - (i + 2) * row_h
-        x = l
-        bg = "#e8e8e8" if i == n_rows - 1 else "white"
-
-        for j, (val, cw) in enumerate(zip(row, col_widths)):
-            ax.add_patch(plt.Rectangle((x, y_top), cw * tw, row_h,
-                                       fc=bg, ec="#333333", linewidth=0.5,
-                                       transform=ax.transAxes, clip_on=False))
-            ha = "left" if j == 0 else "center"
-            px = x + 0.008 if j == 0 else x + cw * tw * 0.5
-            ax.text(px, y_top + row_h * 0.5, str(val),
-                    ha=ha, va="center", fontsize=FONT_ANNOT,
-                    color=_C_DARK,
-                    transform=ax.transAxes)
-            x += cw * tw
+    make_table(
+        ax,
+        cell_text=rows,
+        col_labels=col_headers,
+        bbox=[0.02, 0.06, 0.96, 0.86],
+        col_widths=col_widths,
+        font_size=FONT_ANNOT,
+        scale_xy=(1, 1.8),
+        zebra=True,
+        highlight_last_row=True,
+    )
 
     ax.set_title(
         f"Process Conformance Breakdown  ·  {n_t:,} total traces",
@@ -487,34 +463,18 @@ def task12_table_bar_chart(stats, output_dir):
     ax_tbl.axis("off")
     col_headers = ["Category", "Traces", "% of All"]
     col_widths  = [0.58, 0.22, 0.20]
-    t = 0.94
-    row_h = (t - 0.04) / (n + 1)
-    tw = 0.97
-    x = 0.015
-
-    for hdr, cw in zip(col_headers, col_widths):
-        ax_tbl.add_patch(plt.Rectangle((x, t - row_h), cw * tw, row_h,
-                                       fc=_HDR_BG, ec="white", linewidth=0.5,
-                                       transform=ax_tbl.transAxes, clip_on=False))
-        ax_tbl.text(x + cw * tw * 0.5, t - row_h * 0.5, hdr,
-                    ha="center", va="center", fontsize=FONT_ANNOT,
-                    color="white", fontweight="bold", transform=ax_tbl.transAxes)
-        x += cw * tw
-
-    for i, (lbl, cnt, pct) in enumerate(zip(cat_labels, cat_counts, cat_pcts)):
-        y_top = t - (i + 2) * row_h
-        x = 0.015
-        bg = "#f5f5f5" if i % 2 == 0 else "white"
-        for j, (val, cw) in enumerate(zip([lbl, f"{cnt:,}", f"{pct:.1f}%"], col_widths)):
-            ax_tbl.add_patch(plt.Rectangle((x, y_top), cw * tw, row_h,
-                                           fc=bg, ec="#eeeeee", linewidth=0.4,
-                                           transform=ax_tbl.transAxes, clip_on=False))
-            ha = "left" if j == 0 else "center"
-            px = x + 0.008 if j == 0 else x + cw * tw * 0.5
-            ax_tbl.text(px, y_top + row_h * 0.5, str(val),
-                        ha=ha, va="center", fontsize=FONT_ANNOT,
-                        color=_C_DARK, transform=ax_tbl.transAxes)
-            x += cw * tw
+    tbl_rows = [[lbl, f"{cnt:,}", f"{pct:.1f}%"]
+                for lbl, cnt, pct in zip(cat_labels, cat_counts, cat_pcts)]
+    make_table(
+        ax_tbl,
+        cell_text=tbl_rows,
+        col_labels=col_headers,
+        bbox=[0.015, 0.04, 0.97, 0.90],
+        col_widths=col_widths,
+        font_size=FONT_ANNOT,
+        scale_xy=(1, 1.8),
+        zebra=True,
+    )
 
     # ── Right: horizontal bars ────────────────────────────────────────────────
     ax_bar.set_facecolor("#fafbfc")

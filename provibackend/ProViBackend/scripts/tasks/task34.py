@@ -77,6 +77,7 @@ from matplotlib.colors import to_hex, Normalize
 
 from shared import (
     save_svg,
+    make_table,
     CIVIDIS,
     CIVIDIS_R,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT,
@@ -221,24 +222,16 @@ def _cell_text(rows):
 
 
 def _draw_alignment_table(ax, rows, bbox, font_size=10.5):
-    tbl = ax.table(
-        cellText=_cell_text(rows),
-        colLabels=_COL_LABELS,
-        colWidths=_COL_WIDTHS,
-        cellLoc="center",
+    make_table(
+        ax,
+        cell_text=_cell_text(rows),
+        col_labels=_COL_LABELS,
         bbox=bbox,
+        col_widths=_COL_WIDTHS,
+        font_size=font_size,
+        scale_xy=(1, 1.8),
+        zebra=True,
     )
-    tbl.auto_set_font_size(False)
-    tbl.set_fontsize(font_size)
-    for (r, c), cell in tbl.get_celld().items():
-        cell.set_edgecolor("#333333")
-        cell.set_linewidth(0.8)
-        if r == 0:
-            cell.set_facecolor(_HDR_BG)
-            cell.set_text_props(color="white")
-        else:
-            cell.set_facecolor("#F5F5F5" if r % 2 == 0 else "#FFFFFF")
-            cell.set_text_props(color=CAT_STRONG)
 
 
 def _add_trace_heading(fig, ctx, *, x=0.055, y=0.86):
