@@ -3,7 +3,7 @@
 <defs><marker id="arrow-grey" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,1 L10,5 L0,9 Z" fill="#444444"/></marker><marker id="arrow-faded" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,1 L10,5 L0,9 Z" fill="#AAAAAA"/></marker></defs>
 <rect x="0" y="0" width="100%" height="100%" fill="white"/>
 <text x="24" y="44" font-family="Arial, sans-serif" font-size="13" fill="black">Violations on the Process Model</text>
-<text x="24" y="67" font-family="Arial, sans-serif" font-size="10" fill="#555">Activity shade: lighter = fewer violations · darker = more violations   |   n = 13087   mean fitness = 0.979   conformant = 100.0%   total violations = 2781</text>
+<text x="24" y="67" font-family="Arial, sans-serif" font-size="10" fill="#555">Activity shade: lighter = fewer violations · darker = more violations   |   n = 13087   mean fitness = 0.000   conformant = 0.0%   total violations = 100110</text>
 <polyline points="240.0,180.0 271.9,180.0" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
 <polyline points="378.1,180.0 409.5,180.5" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
 <polyline points="445.5,180.5 485.0,181.0" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
@@ -30,7 +30,7 @@
 <polyline points="1210.5,162.5 1210.5,111.0 1230.0,111.0" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
 <circle cx="1452.5" cy="248.5" r="12.5" fill="#EFEFEF" stroke="#777777" stroke-width="3"/>
 <text x="1475.0" y="248.5" text-anchor="start" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#777777">END EVENT</text>
-<rect x="1230.0" y="88.0" width="90.0" height="46.0" rx="7" ry="7" fill="#B0B0B0" stroke="#777777" stroke-width="1.2"/>
+<rect x="1230.0" y="88.0" width="90.0" height="46.0" rx="7" ry="7" fill="#F0F0F0" stroke="#777777" stroke-width="1.2"/>
 <text x="1275.0" y="111.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#222222">A_ACTIVATED</text>
 <rect x="1230.0" y="298.0" width="90.0" height="46.0" rx="7" ry="7" fill="#F0F0F0" stroke="#777777" stroke-width="1.2"/>
 <text x="1275.0" y="321.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#222222">A_CANCELLED</text>
@@ -46,23 +46,23 @@
 <text x="940.0" y="182.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#222222">A_FINALIZED</text>
 <polygon points="1028.5,164.5 1046.5,182.5 1028.5,200.5 1010.5,182.5" fill="#FFFFFF" stroke="#777777" stroke-width="1.2"/>
 <text x="1028.5" y="183.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="13.0" fill="#777777">X</text>
-<rect x="1100.0" y="159.0" width="90.0" height="46.0" rx="7" ry="7" fill="#444444" stroke="#777777" stroke-width="1.2"/>
-<text x="1145.0" y="182.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="white">A_APPROVED</text>
+<rect x="1100.0" y="159.0" width="90.0" height="46.0" rx="7" ry="7" fill="#F0F0F0" stroke="#777777" stroke-width="1.2"/>
+<text x="1145.0" y="182.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#222222">A_APPROVED</text>
 <rect x="1232.0" y="159.0" width="90.0" height="46.0" rx="7" ry="7" fill="#F0F0F0" stroke="#777777" stroke-width="1.2"/>
 <text x="1277.0" y="182.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#222222">A_REGISTERED</text>
 <polygon points="1378.5,164.5 1396.5,182.5 1378.5,200.5 1360.5,182.5" fill="#FFFFFF" stroke="#777777" stroke-width="1.2"/>
 <text x="1378.5" y="183.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="13.0" fill="#777777">+</text>
-<rect x="1230.0" y="225.0" width="90.0" height="46.0" rx="7" ry="7" fill="#C9C9C9" stroke="#777777" stroke-width="1.2"/>
-<text x="1275.0" y="248.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#222222">A_DECLINED</text>
+<rect x="1230.0" y="225.0" width="90.0" height="46.0" rx="7" ry="7" fill="#444444" stroke="#777777" stroke-width="1.2"/>
+<text x="1275.0" y="248.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="white">A_DECLINED</text>
 <polygon points="1128.5,261.5 1146.5,279.5 1128.5,297.5 1110.5,279.5" fill="#FFFFFF" stroke="#777777" stroke-width="1.2"/>
 <text x="1128.5" y="280.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="13.0" fill="#777777">X</text>
 <polygon points="427.5,162.5 445.5,180.5 427.5,198.5 409.5,180.5" fill="#FFFFFF" stroke="#777777" stroke-width="1.2"/>
 <text x="427.5" y="181.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="13.0" fill="#777777">X</text>
-<rect x="271.9" y="157.0" width="106.2" height="46.0" rx="7" ry="7" fill="#F0F0F0" stroke="#777777" stroke-width="1.2"/>
-<text x="325.0" y="174.8" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#222222">A_</text>
-<text x="325.0" y="185.2" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#222222">PARTLYSUBMITTED</text>
-<rect x="150.0" y="157.0" width="90.0" height="46.0" rx="7" ry="7" fill="#F0F0F0" stroke="#777777" stroke-width="1.2"/>
-<text x="195.0" y="180.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#222222">A_SUBMITTED</text>
+<rect x="271.9" y="157.0" width="106.2" height="46.0" rx="7" ry="7" fill="#444444" stroke="#777777" stroke-width="1.2"/>
+<text x="325.0" y="174.8" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="white">A_</text>
+<text x="325.0" y="185.2" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="white">PARTLYSUBMITTED</text>
+<rect x="150.0" y="157.0" width="90.0" height="46.0" rx="7" ry="7" fill="#444444" stroke="#777777" stroke-width="1.2"/>
+<text x="195.0" y="180.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="white">A_SUBMITTED</text>
 <circle cx="92.5" cy="180.5" r="12.5" fill="#EFEFEF" stroke="#777777" stroke-width="2"/>
 <text x="92.5" y="211.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#777777">START</text>
 <polygon points="1210.5,162.5 1228.5,180.5 1210.5,198.5 1192.5,180.5" fill="#FFFFFF" stroke="#777777" stroke-width="1.2"/>
