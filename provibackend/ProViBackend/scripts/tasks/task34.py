@@ -77,6 +77,7 @@ from matplotlib.colors import to_hex, Normalize
 
 from shared import (
     save_svg,
+    CIVIDIS,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT,
     chevron_figure_width, draw_chevron_strip,
     draw_value_heatmap,
@@ -88,10 +89,9 @@ from shared import (
 )
 
 # ── Palette (cividis — PALETTE_GUIDE.md) ─────────────────────────────────────
-_CIVIDIS   = matplotlib.colormaps["cividis"]
-CAT_STRONG = to_hex(_CIVIDIS(0.15))   # dark accent / text  (#243c6e)
-CAT_MID    = to_hex(_CIVIDIS(0.50))   # Move on Log         (#7d7c78 grey)
-CAT_SOFT   = to_hex(_CIVIDIS(0.20))   # Move on Model       (#35456c navy blue)
+CAT_STRONG = to_hex(CIVIDIS(0.15))   # dark accent / text  (#243c6e)
+CAT_MID    = to_hex(CIVIDIS(0.50))   # Move on Log         (#7d7c78 grey)
+CAT_SOFT   = to_hex(CIVIDIS(0.20))   # Move on Model       (#35456c navy blue)
 _C_BG      = "#f5f5f5"
 _HDR_BG    = CAT_STRONG    # dark navy (#243c6e) — matches cividis palette
 _CMAP      = "cividis"
@@ -104,9 +104,9 @@ _MOVE_COLORS = {
 }
 
 # Table row fills (cividis-sampled)
-_SYNC_ROW = to_hex(_CIVIDIS(0.97))
-_MOM_ROW  = to_hex(_CIVIDIS(0.85))
-_MOL_ROW  = to_hex(_CIVIDIS(0.50))
+_SYNC_ROW = to_hex(CIVIDIS(0.97))
+_MOM_ROW  = to_hex(CIVIDIS(0.85))
+_MOL_ROW  = to_hex(CIVIDIS(0.50))
 _COL_LABELS = ["Step", "Log Move", "Model Move", "Status"]
 _COL_WIDTHS = [0.065, 0.375, 0.375, 0.185]
 
@@ -811,7 +811,7 @@ def task34_matrix(act_freqs, cooccur, output_dir):
     for i in range(n):
         for j in range(n):
             val   = int(mat[i, j])
-            cell_hex = to_hex(_CIVIDIS(mat[i, j] / mat_max))
+            cell_hex = to_hex(CIVIDIS(mat[i, j] / mat_max))
             color = contrasting_text_color(cell_hex)
             ax.text(j, i, str(val), ha="center", va="center",
                     fontsize=max(FONT_ANNOT - 1, 6), color=color, fontweight="bold")

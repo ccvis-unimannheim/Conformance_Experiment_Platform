@@ -31,6 +31,7 @@ import numpy as np
 # Named by semantic role; cividis runs dark-navy (0.0) → yellow-green (1.0).
 # ---------------------------------------------------------------------------
 CIVIDIS   = matplotlib.colormaps["cividis"]
+CIVIDIS_R = matplotlib.colormaps["cividis_r"]  # reversed: 0=yellow, high=dark
 _CIV      = CIVIDIS
 GREY_DARK    = to_hex(_CIV(0.15))  # dark navy    (strongest emphasis / Log Move)
 GREY_MED     = to_hex(_CIV(0.45))  # olive-grey   (primary category / Model Move)

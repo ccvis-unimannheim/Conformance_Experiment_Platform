@@ -50,19 +50,18 @@ from matplotlib.colors import to_hex, Normalize
 from shared import (
     save_svg, make_table, draw_parallel_sets, build_violation_pattern_df,
     contrasting_text_color,
+    CIVIDIS, CIVIDIS_R,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 TOP_N    = 10   # max items shown in most charts (patterns or activities)
 TOP_N_PS = 7    # stricter cap for parallel sets (right-side two-line labels)
 
-_CIVIDIS   = matplotlib.colormaps["cividis"]
-_CIVIDIS_R = matplotlib.colormaps["cividis_r"]  # reversed: 0=yellow, high=dark
-_MOVE_DEFAULT = to_hex(_CIVIDIS(0.50))         # mid (fallback for unknown move types)
+_MOVE_DEFAULT = to_hex(CIVIDIS(0.50))          # mid (fallback for unknown move types)
 _MOVE_COLORS = {
-    "Model Move":    to_hex(_CIVIDIS(0.85)),   # soft  (light end)
+    "Model Move":    to_hex(CIVIDIS(0.85)),    # soft  (light end)
     "Log Move":      _MOVE_DEFAULT,            # mid
-    "Mismatch Move": to_hex(_CIVIDIS(0.15)),   # strong (dark end)
+    "Mismatch Move": to_hex(CIVIDIS(0.15)),    # strong (dark end)
 }
 _MOVE_ORDER  = ["Model Move", "Log Move", "Mismatch Move"]
 
@@ -286,7 +285,7 @@ def task23_matrix(pat_df: pd.DataFrame, output_dir: str):
     for ri in range(len(top_acts)):
         for ci in range(len(present_types)):
             val = data[ri, ci]
-            tc  = contrasting_text_color(to_hex(_CIVIDIS_R(norm(val))))
+            tc  = contrasting_text_color(to_hex(CIVIDIS_R(norm(val))))
             pct = 100 * val / total_violations if total_violations > 0 else 0
             ax.text(ci, ri, f"{int(val)}\n({pct:.1f}%)", ha="center", va="center",
                     fontsize=FONT_ANNOT - 1, color=tc, linespacing=1.3)
@@ -329,7 +328,7 @@ def task23_parallel_sets(pat_df: pd.DataFrame, output_dir: str):
     )
 
     n_cats = len(right_cats)
-    right_colors = [to_hex(_CIVIDIS(0.15 + 0.70 * (i / max(n_cats - 1, 1)))) for i in range(n_cats)]
+    right_colors = [to_hex(CIVIDIS(0.15 + 0.70 * (i / max(n_cats - 1, 1)))) for i in range(n_cats)]
 
     fig, ax = plt.subplots(figsize=(14, 5.5))
     ax.axis("off")

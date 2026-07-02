@@ -168,6 +168,7 @@ from shared import (
     draw_grouped_rate_bars, draw_composition_stacked_bars,
     draw_value_heatmap,
     render_empty_state_svg, format_threshold,
+    CIVIDIS_R,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
@@ -176,10 +177,8 @@ TOP_N = 10
 # MAX_CATEGORICAL_GROUPS most frequent (rest -> "Other")
 MAX_CATEGORICAL_GROUPS = 4
 
-_CIVIDIS = matplotlib.colormaps["cividis_r"]
-
-# Sub-log palette: 5 well-separated stops across the cividis ramp
-_GROUP_PALETTE = [to_hex(_CIVIDIS(p)) for p in (0.15, 0.85, 0.40, 0.65, 0.28)]
+# Sub-log palette: 5 well-separated stops across the cividis_r ramp
+_GROUP_PALETTE = [to_hex(CIVIDIS_R(p)) for p in (0.15, 0.85, 0.40, 0.65, 0.28)]
 
 
 # ---------------------------------------------------------------------------
@@ -541,7 +540,7 @@ def task30_parallel_sets(agg_df, viol_df, stats_df, groups, attr, output_dir):
                  fontsize=FONT_TITLE, pad=12)
 
     n_cats = max(len(cats), 1)
-    cividis_cats = [to_hex(_CIVIDIS(0.15 + 0.70 * i / max(n_cats - 1, 1)))
+    cividis_cats = [to_hex(CIVIDIS_R(0.15 + 0.70 * i / max(n_cats - 1, 1)))
                     for i in range(n_cats)]
     draw_parallel_sets(
         ax,
@@ -568,7 +567,7 @@ def task30_stacked_bar(agg_df, groups, attr, output_dir):
     patterns = agg_df["pattern"].tolist()
 
     n_pats = len(patterns)
-    cividis_segs = [to_hex(_CIVIDIS(0.15 + 0.70 * i / max(n_pats - 1, 1)))
+    cividis_segs = [to_hex(CIVIDIS_R(0.15 + 0.70 * i / max(n_pats - 1, 1)))
                     for i in range(n_pats)]
     fig, ax = plt.subplots(figsize=(max(5, len(groups) * 2.2), 5.5))
     draw_composition_stacked_bars(ax, groups, patterns, _rates(agg_df, groups),
