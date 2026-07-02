@@ -40,15 +40,15 @@ import matplotlib.patches as mpatches
 import matplotlib.colors as mcolors
 import matplotlib.cm as cm
 
-from shared import save_svg, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
+from shared import save_svg, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
 
-# ── Palette (white-grey-black, consistent with other tasks) ───────────────────
-_C_DARK   = "#222222"
-_C_MED    = "#666666"
-_C_LIGHT  = "#aaaaaa"
-_C_XLIGHT = "#dddddd"
-_HDR_BG   = "#333333"
-_CMAP_SEQ = "Greys"
+# ── Cividis palette ───────────────────────────────────────────────────────────
+_C_DARK   = GREY_DARK
+_C_MED    = GREY_MED
+_C_LIGHT  = GREY_LIGHT
+_C_XLIGHT = GREY_LIGHTER
+_HDR_BG   = GREY_DARK
+_CMAP_SEQ = CIVIDIS
 
 # Violation type → grey shade (light=skipped, mid=extra, dark=mismatch)
 _VTYPES = ["Move on Model", "Move on Log", "Mismatch Move"]

@@ -42,9 +42,10 @@ from shared import (
     conformance_category_series, conformance_category_counts,
     make_conformance_labels,
     CONFORMANCE_BINS, CONFORMANCE_LABELS, CONFORMANCE_CATEGORY_NAMES,
-    GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK,
+    GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, CIVIDIS,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT, contrasting_text_color,
 )
+from matplotlib.colors import to_hex
 
 # ---------------------------------------------------------------------------
 # Range definitions (buckets extracted to shared.py — single source of truth)
@@ -55,16 +56,15 @@ DEFAULT_LABELS = CONFORMANCE_LABELS
 HIGH_FITNESS_BINS = [0.80, 0.85, 0.90, 0.95, 1.0]
 HIGH_FITNESS_LABELS = ["0.80 – 0.85", "0.85 – 0.90", "0.90 – 0.95", "0.95 – <1.00", "1.00"]
 
-# Light → dark greyscale palette (extended for adaptive ranges)
-RANGE_COLORS = ["#F0F0F0", "#D4D4D4", "#B8B8B8", "#9C9C9C", "#777777", "#555555"]
+# Cividis ramp for adaptive conformance ranges (dark = low, light = high)
+RANGE_COLORS = [to_hex(CIVIDIS(i / 5)) for i in range(6)]
 
 
 def _task10_color_list(n: int):
-    """Return a stable greyscale palette with enough colors for adaptive bins."""
+    """Return a stable cividis palette with enough colors for adaptive bins."""
     if n <= len(RANGE_COLORS):
         return RANGE_COLORS[:n]
-    cmap = LinearSegmentedColormap.from_list("task10_greys", ["#F0F0F0", "#555555"])
-    return [cmap(i / max(n - 1, 1)) for i in range(n)]
+    return [to_hex(CIVIDIS(i / max(n - 1, 1))) for i in range(n)]
 
 
 def _build_high_fitness_range_df(fitness: pd.Series) -> pd.DataFrame:

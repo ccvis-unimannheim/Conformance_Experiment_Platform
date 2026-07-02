@@ -27,11 +27,11 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from shared import save_svg, FONT_TITLE, FONT_ANNOT, classify_step as _classify_step
+from shared import save_svg, GREY_DARK, GREY_MED, FONT_TITLE, FONT_ANNOT, classify_step as _classify_step
 
-_C_DARK = "#222222"
-_C_MED  = "#666666"
-_HDR_BG = "#333333"
+_C_DARK = GREY_DARK
+_C_MED  = GREY_MED
+_HDR_BG = GREY_DARK
 _TOP_N  = 15
 
 

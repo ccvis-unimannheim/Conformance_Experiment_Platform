@@ -74,22 +74,22 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
-from shared import save_svg, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
+from shared import save_svg, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
 
-# ── Palette ───────────────────────────────────────────────────────────────────
-_C_DARK   = "#222222"
-_C_MED    = "#666666"
-_C_LIGHT  = "#aaaaaa"
-_C_XLIGHT = "#dddddd"
-_HDR_BG   = "#333333"
+# ── Cividis palette ───────────────────────────────────────────────────────────
+_C_DARK   = GREY_DARK
+_C_MED    = GREY_MED
+_C_LIGHT  = GREY_LIGHT
+_C_XLIGHT = GREY_LIGHTER
+_HDR_BG   = GREY_DARK
 
 # 5-category colors (conformant + 4 deviating subcategories)
 _CAT_COLORS = {
-    "conformant": "#eeeeee",
-    "mom_only":   "#cccccc",   # Move on Model only  (skipped)
-    "mol_only":   "#888888",   # Move on Log only    (extra)
-    "mm_only":    "#555555",   # Mismatch Move only
-    "mixed":      "#222222",   # multiple violation types
+    "conformant": GREY_LIGHTER,  # yellow-green (best)
+    "mom_only":   GREY_MED,      # olive-grey   (skipped mandatory step)
+    "mol_only":   GREY_DARK,     # dark navy    (extra unexpected step)
+    "mm_only":    GREY_LIGHT,    # light olive  (mismatch)
+    "mixed":      GREY_DARK,     # dark navy    (multiple violation types)
 }
 _CAT_LABELS = {
     "conformant": "Conformant",

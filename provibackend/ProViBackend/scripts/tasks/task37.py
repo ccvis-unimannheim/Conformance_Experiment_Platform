@@ -33,21 +33,21 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.ticker as mticker
 
-from shared import save_svg, FONT_TITLE, FONT_LABEL, FONT_ANNOT
+from shared import save_svg, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS, FONT_TITLE, FONT_LABEL, FONT_ANNOT
 
-# ── Palette ───────────────────────────────────────────────────────────────────
-_C_DARK   = "#222222"
-_C_MED    = "#666666"
-_C_LIGHT  = "#aaaaaa"
-_C_XLIGHT = "#dddddd"
-_HDR_BG   = "#333333"
-_C_T1     = "#333333"   # Alignment-based (dark)
-_C_T2     = "#999999"   # Token-based Replay (light)
+# ── Cividis palette ───────────────────────────────────────────────────────────
+_C_DARK   = GREY_DARK
+_C_MED    = GREY_MED
+_C_LIGHT  = GREY_LIGHT
+_C_XLIGHT = GREY_LIGHTER
+_HDR_BG   = GREY_DARK
+_C_T1     = GREY_DARK    # Alignment-based (dark navy)
+_C_T2     = GREY_MED     # Token-based Replay (olive-grey)
 
 # Fitness bucket definitions (4 bands)
 _BUCKETS       = [(0.0, 0.25), (0.25, 0.5), (0.5, 0.75), (0.75, 1.01)]
 _BUCKET_LABELS = ["[0, 0.25)", "[0.25, 0.5)", "[0.5, 0.75)", "[0.75, 1.0]"]
-_BUCKET_COLORS = ["#222222", "#555555", "#888888", "#cccccc"]
+_BUCKET_COLORS = [GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER]
 
 
 def _bucket_idx(v: float) -> int:
@@ -389,7 +389,7 @@ def task37_heatmap(data, output_dir):
         mat[_bucket_idx(v1), _bucket_idx(v2)] += 1
 
     fig, ax = plt.subplots(figsize=(9, 7.5))
-    ax.imshow(mat, cmap="Greys", aspect="auto", vmin=0, vmax=max(int(mat.max()), 1))
+    ax.imshow(mat, cmap=CIVIDIS, aspect="auto", vmin=0, vmax=max(int(mat.max()), 1))
 
     for i in range(nb):
         for j in range(nb):

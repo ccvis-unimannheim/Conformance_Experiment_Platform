@@ -32,7 +32,7 @@ from shared import (
     save_svg, make_table, draw_parallel_sets, alignment_pairs_to_rows,
     draw_grouped_rate_bars, draw_composition_stacked_bars, draw_rate_matrix,
     draw_grouped_box_plot, draw_value_heatmap, render_empty_state_svg,
-    GREY_MED, GREY_LIGHT, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    GREY_MED, GREY_LIGHT, GREY_DARK, GREY_LIGHTER, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 TOP_N = 10
@@ -310,18 +310,12 @@ def task05_parallel_sets(agg_df: pd.DataFrame, viol_df: pd.DataFrame,
     ax.set_title("Parallel Sets: Outcome Group vs. Violation Pattern",
                  fontsize=FONT_TITLE, pad=12)
 
-    n_cats = len(cats)
-    grey_scale = ["#CCCCCC", "#AAAAAA", "#999999", "#888888", "#777777",
-                  "#666666", "#555555", "#444444", "#333333", "#222222", "#BBBBBB"]
-    right_colors = [grey_scale[i % len(grey_scale)] for i in range(n_cats)]
-
     draw_parallel_sets(
         ax,
         left_labels=left_labels,
         right_labels=right_labels,
         matrix=matrix,
         left_colors=[_COLOR_POSITIVE, _COLOR_NEGATIVE],
-        right_colors=right_colors,
         left_title="Outcome Group",
         right_title="Violation Pattern",
     )
