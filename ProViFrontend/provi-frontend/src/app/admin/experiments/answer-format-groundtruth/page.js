@@ -367,21 +367,23 @@ function ReferenceEditor({ gt, rubricInfo }) {
           </p>
         </div>
       )}
-      <div>
-        <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">
-          Supporting artefact
-        </p>
-        {gt.artefact_path ? (
-          <p className="text-xs text-on-surface-variant font-mono bg-surface-container-low rounded px-3 py-2">
-            {gt.artefact_path}
+      {!gt.reference && (
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">
+            Supporting artefact
           </p>
-        ) : (
-          <p className="text-xs text-on-surface-variant italic bg-surface-container-low rounded px-3 py-2">
-            No supporting data computed for this task yet — it will appear here once this task&apos;s
-            ground-truth computation is authored.
-          </p>
-        )}
-      </div>
+          {gt.artefact_path ? (
+            <p className="text-xs text-on-surface-variant font-mono bg-surface-container-low rounded px-3 py-2">
+              {gt.artefact_path}
+            </p>
+          ) : (
+            <p className="text-xs text-on-surface-variant italic bg-surface-container-low rounded px-3 py-2">
+              No supporting data computed for this task yet — it will appear here once this task&apos;s
+              ground-truth computation is authored.
+            </p>
+          )}
+        </div>
+      )}
       <div className="flex flex-col gap-1">
         <label className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
           Grading rubric
