@@ -357,6 +357,16 @@ function MatrixEditor({ gt, onChange }) {
 function ReferenceEditor({ gt, rubricInfo }) {
   return (
     <div className="flex flex-col gap-3">
+      {gt.reference && (
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">
+            Reference answer
+          </p>
+          <p className="text-sm text-on-surface whitespace-pre-wrap bg-surface-container-low rounded-lg px-3 py-2">
+            {gt.reference}
+          </p>
+        </div>
+      )}
       <div>
         <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">
           Supporting artefact
