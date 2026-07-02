@@ -106,8 +106,12 @@ def _trial_contract_fields(task_instances_by_task_id: dict, task_id: str) -> dic
 
 def _build_param_hints(task_key: str, parameters: dict) -> list[dict]:
     """Return [{label, value}] for each non-empty configured parameter."""
+    try:
+        spec = task_registry.get_param_spec(task_key)
+    except KeyError:
+        return []
     hints = []
-    for entry in task_registry.get_param_spec(task_key):
+    for entry in spec:
         key = entry.get("key", "")
         value = parameters.get(key)
         if value is None or value == "":
