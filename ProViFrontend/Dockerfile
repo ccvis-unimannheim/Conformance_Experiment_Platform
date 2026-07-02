@@ -3,7 +3,8 @@ ARG HTTPS_PROXY
 ARG NO_PROXY
 
 FROM node:22-alpine
-RUN apk update && apk upgrade --no-cache
+RUN apk update && apk upgrade --no-cache && \
+    npm install -g npm@latest
 
 WORKDIR /app
 COPY ./provi-frontend/package*.json ./provi-frontend/
