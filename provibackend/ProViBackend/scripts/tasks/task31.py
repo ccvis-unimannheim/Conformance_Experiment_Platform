@@ -336,7 +336,7 @@ def task31_table(df_table: pd.DataFrame, output_dir: str):
         col_widths=[0.50, 0.16, 0.22, 0.16],
         font_size=10.5,
         scale_xy=(1, 1.85),
-        header_color="#555555",
+        header_color=GREY_DARK,
         zebra=True,
     )
     ax.set_title("Conformance and Approval Rates", fontsize=FONT_TITLE, pad=12)
@@ -378,13 +378,13 @@ def _task31_draw_decision_tree(ax, tree: dict, title=True):
         ),
         value_pair_fn=lambda node: (node["value"][0], node["value"][1]),
         node_facecolor_fn=lambda node: (
-            "#888888"
+            GREY_DARK
             if node["value"][1] > node["value"][0]
-            else "#F4F4F4"
+            else GREY_LIGHTER
             if node["value"][1] == node["value"][0]
-            else "#E0E0E0"
+            else GREY_LIGHT
         ),
-        edge_arrowprops=dict(arrowstyle="-|>", color="#555555", linewidth=1.35, shrinkA=5, shrinkB=5),
+        edge_arrowprops=dict(arrowstyle="-|>", color=GREY_DARK, linewidth=1.35, shrinkA=5, shrinkB=5),
         edge_label_fontsize=FONT_ANNOT,
         edge_label_offset_y=0.14,
         x_pad_factor=0.70,
@@ -398,8 +398,8 @@ def task31_tree(tree: dict, output_dir: str):
     fig, ax = plt.subplots(figsize=(11.0, 6.6))
     _task31_draw_decision_tree(ax, tree)
     legend = [
-        mpatches.Patch(facecolor="#E0E0E0", edgecolor="#555555", label="Mostly not paid"),
-        mpatches.Patch(facecolor="#888888", edgecolor="#555555", label="Mostly paid"),
+        mpatches.Patch(facecolor=GREY_LIGHT, edgecolor=GREY_DARK, label="Mostly not paid"),
+        mpatches.Patch(facecolor=GREY_DARK,  edgecolor=GREY_DARK, label="Mostly paid"),
     ]
     ax.legend(handles=legend, loc="lower center", bbox_to_anchor=(0.5, -0.03), ncol=2, frameon=False, fontsize=FONT_ANNOT)
     fig.tight_layout(pad=1.2)
@@ -502,8 +502,8 @@ def task31_stacked_bar(df: pd.DataFrame, output_dir: str):
     prop_neg_arr = np.array([d["prop_neg"] for d in band_data])
 
     # Bottom segment = positive (darker), top = negative (lighter)
-    bars_pos = ax.bar(x, prop_pos_arr, color="#555555", edgecolor="white", label="Positive outcome")
-    bars_neg = ax.bar(x, prop_neg_arr, bottom=prop_pos_arr, color="#CCCCCC", edgecolor="white", label="Negative outcome")
+    bars_pos = ax.bar(x, prop_pos_arr, color=GREY_DARK, edgecolor="white", label="Positive outcome")
+    bars_neg = ax.bar(x, prop_neg_arr, bottom=prop_pos_arr, color=GREY_LIGHT, edgecolor="white", label="Negative outcome")
 
     # Annotate segments
     for i in range(n_nonempty):
@@ -530,8 +530,8 @@ def task31_stacked_bar(df: pd.DataFrame, output_dir: str):
     ax.set_axisbelow(True)
 
     legend_patches = [
-        mpatches.Patch(facecolor="#555555", label="Positive outcome"),
-        mpatches.Patch(facecolor="#CCCCCC", label="Negative outcome"),
+        mpatches.Patch(facecolor=GREY_DARK,  label="Positive outcome"),
+        mpatches.Patch(facecolor=GREY_LIGHT, label="Negative outcome"),
     ]
     ax.legend(handles=legend_patches,
               loc="lower center", bbox_to_anchor=(0.5, -0.25),
@@ -612,9 +612,9 @@ def task31_scatter_plot(df: pd.DataFrame, log, output_dir: str):
     pos_mask_s = out_s == 1
     neg_mask_s = out_s == 0
     ax.scatter(fit_s[neg_mask_s], jitter[neg_mask_s],
-               color="#BBBBBB", s=18, alpha=0.35, marker="o", label="Negative outcome")
+               color=GREY_LIGHT, s=18, alpha=0.35, marker="o", label="Negative outcome")
     ax.scatter(fit_s[pos_mask_s], 1 + jitter[pos_mask_s],
-               color="#333333", s=18, alpha=0.35, marker="o", label="Positive outcome")
+               color=GREY_DARK, s=18, alpha=0.35, marker="o", label="Positive outcome")
 
     ax.set_ylim(-0.45, 1.45)
     ax.set_yticks([-0.35, 1.35])
@@ -628,8 +628,8 @@ def task31_scatter_plot(df: pd.DataFrame, log, output_dir: str):
     ax.set_axisbelow(True)
     ax.set_title("Conformance Degree vs. Outcome", fontsize=FONT_TITLE, pad=8)
     legend_patches = [
-        mpatches.Patch(color="#333333", label="Positive outcome"),
-        mpatches.Patch(color="#BBBBBB", label="Negative outcome"),
+        mpatches.Patch(color=GREY_DARK,  label="Positive outcome"),
+        mpatches.Patch(color=GREY_LIGHT, label="Negative outcome"),
     ]
     ax.legend(handles=legend_patches, loc="upper left", frameon=False, fontsize=FONT_ANNOT)
 

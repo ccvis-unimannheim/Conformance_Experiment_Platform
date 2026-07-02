@@ -25,14 +25,15 @@ import matplotlib.patches as mpatches
 import warnings
 warnings.filterwarnings("ignore")
 
-from shared import save_svg, FONT_TITLE, FONT_LABEL, FONT_ANNOT, make_table
+from shared import save_svg, FONT_TITLE, FONT_LABEL, FONT_ANNOT, make_table, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS
+from matplotlib.colors import to_hex
 
 # ── Palette ──────────────────────────────────────────────────────────────────
-_C_DARK   = "#222222"
-_C_MED    = "#666666"
-_C_LIGHT  = "#aaaaaa"
-_C_XLIGHT = "#dddddd"
-_HDR_BG   = "#333333"
+_C_DARK   = GREY_DARK
+_C_MED    = GREY_MED
+_C_LIGHT  = GREY_LIGHT
+_C_XLIGHT = GREY_LIGHTER
+_HDR_BG   = GREY_DARK
 
 _TEMPLATE_PRIORITY = {
     "succession": 0, "chainsuccession": 1,
@@ -291,7 +292,7 @@ def task36_heatmap(data: dict, output_dir: str):
 
     # invert: higher violation → darker cell → higher imshow value in Greys
     masked = np.ma.masked_where(np.isnan(matrix), matrix)
-    im = ax.imshow(1 - masked, cmap="Greys", vmin=0, vmax=1, aspect="auto")
+    im = ax.imshow(1 - masked, cmap=CIVIDIS, vmin=0, vmax=1, aspect="auto")
 
     for i in range(n):
         for j in range(n):
@@ -339,7 +340,6 @@ def task36_network_diagram(data: dict, output_dir: str):
     Edge width : thin (low support) → thick (high support / trigger freq).
     """
     import networkx as nx
-    from matplotlib.colors import LinearSegmentedColormap
 
     binary   = data["binary"]
     n_traces = data["n_traces"]
@@ -389,16 +389,13 @@ def task36_network_diagram(data: dict, output_dir: str):
     sup_rng  = max(max_sup - min_sup, 1)
 
     def _edge_color(conf: float) -> str:
-        # 0% conf → #e0e0e0 (light gray), 100% conf → #111111 (near-black)
-        v = int(0xe0 - (0xe0 - 0x11) * conf)
-        return f"#{v:02x}{v:02x}{v:02x}"
+        return to_hex(CIVIDIS(max(0.0, min(1.0, conf))))
 
     def _edge_width(sup: int) -> float:
         return 0.9 + 4.1 * (sup - min_sup) / sup_rng
 
     # ── Figure: single subplot, task08 style ─────────────────────────────────
     from matplotlib.lines import Line2D
-    from matplotlib.colors import LinearSegmentedColormap
 
     fig, ax = plt.subplots(figsize=(14, 9))
     ax.set_facecolor("#fafbfc")
@@ -439,7 +436,7 @@ def task36_network_diagram(data: dict, output_dir: str):
                 ha="center", va="center", fontsize=FONT_ANNOT - 2,
                 color=_C_DARK,
                 bbox=dict(boxstyle="round,pad=0.2", fc="white",
-                          ec="#cccccc", alpha=0.95, linewidth=0.4),
+                          ec=_C_XLIGHT, alpha=0.95, linewidth=0.4),
                 zorder=3)
 
     # ── Draw nodes (invisible fill, dark border) ──────────────────────────────
@@ -464,18 +461,17 @@ def task36_network_diagram(data: dict, output_dir: str):
             ha="center", va="top",
             fontsize=max(FONT_ANNOT - 1, 6), color=_C_DARK, fontweight="bold",
             bbox=dict(boxstyle="round,pad=0.25", fc="white",
-                      ec="#dddddd", alpha=0.92, linewidth=0.4),
+                      ec=_C_XLIGHT, alpha=0.92, linewidth=0.4),
         )
 
     # ── Legend: edge color (conformance) + edge width (support) ──────────────
-    cmap = LinearSegmentedColormap.from_list("conf", ["#e0e0e0", "#111111"])
     legend_color = [
         Line2D([0], [0], color=_edge_color(r), lw=2.5,
                label=f"{r:.0%}  conformance")
         for r in [0.38, 0.60, 0.78, 1.00]
     ]
     legend_width = [
-        Line2D([0], [0], color="#666666", lw=_edge_width(s),
+        Line2D([0], [0], color=_C_MED, lw=_edge_width(s),
                label=f"{s:,}  traces")
         for s in [min_sup, int(min_sup + sup_rng * 0.5), max_sup]
     ]
@@ -483,12 +479,12 @@ def task36_network_diagram(data: dict, output_dir: str):
     leg1 = ax.legend(handles=legend_color, loc="lower left",
                      title="Edge color → Conformance", title_fontsize=FONT_ANNOT - 1,
                      fontsize=FONT_ANNOT - 1, frameon=True, framealpha=0.95,
-                     edgecolor="#dddddd")
+                     edgecolor=_C_XLIGHT)
     ax.add_artist(leg1)
     ax.legend(handles=legend_width, loc="lower right",
               title="Edge width → Support", title_fontsize=FONT_ANNOT - 1,
               fontsize=FONT_ANNOT - 1, frameon=True, framealpha=0.95,
-              edgecolor="#dddddd")
+              edgecolor=_C_XLIGHT)
 
     fig.tight_layout(pad=1.2)
 

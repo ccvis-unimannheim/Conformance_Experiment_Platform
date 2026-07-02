@@ -91,7 +91,7 @@ def style_table(
     ncols: int,
     nrows: int,
     header_rows: int = 1,
-    header_color: str = "#555555",
+    header_color: str = GREY_DARK,
     zebra: bool = True,
     odd_color: str = "#FFFFFF",
     even_color: str = "#F0F0F0",
@@ -128,7 +128,7 @@ def make_table(
     font_size: float = FONT_TABLE,
     scale_xy=(1.0, 1.7),
     header_rows: int = 1,
-    header_color: str = "#555555",
+    header_color: str = GREY_DARK,
     zebra: bool = True,
     highlight_last_row: bool = False,
     cell_pad: float = None,
@@ -1781,7 +1781,7 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
                         table_rows=None, table_cols=None,
                         legend_below_panels=True, legend_center=True,
                         table_stretch: bool = False,
-                        table_header_bg: str = "#555555"):
+                        table_header_bg: str = GREY_DARK):
     """Compose several BPMN panels (stacked vertically) + an optional table into one SVG.
 
     panels: list of {"parsed", "node_style_fn", "faded_flow_fn"(opt), "subtitle"}.

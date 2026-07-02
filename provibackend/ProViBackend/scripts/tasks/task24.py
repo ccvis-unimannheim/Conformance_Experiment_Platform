@@ -25,6 +25,7 @@ from collections import Counter
 
 from shared import (
     parse_bpmn_model, render_bpmn_annotated, compose_bpmn_panels,
+    GREY_DARK, GREY_MED, GREY_LIGHTER,
 )
 
 # Minimum DFG edge frequency to count as real observed behaviour (raise to de-clutter)
@@ -138,10 +139,10 @@ def _build_diff_panel(diff: dict) -> dict:
 
     def _node_style(eid, elem):
         if eid in missing_ids:
-            return ("#EBEBEB", "#BBBBBB", 2, "#AAAAAA")
+            return (GREY_LIGHTER, GREY_MED, 2, GREY_DARK)
         if eid in violation_ids:
-            return ("white", "#444444", 3, "#333333")
-        return ("white", "#888888", 2, "#333333")
+            return ("white", GREY_DARK, 3, GREY_DARK)
+        return ("white", GREY_MED, 2, GREY_DARK)
 
     def _flow_faded(flow_id):
         sf = seq_flows.get(flow_id)
@@ -166,9 +167,9 @@ def _build_diff_panel(diff: dict) -> dict:
         summary = "; ".join(parts)
 
     legend_items = [
-        ("white",   "#888888", 2, "Conform (in model and observed)"),
-        ("#EBEBEB", "#BBBBBB", 2, "In model, not observed"),
-        ("white",   "#444444", 3, "Endpoint of observed-not-in-model transition"),
+        ("white",    GREY_MED,     2, "Conform (in model and observed)"),
+        (GREY_LIGHTER, GREY_MED,   2, "In model, not observed"),
+        ("white",    GREY_DARK,    3, "Endpoint of observed-not-in-model transition"),
     ]
 
     return {

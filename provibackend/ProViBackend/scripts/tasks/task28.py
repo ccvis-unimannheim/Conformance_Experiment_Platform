@@ -29,24 +29,26 @@ from matplotlib import gridspec
 from matplotlib.colors import LinearSegmentedColormap
 
 from shared import (
-    save_svg, make_table, GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    save_svg, make_table, GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, CIVIDIS,
+    FONT_TITLE, FONT_LABEL, FONT_ANNOT,
     chevron_figure_width, chevron_nodes_from_alignment_rows, draw_chevron_strip,
     alignment_pairs_to_rows, build_violation_pattern_df,
     draw_value_heatmap, draw_rate_matrix, draw_grouped_box_plot,
     parse_bpmn_model, render_bpmn_annotated, compose_bpmn_panels,
     render_empty_state_svg, contrasting_text_color,
 )
+from matplotlib.colors import to_hex
 
 
 # Task 2 – Location / alignment visualizations (representative trace)
 # ---------------------------------------------------------------------------
 
 # Task 2 helpers
-TASK28_HEADER_COLOR = "#555555"
-TASK28_SYNC_ROW_COLOR = "#F2F2F2"
-TASK28_MODEL_ROW_COLOR = "#E0E0E0"
-TASK28_LOG_ROW_COLOR = "#C8C8C8"
-TASK28_MISMATCH_ROW_COLOR = "#D8D8D8"
+TASK28_HEADER_COLOR = GREY_DARK
+TASK28_SYNC_ROW_COLOR = GREY_LIGHTER
+TASK28_MODEL_ROW_COLOR = GREY_LIGHT
+TASK28_LOG_ROW_COLOR = GREY_MED
+TASK28_MISMATCH_ROW_COLOR = GREY_MED
 TASK28_TABLE_EDGE_COLOR = "#FFFFFF"
 TASK28_TABLE_COL_LABELS = ["Step", "Log Move", "Model Move", "Status"]
 TASK28_TABLE_COL_WIDTHS = [0.065, 0.375, 0.375, 0.185]
@@ -310,24 +312,24 @@ def task28_flow_chart_elaborate_bpmn(ctx: dict, model_path: str, output_dir: str
         return
 
     status = _trace_act_status(ctx["rows"])
-    fills = {"conform": "#E8E8E8", "skipped": "#999999",
-             "extra": "#555555", "mismatch": "#777777"}
+    fills = {"conform": GREY_LIGHTER, "skipped": GREY_LIGHT,
+             "extra": GREY_DARK, "mismatch": GREY_MED}
 
     def node_style_fn(eid, elem):
         name = elem.get("name", "")
         if elem.get("kind") == "task" and name in status:
             fill = fills[status[name]]
-            tc = "white" if int(fill[1:3], 16) < 0x99 else "#222222"
-            return fill, "#333333", 2.5, tc
+            tc = contrasting_text_color(fill)
+            return fill, GREY_DARK, 2.5, tc
         if elem.get("kind") == "task":
-            return "white", "#888888", 1.5, "#333333"
-        return "white", "#888888", 2, "#333333"
+            return "white", GREY_MED, 1.5, GREY_DARK
+        return "white", GREY_MED, 2, GREY_DARK
 
     legend = [
-        ("#E8E8E8", "#333333", 1.0, "Synchronous move"),
-        ("#999999", "#333333", 1.0, "Model move"),
-        ("#555555", "#333333", 1.0, "Log move"),
-        ("white",   "#888888", 1.0, "Not in this trace"),
+        (GREY_LIGHTER, GREY_DARK, 1.0, "Synchronous move"),
+        (GREY_LIGHT,   GREY_DARK, 1.0, "Model move"),
+        (GREY_DARK,    GREY_DARK, 1.0, "Log move"),
+        ("white",      GREY_MED,  1.0, "Not in this trace"),
     ]
     render_bpmn_annotated(
         parsed, out,
@@ -356,7 +358,7 @@ def task28_flow_chart_elaborate_bpmn(ctx: dict, model_path: str, output_dir: str
 
 TOP_N = 12
 MOVE_TYPES = ["Model Move", "Log Move", "Mismatch Move"]
-MOVE_TYPE_COLORS = {"Model Move": "#555555", "Log Move": "#999999", "Mismatch Move": "#CCCCCC"}
+MOVE_TYPE_COLORS = {"Model Move": GREY_DARK, "Log Move": GREY_MED, "Mismatch Move": GREY_LIGHT}
 _MOVE_RANK = {m: i for i, m in enumerate(MOVE_TYPES)}
 
 
@@ -413,9 +415,7 @@ def _activity_freq(df):
 def _freq_shade(count, max_count):
     frac = (count / max_count) if max_count > 0 else 0.0
     frac = max(0.0, min(1.0, frac))
-    lo, hi = 0xF0, 0x44
-    v = int(round(lo + (hi - lo) * frac))
-    return f"#{v:02X}{v:02X}{v:02X}"
+    return to_hex(CIVIDIS(frac))
 
 
 # --- Idiom: scatter_plot — per-trace dotted chart (scan for deviating traces) --
@@ -429,9 +429,9 @@ def task28_scatter_plot(tdf, output_dir):
     y = tdf["n_dev"].to_numpy(dtype=float)
     clean = y == 0
     fig, ax = plt.subplots(figsize=(11, 5.5))
-    ax.scatter(x[clean], y[clean], c="#CCCCCC", s=8, alpha=0.45, linewidths=0,
+    ax.scatter(x[clean], y[clean], c=GREY_LIGHT, s=8, alpha=0.45, linewidths=0,
                label="conformant")
-    ax.scatter(x[~clean], y[~clean], c="#444444", s=10, alpha=0.5, linewidths=0,
+    ax.scatter(x[~clean], y[~clean], c=GREY_DARK, s=10, alpha=0.5, linewidths=0,
                label="has deviations")
     ax.set_xlabel("Trace (log order)", fontsize=FONT_LABEL)
     ax.set_ylabel("Deviating steps per trace", fontsize=FONT_LABEL)
@@ -455,7 +455,7 @@ def task28_boxplot(tdf, output_dir):
     data = [tdf["n_dev"].to_numpy(dtype=float)]
     vmax = float(data[0].max()) if data[0].size else 1.0
     fig, ax = plt.subplots(figsize=(5.0, 6))
-    draw_grouped_box_plot(ax, data, ["All traces"], ["#999999"],
+    draw_grouped_box_plot(ax, data, ["All traces"], [GREY_MED],
                           ylabel="Deviating steps per trace", ylim=(-0.3, vmax + 1))
     ax.set_title("Deviations per Trace — spot the outliers", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
@@ -682,9 +682,9 @@ def task28_network_diagram(alignments, df, output_dir):
 # --- Idiom: flow_chart_elaborate_table — BPMN shaded by frequency + table ----
 
 _BPMN_LEGEND = [
-    ("#F0F0F0", "#777777", 1.0, "No / few deviations"),
-    ("#9A9A9A", "#777777", 1.0, "Some deviations"),
-    ("#444444", "#777777", 1.0, "Most deviations"),
+    (GREY_LIGHTER, GREY_MED, 1.0, "No / few deviations"),
+    (GREY_LIGHT,   GREY_MED, 1.0, "Some deviations"),
+    (GREY_DARK,    GREY_MED, 1.0, "Most deviations"),
 ]
 
 
@@ -693,9 +693,9 @@ def _node_style_fn(act_freq, max_count):
         name = elem.get("name", "")
         if elem.get("kind") == "task" and name in act_freq:
             fill = _freq_shade(act_freq[name], max_count)
-            tc = "white" if int(fill[1:3], 16) < 0x99 else "#222222"
-            return fill, "#777777", 1.5, tc
-        return "white", "#888888", 2, "#333333"
+            tc = contrasting_text_color(fill)
+            return fill, GREY_MED, 1.5, tc
+        return "white", GREY_MED, 2, GREY_DARK
     return style
 
 
