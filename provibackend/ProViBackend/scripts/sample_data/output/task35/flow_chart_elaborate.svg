@@ -2,8 +2,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1505.0" height="479.0" viewBox="0 0 1505.0 479.0">
 <defs><marker id='arr' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='5' markerHeight='5' orient='auto' markerUnits='userSpaceOnUse'><path d='M0,0 L10,5 L0,10 Z' fill='#888'/></marker></defs>
 <rect width='100%' height='100%' fill='white'/>
-<text x='752.5' y='28' text-anchor='middle' font-family='Arial,sans-serif' font-size='14' font-weight='bold' fill='#222222'>Guideline Violations in Process Model</text>
-<text x='752.5' y='46' text-anchor='middle' font-family='Arial,sans-serif' font-size='9' fill='#666666'>Darker = more violations  ·  node labels: skip (↑) and insert (↓) counts</text>
+<text x='752.5' y='28' text-anchor='middle' font-family='Arial,sans-serif' font-size='14' font-weight='bold' fill='#243c6e'>Guideline Violations in Process Model</text>
+<text x='752.5' y='46' text-anchor='middle' font-family='Arial,sans-serif' font-size='9' fill='#727274'>Darker = more violations  ·  node labels: skip (↑) and insert (↓) counts</text>
 <polyline points='215.0,174.0 265.0,174.0' fill='none' stroke='#999' stroke-width='1.8' marker-end='url(#arr)'/>
 <polyline points='345.0,174.0 396.0,174.0' fill='none' stroke='#999' stroke-width='1.8' marker-end='url(#arr)'/>
 <polyline points='420.0,175.0 470.0,175.0' fill='none' stroke='#999' stroke-width='1.8' marker-end='url(#arr)'/>
@@ -31,68 +31,68 @@
 <circle cx='1432.5' cy='242.5' r='12.5' fill='white' stroke='#777' stroke-width='3'/>
 <text x='1432.5' y='269.0' text-anchor='middle' font-family='Arial,sans-serif' font-size='8' fill='#777'>END</text>
 <clipPath id='clip_node_960a40b7-711c-42ae-a851-22d7fab0d76d'><rect x='1216.0' y='86.0' width='78.0' height='38.0' rx='5'/></clipPath>
-<rect x='1215.0' y='85.0' width='80.0' height='40.0' rx='6' fill='#a9a9a9' stroke='#777' stroke-width='2'/>
-<text x='1255.0' y='98.0' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='9' fill='#222222' clip-path='url(#clip_node_960a40b7-711c-42ae-a851-22d7fab0d76d)'>A ACTIVATED</text>
-<text x='1255.0' y='120.0' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='7.5' fill='#666666' textLength='45.0' lengthAdjust='spacingAndGlyphs' clip-path='url(#clip_node_960a40b7-711c-42ae-a851-22d7fab0d76d)'>↑322  ↓322</text>
+<rect x='1215.0' y='85.0' width='80.0' height='40.0' rx='6' fill='#eeeeee' stroke='#777' stroke-width='2'/>
+<text x='1255.0' y='98.8' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='10' fill='#243c6e' clip-path='url(#clip_node_960a40b7-711c-42ae-a851-22d7fab0d76d)'>A</text>
+<text x='1255.0' y='111.2' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='10' fill='#243c6e' clip-path='url(#clip_node_960a40b7-711c-42ae-a851-22d7fab0d76d)'>ACTIVATED</text>
 <clipPath id='clip_node_716fa40f-e489-4062-89cc-b583dcb26edc'><rect x='1216.0' y='296.0' width='78.0' height='38.0' rx='5'/></clipPath>
 <rect x='1215.0' y='295.0' width='80.0' height='40.0' rx='6' fill='#eeeeee' stroke='#777' stroke-width='2'/>
-<text x='1255.0' y='308.8' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='10' fill='#222222' clip-path='url(#clip_node_716fa40f-e489-4062-89cc-b583dcb26edc)'>A</text>
-<text x='1255.0' y='321.2' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='10' fill='#222222' clip-path='url(#clip_node_716fa40f-e489-4062-89cc-b583dcb26edc)'>CANCELLED</text>
+<text x='1255.0' y='308.8' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='10' fill='#243c6e' clip-path='url(#clip_node_716fa40f-e489-4062-89cc-b583dcb26edc)'>A</text>
+<text x='1255.0' y='321.2' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='10' fill='#243c6e' clip-path='url(#clip_node_716fa40f-e489-4062-89cc-b583dcb26edc)'>CANCELLED</text>
 <clipPath id='clip_node_91e1cb57-5582-4d67-9ee1-6779c5c2764b'><rect x='471.0' y='156.0' width='78.0' height='38.0' rx='5'/></clipPath>
 <rect x='470.0' y='155.0' width='80.0' height='40.0' rx='6' fill='#eeeeee' stroke='#777' stroke-width='2'/>
-<text x='510.0' y='168.8' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='10' fill='#222222' clip-path='url(#clip_node_91e1cb57-5582-4d67-9ee1-6779c5c2764b)'>A</text>
-<text x='510.0' y='181.2' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='10' fill='#222222' clip-path='url(#clip_node_91e1cb57-5582-4d67-9ee1-6779c5c2764b)'>PREACCEPTE</text>
+<text x='510.0' y='168.8' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='10' fill='#243c6e' clip-path='url(#clip_node_91e1cb57-5582-4d67-9ee1-6779c5c2764b)'>A</text>
+<text x='510.0' y='181.2' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='10' fill='#243c6e' clip-path='url(#clip_node_91e1cb57-5582-4d67-9ee1-6779c5c2764b)'>PREACCEPTE</text>
 <polygon points='612.5,163.0 625.0,175.5 612.5,188.0 600.0,175.5' fill='#f0f0f0' stroke='#777' stroke-width='2'/>
 <text x='612.5' y='176.5' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='13' fill='#777'>×</text>
 <clipPath id='clip_node_9bce8374-55df-423c-9c07-181673e7aaa8'><rect x='676.0' y='156.0' width='78.0' height='38.0' rx='5'/></clipPath>
 <rect x='675.0' y='155.0' width='80.0' height='40.0' rx='6' fill='#eeeeee' stroke='#777' stroke-width='2'/>
-<text x='715.0' y='175.0' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='10' fill='#222222' clip-path='url(#clip_node_9bce8374-55df-423c-9c07-181673e7aaa8)'>A ACCEPTED</text>
+<text x='715.0' y='175.0' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='10' fill='#243c6e' clip-path='url(#clip_node_9bce8374-55df-423c-9c07-181673e7aaa8)'>A ACCEPTED</text>
 <polygon points='817.5,163.0 830.0,175.5 817.5,188.0 805.0,175.5' fill='#f0f0f0' stroke='#777' stroke-width='2'/>
 <text x='817.5' y='176.5' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='13' fill='#777'>×</text>
 <clipPath id='clip_node_2e367281-6202-4217-988b-e4aa1239916e'><rect x='881.0' y='157.0' width='78.0' height='38.0' rx='5'/></clipPath>
 <rect x='880.0' y='156.0' width='80.0' height='40.0' rx='6' fill='#eeeeee' stroke='#777' stroke-width='2'/>
-<text x='920.0' y='169.8' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='10' fill='#222222' clip-path='url(#clip_node_2e367281-6202-4217-988b-e4aa1239916e)'>A</text>
-<text x='920.0' y='182.2' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='10' fill='#222222' clip-path='url(#clip_node_2e367281-6202-4217-988b-e4aa1239916e)'>FINALIZED</text>
+<text x='920.0' y='169.8' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='10' fill='#243c6e' clip-path='url(#clip_node_2e367281-6202-4217-988b-e4aa1239916e)'>A</text>
+<text x='920.0' y='182.2' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='10' fill='#243c6e' clip-path='url(#clip_node_2e367281-6202-4217-988b-e4aa1239916e)'>FINALIZED</text>
 <polygon points='1008.5,164.0 1021.0,176.5 1008.5,189.0 996.0,176.5' fill='#f0f0f0' stroke='#777' stroke-width='2'/>
 <text x='1008.5' y='177.5' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='13' fill='#777'>×</text>
 <clipPath id='clip_node_3d6d153e-ccf4-4c96-927e-eb458d4dbfd1'><rect x='1086.0' y='157.0' width='78.0' height='38.0' rx='5'/></clipPath>
-<rect x='1085.0' y='156.0' width='80.0' height='40.0' rx='6' fill='#333333' stroke='#777' stroke-width='2'/>
-<text x='1125.0' y='169.0' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='10' fill='white' clip-path='url(#clip_node_3d6d153e-ccf4-4c96-927e-eb458d4dbfd1)'>A APPROVED</text>
-<text x='1125.0' y='191.0' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='8.5' fill='white' textLength='51.0' lengthAdjust='spacingAndGlyphs' clip-path='url(#clip_node_3d6d153e-ccf4-4c96-927e-eb458d4dbfd1)'>↑869  ↓869</text>
+<rect x='1085.0' y='156.0' width='80.0' height='40.0' rx='6' fill='#eeeeee' stroke='#777' stroke-width='2'/>
+<text x='1125.0' y='176.0' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='10' fill='#243c6e' clip-path='url(#clip_node_3d6d153e-ccf4-4c96-927e-eb458d4dbfd1)'>A APPROVED</text>
 <clipPath id='clip_node_6138700a-d273-4f3d-9646-50d0f4f15ada'><rect x='1218.0' y='157.0' width='78.0' height='38.0' rx='5'/></clipPath>
 <rect x='1217.0' y='156.0' width='80.0' height='40.0' rx='6' fill='#eeeeee' stroke='#777' stroke-width='2'/>
-<text x='1257.0' y='169.8' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='10' fill='#222222' clip-path='url(#clip_node_6138700a-d273-4f3d-9646-50d0f4f15ada)'>A</text>
-<text x='1257.0' y='182.2' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='10' fill='#222222' clip-path='url(#clip_node_6138700a-d273-4f3d-9646-50d0f4f15ada)'>REGISTERED</text>
+<text x='1257.0' y='169.8' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='10' fill='#243c6e' clip-path='url(#clip_node_6138700a-d273-4f3d-9646-50d0f4f15ada)'>A</text>
+<text x='1257.0' y='182.2' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='10' fill='#243c6e' clip-path='url(#clip_node_6138700a-d273-4f3d-9646-50d0f4f15ada)'>REGISTERED</text>
 <polygon points='1358.5,164.0 1371.0,176.5 1358.5,189.0 1346.0,176.5' fill='#f0f0f0' stroke='#777' stroke-width='2'/>
 <text x='1358.5' y='177.5' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='13' fill='#777'>+</text>
 <clipPath id='clip_node_fef75039-c998-4341-9239-cb01982ac22e'><rect x='1216.0' y='223.0' width='78.0' height='38.0' rx='5'/></clipPath>
-<rect x='1215.0' y='222.0' width='80.0' height='40.0' rx='6' fill='#c3c3c3' stroke='#777' stroke-width='2'/>
-<text x='1255.0' y='235.0' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='10' fill='#222222' clip-path='url(#clip_node_fef75039-c998-4341-9239-cb01982ac22e)'>A DECLINED</text>
-<text x='1255.0' y='257.0' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='8.5' fill='#666666' textLength='40.8' lengthAdjust='spacingAndGlyphs' clip-path='url(#clip_node_fef75039-c998-4341-9239-cb01982ac22e)'>↑399  ↓0</text>
+<rect x='1215.0' y='222.0' width='80.0' height='40.0' rx='6' fill='#333333' stroke='#777' stroke-width='2'/>
+<text x='1255.0' y='235.0' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='10' fill='white' clip-path='url(#clip_node_fef75039-c998-4341-9239-cb01982ac22e)'>A DECLINED</text>
+<text x='1255.0' y='257.0' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='8.5' fill='white' textLength='51.0' lengthAdjust='spacingAndGlyphs' clip-path='url(#clip_node_fef75039-c998-4341-9239-cb01982ac22e)'>↑13087  ↓0</text>
 <polygon points='1108.5,261.0 1121.0,273.5 1108.5,286.0 1096.0,273.5' fill='#f0f0f0' stroke='#777' stroke-width='2'/>
 <text x='1108.5' y='274.5' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='13' fill='#777'>×</text>
 <polygon points='407.5,162.0 420.0,174.5 407.5,187.0 395.0,174.5' fill='#f0f0f0' stroke='#777' stroke-width='2'/>
 <text x='407.5' y='175.5' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='13' fill='#777'>×</text>
 <clipPath id='clip_node_c3d533f2-4a4b-44ee-bc3b-6b360a8eb46c'><rect x='266.0' y='155.0' width='78.0' height='38.0' rx='5'/></clipPath>
-<rect x='265.0' y='154.0' width='80.0' height='40.0' rx='6' fill='#eeeeee' stroke='#777' stroke-width='2'/>
-<text x='305.0' y='167.8' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='10' fill='#222222' clip-path='url(#clip_node_c3d533f2-4a4b-44ee-bc3b-6b360a8eb46c)'>A</text>
-<text x='305.0' y='180.2' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='10' fill='#222222' clip-path='url(#clip_node_c3d533f2-4a4b-44ee-bc3b-6b360a8eb46c)'>PARTLYSUBM</text>
+<rect x='265.0' y='154.0' width='80.0' height='40.0' rx='6' fill='#333333' stroke='#777' stroke-width='2'/>
+<text x='305.0' y='162.5' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='6.5' fill='white' clip-path='url(#clip_node_c3d533f2-4a4b-44ee-bc3b-6b360a8eb46c)'>A</text>
+<text x='305.0' y='171.5' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='6.5' fill='white' clip-path='url(#clip_node_c3d533f2-4a4b-44ee-bc3b-6b360a8eb46c)'>PARTLYSUBMITTED</text>
+<text x='305.0' y='189.0' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='6' fill='white' textLength='36.0' lengthAdjust='spacingAndGlyphs' clip-path='url(#clip_node_c3d533f2-4a4b-44ee-bc3b-6b360a8eb46c)'>↑13087  ↓0</text>
 <clipPath id='clip_node_d8fd7b75-26df-4db9-a3c3-444432bb3034'><rect x='136.0' y='155.0' width='78.0' height='38.0' rx='5'/></clipPath>
-<rect x='135.0' y='154.0' width='80.0' height='40.0' rx='6' fill='#eeeeee' stroke='#777' stroke-width='2'/>
-<text x='175.0' y='167.8' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='10' fill='#222222' clip-path='url(#clip_node_d8fd7b75-26df-4db9-a3c3-444432bb3034)'>A</text>
-<text x='175.0' y='180.2' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='10' fill='#222222' clip-path='url(#clip_node_d8fd7b75-26df-4db9-a3c3-444432bb3034)'>SUBMITTED</text>
+<rect x='135.0' y='154.0' width='80.0' height='40.0' rx='6' fill='#333333' stroke='#777' stroke-width='2'/>
+<text x='175.0' y='167.0' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='9' fill='white' clip-path='url(#clip_node_d8fd7b75-26df-4db9-a3c3-444432bb3034)'>A SUBMITTED</text>
+<text x='175.0' y='189.0' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='7.5' fill='white' textLength='45.0' lengthAdjust='spacingAndGlyphs' clip-path='url(#clip_node_d8fd7b75-26df-4db9-a3c3-444432bb3034)'>↑13087  ↓0</text>
 <circle cx='72.5' cy='174.5' r='12.5' fill='white' stroke='#777' stroke-width='2'/>
 <text x='72.5' y='201.0' text-anchor='middle' font-family='Arial,sans-serif' font-size='8' fill='#777'>START</text>
 <polygon points='1190.5,162.0 1203.0,174.5 1190.5,187.0 1178.0,174.5' fill='#f0f0f0' stroke='#777' stroke-width='2'/>
 <text x='1190.5' y='175.5' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='13' fill='#777'>+</text>
-<rect x='480.4' y='411.0' width='516.3' height='38.0' rx='5' fill='#fafafa' stroke='#cccccc' stroke-width='1'/>
-<rect x='494.4' y='421.0' width='26' height='16' fill='#eeeeee' stroke='#aaa' stroke-width='0.8'/>
-<text x='524.4' y='435.0' font-family='Arial,sans-serif' font-size='10' fill='#666666'>0</text>
-<rect x='552.4' y='421.0' width='26' height='16' fill='#bfbfbf' stroke='#aaa' stroke-width='0.8'/>
-<rect x='610.4' y='421.0' width='26' height='16' fill='#909090' stroke='#aaa' stroke-width='0.8'/>
-<text x='640.4' y='435.0' font-family='Arial,sans-serif' font-size='10' fill='#666666'>50%</text>
-<rect x='668.4' y='421.0' width='26' height='16' fill='#626262' stroke='#aaa' stroke-width='0.8'/>
-<rect x='726.4' y='421.0' width='26' height='16' fill='#333333' stroke='#aaa' stroke-width='0.8'/>
-<text x='756.4' y='435.0' font-family='Arial,sans-serif' font-size='10' fill='#666666'>1,738</text>
-<text x='794.9' y='435.0' font-family='Arial,sans-serif' font-size='10' fill='#666666'>violations  ·  most: A_APPROVED</text>
+<rect x='474.2' y='411.0' width='528.6' height='38.0' rx='5' fill='#fafafa' stroke='#cccccc' stroke-width='1'/>
+<rect x='488.2' y='421.0' width='26' height='16' fill='#eeeeee' stroke='#aaa' stroke-width='0.8'/>
+<text x='518.2' y='435.0' font-family='Arial,sans-serif' font-size='10' fill='#727274'>0</text>
+<rect x='546.2' y='421.0' width='26' height='16' fill='#bfbfbf' stroke='#aaa' stroke-width='0.8'/>
+<rect x='604.2' y='421.0' width='26' height='16' fill='#909090' stroke='#aaa' stroke-width='0.8'/>
+<text x='634.2' y='435.0' font-family='Arial,sans-serif' font-size='10' fill='#727274'>50%</text>
+<rect x='662.2' y='421.0' width='26' height='16' fill='#626262' stroke='#aaa' stroke-width='0.8'/>
+<rect x='720.2' y='421.0' width='26' height='16' fill='#333333' stroke='#aaa' stroke-width='0.8'/>
+<text x='750.2' y='435.0' font-family='Arial,sans-serif' font-size='10' fill='#727274'>13,087</text>
+<text x='795.2' y='435.0' font-family='Arial,sans-serif' font-size='10' fill='#727274'>violations  ·  most: CASE_OPENED</text>
 </svg>
