@@ -92,7 +92,7 @@ from matplotlib.colors import LinearSegmentedColormap
 from shared import (
     save_svg, make_table, build_variant_df, variant_table_data,
     draw_value_heatmap,
-    GREY_MED, GREY_LIGHT, CIVIDIS, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    GREY_MED, GREY_LIGHT, CIVIDIS_R, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 TOP_N = 15
@@ -260,7 +260,7 @@ def task04_matrix(vdf: pd.DataFrame, output_dir: str):
     """
     top = vdf
     raw, norm, metrics, labels = _variant_metric_grid(top)
-    cmap = CIVIDIS
+    cmap = CIVIDIS_R
     fmts = ["{:.3f}"]
 
     fig_h = max(3.5, 0.5 * len(labels) + 1.4)

@@ -893,7 +893,7 @@ def draw_value_heatmap(fig, ax, data, row_labels, col_labels,
 
     data = np.asarray(data, dtype=float)
     if cmap is None:
-        cmap = "cividis"
+        cmap = CIVIDIS_R
     vmax = max(data.max(), 1.0) if data.size else 1.0
     im = ax.imshow(data, cmap=cmap, vmin=0, vmax=vmax, aspect="auto")
 
