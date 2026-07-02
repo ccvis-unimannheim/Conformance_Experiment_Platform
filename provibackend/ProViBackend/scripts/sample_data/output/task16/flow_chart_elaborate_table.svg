@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1633.0" height="619.0" viewBox="0 0 1633.0 619.0">
+<defs><marker id="arrow-grey" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,1 L10,5 L0,9 Z" fill="#444444"/></marker><marker id="arrow-faded" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,1 L10,5 L0,9 Z" fill="#AAAAAA"/></marker></defs>
+<rect x="0" y="0" width="100%" height="100%" fill="white"/>
+<text x="24" y="40" font-family="Arial, sans-serif" font-size="13" fill="black">Violations on the Process Model   |   n = 13087   mean fitness = 0.979   conformant = 100.0%   total violations = 2781</text>
+<text x="24" y="80.0" font-family="Arial, sans-serif" font-size="11" fill="#333">Activity shade: lighter = fewer violations · darker = more violations</text>
+<polyline points="240.0,188.0 271.9,188.0" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="378.1,188.0 409.5,188.5" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="445.5,188.5 485.0,189.0" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="575.0,189.0 614.5,189.5" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="650.5,189.5 690.0,189.0" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="780.0,189.0 819.5,189.5" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="855.5,189.5 895.0,190.0" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="1322.0,190.0 1360.5,190.5" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="1320.0,119.0 1379.0,119.0 1378.5,172.5" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="1320.0,256.0 1440.0,256.0" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="1320.0,329.0 1453.0,329.0 1453.0,269.0" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="985.0,190.0 1010.5,190.5" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="1046.5,190.5 1100.0,190.0" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="427.5,206.5 427.5,367.0 1039.0,367.0 1039.0,287.5 1110.5,287.5" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="105.0,188.5 150.0,188.0" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="837.5,207.5 837.5,308.0 1110.5,308.0 1110.5,287.5" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="1028.5,208.5 1028.5,287.0 1110.5,287.5" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="632.5,207.5 632.5,328.0 1110.5,328.0 1110.5,287.5" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="1396.5,190.5 1453.0,190.5 1453.0,244.0" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="1128.5,305.5 1128.5,329.0 1230.0,329.0" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="1128.5,269.5 1128.5,256.0 1230.0,256.0" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="1228.5,188.5 1232.0,190.0" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="1190.0,190.0 1192.5,188.5" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="1210.5,170.5 1210.5,119.0 1230.0,119.0" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<circle cx="1452.5" cy="256.5" r="12.5" fill="#EFEFEF" stroke="#777777" stroke-width="3"/>
+<text x="1475.0" y="256.5" text-anchor="start" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#777777">END EVENT</text>
+<rect x="1230.0" y="96.0" width="90.0" height="46.0" rx="7" ry="7" fill="#B0B0B0" stroke="#777777" stroke-width="1.2"/>
+<text x="1275.0" y="119.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#222222">A_ACTIVATED</text>
+<rect x="1230.0" y="306.0" width="90.0" height="46.0" rx="7" ry="7" fill="#F0F0F0" stroke="#777777" stroke-width="1.2"/>
+<text x="1275.0" y="329.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#222222">A_CANCELLED</text>
+<rect x="485.0" y="166.0" width="90.0" height="46.0" rx="7" ry="7" fill="#F0F0F0" stroke="#777777" stroke-width="1.2"/>
+<text x="530.0" y="189.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#222222">A_PREACCEPTED</text>
+<polygon points="632.5,171.5 650.5,189.5 632.5,207.5 614.5,189.5" fill="#FFFFFF" stroke="#777777" stroke-width="1.2"/>
+<text x="632.5" y="190.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="13.0" fill="#777777">X</text>
+<rect x="690.0" y="166.0" width="90.0" height="46.0" rx="7" ry="7" fill="#F0F0F0" stroke="#777777" stroke-width="1.2"/>
+<text x="735.0" y="189.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#222222">A_ACCEPTED</text>
+<polygon points="837.5,171.5 855.5,189.5 837.5,207.5 819.5,189.5" fill="#FFFFFF" stroke="#777777" stroke-width="1.2"/>
+<text x="837.5" y="190.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="13.0" fill="#777777">X</text>
+<rect x="895.0" y="167.0" width="90.0" height="46.0" rx="7" ry="7" fill="#F0F0F0" stroke="#777777" stroke-width="1.2"/>
+<text x="940.0" y="190.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#222222">A_FINALIZED</text>
+<polygon points="1028.5,172.5 1046.5,190.5 1028.5,208.5 1010.5,190.5" fill="#FFFFFF" stroke="#777777" stroke-width="1.2"/>
+<text x="1028.5" y="191.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="13.0" fill="#777777">X</text>
+<rect x="1100.0" y="167.0" width="90.0" height="46.0" rx="7" ry="7" fill="#444444" stroke="#777777" stroke-width="1.2"/>
+<text x="1145.0" y="190.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="white">A_APPROVED</text>
+<rect x="1232.0" y="167.0" width="90.0" height="46.0" rx="7" ry="7" fill="#F0F0F0" stroke="#777777" stroke-width="1.2"/>
+<text x="1277.0" y="190.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#222222">A_REGISTERED</text>
+<polygon points="1378.5,172.5 1396.5,190.5 1378.5,208.5 1360.5,190.5" fill="#FFFFFF" stroke="#777777" stroke-width="1.2"/>
+<text x="1378.5" y="191.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="13.0" fill="#777777">+</text>
+<rect x="1230.0" y="233.0" width="90.0" height="46.0" rx="7" ry="7" fill="#C9C9C9" stroke="#777777" stroke-width="1.2"/>
+<text x="1275.0" y="256.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#222222">A_DECLINED</text>
+<polygon points="1128.5,269.5 1146.5,287.5 1128.5,305.5 1110.5,287.5" fill="#FFFFFF" stroke="#777777" stroke-width="1.2"/>
+<text x="1128.5" y="288.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="13.0" fill="#777777">X</text>
+<polygon points="427.5,170.5 445.5,188.5 427.5,206.5 409.5,188.5" fill="#FFFFFF" stroke="#777777" stroke-width="1.2"/>
+<text x="427.5" y="189.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="13.0" fill="#777777">X</text>
+<rect x="271.9" y="165.0" width="106.2" height="46.0" rx="7" ry="7" fill="#F0F0F0" stroke="#777777" stroke-width="1.2"/>
+<text x="325.0" y="182.8" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#222222">A_</text>
+<text x="325.0" y="193.2" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#222222">PARTLYSUBMITTED</text>
+<rect x="150.0" y="165.0" width="90.0" height="46.0" rx="7" ry="7" fill="#F0F0F0" stroke="#777777" stroke-width="1.2"/>
+<text x="195.0" y="188.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#222222">A_SUBMITTED</text>
+<circle cx="92.5" cy="188.5" r="12.5" fill="#EFEFEF" stroke="#777777" stroke-width="2"/>
+<text x="92.5" y="219.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#777777">START</text>
+<polygon points="1210.5,170.5 1228.5,188.5 1210.5,206.5 1192.5,188.5" fill="#FFFFFF" stroke="#777777" stroke-width="1.2"/>
+<text x="1210.5" y="189.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="13.0" fill="#777777">+</text>
+<rect x="416.5" y="497.0" width="800.0" height="22.0" fill="#555555"/>
+<text x="424.5" y="512.0" font-family="Arial, sans-serif" font-size="10" fill="white">Activity</text>
+<text x="624.5" y="512.0" font-family="Arial, sans-serif" font-size="10" fill="white">Model Move</text>
+<text x="824.5" y="512.0" font-family="Arial, sans-serif" font-size="10" fill="white">Log Move</text>
+<text x="1024.5" y="512.0" font-family="Arial, sans-serif" font-size="10" fill="white">Total</text>
+<rect x="416.5" y="519.0" width="800.0" height="22.0" fill="#FFFFFF" stroke="#E0E0E0" stroke-width="0.5"/>
+<text x="424.5" y="534.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">A_APPROVED</text>
+<text x="624.5" y="534.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">869</text>
+<text x="824.5" y="534.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">869</text>
+<text x="1024.5" y="534.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">1738</text>
+<rect x="416.5" y="541.0" width="800.0" height="22.0" fill="#F0F0F0" stroke="#E0E0E0" stroke-width="0.5"/>
+<text x="424.5" y="556.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">A_ACTIVATED</text>
+<text x="624.5" y="556.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">322</text>
+<text x="824.5" y="556.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">322</text>
+<text x="1024.5" y="556.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">644</text>
+<rect x="416.5" y="563.0" width="800.0" height="22.0" fill="#FFFFFF" stroke="#E0E0E0" stroke-width="0.5"/>
+<text x="424.5" y="578.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">A_DECLINED</text>
+<text x="624.5" y="578.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">399</text>
+<text x="824.5" y="578.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">0</text>
+<text x="1024.5" y="578.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">399</text>
+<rect x="481.5" y="458.0" width="22" height="12" fill="#F0F0F0" stroke="#777777" stroke-width="1.0"/>
+<text x="511.5" y="469.0" font-family="Arial, sans-serif" font-size="9" fill="#222">Few / no violations</text>
+<rect x="746.5" y="458.0" width="22" height="12" fill="#9A9A9A" stroke="#777777" stroke-width="1.0"/>
+<text x="776.5" y="469.0" font-family="Arial, sans-serif" font-size="9" fill="#222">Some violations</text>
+<rect x="1011.5" y="458.0" width="22" height="12" fill="#444444" stroke="#777777" stroke-width="1.0"/>
+<text x="1041.5" y="469.0" font-family="Arial, sans-serif" font-size="9" fill="#222">Most violations</text>
+</svg>

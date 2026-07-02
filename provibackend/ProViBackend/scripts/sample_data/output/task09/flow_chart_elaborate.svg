@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1505.0" height="464.0" viewBox="0 0 1505.0 464.0">
+<defs><marker id='arr' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='5' markerHeight='5' orient='auto' markerUnits='userSpaceOnUse'><path d='M0,0 L10,5 L0,10 Z' fill='#888'/></marker></defs>
+<rect width='100%' height='100%' fill='white'/>
+<text x='752.5' y='32' text-anchor='middle' font-family='Arial,sans-serif' font-size='15' font-weight='bold' fill='#222222'>Process Flow — Violation Heatmap</text>
+<text x='752.5' y='52' text-anchor='middle' font-family='Arial,sans-serif' font-size='10' fill='#666666'>Node shade: lighter = fewer violations · darker = more violations</text>
+<polyline points='215.0,184.0 265.0,184.0' fill='none' stroke='#999' stroke-width='1.8' marker-end='url(#arr)'/>
+<polyline points='345.0,184.0 396.0,184.0' fill='none' stroke='#999' stroke-width='1.8' marker-end='url(#arr)'/>
+<polyline points='420.0,185.0 470.0,185.0' fill='none' stroke='#999' stroke-width='1.8' marker-end='url(#arr)'/>
+<polyline points='550.0,185.0 601.0,185.0' fill='none' stroke='#999' stroke-width='1.8' marker-end='url(#arr)'/>
+<polyline points='625.0,185.0 675.0,185.0' fill='none' stroke='#999' stroke-width='1.8' marker-end='url(#arr)'/>
+<polyline points='755.0,185.0 806.0,185.0' fill='none' stroke='#999' stroke-width='1.8' marker-end='url(#arr)'/>
+<polyline points='830.0,186.0 880.0,186.0' fill='none' stroke='#999' stroke-width='1.8' marker-end='url(#arr)'/>
+<polyline points='1297.0,186.0 1347.0,186.0' fill='none' stroke='#999' stroke-width='1.8' marker-end='url(#arr)'/>
+<polyline points='1295.0,115.0 1359.0,115.0 1359.0,175.0' fill='none' stroke='#999' stroke-width='1.8' marker-end='url(#arr)'/>
+<polyline points='1295.0,252.0 1420.0,252.0' fill='none' stroke='#999' stroke-width='1.8' marker-end='url(#arr)'/>
+<polyline points='1299.0,325.0 1433.0,325.0 1433.0,265.0' fill='none' stroke='#999' stroke-width='1.8' marker-end='url(#arr)'/>
+<polyline points='960.0,186.0 997.0,186.0' fill='none' stroke='#999' stroke-width='1.8' marker-end='url(#arr)'/>
+<polyline points='1021.0,186.0 1085.0,186.0' fill='none' stroke='#999' stroke-width='1.8' marker-end='url(#arr)'/>
+<polyline points='408.0,197.0 408.0,363.0 1019.0,364.0 1102.0,289.0' fill='none' stroke='#999' stroke-width='1.8' marker-end='url(#arr)'/>
+<polyline points='85.0,184.0 135.0,184.0' fill='none' stroke='#999' stroke-width='1.8' marker-end='url(#arr)'/>
+<polyline points='818.0,198.0 818.0,304.0 1023.0,304.0 1098.0,286.0' fill='none' stroke='#999' stroke-width='1.8' marker-end='url(#arr)'/>
+<polyline points='1009.0,199.0 1009.0,283.0 1097.0,283.0' fill='none' stroke='#999' stroke-width='1.8' marker-end='url(#arr)'/>
+<polyline points='613.0,198.0 613.0,324.0 1019.0,324.0 1100.0,288.0' fill='none' stroke='#999' stroke-width='1.8' marker-end='url(#arr)'/>
+<polyline points='1371.0,187.0 1433.0,187.0 1433.0,240.0' fill='none' stroke='#999' stroke-width='1.8' marker-end='url(#arr)'/>
+<polyline points='1109.0,296.0 1109.0,325.0 1215.0,325.0' fill='none' stroke='#999' stroke-width='1.8' marker-end='url(#arr)'/>
+<polyline points='1109.0,272.0 1109.0,252.0 1215.0,252.0' fill='none' stroke='#999' stroke-width='1.8' marker-end='url(#arr)'/>
+<polyline points='1203.0,185.0 1210.0,185.0 1210.0,186.0 1217.0,186.0' fill='none' stroke='#999' stroke-width='1.8' marker-end='url(#arr)'/>
+<polyline points='1165.0,186.0 1180.0,186.0' fill='none' stroke='#999' stroke-width='1.8' marker-end='url(#arr)'/>
+<polyline points='1190.0,173.0 1190.0,115.0 1215.0,115.0' fill='none' stroke='#999' stroke-width='1.8' marker-end='url(#arr)'/>
+<circle cx='1432.5' cy='252.5' r='12.5' fill='white' stroke='#777' stroke-width='3'/>
+<text x='1432.5' y='279.0' text-anchor='middle' font-family='Arial,sans-serif' font-size='8' fill='#777'>END</text>
+<rect x='1215.0' y='95.0' width='80.0' height='40.0' rx='6' fill='#a9a9a9' stroke='#777' stroke-width='2'/>
+<text x='1255.0' y='111.0' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='9' fill='#222222'>A_ACTIVATED</text>
+<text x='1255.0' y='130.0' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='7.5' fill='#666666'>644</text>
+<rect x='1215.0' y='305.0' width='80.0' height='40.0' rx='6' fill='#eeeeee' stroke='#777' stroke-width='2'/>
+<text x='1255.0' y='325.0' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='9' fill='#222222'>A_CANCELLED</text>
+<rect x='470.0' y='165.0' width='80.0' height='40.0' rx='6' fill='#eeeeee' stroke='#777' stroke-width='2'/>
+<text x='510.0' y='185.0' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='9' fill='#222222'>A_PREACCEPTED</text>
+<polygon points='612.5,173.0 625.0,185.5 612.5,198.0 600.0,185.5' fill='#f0f0f0' stroke='#777' stroke-width='2'/>
+<text x='612.5' y='186.5' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='13' fill='#777'>X</text>
+<rect x='675.0' y='165.0' width='80.0' height='40.0' rx='6' fill='#eeeeee' stroke='#777' stroke-width='2'/>
+<text x='715.0' y='185.0' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='9' fill='#222222'>A_ACCEPTED</text>
+<polygon points='817.5,173.0 830.0,185.5 817.5,198.0 805.0,185.5' fill='#f0f0f0' stroke='#777' stroke-width='2'/>
+<text x='817.5' y='186.5' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='13' fill='#777'>X</text>
+<rect x='880.0' y='166.0' width='80.0' height='40.0' rx='6' fill='#eeeeee' stroke='#777' stroke-width='2'/>
+<text x='920.0' y='186.0' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='9' fill='#222222'>A_FINALIZED</text>
+<polygon points='1008.5,174.0 1021.0,186.5 1008.5,199.0 996.0,186.5' fill='#f0f0f0' stroke='#777' stroke-width='2'/>
+<text x='1008.5' y='187.5' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='13' fill='#777'>X</text>
+<rect x='1085.0' y='166.0' width='80.0' height='40.0' rx='6' fill='#333333' stroke='#777' stroke-width='2'/>
+<text x='1125.0' y='182.0' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='9' fill='white'>A_APPROVED</text>
+<text x='1125.0' y='201.0' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='7.5' fill='white'>1,738</text>
+<rect x='1217.0' y='166.0' width='80.0' height='40.0' rx='6' fill='#eeeeee' stroke='#777' stroke-width='2'/>
+<text x='1257.0' y='186.0' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='9' fill='#222222'>A_REGISTERED</text>
+<polygon points='1358.5,174.0 1371.0,186.5 1358.5,199.0 1346.0,186.5' fill='#f0f0f0' stroke='#777' stroke-width='2'/>
+<text x='1358.5' y='187.5' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='13' fill='#777'>+</text>
+<rect x='1215.0' y='232.0' width='80.0' height='40.0' rx='6' fill='#c3c3c3' stroke='#777' stroke-width='2'/>
+<text x='1255.0' y='248.0' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='9' fill='#222222'>A_DECLINED</text>
+<text x='1255.0' y='267.0' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='7.5' fill='#666666'>399</text>
+<polygon points='1108.5,271.0 1121.0,283.5 1108.5,296.0 1096.0,283.5' fill='#f0f0f0' stroke='#777' stroke-width='2'/>
+<text x='1108.5' y='284.5' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='13' fill='#777'>X</text>
+<polygon points='407.5,172.0 420.0,184.5 407.5,197.0 395.0,184.5' fill='#f0f0f0' stroke='#777' stroke-width='2'/>
+<text x='407.5' y='185.5' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='13' fill='#777'>X</text>
+<rect x='265.0' y='164.0' width='80.0' height='40.0' rx='6' fill='#eeeeee' stroke='#777' stroke-width='2'/>
+<text x='305.0' y='184.0' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='9' fill='#222222'>A_PARTLYSUBMITTED</text>
+<rect x='135.0' y='164.0' width='80.0' height='40.0' rx='6' fill='#eeeeee' stroke='#777' stroke-width='2'/>
+<text x='175.0' y='184.0' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='9' fill='#222222'>A_SUBMITTED</text>
+<circle cx='72.5' cy='184.5' r='12.5' fill='white' stroke='#777' stroke-width='2'/>
+<text x='72.5' y='211.0' text-anchor='middle' font-family='Arial,sans-serif' font-size='8' fill='#777'>START</text>
+<polygon points='1190.5,172.0 1203.0,184.5 1190.5,197.0 1178.0,184.5' fill='#f0f0f0' stroke='#777' stroke-width='2'/>
+<text x='1190.5' y='185.5' text-anchor='middle' dominant-baseline='middle' font-family='Arial,sans-serif' font-size='13' fill='#777'>+</text>
+<rect x='471.6' y='396.0' width='533.7' height='38.0' rx='5' fill='#fafafa' stroke='#cccccc' stroke-width='1'/>
+<rect x='485.6' y='406.0' width='26' height='16' fill='#eeeeee' stroke='#aaa' stroke-width='0.8'/>
+<text x='515.6' y='420.0' font-family='Arial,sans-serif' font-size='10' fill='#666666'>0</text>
+<rect x='543.6' y='406.0' width='26' height='16' fill='#bfbfbf' stroke='#aaa' stroke-width='0.8'/>
+<rect x='601.6' y='406.0' width='26' height='16' fill='#909090' stroke='#aaa' stroke-width='0.8'/>
+<text x='631.6' y='420.0' font-family='Arial,sans-serif' font-size='10' fill='#666666'>50%</text>
+<rect x='659.6' y='406.0' width='26' height='16' fill='#626262' stroke='#aaa' stroke-width='0.8'/>
+<rect x='717.6' y='406.0' width='26' height='16' fill='#333333' stroke='#aaa' stroke-width='0.8'/>
+<text x='747.6' y='420.0' font-family='Arial,sans-serif' font-size='10' fill='#666666'>1,738</text>
+<text x='786.1' y='420.0' font-family='Arial,sans-serif' font-size='10' fill='#666666'>violations  ·  darkest: A_APPROVED</text>
+</svg>
