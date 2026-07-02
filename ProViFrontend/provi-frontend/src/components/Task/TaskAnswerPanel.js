@@ -258,18 +258,11 @@ const TaskAnswerPanel = ({
                 Chart parameters
               </p>
               {paramHints.map((hint, i) => (
-                <div key={i} style={{ display: "flex", gap: "0.3rem", fontSize: "0.72rem", lineHeight: 1.8 }}>
-                  <span style={{
-                    fontWeight: 700,
-                    color: "#00305e",
-                    flexShrink: 0,
-                    overflow: "hidden",
-                    display: "-webkit-box",
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: "vertical",
-                  }}>
+                <div key={i} style={{ fontSize: "0.72rem", lineHeight: 1.8 }}>
+                  <span style={{ fontWeight: 700, color: "#00305e" }}>
                     {hint.label}:
                   </span>
+                  {" "}
                   <span style={{ fontFamily: "monospace", color: "#2d3435" }}>
                     {hint.value}
                   </span>
