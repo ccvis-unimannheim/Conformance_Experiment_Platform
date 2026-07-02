@@ -380,7 +380,7 @@ export default function PrequestionnaireComponent() {
                       <input
                         type="range"
                         min={0}
-                        max={15}
+                        max={50}
                         value={yearsExp}
                         onChange={(e) => setYearsExp(Number(e.target.value))}
                         style={{
@@ -393,17 +393,29 @@ export default function PrequestionnaireComponent() {
                           borderRadius: "9999px",
                         }}
                       />
-                      <div style={{
-                        width: "4rem", height: "2.5rem",
-                        borderRadius: "0.5rem",
-                        backgroundColor: C.containerLow,
-                        border: `1px solid ${C.containerHigh}`,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontWeight: 700, fontSize: "0.875rem", color: C.primary,
-                        flexShrink: 0,
-                      }}>
-                        {yearsExp}
-                      </div>
+                      <input
+                        type="number"
+                        min={0}
+                        max={50}
+                        step={1}
+                        value={yearsExp}
+                        onChange={(e) => {
+                          const v = parseInt(e.target.value, 10);
+                          setYearsExp(isNaN(v) ? 0 : Math.min(50, Math.max(0, v)));
+                        }}
+                        style={{
+                          width: "4rem", height: "2.5rem",
+                          borderRadius: "0.5rem",
+                          backgroundColor: C.containerLow,
+                          border: `1px solid ${C.containerHigh}`,
+                          textAlign: "center",
+                          fontWeight: 700, fontSize: "0.875rem", color: C.primary,
+                          flexShrink: 0,
+                          outline: "none",
+                          cursor: "text",
+                          MozAppearance: "textfield",
+                        }}
+                      />
                     </div>
                     <p style={{ fontSize: "10px", color: C.onVariant, fontStyle: "italic", marginTop: "0.75rem" }}>
                       Including internships, research projects, and professional work.
