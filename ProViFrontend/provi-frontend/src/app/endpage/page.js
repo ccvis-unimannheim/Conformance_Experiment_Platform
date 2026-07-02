@@ -21,18 +21,126 @@ const C = {
   white:         "#ffffff",
 };
 
-const LIKERT_POINTS = 7;
-// Colour ramp: green (easy) → amber → red (difficult)
-const LIKERT_COLORS = ["#22c55e","#84cc16","#bef264","#facc15","#fb923c","#f87171","#ef4444"];
-const LIKERT_BG     = ["#f0fdf4","#f7fee7","#fefce8","#fefce8","#fff7ed","#fef2f2","#fef2f2"];
+const LIKERT_COLORS = ["#22c55e", "#84cc16", "#facc15", "#fb923c", "#ef4444"];
+const LIKERT_BG     = ["#f0fdf4", "#f7fee7", "#fefce8", "#fff7ed", "#fef2f2"];
+
+const QUESTIONS = [
+  {
+    key:    "priorKnowledge",
+    label:  "1. How would you rate the sufficiency of your prior knowledge for completing the tasks?",
+    labels: ["More than sufficient", "Sufficient", "Neutral", "Insufficient", "Not sufficient at all"],
+  },
+  {
+    key:    "clarity",
+    label:  "2. How would you rate the clarity of the task instructions?",
+    labels: ["Very clear", "Clear", "Neutral", "Unclear", "Very unclear"],
+  },
+  {
+    key:    "readability",
+    label:  "3. How would you rate the readability of the visualizations?",
+    labels: ["Very readable", "Readable", "Neutral", "Hard to read", "Very hard to read"],
+  },
+  {
+    key:    "helpfulness",
+    label:  "4. How would you rate the helpfulness of the tooltips/explanations?",
+    labels: ["Very helpful", "Helpful", "Neutral", "Not very helpful", "Not helpful at all"],
+  },
+  {
+    key:    "usefulness",
+    label:  "5. How would you rate the usefulness of the visualizations for solving the tasks?",
+    labels: ["Very useful", "Useful", "Neutral", "Not very useful", "Not useful at all"],
+  },
+  {
+    key:    "difficulty",
+    label:  "6. How would you rate the difficulty of the tasks?",
+    labels: ["Very easy", "Easy", "Neutral", "Difficult", "Very difficult"],
+  },
+  {
+    key:    "effort",
+    label:  "7. How much time and effort did completing the tasks require?",
+    labels: ["Very little", "Little", "Moderate", "Much", "Very much"],
+  },
+];
+
+function LikertQuestion({ question, value, onChange }) {
+  return (
+    <div style={{ width: "100%", marginBottom: "2rem" }}>
+      <p style={{
+        fontSize: "0.875rem", fontWeight: 700, color: C.onSurface,
+        marginBottom: "0.75rem", textAlign: "left", lineHeight: 1.5,
+      }}>
+        {question.label}
+      </p>
+
+      {/* Scale boxes */}
+      <div style={{ display: "flex", gap: "6px", width: "100%" }}>
+        {question.labels.map((lbl, i) => {
+          const val = i + 1;
+          const selected = value === val;
+          return (
+            <button
+              key={val}
+              onClick={() => onChange(val)}
+              style={{
+                flex: 1,
+                height: "2.75rem",
+                borderRadius: "0.5rem",
+                border: selected
+                  ? `2px solid ${LIKERT_COLORS[i]}`
+                  : "1.5px solid #e2e8f0",
+                backgroundColor: selected ? LIKERT_BG[i] : C.white,
+                color: selected ? LIKERT_COLORS[i] : "#94a3b8",
+                fontSize: "1rem",
+                fontWeight: selected ? 800 : 500,
+                cursor: "pointer",
+                transform: selected ? "translateY(-2px) scale(1.06)" : "none",
+                transition: "all 0.12s ease",
+                boxShadow: selected ? `0 2px 8px ${LIKERT_COLORS[i]}44` : "none",
+              }}
+              onMouseEnter={(e) => {
+                if (!selected) {
+                  e.currentTarget.style.borderColor = LIKERT_COLORS[i];
+                  e.currentTarget.style.color = LIKERT_COLORS[i];
+                  e.currentTarget.style.backgroundColor = LIKERT_BG[i];
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!selected) {
+                  e.currentTarget.style.borderColor = "#e2e8f0";
+                  e.currentTarget.style.color = "#94a3b8";
+                  e.currentTarget.style.backgroundColor = C.white;
+                }
+              }}
+            >
+              {val}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Option labels beneath each box */}
+      <div style={{ display: "flex", gap: "6px", width: "100%", marginTop: "0.35rem" }}>
+        {question.labels.map((lbl, i) => (
+          <div key={i} style={{
+            flex: 1, textAlign: "center",
+            fontSize: "0.625rem", lineHeight: 1.3,
+            color: LIKERT_COLORS[i], fontWeight: 600,
+          }}>
+            {lbl}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function EndPage() {
-  const [difficulty, setDifficulty] = useState(null);
-  const [feedback, setFeedback]     = useState("");
-  const [finished, setFinished]     = useState(false);
+  const [ratings,     setRatings]     = useState({});
+  const [feedback,    setFeedback]    = useState("");
+  const [finished,    setFinished]    = useState(false);
   const [closeFailed, setCloseFailed] = useState(false);
 
-  const canFinish = difficulty !== null;
+  const canFinish = QUESTIONS.every(q => ratings[q.key] != null);
 
   useEffect(() => {
     fetch("/api/participant/complete", { method: "POST", credentials: "include" }).catch(() => {});
@@ -46,7 +154,7 @@ export default function EndPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ difficulty, feedback: feedback.trim() || null }),
+        body: JSON.stringify({ ratings, feedback: feedback.trim() || null }),
       });
     } catch {
       // best-effort
@@ -82,11 +190,11 @@ export default function EndPage() {
       {/* ── Main */}
       <main style={{
         paddingTop: "6rem", paddingBottom: "8rem", minHeight: "100vh",
-        display: "flex", alignItems: "center", justifyContent: "center",
+        display: "flex", alignItems: "flex-start", justifyContent: "center",
         padding: "6rem 1.5rem 8rem",
         boxSizing: "border-box",
       }}>
-        <div style={{ maxWidth: "40rem", width: "100%", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <div style={{ maxWidth: "48rem", width: "100%", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center" }}>
 
           {/* Check icon */}
           <div style={{
@@ -117,85 +225,37 @@ export default function EndPage() {
           {/* Body text */}
           <p style={{
             fontSize: "1.0625rem", color: C.onSurface, lineHeight: 1.7,
-            maxWidth: "32rem", marginBottom: "2.5rem",
+            maxWidth: "36rem", marginBottom: "2.5rem",
           }}>
             Your participation is now complete. Your responses have been saved and will contribute to our research.
           </p>
 
-          {/* Difficulty rating — 7-point Likert (SEQ-style) */}
-          <div style={{ width: "100%", maxWidth: "32rem", marginBottom: "2rem" }}>
+          {/* ── Survey section */}
+          <div style={{ width: "100%", marginBottom: "0.5rem" }}>
             <p style={{
               fontSize: "0.6875rem", fontWeight: 700, textTransform: "uppercase",
-              letterSpacing: "0.12em", color: C.onVariant, marginBottom: "0.75rem",
+              letterSpacing: "0.12em", color: C.onVariant, marginBottom: "1.75rem",
+              textAlign: "left",
             }}>
-              HOW DIFFICULT WERE THE TASKS?
+              Please answer the following questions
             </p>
 
-            {/* Scale cells */}
-            <div style={{ display: "flex", gap: "4px", width: "100%" }}>
-              {Array.from({ length: LIKERT_POINTS }, (_, i) => {
-                const val = i + 1;
-                const selected = difficulty === val;
-                return (
-                  <button
-                    key={val}
-                    onClick={() => setDifficulty(val)}
-                    style={{
-                      flex: 1,
-                      height: "2.75rem",
-                      borderRadius: "0.5rem",
-                      border: selected
-                        ? `2px solid ${LIKERT_COLORS[i]}`
-                        : "1.5px solid #e2e8f0",
-                      backgroundColor: selected ? LIKERT_BG[i] : C.white,
-                      color: selected ? LIKERT_COLORS[i] : "#94a3b8",
-                      fontSize: "1rem",
-                      fontWeight: selected ? 800 : 500,
-                      cursor: "pointer",
-                      transform: selected ? "translateY(-2px) scale(1.06)" : "none",
-                      transition: "all 0.12s ease",
-                      boxShadow: selected ? `0 2px 8px ${LIKERT_COLORS[i]}44` : "none",
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!selected) {
-                        e.currentTarget.style.borderColor = LIKERT_COLORS[i];
-                        e.currentTarget.style.color = LIKERT_COLORS[i];
-                        e.currentTarget.style.backgroundColor = LIKERT_BG[i];
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!selected) {
-                        e.currentTarget.style.borderColor = "#e2e8f0";
-                        e.currentTarget.style.color = "#94a3b8";
-                        e.currentTarget.style.backgroundColor = C.white;
-                      }
-                    }}
-                  >
-                    {val}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Anchor labels */}
-            <div style={{
-              display: "flex", justifyContent: "space-between",
-              marginTop: "0.4rem", paddingLeft: "2px", paddingRight: "2px",
-            }}>
-              <span style={{ fontSize: "0.6875rem", color: "#22c55e", fontWeight: 600 }}>
-                Very Easy
-              </span>
-              <span style={{ fontSize: "0.6875rem", color: "#ef4444", fontWeight: 600 }}>
-                Very Difficult
-              </span>
-            </div>
+            {QUESTIONS.map(q => (
+              <LikertQuestion
+                key={q.key}
+                question={q}
+                value={ratings[q.key] ?? null}
+                onChange={(val) => setRatings(prev => ({ ...prev, [q.key]: val }))}
+              />
+            ))}
           </div>
 
           {/* Feedback textarea */}
-          <div style={{ width: "100%", maxWidth: "32rem", marginBottom: "2rem", textAlign: "center" }}>
+          <div style={{ width: "100%", marginBottom: "2rem", textAlign: "center" }}>
             <p style={{
               fontSize: "0.6875rem", fontWeight: 700, textTransform: "uppercase",
               letterSpacing: "0.12em", color: C.onVariant, marginBottom: "1rem",
+              textAlign: "left",
             }}>
               Any additional feedback?{" "}
               <span style={{ fontWeight: 500, fontSize: "0.6875rem", color: C.outlineVar, letterSpacing: "0.08em" }}>
@@ -263,7 +323,7 @@ export default function EndPage() {
 
           {/* Support section */}
           <div style={{
-            width: "100%", maxWidth: "32rem",
+            width: "100%",
             borderTop: `1px solid ${C.containerHigh}`,
             paddingTop: "2.5rem",
             display: "flex", flexDirection: "column", alignItems: "center", gap: "0.25rem",

@@ -56,7 +56,8 @@ class KnowledgeQuestionIds(BaseModel):
     knowledge_question_ids: List[str]
 
 class FeedbackAnswersRequest(BaseModel):
-    difficulty: str  # "Very Easy" | "Easy" | "Neutral" | "Difficult" | "Very Difficult"
+    ratings:  dict        # {clarity, difficulty, usefulness, helpfulness, readability, effort, priorKnowledge}
+    feedback: str | None = None
 
 class User(BaseModel):
     user_id: str

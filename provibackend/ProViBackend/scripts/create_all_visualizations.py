@@ -339,6 +339,7 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
     def time_granularity():        return p.get("time_granularity", "month")
     def conformance_bins():        return p.get("conformance_bins", None)
     def target_violations():       return p.get("target_violations", None)
+    def violated_activity():       return p.get("violated_activity", None)
     def conformant_threshold():
         raw = p.get("conformant_threshold")
         return 1.0 if (raw is None or raw == "") else float(raw)
@@ -377,7 +378,7 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
         "task31": lambda d: task31.generate(log, alignments, d, outcome_activity=outcome_activity()),
         "task32": lambda d: task32.generate(log, alignments, d, compare_attribute=cmp_attr()),
         "task33": lambda d: task33.generate(log, fitness_df, d, compare_attribute=cmp_attr()),
-        "task34": lambda d: task34.generate(log, alignments, d, model_path=model_path),
+        "task34": lambda d: task34.generate(log, alignments, d, model_path=model_path, violated_activity=violated_activity()),
         "task35": lambda d: task35.generate(log, alignments, d, model_path=model_path),
         "task36": lambda d: task36.generate(log, alignments, d, model_path=model_path),
         "task37": lambda d: task37.generate(log, alignments, d, model_path=model_path),
@@ -540,6 +541,72 @@ def get_log_violations(dataset_dir: str) -> list[dict]:
         options.append({
             "value": f"{act}|{vt}",
             "label": f"{act} · {vt}  ({count:,} traces, {pct:.1f}%)",
+        })
+    return options
+
+
+def get_log_worst_traces(dataset_dir: str) -> list[dict]:
+    """Top-10 worst-fitness traces for this dataset, as dropdown options.
+
+    Returns [{"value": "0", "label": "Rank 1 — fitness 0.234  (8 violations)"}, ...]
+    sorted by violation count descending then fitness ascending (same ordering as
+    task34._build_contexts).  The value is the zero-based rank index that
+    task34.compute_ground_truth / generate() accept as `trace_rank`.
+    Powers task34's /specify 'log.worst_traces' source.
+    """
+    from tasks.task34 import _parse_alignment, _is_violation
+
+    alignments = get_or_compute_alignments(dataset_dir)
+
+    scored = []
+    for trace_idx, result in enumerate(alignments):
+        rows    = _parse_alignment(result)
+        n_viol  = sum(1 for r in rows if _is_violation(r))
+        fitness = float(result.get("fitness", 1.0))
+        scored.append((n_viol, fitness, trace_idx))
+
+    scored.sort(key=lambda x: (-x[0], x[1]))
+    top = scored[:10]
+
+    options = []
+    for rank, (n_viol, fitness, trace_idx) in enumerate(top):
+        options.append({
+            "value": str(rank),
+            "label": (
+                f"Rank {rank + 1} — trace #{trace_idx + 1} | "
+                f"fitness {fitness:.4f}  ({n_viol} violations)"
+            ),
+        })
+    return options
+
+
+def get_log_violated_activities_task34(dataset_dir: str) -> list[dict]:
+    """Distinct violated activities for task34's admin dropdown.
+
+    Returns [{"value": "A_APPROVED", "label": "A_APPROVED (6 traces)"}, ...]
+    sorted by trace count descending.  Only MoM / MoL violations are counted
+    (Mismatch Move is excluded, matching task34's classification rules).
+    Powers the 'log.violated_activities_task34' param-spec source.
+    """
+    from tasks.task34 import _parse_alignment, _is_violation
+
+    alignments = get_or_compute_alignments(dataset_dir)
+
+    from collections import Counter
+    act_trace_counts: Counter = Counter()
+    for result in alignments:
+        rows = _parse_alignment(result)
+        seen = {r["activity"] for r in rows if _is_violation(r) and r["activity"] != ">>"}
+        for act in seen:
+            act_trace_counts[act] += 1
+
+    n_traces = len(alignments)
+    options = []
+    for act, count in act_trace_counts.most_common():
+        pct = count / n_traces * 100 if n_traces > 0 else 0
+        options.append({
+            "value": act,
+            "label": f"{act}  ({count:,} traces, {pct:.1f}%)",
         })
     return options
 

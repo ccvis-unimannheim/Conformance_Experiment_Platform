@@ -20,6 +20,8 @@ try:
         get_log_activities,
         get_log_time_granularities,
         get_log_violations,
+        get_log_worst_traces,
+        get_log_violated_activities_task34,
         _FILE_RENAME,
         _TASK_RENAME_SKIP,
     )
@@ -33,6 +35,8 @@ except ImportError:
     get_log_activities = None
     get_log_time_granularities = None
     get_log_violations = None
+    get_log_worst_traces = None
+    get_log_violated_activities_task34 = None
     _FILE_RENAME = {}
     _TASK_RENAME_SKIP = {}
 
@@ -85,6 +89,11 @@ _LOG_TIME_GRANULARITIES_CACHE: dict[str, list[str]] = {}
 # Cache of distinct (activity, move_type) violation pairs (task11); alignment
 # computation is expensive, so results are cached in-process per dataset_id.
 _LOG_VIOLATIONS_CACHE: dict[str, list[dict]] = {}
+# Cache of top-10 worst-fitness traces (task34); alignment computation is shared
+# with _LOG_VIOLATIONS_CACHE but cached separately to avoid coupled invalidation.
+_LOG_WORST_TRACES_CACHE: dict[str, list[dict]] = {}
+# Cache of violated activities for task34's activity-picker dropdown.
+_LOG_VIOLATED_ACTS_TASK34_CACHE: dict[str, list[dict]] = {}
 
 
 def _dataset_activities(dataset_id: str) -> list[str]:
@@ -124,6 +133,28 @@ def _dataset_violations(dataset_id: str) -> list[dict]:
     return violations
 
 
+def _dataset_worst_traces(dataset_id: str) -> list[dict]:
+    """Top-10 worst-fitness traces for this dataset as dropdown options (cached)."""
+    if dataset_id in _LOG_WORST_TRACES_CACHE:
+        return _LOG_WORST_TRACES_CACHE[dataset_id]
+    if get_log_worst_traces is None:
+        return []
+    traces = get_log_worst_traces(str(DATA_DIRECTORY / dataset_id))
+    _LOG_WORST_TRACES_CACHE[dataset_id] = traces
+    return traces
+
+
+def _dataset_violated_activities_task34(dataset_id: str) -> list[dict]:
+    """Violated activities for task34's activity-picker dropdown (cached)."""
+    if dataset_id in _LOG_VIOLATED_ACTS_TASK34_CACHE:
+        return _LOG_VIOLATED_ACTS_TASK34_CACHE[dataset_id]
+    if get_log_violated_activities_task34 is None:
+        return []
+    acts = get_log_violated_activities_task34(str(DATA_DIRECTORY / dataset_id))
+    _LOG_VIOLATED_ACTS_TASK34_CACHE[dataset_id] = acts
+    return acts
+
+
 # Maps a PARAM_SPEC entry's `source` to the dataset-candidate enumerator.
 def _param_candidates(source: str, dataset_id: str) -> list:
     if source == "log.activities":
@@ -132,6 +163,10 @@ def _param_candidates(source: str, dataset_id: str) -> list:
         return _dataset_time_granularities(dataset_id)
     if source == "log.violations":
         return _dataset_violations(dataset_id)
+    if source == "log.worst_traces":
+        return _dataset_worst_traces(dataset_id)
+    if source == "log.violated_activities_task34":
+        return _dataset_violated_activities_task34(dataset_id)
     return []
 
 
@@ -331,11 +366,36 @@ async def download_experiment_answers(experiment_id: str):
         if "insert_datetime" in df_answers.columns:
             df_answers = df_answers.rename(columns={"insert_datetime": "completion_time"})
 
+    # ── Sheet 3: end-page survey ratings ──────────────────────────────────
+    RATING_KEYS = [
+        ("priorKnowledge", "Prior Knowledge"),
+        ("clarity",        "Clarity of Instructions"),
+        ("readability",    "Readability of Visualizations"),
+        ("helpfulness",    "Helpfulness of Tooltips"),
+        ("usefulness",     "Usefulness of Visualizations"),
+        ("difficulty",     "Difficulty of Tasks"),
+        ("effort",         "Time & Effort Required"),
+    ]
+    survey_rows = []
+    for uid in (list({a["user_id"] for a in answers}) if answers else []):
+        user = dbc.get_document("User", {"user_id": uid})
+        if not user or not user.get("feedback_id"):
+            continue
+        fb = dbc.get_document("FeedbackAnswers", {"_id": user["feedback_id"]}) or {}
+        ratings = fb.get("ratings") or {}
+        row = {"user_id": uid}
+        for key, col in RATING_KEYS:
+            row[col] = ratings.get(key)
+        row["Additional Feedback"] = fb.get("feedback")
+        survey_rows.append(row)
+    df_survey = pd.DataFrame(survey_rows) if survey_rows else pd.DataFrame()
+
     # ── Write to Excel ─────────────────────────────────────────────────────
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         df_background.to_excel(writer, sheet_name="Participant Background", index=False)
         df_answers.to_excel(writer, sheet_name="Task Answers", index=False)
+        df_survey.to_excel(writer, sheet_name="End Survey", index=False)
     output.seek(0)
 
     response = StreamingResponse(
