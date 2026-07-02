@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 import ProViBackend.utils.config as config
 import ProViBackend.utils.database.connection as dbc
+from ProViBackend.scripts.tasks import task_registry
 from ProViBackend.utils.database.assignment import (
     assign_participant_to_experiment,
     get_assignment,
@@ -101,6 +102,22 @@ def _trial_contract_fields(task_instances_by_task_id: dict, task_id: str) -> dic
         "decisive": bool(ground_truth.get("decisive", False)),
         "options": options,
     }
+
+
+def _build_param_hints(task_key: str, parameters: dict) -> list[dict]:
+    """Return [{label, value}] for each non-empty configured parameter."""
+    try:
+        spec = task_registry.get_param_spec(task_key)
+    except KeyError:
+        return []
+    hints = []
+    for entry in spec:
+        key = entry.get("key", "")
+        value = parameters.get(key)
+        if value is None or value == "":
+            continue
+        hints.append({"label": entry["label"], "value": str(value)})
+    return hints
 
 
 def _resolve_svg_path(task_id: str, idiom_id: str, dataset_id: str, experiment_id: str | None = None):
@@ -319,6 +336,10 @@ async def get_assigned_trials(
         svg_available = bool(svg_path and svg_path.exists())
         contract = _trial_contract_fields(task_instances_by_task_id, task_id)
 
+        ti = task_instances_by_task_id.get(task_id, {})
+        parameters = (ti.get("parameters") or {})
+        param_hints = _build_param_hints(task["task_key"], parameters)
+
         trials.append({
             "trial_index":   idx,
             "task_id":       task_id,
@@ -333,6 +354,7 @@ async def get_assigned_trials(
             "decisive":      contract["decisive"],
             "options":       contract["options"],
             "svg_available": svg_available,
+            "param_hints":   param_hints,
         })
 
     return JSONResponse({
