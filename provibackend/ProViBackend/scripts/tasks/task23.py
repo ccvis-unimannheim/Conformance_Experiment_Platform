@@ -109,8 +109,8 @@ def task23_bar_chart(pat_df: pd.DataFrame, output_dir: str):
                   edgecolor="white", width=0.65)
     for bar, row in zip(bars, top.itertuples()):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + ymax * 0.012,
-                f"{int(row.count)} ({row.pct:.1f}%)\ntr={int(row.n_traces)}",
-                ha="center", va="bottom", fontsize=FONT_ANNOT - 2, linespacing=1.4)
+                f"{int(row.count)} ({row.pct:.1f}%)",
+                ha="center", va="bottom", fontsize=FONT_ANNOT - 2)
 
     act_labels = [p.replace(" (", "\n(") for p in top["pattern"]]
     ax.set_xticks(range(len(top)))
@@ -170,15 +170,15 @@ def task23_stacked_bar(pat_df: pd.DataFrame, output_dir: str):
 
 
 def task23_table(pat_df: pd.DataFrame, output_dir: str):
-    """Table: Violation Pattern | Move Type | Activity | Count | #Traces | %."""
+    """Table: Violation Pattern | Move Type | Activity | Count | %."""
     top   = pat_df.head(TOP_N)
     total = int(pat_df["count"].sum())
     cell_text = [
         [row["pattern"], row["move_type"], row["activity"],
-         str(int(row["count"])), str(int(row["n_traces"])), f"{row['pct']:.1f}%"]
+         str(int(row["count"])), f"{row['pct']:.1f}%"]
         for _, row in top.iterrows()
     ]
-    cell_text.append(["Total", "—", "—", str(total), "—", "100.0%"])
+    cell_text.append(["Total", "—", "—", str(total), "100.0%"])
 
     fig_h = max(3.5, 1.3 + len(cell_text) * 0.46)
     fig, ax = plt.subplots(figsize=(15, fig_h))
@@ -187,9 +187,9 @@ def task23_table(pat_df: pd.DataFrame, output_dir: str):
         ax,
         cell_text=cell_text,
         col_labels=["Violation Pattern", "Move Type", "Activity",
-                    "Count", "#Traces", "% of All"],
+                    "Count", "% of All"],
         bbox=[0.01, 0.05, 0.98, 0.88],
-        col_widths=[0.34, 0.16, 0.20, 0.10, 0.10, 0.10],
+        col_widths=[0.34, 0.18, 0.22, 0.12, 0.14],
         font_size=9.5,
         scale_xy=(1, 1.75),
         cell_pad=0.09,
@@ -211,15 +211,15 @@ def task23_table_and_bar_chart(pat_df: pd.DataFrame, output_dir: str):
     ax_tbl.axis("off")
     cell_text = [
         [row["pattern"], row["move_type"],
-         str(int(row["count"])), str(int(row["n_traces"])), f"{row['pct']:.1f}%"]
+         str(int(row["count"])), f"{row['pct']:.1f}%"]
         for _, row in top.iterrows()
     ]
     make_table(
         ax_tbl,
         cell_text=cell_text,
-        col_labels=["Violation Pattern", "Move Type", "Count", "#Traces", "%"],
+        col_labels=["Violation Pattern", "Move Type", "Count", "%"],
         bbox=[0.01, 0.05, 0.98, 0.88],
-        col_widths=[0.44, 0.22, 0.13, 0.11, 0.10],
+        col_widths=[0.46, 0.26, 0.14, 0.14],
         font_size=9,
         scale_xy=(1, 1.7),
         cell_pad=0.09,
