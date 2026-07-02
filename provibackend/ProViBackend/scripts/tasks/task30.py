@@ -377,23 +377,23 @@ def task30_bar_chart(agg_df, groups, attr, output_dir):
         return
     patterns = agg_df["pattern"].tolist()
 
-    fig, ax = plt.subplots(figsize=(max(9, len(patterns) * 1.1), 5.5))
+    fig, ax = plt.subplots(figsize=(max(13, len(patterns) * 2.0), 6.0))
     x = draw_grouped_rate_bars(ax, len(patterns), groups, _rates(agg_df, groups),
                                _group_colors(groups))
     ax.set_xticks(x)
     ax.set_xticklabels(
         [p.replace(" (", "\n(") for p in patterns],
-        fontsize=FONT_ANNOT - 1, ha="center",
+        fontsize=FONT_ANNOT - 1, ha="center", rotation=0,
     )
     ax.set_ylabel("% of sub-log traces exhibiting violation", fontsize=FONT_LABEL)
     ax.set_title(f"Top-{len(patterns)} Violation Patterns per Sub-log ({attr})",
                  fontsize=FONT_TITLE)
-    ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.30),
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.28),
               ncol=3, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout(pad=1.2, rect=[0, 0.12, 1, 1])
+    fig.tight_layout(pad=1.2, rect=[0, 0.14, 1, 1])
     save_svg(fig, os.path.join(output_dir, "task30_bar_chart.svg"))
 
 

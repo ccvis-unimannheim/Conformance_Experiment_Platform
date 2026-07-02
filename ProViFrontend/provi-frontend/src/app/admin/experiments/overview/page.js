@@ -6,40 +6,9 @@ import Link from "next/link";
 import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../../components/Admin/Toast";
 
-function IdiomPreviewModal({ taskKey, idiomKey, idiomLabel, onClose }) {
-  const [status, setStatus] = useState("idle");
+function IdiomPreviewModal({ experimentId, taskKey, idiomKey, idiomLabel, onClose }) {
+  const [status, setStatus] = useState("loading");
   const [enlarged, setEnlarged] = useState(false);
-  const pollRef = useRef(null);
-
-  useEffect(() => {
-    if (!taskKey || !idiomKey) return;
-    async function trigger() {
-      try {
-        const res = await fetch(`/api/admin/idiom-preview/${taskKey}`, { method: "POST" });
-        if (!res.ok) { setStatus("failed"); return; }
-        const data = await res.json();
-        if (data.status === "ready") { setStatus("ready"); return; }
-        setStatus("generating");
-        startPolling();
-      } catch { setStatus("failed"); }
-    }
-    function startPolling() {
-      if (pollRef.current) clearInterval(pollRef.current);
-      pollRef.current = setInterval(async () => {
-        try {
-          const res = await fetch(`/api/admin/idiom-preview/${taskKey}/status`);
-          if (!res.ok) return;
-          const data = await res.json();
-          if (data.status === "ready" || data.status === "failed") {
-            clearInterval(pollRef.current);
-            setStatus(data.status);
-          }
-        } catch {}
-      }, 1500);
-    }
-    trigger();
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [taskKey, idiomKey]);
 
   useEffect(() => {
     function onKey(e) { if (e.key === "Escape") onClose(); }
@@ -47,7 +16,7 @@ function IdiomPreviewModal({ taskKey, idiomKey, idiomLabel, onClose }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const svgSrc = `/api/admin/idiom-preview/${taskKey}/${idiomKey}`;
+  const svgSrc = `/api/admin/experiments/${experimentId}/vis/${taskKey}/${idiomKey}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
@@ -75,29 +44,26 @@ function IdiomPreviewModal({ taskKey, idiomKey, idiomLabel, onClose }) {
           </div>
         </div>
         <div className="flex-1 flex items-center justify-center p-6 overflow-auto bg-white min-h-[320px]">
-          {status === "idle" || status === "generating" ? (
+          {status === "loading" && (
             <div className="flex flex-col items-center gap-3 text-on-surface-variant">
               <span className="material-symbols-outlined text-4xl animate-spin">autorenew</span>
-              <span className="text-sm">Generating preview…</span>
+              <span className="text-sm">Loading preview…</span>
             </div>
-          ) : status === "failed" ? (
+          )}
+          {status === "unavailable" && (
             <div className="flex flex-col items-center gap-3">
-              <span className="material-symbols-outlined text-4xl text-error">error_outline</span>
-              <p className="text-sm text-on-surface-variant text-center">Preview generation failed.<br/><span className="text-xs">Make sure the backend is up to date.</span></p>
-            </div>
-          ) : (
-            <img src={svgSrc} alt={`${taskKey} ${idiomKey} preview`}
-              className={enlarged ? "max-w-full max-h-full object-contain" : "max-w-full max-h-[65vh] object-contain"}
-              onError={(e) => { e.currentTarget.style.display = "none"; e.currentTarget.nextSibling.style.display = "flex"; }}
-            />
-          )}
-          {status === "ready" && (
-            <div className="hidden flex-col items-center gap-2 text-on-surface-variant">
-              <span className="material-symbols-outlined text-3xl">broken_image</span>
-              <span className="text-sm">Image failed to load.</span>
-              <a href={svgSrc} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline">Open directly</a>
+              <span className="material-symbols-outlined text-4xl text-on-surface-variant">image_not_supported</span>
+              <p className="text-sm text-on-surface-variant text-center">Preview not available.<br/><span className="text-xs">Generate previews from the idiom selection page first.</span></p>
             </div>
           )}
+          <img
+            src={svgSrc}
+            alt={`${taskKey} ${idiomKey} preview`}
+            style={{ display: status === "ready" ? undefined : "none" }}
+            className={enlarged ? "max-w-full max-h-full object-contain" : "max-w-full max-h-[65vh] object-contain"}
+            onLoad={() => setStatus("ready")}
+            onError={() => setStatus("unavailable")}
+          />
         </div>
       </div>
     </div>
@@ -697,6 +663,7 @@ function ExperimentOverviewContent() {
 
       {previewModal && (
         <IdiomPreviewModal
+          experimentId={experimentId}
           taskKey={previewModal.taskKey}
           idiomKey={previewModal.idiomKey}
           idiomLabel={previewModal.idiomLabel}
