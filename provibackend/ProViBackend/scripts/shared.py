@@ -2133,3 +2133,79 @@ def draw_parallel_sets(
     if right_title:
         ax.text(x_right, 1.08, right_title, ha="center", va="bottom",
                 fontsize=FONT_LABEL, fontweight="bold")
+
+
+# ---------------------------------------------------------------------------
+# Dataset-agnostic outcome-activity inference
+# ---------------------------------------------------------------------------
+
+def infer_outcome_activity(log) -> str:
+    """Infer a positive-outcome activity from the log without any hardcoded names.
+
+    Heuristic: among activities present in 25–55 % of traces (good split range),
+    pick the one with the highest overall presence, breaking ties by frequency
+    as the last event.  If no activity falls in that window, the constraint is
+    relaxed progressively (15–65 %, then 5–85 %, then 0–100 %).
+
+    This is a best-effort fallback; admins should always set outcome_activity
+    explicitly via PARAM_SPEC when configuring an experiment.
+    """
+    n = len(log)
+    if n == 0:
+        return ""
+
+    presence: dict[str, int] = {}
+    as_last:  dict[str, int] = {}
+
+    for trace in log:
+        seen: set[str] = set()
+        for event in trace:
+            a = str(event.get("concept:name", ""))
+            if a:
+                seen.add(a)
+        for a in seen:
+            presence[a] = presence.get(a, 0) + 1
+        if trace:
+            last = str(trace[-1].get("concept:name", ""))
+            if last:
+                as_last[last] = as_last.get(last, 0) + 1
+
+    import logging as _logging
+    _logging.getLogger(__name__).warning(
+        "infer_outcome_activity: no outcome_activity configured — "
+        "falling back to heuristic. Set outcome_activity explicitly via PARAM_SPEC."
+    )
+    # Pick the activity present in 25-55 % of traces (best split range).
+    # Use total trace-count as the primary key, as_last as tiebreaker.
+    for lo, hi in [(0.25, 0.55), (0.15, 0.65), (0.05, 0.85), (0.0, 1.0)]:
+        candidates = {a for a, c in presence.items() if lo * n <= c <= hi * n}
+        if candidates:
+            return max(candidates, key=lambda a: (presence[a], as_last.get(a, 0)))
+
+
+def infer_rejected_activities(log, outcome_activity: str, min_pct: float = 0.03) -> set:
+    """Infer rejection/cancellation activities from the log.
+
+    Returns activities that appear as the *last* event in traces that do NOT
+    contain the positive-outcome activity, with presence above min_pct of the
+    negative-outcome trace count (default 3 %).
+    """
+    n = len(log)
+    if n == 0:
+        return set()
+    counts: dict[str, int] = {}
+    n_neg = 0
+    for trace in log:
+        if not trace:
+            continue
+        acts = {str(e.get("concept:name", "")) for e in trace}
+        if outcome_activity in acts:
+            continue
+        n_neg += 1
+        last = str(trace[-1].get("concept:name", ""))
+        if last:
+            counts[last] = counts.get(last, 0) + 1
+    if n_neg == 0:
+        return set()
+    threshold = max(1, int(n_neg * min_pct))
+    return {a for a, c in counts.items() if c >= threshold}

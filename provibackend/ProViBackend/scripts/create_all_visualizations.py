@@ -28,7 +28,7 @@ Two ways to run:
 
        from create_all_visualizations import run_pipeline
        run_pipeline(dataset_dir="data/abc123",
-                    outcome_activity="A_ACTIVATED")
+                    outcome_activity="CARE_ACTIVATED")
 
 Both paths share the same `run_pipeline()` function, so behaviour stays
 identical whether run from CLI or from the backend.
@@ -328,7 +328,12 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
     """Return {task_key: fn(output_dir)} with each task's params applied."""
     p = params or {}
 
-    def outcome_activity():        return p.get("outcome_activity", "A_ACTIVATED")
+    def outcome_activity():
+        v = p.get("outcome_activity", "")
+        if v:
+            return v
+        from shared import infer_outcome_activity as _infer
+        return _infer(log)
     def predominant_threshold():
         raw = p.get("predominant_threshold")
         return None if (raw is None or raw == "") else float(raw)
@@ -583,7 +588,7 @@ def get_log_worst_traces(dataset_dir: str) -> list[dict]:
 def get_log_violated_activities_task34(dataset_dir: str) -> list[dict]:
     """Distinct violated activities for task34's admin dropdown.
 
-    Returns [{"value": "A_APPROVED", "label": "A_APPROVED (6 traces)"}, ...]
+    Returns [{"value": "TREATMENT_APPROVED", "label": "TREATMENT_APPROVED (6 traces)"}, ...]
     sorted by trace count descending.  Only MoM / MoL violations are counted
     (Mismatch Move is excluded, matching task34's classification rules).
     Powers the 'log.violated_activities_task34' param-spec source.
@@ -697,7 +702,7 @@ def generate_for_task_instances(dataset_dir: str, experiment_id: str,
 # ---------------------------------------------------------------------------
 
 def run_pipeline(dataset_dir: str, experiment_id: str | None = None,
-                 outcome_activity: str = "A_ACTIVATED",
+                 outcome_activity: str = "CARE_ACTIVATED",
                  compare_attribute: str = "AMOUNT_REQ",
                  predominant_threshold: float = 0.8,
                  high_cooccurrence_threshold: float = 0.1,
@@ -812,8 +817,8 @@ def parse_args():
              "ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7).",
     )
     parser.add_argument(
-        "--outcome-activity", default="A_ACTIVATED",
-        help="Activity name that marks a positive outcome (Task 6). Default: A_ACTIVATED",
+        "--outcome-activity", default="CARE_ACTIVATED",
+        help="Activity name that marks a positive outcome (Task 6). Default: CARE_ACTIVATED",
     )
     parser.add_argument(
         "--compare-attribute", default="AMOUNT_REQ",
