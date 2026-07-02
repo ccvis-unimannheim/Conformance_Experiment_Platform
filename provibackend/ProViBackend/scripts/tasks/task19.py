@@ -33,7 +33,7 @@ Scope = 7 High + 1 Medium idiom. Stems → canonical slug after the pipeline ren
     task19_flow_chart_elaborate_bpmn.svg       → flow_chart_elaborate        (Medium: effect-coloured model alone)
 
 Public API:
-    generate(log, alignments, model_path, output_dir, outcome_activity="A_ACTIVATED")
+    generate(log, alignments, model_path, output_dir, outcome_activity="CARE_ACTIVATED")
 """
 
 import logging
@@ -42,6 +42,37 @@ logger = logging.getLogger(__name__)
 
 IDIOMS = ["bar_chart", "scatter_plot", "table", "table_bar_chart", "parallel_sets",
           "flow_chart_table", "flow_chart_elaborate_table", "flow_chart_elaborate"]
+
+GT_TIER = "MANUAL"
+
+PARAM_SPEC = [
+    {
+        "key": "outcome_activity",
+        "label": "Process goal activity (present in trace = goal achieved)",
+        "widget": "activity-picker",
+        "source": "log.activities",
+        "default": "",
+        "required": True,
+    },
+]
+
+ANSWER_FORMATS = [
+    {"key": "free-text", "gt_shape": "reference", "decisive_default": False},
+]
+
+
+def validate_params(log, params) -> list:
+    act = params.get("outcome_activity")
+    if not act:
+        return ["A goal activity is required."]
+    total = len(log)
+    present = sum(1 for trace in log if act in {str(e.get("concept:name", "")) for e in trace})
+    if present == 0:
+        return [f"Goal activity '{act}' is not present in any trace."]
+    if present == total:
+        return [f"Goal activity '{act}' is present in all traces — effect on outcome is undefined."]
+    return []
+
 
 import os
 import numpy as np
@@ -58,10 +89,9 @@ from shared import (
     chevron_figure_width, parse_bpmn_model, compose_bpmn_panels, render_bpmn_annotated,
     contrasting_text_color, place_scatter_labels,
     GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    infer_outcome_activity,
 )
 
-# Reuse: the exact process-goal (outcome activity) logic from task31.
-import tasks.task31 as task31
 # Reuse: representative-trace fallback for the chevron flow idiom.
 from tasks.task28 import build_task28_context
 
@@ -102,7 +132,7 @@ def _trace_patterns(alignments):
     return out
 
 
-def task19_effects(log, alignments, outcome_activity="A_ACTIVATED"):
+def task19_effects(log, alignments, outcome_activity="CARE_ACTIVATED"):
     """Label each trace (goal achieved yes/no) + measure each violation pattern's
     association with the goal.
 
@@ -115,9 +145,10 @@ def task19_effects(log, alignments, outcome_activity="A_ACTIVATED"):
         n_traces     – #traces
         patterns_per_trace – list[set] (reused by the parallel-sets / flow idioms)
     """
-    # Reuse task31's outcome definition (module-level activity override pattern).
-    task31._OUTCOME_ACTIVITY = outcome_activity
-    goal = np.array([task31._task31_positive_outcome_from_trace(t) for t in log], dtype=bool)
+    goal = np.array([
+        outcome_activity in {str(e.get("concept:name", "")) for e in t}
+        for t in log
+    ], dtype=bool)
 
     patterns_per_trace = _trace_patterns(alignments)
     n = min(len(goal), len(patterns_per_trace))
@@ -530,12 +561,15 @@ def _emit_all_empty(output_dir, message: str):
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def generate(log, alignments, model_path, output_dir: str, outcome_activity: str = "A_ACTIVATED"):
+def generate(log, alignments, model_path, output_dir: str, outcome_activity: str = ""):
     """Generate all Task ID 19 SVGs into output_dir. The process goal reuses task31's
     outcome activity; effects are per-violation-pattern risk differences computed from
     the central alignment run (never recomputed)."""
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 19 visualizations ---")
+    if not outcome_activity:
+        outcome_activity = infer_outcome_activity(log)
+        logger.info(f"      task19: outcome_activity inferred as '{outcome_activity}'")
 
     if not log or not alignments:
         logger.warning("      task19: empty log / alignments — emitting empty-state SVGs.")

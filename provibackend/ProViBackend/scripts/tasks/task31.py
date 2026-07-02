@@ -4,7 +4,7 @@ tasks/task31.py – Task 6: Conformance degree vs. positive process outcome.
 Public API:
     generate(log, alignments, outcome_activity, output_dir)
         outcome_activity  – activity name that constitutes a positive outcome
-                            (default: "A_ACTIVATED" for BPIC12-A)
+                            (default: "CARE_ACTIVATED" for BPIC12-A)
 """
 
 import logging
@@ -12,6 +12,37 @@ import logging
 logger = logging.getLogger(__name__)
 
 IDIOMS = ["table", "tree", "bar_chart", "stacked_bar", "scatter_plot", "matrix", "heatmap"]
+
+GT_TIER = "MANUAL"
+
+PARAM_SPEC = [
+    {
+        "key": "outcome_activity",
+        "label": "Positive-outcome activity (present in trace = Positive group)",
+        "widget": "activity-picker",
+        "source": "log.activities",
+        "default": "",
+        "required": True,
+    },
+]
+
+ANSWER_FORMATS = [
+    {"key": "free-text", "gt_shape": "reference", "decisive_default": False},
+]
+
+
+def validate_params(log, params) -> list:
+    act = params.get("outcome_activity")
+    if not act:
+        return ["An outcome activity is required."]
+    total = len(log)
+    present = sum(1 for trace in log if act in {str(e.get("concept:name", "")) for e in trace})
+    if present == 0:
+        return [f"Outcome activity '{act}' is not present in any trace."]
+    if present == total:
+        return [f"Outcome activity '{act}' is present in all traces — cannot split into two groups."]
+    return []
+
 
 import os
 import numpy as np
@@ -25,6 +56,7 @@ import matplotlib.dates as mdates
 from shared import (
     save_svg, make_table, draw_decision_tree, wrap_text,
     format_threshold, GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT, draw_value_heatmap, render_empty_state_svg,
+    infer_outcome_activity, infer_rejected_activities,
 )
 from tasks.task20 import (
     task20_trace_feature_dataframe,
@@ -41,8 +73,8 @@ _task20_format_threshold = format_threshold
 
 # Task 6 data + labeling helpers
 # Module-level outcome activity — overridden by generate() at runtime
-_OUTCOME_ACTIVITY = "A_ACTIVATED"
-_REJECTED_FINAL_ACTIVITIES = {"A_DECLINED", "A_CANCELLED"}
+_OUTCOME_ACTIVITY = "CARE_ACTIVATED"
+_REJECTED_FINAL_ACTIVITIES = {"CASE_REJECTED", "CASE_WITHDRAWN"}
 _TASK6_DURATION_FIRST_SPLIT_DAYS = 5.063008796296296
 _TASK6_DURATION_SECOND_SPLIT_DAYS = 29.986660115740737
 
@@ -81,13 +113,15 @@ def _task31_rejected_outcome_from_trace(trace) -> bool:
     return last_activity in _REJECTED_FINAL_ACTIVITIES
 
 
-def task31_outcome_dataframe(log, alignments):
+def task31_outcome_dataframe(log, alignments, outcome_activity=None, rejected_activities=None):
     """Build trace-level features for definitive outcome analysis."""
+    oa = outcome_activity if outcome_activity is not None else _OUTCOME_ACTIVITY
+    ra = rejected_activities if rejected_activities is not None else _REJECTED_FINAL_ACTIVITIES
     df = task20_trace_feature_dataframe(log, alignments)
     if df.empty:
         return df
-    positive = [_task31_positive_outcome_from_trace(trace) for trace in log]
-    rejected = [_task31_rejected_outcome_from_trace(trace) for trace in log]
+    positive = [oa in {str(e.get("concept:name", "")) for e in t} for t in log]
+    rejected = [bool(t) and str(t[-1].get("concept:name", "")) in ra for t in log]
     definitive = [pos or rej for pos, rej in zip(positive, rejected)]
     df["positive_outcome"] = positive
     df["rejected_outcome"] = rejected
@@ -888,18 +922,23 @@ def task31_heatmap(df: pd.DataFrame, log, output_dir: str):
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def generate(log, alignments, output_dir: str, outcome_activity: str = "A_ACTIVATED"):
+def generate(log, alignments, output_dir: str, outcome_activity: str = ""):
     """Generate all Task 6 SVGs into output_dir.
 
-    outcome_activity: the activity name that marks a positive process outcome.
+    outcome_activity: activity that marks a positive process outcome.
+    If empty, inferred automatically from the log.
     """
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 31 visualizations ---")
-    # Patch the outcome detection to use the provided activity name
-    import tasks.task31 as _self
-    _self._OUTCOME_ACTIVITY = outcome_activity
 
-    df = task31_outcome_dataframe(log, alignments)
+    if not outcome_activity:
+        outcome_activity = infer_outcome_activity(log)
+        logger.info(f"      task31: outcome_activity inferred as '{outcome_activity}'")
+    rejected_activities = infer_rejected_activities(log, outcome_activity)
+
+    df = task31_outcome_dataframe(log, alignments,
+                                  outcome_activity=outcome_activity,
+                                  rejected_activities=rejected_activities)
     if df.empty:
         logger.warning("      Skipped Task 31: no trace-level outcome features found.")
         return
