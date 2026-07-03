@@ -5,7 +5,7 @@ Compare violation patterns between Positive (outcome_activity present) and
 Negative (absent) outcome groups. Violation classification reused from task29.
 
 Public API:
-    generate(log, alignments, output_dir, outcome_activity="A_ACTIVATED")
+    generate(log, alignments, output_dir, outcome_activity="Activate Care")
         log              – PM4Py EventLog
         alignments       – raw alignment results from io_helpers.run_alignments
         output_dir       – directory where SVGs are written
@@ -18,6 +18,37 @@ logger = logging.getLogger(__name__)
 
 IDIOMS = ["bar_chart", "stacked_bar", "table", "table_and_bar_chart", "matrix",
           "parallel_sets", "box_plot", "heatmap"]
+
+GT_TIER = "MANUAL"
+
+PARAM_SPEC = [
+    {
+        "key": "outcome_activity",
+        "label": "Positive-outcome activity (present in trace = Positive group)",
+        "widget": "activity-picker",
+        "source": "log.activities",
+        "default": "",
+        "required": True,
+    },
+]
+
+ANSWER_FORMATS = [
+    {"key": "free-text", "gt_shape": "reference", "decisive_default": False},
+]
+
+
+def validate_params(log, params) -> list:
+    act = params.get("outcome_activity")
+    if not act:
+        return ["An outcome activity is required."]
+    total = len(log)
+    present = sum(1 for trace in log if act in {str(e.get("concept:name", "")) for e in trace})
+    if present == 0:
+        return [f"Outcome activity '{act}' is not present in any trace."]
+    if present == total:
+        return [f"Outcome activity '{act}' is present in all traces — cannot split into two groups."]
+    return []
+
 
 import os
 import numpy as np
@@ -33,6 +64,7 @@ from shared import (
     draw_grouped_rate_bars, draw_composition_stacked_bars, draw_rate_matrix,
     draw_grouped_box_plot, draw_value_heatmap, render_empty_state_svg,
     GREY_MED, GREY_LIGHT, GREY_DARK, GREY_LIGHTER, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    infer_outcome_activity,
 )
 
 TOP_N = 10
@@ -41,7 +73,7 @@ _COLOR_POSITIVE = GREY_MED
 _COLOR_NEGATIVE = GREY_LIGHT
 _GROUP_COLORS   = {"Positive": _COLOR_POSITIVE, "Negative": _COLOR_NEGATIVE}
 
-_OUTCOME_ACTIVITY = "A_ACTIVATED"
+_OUTCOME_ACTIVITY = "Activate Care"
 
 
 # ---------------------------------------------------------------------------
@@ -406,10 +438,13 @@ def task05_heatmap(agg_df: pd.DataFrame, output_dir: str):
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def generate(log, alignments, output_dir: str, outcome_activity: str = "A_ACTIVATED"):
+def generate(log, alignments, output_dir: str, outcome_activity: str = ""):
     """Generate all Task ID 5 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 5 visualizations ---")
+    if not outcome_activity:
+        outcome_activity = infer_outcome_activity(log)
+        logger.info(f"      task05: outcome_activity inferred as '{outcome_activity}'")
 
     # Outcome group counts
     n_traces = {"Positive": 0, "Negative": 0}

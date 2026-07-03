@@ -5,7 +5,7 @@ Compare the conformance of two sub-logs split by process outcome (Positive = out
 present in trace; Negative = absent) against the BPMN model.
 
 Public API:
-    generate(log, fitness_df, output_dir, outcome_activity="A_ACTIVATED")
+    generate(log, fitness_df, output_dir, outcome_activity="Activate Care")
         log              – PM4Py EventLog (for outcome-group classification)
         fitness_df       – per-trace fitness DataFrame from io_helpers.fitness_summary_dataframe
         output_dir       – directory where SVGs are written
@@ -34,7 +34,7 @@ PARAM_SPEC = [
         "label": "Log split condition (activity present in trace marks the Positive group)",
         "widget": "activity-picker",
         "source": "log.activities",
-        "default": "A_APPROVED",
+        "default": "",
         "required": True,
     },
 ]
@@ -70,7 +70,7 @@ def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer
     - mc-single: one option per (Positive%, Negative%) pair — the correct option
       is the real pair, plus 3 near-miss distractors (see _task01_mc_single_gt).
     """
-    df    = _task01_build_df(log, fitness_df, params.get("outcome_activity", "A_APPROVED"))
+    df    = _task01_build_df(log, fitness_df, params.get("outcome_activity", "Approve Treatment"))
     stats = _task01_group_stats(df)
 
     if answer_format == "mc-single":
@@ -523,7 +523,7 @@ def task01_matrix(df: pd.DataFrame, output_dir: str, outcome_activity: str):
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def generate(log, fitness_df, output_dir: str, outcome_activity: str = "A_ACTIVATED"):
+def generate(log, fitness_df, output_dir: str, outcome_activity: str = "Activate Care"):
     """Generate all Task ID 1 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 1 visualizations ---")
