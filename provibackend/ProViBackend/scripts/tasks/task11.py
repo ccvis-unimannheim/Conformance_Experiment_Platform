@@ -103,7 +103,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
-from shared import save_svg, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
+from shared import save_svg, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS_R, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
 
 # ── Cividis palette ───────────────────────────────────────────────────────────
 _C_DARK   = GREY_DARK
@@ -111,7 +111,7 @@ _C_MED    = GREY_MED
 _C_LIGHT  = GREY_LIGHT
 _C_XLIGHT = GREY_LIGHTER
 _HDR_BG   = GREY_DARK
-_CMAP_SEQ = CIVIDIS
+_CMAP_SEQ = CIVIDIS_R  # dark = many violations, yellow = 0
 
 _VTYPES = ["Move on Model", "Move on Log", "Mismatch Move"]
 _VTYPE_SHORT = {
