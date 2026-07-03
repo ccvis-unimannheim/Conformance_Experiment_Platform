@@ -203,6 +203,12 @@ def _top_violations(violation_freq, n=_TOP_N):
     return [v for v, _ in violation_freq.most_common(n)]
 
 
+def _viol_label(v) -> str:
+    """Format a (activity, violation_type) tuple as 'type: activity'."""
+    act, vtype = v
+    return f"{vtype}: {act}"
+
+
 def _short_label(label: str, max_len: int = 28) -> str:
     """Truncate long violation labels for display."""
     return label if len(label) <= max_len else label[: max_len - 1] + "…"
@@ -251,7 +257,7 @@ def task08_heatmap(violation_freq, cooccurrence, output_dir, thr_count, thr_frac
         return
 
     mat  = _build_cooccur_matrix(top, violation_freq, cooccurrence)
-    labs = [_short_label(v) for v in top]
+    labs = [_short_label(_viol_label(v)) for v in top]
     n    = len(top)
 
     fig, ax = plt.subplots(figsize=(max(8, n * 0.85), max(6, n * 0.85)))
@@ -295,7 +301,7 @@ def task08_matrix(violation_freq, cooccurrence, output_dir, thr_count, thr_frac)
         return
 
     mat  = _build_cooccur_matrix(top, violation_freq, cooccurrence)
-    labs = [_short_label(v) for v in top]
+    labs = [_short_label(_viol_label(v)) for v in top]
     n    = len(top)
 
     fig, ax = plt.subplots(figsize=(max(8, n * 0.9), max(6, n * 0.9)))
@@ -402,7 +408,7 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count, 
     # Node labels: placed below each node, with white bbox
     for node, (x, y) in pos.items():
         ax.annotate(
-            _short_label(node, 26), xy=(x, y),
+            _short_label(_viol_label(node), 26), xy=(x, y),
             xytext=(0, -22), textcoords="offset points",
             ha="center", va="top",
             fontsize=max(FONT_ANNOT - 1, 6), color=_C_DARK,
@@ -470,8 +476,8 @@ def task08_table(violation_freq, cooccurrence, n_traces, output_dir,
     rows = []
     for (a, b), cnt in top_pairs:
         rows.append([
-            _short_label(a, 30),
-            _short_label(b, 30),
+            _short_label(_viol_label(a), 30),
+            _short_label(_viol_label(b), 30),
             cnt,
             f"{cnt / n_traces * 100:.1f}%",
         ])
@@ -543,9 +549,10 @@ def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer
     options = []
     for a, b in combinations(top, 2):           # upper triangle, no diagonal
         cnt = cooccurrence.get(tuple(sorted((a, b))), 0)
+        la, lb = _viol_label(a), _viol_label(b)
         options.append({
-            "label":   f"{a} × {b}",
-            "value":   f"{a}__{b}",             # same order as label (axis-consistent)
+            "label":   f"{la} × {lb}",
+            "value":   f"{la}__{lb}",           # same order as label (axis-consistent)
             "correct": cnt > 0 and cnt >= thr_count,
         })
     return {"options": options}
