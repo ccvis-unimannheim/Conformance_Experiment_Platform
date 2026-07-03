@@ -728,7 +728,7 @@ def _make_bpmn_violation_svg(activity_totals, model_path):
 
     def wrap(label, box_w, fs=9):
         mc    = max(6, int((box_w - 10) / (fs * 0.58)))
-        words, lines, cur = str(label).split(), [], ""
+        words, lines, cur = str(label).replace("_", " ").split(), [], ""
         for w in words:
             cand = w if not cur else f"{cur} {w}"
             if len(cand) <= mc: cur = cand
