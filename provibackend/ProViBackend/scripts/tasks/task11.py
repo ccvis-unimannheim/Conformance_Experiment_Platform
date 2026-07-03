@@ -103,7 +103,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
-from shared import save_svg, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS_R, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
+from shared import save_svg, make_table, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS_R, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
 
 # ── Cividis palette ───────────────────────────────────────────────────────────
 _C_DARK   = GREY_DARK
@@ -361,59 +361,35 @@ def task11_table(selected, trace_coverage, n_traces, output_dir):
     data = [(act, vt, trace_coverage.get((act, vt), 0))
             for act, vt in _sorted_selected(selected, trace_coverage)]
 
-    rows = []
+    cell_text = []
     for rank, (act, vt, count) in enumerate(data, 1):
         pct = count / n_traces * 100 if n_traces > 0 else 0
-        rows.append([str(rank), _short_label(act, 32),
-                     _VTYPE_SHORT.get(vt, vt),
-                     f"{count:,}",
-                     f"{pct:.1f}%"])
+        cell_text.append([str(rank), _short_label(act, 32),
+                          _VTYPE_SHORT.get(vt, vt),
+                          f"{count:,}",
+                          f"{pct:.1f}%"])
 
-    col_headers = ["#", "Activity", "Type", "# Traces", "% of All"]
-    col_widths  = [0.05, 0.42, 0.16, 0.20, 0.14]
-
-    n_rows = len(rows)
-    fig_h  = max(3.5, n_rows * 0.52 + 2.4)
+    n_rows = len(cell_text)
+    fig_h  = max(3.5, 1.3 + n_rows * 0.46)
     fig, ax = plt.subplots(figsize=(13, fig_h))
     ax.axis("off")
 
-    t     = 0.94
-    b     = 0.06
-    l     = 0.02
-    tw    = 0.96
-    row_h = (t - b) / (n_rows + 1)
-
-    x = l
-    for hdr, cw in zip(col_headers, col_widths):
-        ax.add_patch(plt.Rectangle((x, t - row_h), cw * tw, row_h,
-                                   fc=_HDR_BG, ec="#333333", linewidth=0.5,
-                                   transform=ax.transAxes, clip_on=False))
-        ax.text(x + cw * tw * 0.5, t - row_h * 0.5, hdr,
-                ha="center", va="center", fontsize=FONT_ANNOT,
-                color="white", fontweight="bold", transform=ax.transAxes)
-        x += cw * tw
-
-    for i, row in enumerate(rows):
-        y_top = t - (i + 2) * row_h
-        x     = l
-        bg    = "#f5f5f5" if i % 2 == 0 else "white"
-        for j, (val, cw) in enumerate(zip(row, col_widths)):
-            ax.add_patch(plt.Rectangle((x, y_top), cw * tw, row_h,
-                                       fc=bg, ec="#cccccc", linewidth=0.6,
-                                       transform=ax.transAxes, clip_on=False))
-            ha = "left" if j in (1, 2) else "center"
-            px = x + 0.008 if j in (1, 2) else x + cw * tw * 0.5
-            ax.text(px, y_top + row_h * 0.5, str(val),
-                    ha=ha, va="center", fontsize=FONT_ANNOT,
-                    color=_C_DARK, transform=ax.transAxes)
-            x += cw * tw
-
+    make_table(
+        ax,
+        cell_text=cell_text,
+        col_labels=["#", "Activity", "Type", "# Traces", "% of All"],
+        bbox=[0.01, 0.05, 0.98, 0.80],
+        col_widths=[0.05, 0.42, 0.16, 0.20, 0.14],
+        font_size=9.5,
+        scale_xy=(1, 1.75),
+        cell_pad=0.09,
+    )
     ax.set_title(
         f"Predefined Violation Frequency  ({n_rows} violation{'s' if n_rows != 1 else ''})\n"
         f"% = traces containing that violation ÷ {n_traces:,} total traces",
         fontsize=FONT_TITLE, pad=14,
     )
-    fig.tight_layout(rect=[0, 0.02, 1, 1])
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task11_table.svg"))
 
 
@@ -444,36 +420,16 @@ def task11_table_bar_chart(selected, trace_coverage, n_traces, output_dir):
 
     # ── Left: table ───────────────────────────────────────────────────────────
     ax_tbl.axis("off")
-    col_headers = ["Violation", "# Traces", "% of All"]
-    col_widths  = [0.64, 0.20, 0.16]
-    t     = 0.94
-    row_h = (t - 0.04) / (n + 1)
-    tw    = 0.97
-    x     = 0.015
-
-    for hdr, cw in zip(col_headers, col_widths):
-        ax_tbl.add_patch(plt.Rectangle((x, t - row_h), cw * tw, row_h,
-                                       fc=_HDR_BG, ec="white", linewidth=0.5,
-                                       transform=ax_tbl.transAxes, clip_on=False))
-        ax_tbl.text(x + cw * tw * 0.5, t - row_h * 0.5, hdr,
-                    ha="center", va="center", fontsize=FONT_ANNOT,
-                    color="white", fontweight="bold", transform=ax_tbl.transAxes)
-        x += cw * tw
-
-    for i, row in enumerate(rows):
-        y_top = t - (i + 2) * row_h
-        x     = 0.015
-        bg    = "#f5f5f5" if i % 2 == 0 else "white"
-        for j, (val, cw) in enumerate(zip(row, col_widths)):
-            ax_tbl.add_patch(plt.Rectangle((x, y_top), cw * tw, row_h,
-                                           fc=bg, ec="#cccccc", linewidth=0.6,
-                                           transform=ax_tbl.transAxes, clip_on=False))
-            ha = "left" if j == 0 else "center"
-            px = x + 0.008 if j == 0 else x + cw * tw * 0.5
-            ax_tbl.text(px, y_top + row_h * 0.5, str(val),
-                        ha=ha, va="center", fontsize=FONT_ANNOT,
-                        color=_C_DARK, transform=ax_tbl.transAxes)
-            x += cw * tw
+    make_table(
+        ax_tbl,
+        cell_text=rows,
+        col_labels=["Violation", "# Traces", "% of All"],
+        bbox=[0.01, 0.05, 0.98, 0.80],
+        col_widths=[0.64, 0.20, 0.16],
+        font_size=9,
+        scale_xy=(1, 1.7),
+        cell_pad=0.09,
+    )
 
     # ── Right: gradient bars ──────────────────────────────────────────────────
     ax_bar.set_facecolor("#fafbfc")
@@ -544,51 +500,32 @@ def task11_flow_chart_elaborate_bpmn_table(selected, trace_coverage, n_traces,
             for act, vt in _sorted_selected(selected, trace_coverage)]
     n_rows   = len(data)
     tbl_w_in = 14.0
-    tbl_h_in = max(3.0, n_rows * 0.50 + 2.2)
+    tbl_h_in = max(3.0, 1.3 + n_rows * 0.46)
     tbl_fig, tbl_ax = plt.subplots(figsize=(tbl_w_in, tbl_h_in))
     tbl_ax.axis("off")
 
-    col_headers = ["#", "Activity", "Type", "# Traces", "% of All"]
-    col_widths  = [0.05, 0.42, 0.16, 0.20, 0.14]
-    t     = 0.94
-    l     = 0.02
-    tw    = 0.96
-    row_h = (t - 0.06) / (n_rows + 1)
-    x     = l
-
-    for hdr, cw in zip(col_headers, col_widths):
-        tbl_ax.add_patch(plt.Rectangle((x, t - row_h), cw * tw, row_h,
-                                       fc=_HDR_BG, ec="white", linewidth=0.5,
-                                       transform=tbl_ax.transAxes, clip_on=False))
-        tbl_ax.text(x + cw * tw * 0.5, t - row_h * 0.5, hdr,
-                    ha="center", va="center", fontsize=FONT_ANNOT,
-                    color="white", fontweight="bold", transform=tbl_ax.transAxes)
-        x += cw * tw
-
+    tbl_cell_text = []
     for i, (act, vt, count) in enumerate(data):
-        pct     = count / n_traces * 100 if n_traces > 0 else 0
-        row_vals = [str(i + 1), _short_label(act, 32),
-                    _VTYPE_SHORT.get(vt, vt), f"{count:,}", f"{pct:.1f}%"]
-        y_top = t - (i + 2) * row_h
-        x     = l
-        bg    = "#f5f5f5" if i % 2 == 0 else "white"
-        for j, (val, cw) in enumerate(zip(row_vals, col_widths)):
-            tbl_ax.add_patch(plt.Rectangle((x, y_top), cw * tw, row_h,
-                                           fc=bg, ec="#eeeeee", linewidth=0.4,
-                                           transform=tbl_ax.transAxes, clip_on=False))
-            ha = "left" if j in (1, 2) else "center"
-            px = x + 0.008 if j in (1, 2) else x + cw * tw * 0.5
-            tbl_ax.text(px, y_top + row_h * 0.5, str(val),
-                        ha=ha, va="center", fontsize=FONT_ANNOT,
-                        color=_C_DARK, transform=tbl_ax.transAxes)
-            x += cw * tw
+        pct = count / n_traces * 100 if n_traces > 0 else 0
+        tbl_cell_text.append([str(i + 1), _short_label(act, 32),
+                               _VTYPE_SHORT.get(vt, vt), f"{count:,}", f"{pct:.1f}%"])
 
+    make_table(
+        tbl_ax,
+        cell_text=tbl_cell_text,
+        col_labels=["#", "Activity", "Type", "# Traces", "% of All"],
+        bbox=[0.01, 0.05, 0.98, 0.80],
+        col_widths=[0.05, 0.42, 0.16, 0.20, 0.14],
+        font_size=9.5,
+        scale_xy=(1, 1.75),
+        cell_pad=0.09,
+    )
     tbl_ax.set_title(
         f"Predefined Violation Frequency  ({n_rows} violation{'s' if n_rows != 1 else ''})  "
         f"·  {n_traces:,} total traces  ·  % = traces containing violation",
         fontsize=FONT_TITLE, pad=14,
     )
-    tbl_fig.tight_layout()
+    tbl_fig.tight_layout(pad=1.2)
 
     buf = _io.BytesIO()
     tbl_fig.savefig(buf, format="svg", bbox_inches="tight")
