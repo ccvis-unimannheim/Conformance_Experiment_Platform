@@ -243,14 +243,16 @@ CANONICAL_TASKS = [
 ]
 
 CANONICAL_KNOWLEDGE_QUESTIONS = [
+    # ── Domain 1: Basic Process Mining Concepts ──────────────────────────────
     {
         "kq_key": "kq01",
-        "section_title": "Conformance Checking Knowledge",
+        "section_title": "Domain 1: Basic Process Mining Concepts",
         "text": "1. What is the primary purpose of conformance checking in process mining?",
         "options": [
             "To predict future process behavior based on historical data",
             "To compare observed process behavior in an event log against a reference process model",
             "To automatically optimize the execution speed of a business process",
+            "To design new process models from scratch based on best practices",
             "I don't know",
         ],
         "include_idk": True,
@@ -260,12 +262,13 @@ CANONICAL_KNOWLEDGE_QUESTIONS = [
     },
     {
         "kq_key": "kq02",
-        "section_title": "Conformance Checking Knowledge",
+        "section_title": "Domain 1: Basic Process Mining Concepts",
         "text": "2. In a process mining event log, what does a single trace represent?",
         "options": [
             "A single event recorded at one point in time",
             "The aggregate of all activities recorded across the entire log",
-            "The sequence of activities belonging to one process instance",
+            "The sequence of activities belonging to one process instance (case)",
+            "A statistical summary of process performance metrics",
             "I don't know",
         ],
         "include_idk": True,
@@ -275,8 +278,65 @@ CANONICAL_KNOWLEDGE_QUESTIONS = [
     },
     {
         "kq_key": "kq03",
-        "section_title": "Conformance Checking Knowledge",
-        "text": "3. A process log contains 200 traces. 150 traces fully comply with the process model, and 50 contain at least one violation. What is the approximate conformance rate of this log?",
+        "section_title": "Domain 1: Basic Process Mining Concepts",
+        "text": (
+            "3. An event log contains the following 5 traces:\n"
+            "Trace 1: A → B → C → D\n"
+            "Trace 2: A → B → D\n"
+            "Trace 3: A → B → C → D\n"
+            "Trace 4: A → C → B → D\n"
+            "Trace 5: A → B → D\n"
+            "How many distinct variants does this log contain?"
+        ),
+        "options": [
+            "2",
+            "3",
+            "4",
+            "5",
+            "I don't know",
+        ],
+        "include_idk": True,
+        "correct_option_index": 1,
+        "is_system": True,
+        "created_at": "2025-01-01T00:00:00Z",
+    },
+    # ── Domain 2: Conformance Checking Core Concepts ─────────────────────────
+    {
+        "kq_key": "kq04",
+        "section_title": "Domain 2: Conformance Checking Core Concepts",
+        "text": "4. Which of the following best describes what fitness measures in conformance checking?",
+        "options": [
+            "The proportion of behavior allowed by the model that actually occurs in the log",
+            "The degree to which the event log behavior can be replayed by the process model",
+            "The number of distinct violation types found in an event log",
+            "The average execution time of all traces compared to the model's expected duration",
+            "I don't know",
+        ],
+        "include_idk": True,
+        "correct_option_index": 1,
+        "is_system": True,
+        "created_at": "2025-01-01T00:00:00Z",
+    },
+    {
+        "kq_key": "kq05",
+        "section_title": "Domain 2: Conformance Checking Core Concepts",
+        "text": "5. A process model has very high fitness (0.98) but very low precision (0.35). What does this combination indicate?",
+        "options": [
+            "The model accurately captures most observed behavior but also allows many behaviors that never occur in practice",
+            "The model is too restrictive and rejects most of the observed behavior",
+            "The event log contains almost no deviations from the model",
+            "The model and the log are completely unrelated",
+            "I don't know",
+        ],
+        "include_idk": True,
+        "correct_option_index": 0,
+        "is_system": True,
+        "created_at": "2025-01-01T00:00:00Z",
+    },
+    {
+        "kq_key": "kq06",
+        "section_title": "Domain 2: Conformance Checking Core Concepts",
+        "text": "6. A process log contains 200 traces. 150 traces fully comply with the process model, and 50 contain at least one violation. What is the approximate conformance rate of this log?",
         "options": [
             "25%",
             "50%",
@@ -288,14 +348,16 @@ CANONICAL_KNOWLEDGE_QUESTIONS = [
         "is_system": True,
         "created_at": "2025-01-01T00:00:00Z",
     },
+    # ── Domain 3: Alignments and Deviation Types ─────────────────────────────
     {
-        "kq_key": "kq04",
-        "section_title": "Conformance Checking Knowledge",
-        "text": "4. In alignment-based conformance checking, what does a model move indicate?",
+        "kq_key": "kq07",
+        "section_title": "Domain 3: Alignments and Deviation Types",
+        "text": "7. In alignment-based conformance checking, what does a model move indicate?",
         "options": [
             "The process model was updated to reflect a new process variant",
             "An activity was executed in the log that the model did not expect at that point",
             "The model expected an activity to occur, but no corresponding activity was found in the log",
+            "Both the log and the model agree on the activity that was executed",
             "I don't know",
         ],
         "include_idk": True,
@@ -304,13 +366,14 @@ CANONICAL_KNOWLEDGE_QUESTIONS = [
         "created_at": "2025-01-01T00:00:00Z",
     },
     {
-        "kq_key": "kq05",
-        "section_title": "Conformance Checking Knowledge",
-        "text": "5. Which of the following is NOT typically considered a root cause analysis task in conformance checking?",
+        "kq_key": "kq08",
+        "section_title": "Domain 3: Alignments and Deviation Types",
+        "text": "8. In alignment-based conformance checking, what does a log move indicate?",
         "options": [
-            "Identifying which data attributes correlate with guideline violations",
-            "Detecting which resources or time patterns are associated with non-conformant traces",
-            "Designing a new process model from scratch based on user preferences",
+            "A new event was added to the event log after the process was completed",
+            "The model expected an activity, but it was skipped in the recorded execution",
+            "An activity was recorded in the event log that the model did not expect at that point in the process",
+            "The log and the model both agree on the next activity",
             "I don't know",
         ],
         "include_idk": True,
@@ -319,13 +382,74 @@ CANONICAL_KNOWLEDGE_QUESTIONS = [
         "created_at": "2025-01-01T00:00:00Z",
     },
     {
-        "kq_key": "kq06",
-        "section_title": "Conformance Checking Knowledge",
-        "text": "6. When comparing two process models for the same event log, Model A replays 95% of traces without violations, while Model B replays only 60%. Which statement is most accurate?",
+        "kq_key": "kq09",
+        "section_title": "Domain 3: Alignments and Deviation Types",
+        "text": (
+            "9. Consider a process model that prescribes the sequence: "
+            "Register → Examine → Decide → Notify. "
+            "A recorded trace shows: Register → Examine → Pay → Decide → Notify. "
+            "In an optimal alignment, the activity \"Pay\" would be classified as:"
+        ),
+        "options": [
+            "A synchronous move, because it was successfully executed",
+            "A model move, because the model expected it but it was missing",
+            "A log move, because it was recorded in the log but not expected by the model at that point",
+            "A silent transition, because it does not appear in either the log or the model",
+            "I don't know",
+        ],
+        "include_idk": True,
+        "correct_option_index": 2,
+        "is_system": True,
+        "created_at": "2025-01-01T00:00:00Z",
+    },
+    # ── Domain 4: Quantitative Reasoning and Analysis ────────────────────────
+    {
+        "kq_key": "kq10",
+        "section_title": "Domain 4: Quantitative Reasoning and Analysis",
+        "text": "10. When comparing two process models for the same event log, Model A replays 95% of traces without violations, while Model B replays only 60%. Which statement is most accurate?",
         "options": [
             "Model B is preferable because it is more flexible",
             "Model A has a higher fitness with respect to the event log",
             "Both models are equally valid since they describe the same process",
+            "Model A must also have higher precision than Model B",
+            "I don't know",
+        ],
+        "include_idk": True,
+        "correct_option_index": 1,
+        "is_system": True,
+        "created_at": "2025-01-01T00:00:00Z",
+    },
+    {
+        "kq_key": "kq11",
+        "section_title": "Domain 4: Quantitative Reasoning and Analysis",
+        "text": "11. Which of the following is NOT typically considered a root cause analysis task in conformance checking?",
+        "options": [
+            "Identifying which data attributes correlate with guideline violations",
+            "Detecting which resources or time patterns are associated with non-conformant traces",
+            "Designing a new process model from scratch based on user preferences",
+            "Investigating whether specific organizational units show higher deviation rates",
+            "I don't know",
+        ],
+        "include_idk": True,
+        "correct_option_index": 2,
+        "is_system": True,
+        "created_at": "2025-01-01T00:00:00Z",
+    },
+    {
+        "kq_key": "kq12",
+        "section_title": "Domain 4: Quantitative Reasoning and Analysis",
+        "text": (
+            "12. An alignment analysis of an event log produces the following results for a single activity \"Approve Payment\":\n"
+            "Move on Model (MoM): 120 occurrences\n"
+            "Move on Log (MoL): 45 occurrences\n"
+            "Synchronous Moves: 835 occurrences\n"
+            "Which interpretation is most accurate?"
+        ),
+        "options": [
+            "\"Approve Payment\" is never executed correctly in any trace",
+            "\"Approve Payment\" is mostly executed as expected, but is sometimes skipped (120 times) and sometimes occurs unexpectedly (45 times)",
+            "The process model does not include \"Approve Payment\" as a valid activity",
+            "There are 165 traces in total that contain \"Approve Payment\"",
             "I don't know",
         ],
         "include_idk": True,
