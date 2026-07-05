@@ -33,7 +33,7 @@ Scope = 7 High + 1 Medium idiom. Stems → canonical slug after the pipeline ren
     task19_flow_chart_elaborate_bpmn.svg       → flow_chart_elaborate        (Medium: effect-coloured model alone)
 
 Public API:
-    generate(log, alignments, model_path, output_dir, outcome_activity="CARE_ACTIVATED")
+    generate(log, alignments, model_path, output_dir, outcome_activity="Activate Care")
 """
 
 import logging
@@ -132,7 +132,7 @@ def _trace_patterns(alignments):
     return out
 
 
-def task19_effects(log, alignments, outcome_activity="CARE_ACTIVATED"):
+def task19_effects(log, alignments, outcome_activity="Activate Care"):
     """Label each trace (goal achieved yes/no) + measure each violation pattern's
     association with the goal.
 

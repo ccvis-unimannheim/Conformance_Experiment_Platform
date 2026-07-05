@@ -28,7 +28,7 @@ Two ways to run:
 
        from create_all_visualizations import run_pipeline
        run_pipeline(dataset_dir="data/abc123",
-                    outcome_activity="CARE_ACTIVATED")
+                    outcome_activity="Activate Care")
 
 Both paths share the same `run_pipeline()` function, so behaviour stays
 identical whether run from CLI or from the backend.
@@ -588,7 +588,7 @@ def get_log_worst_traces(dataset_dir: str) -> list[dict]:
 def get_log_violated_activities_task34(dataset_dir: str) -> list[dict]:
     """Distinct violated activities for task34's admin dropdown.
 
-    Returns [{"value": "TREATMENT_APPROVED", "label": "TREATMENT_APPROVED (6 traces)"}, ...]
+    Returns [{"value": "Approve Treatment", "label": "TREATMENT_APPROVED (6 traces)"}, ...]
     sorted by trace count descending.  Only MoM / MoL violations are counted
     (Mismatch Move is excluded, matching task34's classification rules).
     Powers the 'log.violated_activities_task34' param-spec source.
@@ -702,7 +702,7 @@ def generate_for_task_instances(dataset_dir: str, experiment_id: str,
 # ---------------------------------------------------------------------------
 
 def run_pipeline(dataset_dir: str, experiment_id: str | None = None,
-                 outcome_activity: str = "CARE_ACTIVATED",
+                 outcome_activity: str = "Activate Care",
                  compare_attribute: str = "AMOUNT_REQ",
                  predominant_threshold: float = 0.8,
                  high_cooccurrence_threshold: float = 0.1,
@@ -817,7 +817,7 @@ def parse_args():
              "ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7).",
     )
     parser.add_argument(
-        "--outcome-activity", default="CARE_ACTIVATED",
+        "--outcome-activity", default="Activate Care",
         help="Activity name that marks a positive outcome (Task 6). Default: CARE_ACTIVATED",
     )
     parser.add_argument(

@@ -3,18 +3,18 @@
   <process id="proc_1509670366">
     <startEvent id="node_e8edc907-2719-4073-a972-88e3ab24d16d" />
     <endEvent id="node_726ef1f0-22d9-46f9-80e0-81f4880bc359" />
-    <task id="node_d8fd7b75-26df-4db9-a3c3-444432bb3034" name="CASE_OPENED" />
-    <task id="node_c3d533f2-4a4b-44ee-bc3b-6b360a8eb46c" name="INTAKE_PARTIAL" />
-    <task id="node_91e1cb57-5582-4d67-9ee1-6779c5c2764b" name="TRIAGE_COMPLETE" />
-    <task id="node_9bce8374-55df-423c-9c07-181673e7aaa8" name="ASSESSMENT_DONE" />
-    <task id="node_2e367281-6202-4217-988b-e4aa1239916e" name="CASE_CLOSED" />
-    <task id="node_3d6d153e-ccf4-4c96-927e-eb458d4dbfd1" name="TREATMENT_APPROVED" />
-    <task id="node_6138700a-d273-4f3d-9646-50d0f4f15ada" name="PATIENT_REGISTERED" />
-    <task id="node_960a40b7-711c-42ae-a851-22d7fab0d76d" name="CARE_ACTIVATED">
+    <task id="node_d8fd7b75-26df-4db9-a3c3-444432bb3034" name="Open Case" />
+    <task id="node_c3d533f2-4a4b-44ee-bc3b-6b360a8eb46c" name="Submit Partial Intake" />
+    <task id="node_91e1cb57-5582-4d67-9ee1-6779c5c2764b" name="Complete Triage" />
+    <task id="node_9bce8374-55df-423c-9c07-181673e7aaa8" name="Complete Assessment" />
+    <task id="node_2e367281-6202-4217-988b-e4aa1239916e" name="Close Case" />
+    <task id="node_3d6d153e-ccf4-4c96-927e-eb458d4dbfd1" name="Approve Treatment" />
+    <task id="node_6138700a-d273-4f3d-9646-50d0f4f15ada" name="Register Patient" />
+    <task id="node_960a40b7-711c-42ae-a851-22d7fab0d76d" name="Activate Care">
       <incoming>Flow_13uc2wb</incoming>
     </task>
-    <task id="node_fef75039-c998-4341-9239-cb01982ac22e" name="CASE_REJECTED" />
-    <task id="node_716fa40f-e489-4062-89cc-b583dcb26edc" name="CASE_WITHDRAWN" />
+    <task id="node_fef75039-c998-4341-9239-cb01982ac22e" name="Reject Case" />
+    <task id="node_716fa40f-e489-4062-89cc-b583dcb26edc" name="Withdraw Case" />
     <exclusiveGateway id="node_bde37d1e-eed0-4702-82c6-1bc75062ab11" gatewayDirection="Diverging" />
     <exclusiveGateway id="node_211c9c32-a19c-4cdf-8f5d-1e7653795d09" gatewayDirection="Diverging" />
     <exclusiveGateway id="node_8c4b388e-feb2-4063-b821-35615b669b64" gatewayDirection="Diverging" />

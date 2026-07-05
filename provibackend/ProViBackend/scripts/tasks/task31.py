@@ -4,7 +4,7 @@ tasks/task31.py – Task 6: Conformance degree vs. positive process outcome.
 Public API:
     generate(log, alignments, outcome_activity, output_dir)
         outcome_activity  – activity name that constitutes a positive outcome
-                            (default: "CARE_ACTIVATED" for BPIC12-A)
+                            (default: "Activate Care" for BPIC12-A)
 """
 
 import logging
@@ -73,8 +73,8 @@ _task20_format_threshold = format_threshold
 
 # Task 6 data + labeling helpers
 # Module-level outcome activity — overridden by generate() at runtime
-_OUTCOME_ACTIVITY = "CARE_ACTIVATED"
-_REJECTED_FINAL_ACTIVITIES = {"CASE_REJECTED", "CASE_WITHDRAWN"}
+_OUTCOME_ACTIVITY = "Activate Care"
+_REJECTED_FINAL_ACTIVITIES = {"Reject Case", "Withdraw Case"}
 _TASK6_DURATION_FIRST_SPLIT_DAYS = 5.063008796296296
 _TASK6_DURATION_SECOND_SPLIT_DAYS = 29.986660115740737
 

@@ -14,6 +14,8 @@ provibackend/ProVibackend/new_output/
 provibackend/ProVibackend/output/
 provibackend/ProVibackend/data/
 provibackend/ProViBackend/scripts/generate_all_local.py
+provibackend/ProViBackend/scripts/sample_data/input/EventLog.csv
+provibackend/ProViBackend/scripts/sample_data/cache/
 check_idioms.py
 PALETTE_GUIDE.md
 

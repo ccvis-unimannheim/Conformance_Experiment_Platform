@@ -56,7 +56,7 @@ TOP_N = 12
 SEVERITY_LEVELS = ["High", "Medium", "Low"]          # fixed display order
 
 SEVERITY_OVERRIDES: dict = {
-    # ("A_ACTIVATED", "Log Move"): "High",          # example override
+    # ("Activate Care", "Log Move"): "High",          # example override
 }
 
 DEFAULT_SEVERITY = {
