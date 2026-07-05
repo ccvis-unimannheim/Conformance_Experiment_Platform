@@ -337,7 +337,7 @@ async def download_experiment_answers(experiment_id: str):
         # One response + score column per knowledge question
         # Scoring rule: correct = 1, wrong = 0, "I don't know" = 0 (no correction for guessing)
         for q in kq_all:
-            qid        = str(q["_id"])
+            qid        = q["_id"]
             kq_key     = q.get("kq_key", qid)
             options    = q.get("options", [])
             correct_i  = q.get("correct_option_index")
@@ -347,11 +347,8 @@ async def download_experiment_answers(experiment_id: str):
                 response_text = ""
                 q_score       = ""
             else:
-                response_text = options[selected_i] if 0 <= int(selected_i) < len(options) else str(selected_i)
-                if correct_i is None:
-                    q_score = ""
-                else:
-                    q_score = 1 if int(selected_i) == correct_i else 0
+                response_text = options[selected_i] if selected_i < len(options) else str(selected_i)
+                q_score       = "" if correct_i is None else int(selected_i == correct_i)
 
             row[f"{kq_key}_response"] = response_text
             row[f"{kq_key}_score"]    = q_score
