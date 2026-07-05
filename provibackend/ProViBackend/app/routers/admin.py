@@ -355,7 +355,7 @@ async def download_experiment_answers(experiment_id: str):
 
         row["knowledge_score_total"] = know.get("score", "")
         row["knowledge_level"]       = level_map.get(know.get("level"), know.get("level", ""))
-        row["knowledge_tools"]       = ", ".join(notes.get("tools", [])) if notes.get("tools") else ""
+        row["pm_tools"]              = ", ".join(pre.get("tools", [])) if pre.get("tools") else ""
         rows.append(row)
 
     df_background = pd.DataFrame(rows) if rows else pd.DataFrame()

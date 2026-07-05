@@ -53,6 +53,11 @@ const ROLE_OPTIONS = [
   "Other",
 ];
 
+const TOOL_OPTIONS = [
+  "Celonis", "Disco (Fluxicon)", "ProM", "PM4Py",
+  "Apromore", "SAP Signavio", "None / I have not used process mining tools yet",
+];
+
 const RATING_FIELDS = [
   { key: "processMining",       label: "Process Mining" },
   { key: "conformanceChecking", label: "Conformance Checking" },
@@ -161,8 +166,14 @@ export default function PrequestionnaireComponent() {
     dataVisualization:   0,
   });
   const [yearsExp,    setYearsExp]    = useState(0);
+  const [tools,       setTools]       = useState([]);
   const [error,       setError]       = useState(null);
   const [submitting,  setSubmitting]  = useState(false);
+
+  const toggleTool = (tool) =>
+    setTools((prev) =>
+      prev.includes(tool) ? prev.filter((t) => t !== tool) : [...prev, tool]
+    );
 
   const isValid =
     gender !== "" &&
@@ -192,6 +203,7 @@ export default function PrequestionnaireComponent() {
         rating_conformance_checking: ratings.conformanceChecking,
         rating_data_visualization:   ratings.dataVisualization,
         years_experience: yearsExp,
+        tools,
       };
       const res = await fetch("/api/auth/", {
         method: "POST",
@@ -421,6 +433,60 @@ export default function PrequestionnaireComponent() {
                       Including internships, research projects, and professional work.
                     </p>
                   </div>
+                </div>
+              </section>
+
+              {/* ── Divider */}
+              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+
+              {/* ── Tool Experience */}
+              <section>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "2rem" }}>
+                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>build</span>
+                  <h2 style={sectionHeadStyle}>Tool Experience</h2>
+                </div>
+                <label style={fieldLabelStyle}>
+                  Which of the following process mining tools have you used in a professional or academic setting? (Select all that apply)
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "0.625rem" }}>
+                  {TOOL_OPTIONS.map((tool) => {
+                    const checked = tools.includes(tool);
+                    const fullWidth = tool === "None / I have not used process mining tools yet";
+                    return (
+                      <div
+                        key={tool}
+                        onClick={() => toggleTool(tool)}
+                        style={{
+                          gridColumn: fullWidth ? "1 / -1" : undefined,
+                          display: "flex", alignItems: "center", gap: "0.75rem",
+                          padding: "1rem 1.25rem",
+                          borderRadius: "0.5rem",
+                          border: checked ? `1px solid ${C.primary}` : `1px solid ${C.containerHigh}`,
+                          backgroundColor: checked ? "rgba(0,48,94,0.05)" : C.white,
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
+                          boxShadow: checked ? `inset 0 0 0 1px ${C.primary}` : "none",
+                        }}
+                      >
+                        <div style={{
+                          width: "1rem", height: "1rem", borderRadius: "0.2rem", flexShrink: 0,
+                          border: checked ? `2px solid ${C.primary}` : `2px solid ${C.outlineVar}`,
+                          backgroundColor: checked ? C.primary : C.white,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          transition: "all 0.15s ease",
+                        }}>
+                          {checked && (
+                            <span className="material-symbols-outlined" style={{ color: C.white, fontSize: "0.75rem", fontVariationSettings: "'FILL' 1" }}>
+                              check
+                            </span>
+                          )}
+                        </div>
+                        <span style={{ fontSize: "0.875rem", fontWeight: 500, color: checked ? C.primary : C.onSurface }}>
+                          {tool}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </section>
             </div>
