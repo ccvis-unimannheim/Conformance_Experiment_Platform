@@ -1,3 +1,4 @@
+import json
 import uuid
 import io
 import csv
@@ -305,21 +306,58 @@ async def download_experiment_answers(experiment_id: str):
 
     # ── Sheet 1: participant background ───────────────────────────────────
     user_ids = list({a["user_id"] for a in answers}) if answers else []
+
+    # Pre-load all knowledge questions ordered by kq_key so column order is stable
+    kq_all = sorted(
+        dbc.get_query_db("KnowledgeQuestion", {}),
+        key=lambda q: q.get("kq_key", ""),
+    )
+
+    level_map = {1: "Beginner", 2: "Intermediate", 3: "Advanced"}
     rows = []
     for uid in user_ids:
         user = dbc.get_document("User", {"user_id": uid})
         if not user:
             continue
-        pre = dbc.get_document("PreliminaryAnswers", {"_id": user.get("preliminary_id", "")}) or {}
-        know = dbc.get_document("KnowledgeAnswers",  {"_id": user.get("knowledge_id", "")})  or {}
-        level_map = {1: "Beginner", 2: "Intermediate", 3: "Advanced"}
-        rows.append({
-            "user_id":        uid,
-            **{k: v for k, v in pre.items()  if k != "_id"},
-            "knowledge_notes": know.get("notes"),
-            "knowledge_score": know.get("score"),
-            "knowledge_level": level_map.get(know.get("level"), know.get("level")),
-        })
+        pre  = dbc.get_document("PreliminaryAnswers", {"_id": user.get("preliminary_id", "")}) or {}
+        know = dbc.get_document("KnowledgeAnswers",   {"_id": user.get("knowledge_id",   "")}) or {}
+
+        # Parse the per-question answer map stored as JSON in know["notes"]
+        raw_notes = know.get("notes", "{}")
+        try:
+            notes: dict = json.loads(raw_notes) if isinstance(raw_notes, str) else (raw_notes or {})
+        except Exception:
+            notes = {}
+
+        row: dict = {
+            "user_id": uid,
+            **{k: v for k, v in pre.items() if k != "_id"},
+        }
+
+        # One response + score column per knowledge question
+        # Scoring rule: correct = 1, wrong = 0, "I don't know" = 0 (no correction for guessing)
+        for q in kq_all:
+            qid        = q["_id"]
+            kq_key     = q.get("kq_key", qid)
+            options    = q.get("options", [])
+            correct_i  = q.get("correct_option_index")
+            selected_i = notes.get(qid)
+
+            if selected_i is None:
+                response_text = ""
+                q_score       = ""
+            else:
+                response_text = options[selected_i] if selected_i < len(options) else str(selected_i)
+                q_score       = "" if correct_i is None else int(selected_i == correct_i)
+
+            row[f"{kq_key}_response"] = response_text
+            row[f"{kq_key}_score"]    = q_score
+
+        row["knowledge_score_total"] = know.get("score", "")
+        row["knowledge_level"]       = level_map.get(know.get("level"), know.get("level", ""))
+        row["knowledge_tools"]       = ", ".join(notes.get("tools", [])) if notes.get("tools") else ""
+        rows.append(row)
+
     df_background = pd.DataFrame(rows) if rows else pd.DataFrame()
 
     # ── Clean up Task Answers columns ─────────────────────────────────────
