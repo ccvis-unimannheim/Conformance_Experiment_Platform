@@ -52,6 +52,5 @@ def generate() -> bool:
 
 
 if __name__ == "__main__":
-    import logging as _logging
-    _logging.basicConfig(level=_logging.INFO)
+    logging.basicConfig(level=logging.INFO)
     generate()
