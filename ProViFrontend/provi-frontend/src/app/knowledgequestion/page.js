@@ -22,11 +22,6 @@ const C = {
   white:         "#ffffff",
 };
 
-const TOOL_OPTIONS = [
-  "Celonis", "Disco (Fluxicon)", "ProM", "PM4Py",
-  "Apromore", "SAP Signavio", "None / I have not used process mining tools yet",
-];
-
 function RadioOption({ label, selected, onChange, italic }) {
   return (
     <div
@@ -69,7 +64,6 @@ export default function KnowledgeQuestionPage() {
   const [questions, setQuestions] = useState([]);
   const [loadingQs, setLoadingQs] = useState(true);
   const [answers, setAnswers] = useState({});
-  const [tools, setTools] = useState([]);
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -83,11 +77,6 @@ export default function KnowledgeQuestionPage() {
 
   const isValid = questions.length > 0 && questions.every((q) => answers[q._id] != null);
 
-  const toggleTool = (tool) =>
-    setTools((prev) =>
-      prev.includes(tool) ? prev.filter((t) => t !== tool) : [...prev, tool]
-    );
-
   const handleSubmit = async () => {
     if (!isValid) {
       setError("Please answer all questions before submitting.");
@@ -100,7 +89,7 @@ export default function KnowledgeQuestionPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ answers, tools }),
+        body: JSON.stringify({ answers }),
       });
       if (!res.ok) {
         setError("Submission failed. Please try again.");
@@ -218,57 +207,6 @@ export default function KnowledgeQuestionPage() {
                   </React.Fragment>
                 ))}
 
-                {/* ── Tool Experience (unscored, hardcoded checkboxes) */}
-                <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
-                <section>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "2rem" }}>
-                    <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>build</span>
-                    <h2 style={{ fontSize: "1.25rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>Tool Experience</h2>
-                  </div>
-                  <p style={{ fontSize: "0.875rem", fontWeight: 600, color: C.onSurface, marginBottom: "1rem" }}>
-                    Which of the following process mining tools have you used in a professional or academic setting? (Select all that apply)
-                  </p>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "0.625rem" }}>
-                    {TOOL_OPTIONS.map((tool) => {
-                      const checked = tools.includes(tool);
-                      const fullWidth = tool === "None / I have not used process mining tools yet";
-                      return (
-                        <div
-                          key={tool}
-                          onClick={() => toggleTool(tool)}
-                          style={{
-                            gridColumn: fullWidth ? "1 / -1" : undefined,
-                            display: "flex", alignItems: "center", gap: "0.75rem",
-                            padding: "1rem 1.25rem",
-                            borderRadius: "0.5rem",
-                            border: checked ? `1px solid ${C.primary}` : `1px solid ${C.containerHigh}`,
-                            backgroundColor: checked ? "rgba(0,48,94,0.05)" : C.white,
-                            cursor: "pointer",
-                            transition: "all 0.15s ease",
-                            boxShadow: checked ? `inset 0 0 0 1px ${C.primary}` : "none",
-                          }}
-                        >
-                          <div style={{
-                            width: "1rem", height: "1rem", borderRadius: "0.2rem", flexShrink: 0,
-                            border: checked ? `2px solid ${C.primary}` : `2px solid ${C.outlineVar}`,
-                            backgroundColor: checked ? C.primary : C.white,
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                            transition: "all 0.15s ease",
-                          }}>
-                            {checked && (
-                              <span className="material-symbols-outlined" style={{ color: C.white, fontSize: "0.75rem", fontVariationSettings: "'FILL' 1" }}>
-                                check
-                              </span>
-                            )}
-                          </div>
-                          <span style={{ fontSize: "0.875rem", fontWeight: 500, color: checked ? C.primary : C.onSurface }}>
-                            {tool}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
               </div>
 
               {/* ── CTA area */}

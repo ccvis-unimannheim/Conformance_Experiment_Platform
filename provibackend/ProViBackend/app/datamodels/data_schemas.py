@@ -12,6 +12,7 @@ class PreliminaryAnswersRequest(BaseModel):
     rating_conformance_checking: int # 1–5
     rating_data_visualization: int   # 1–5
     years_experience: int            # 0–15
+    tools: List[str] = []            # PM tools used (moved from knowledge survey)
 
 class PreliminaryAnswers(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
