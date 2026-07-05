@@ -4,8 +4,8 @@
 Copies the BPIC12_A event log and process model from new_input/ into
 scripts/sample_data/input/ so the idiom preview uses real data:
 
-    scripts/sample_data/input/EventLog.csv   ← BPIC12_Log_onlyA.csv
-    scripts/sample_data/input/Guideline.bpmn ← Model_A.bpmn
+    scripts/sample_data/input/EventLog.csv   ← BPIC12_Log_renamed.csv
+    scripts/sample_data/input/Guideline.bpmn ← Model_renamed.bpmn
 
 Called automatically at startup (main.py lifespan) when the files are absent.
 """
@@ -22,8 +22,8 @@ SAMPLE_INPUT_DIR = _SCRIPT_DIR / "sample_data" / "input"
 CSV_PATH         = SAMPLE_INPUT_DIR / "EventLog.csv"
 BPMN_PATH        = SAMPLE_INPUT_DIR / "Guideline.bpmn"
 
-_SRC_CSV  = _NEW_INPUT_DIR / "BPIC12_Log_onlyA.csv"
-_SRC_BPMN = _NEW_INPUT_DIR / "Model_A.bpmn"
+_SRC_CSV  = _NEW_INPUT_DIR / "BPIC12_Log_renamed.csv"
+_SRC_BPMN = _NEW_INPUT_DIR / "Model_renamed.bpmn"
 
 
 def generate() -> bool:
