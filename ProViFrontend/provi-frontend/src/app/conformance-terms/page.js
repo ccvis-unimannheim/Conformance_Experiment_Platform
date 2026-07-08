@@ -122,7 +122,8 @@ export default function ConformanceTermsPage() {
                 <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
                   A <strong>trace</strong> is the sequence of activities recorded for a single process execution (one case).
                   For example, one patient visit or one loan application corresponds to one trace. Each trace can be
-                  compared against the guideline to assess whether it was executed correctly.
+                  compared against a reference process description (the <strong>guideline</strong>, defined next) to
+                  assess whether it was executed correctly.
                 </p>
               </section>
 
