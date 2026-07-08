@@ -5,6 +5,143 @@ import { useRouter } from "next/navigation";
 import { taskDescriptions, idiomDescriptions } from "./descriptions";
 import AnswerInput, { initialAnswer, isAnswered, serializeAnswer } from "./AnswerWidgets";
 
+// ── Term definitions (short, inline versions) ──────────────────────────────
+const TERM_DEFS = {
+  guideline:            { label: "Guideline",                       def: "A formal description of how a process is intended to be executed. It defines the allowed activities and sequences, and serves as the reference for conformance checking." },
+  trace:                { label: "Trace",                           def: "The sequence of activities recorded for a single process execution (one case). Each trace can be compared against the guideline to check whether it was executed correctly." },
+  event_log:            { label: "Event Log",                       def: "A collection of recorded events from process executions. Events sharing the same case identifier form a trace. The event log is what is checked against the guideline." },
+  guideline_violation:  { label: "Guideline Violation",             def: "Occurs when the recorded behaviour of a trace does not match the guideline. Two common types: an extra activity was performed (not allowed by the guideline), or a required activity was missing." },
+  conformant_trace:     { label: "Conformant Trace",                def: "A trace where every activity follows a path the guideline allows — no steps are missing and no unexpected steps occur." },
+  non_conformant_trace: { label: "Non-conformant Trace",            def: "A trace that contains at least one activity violating the guideline — e.g. a required step was skipped or an unexpected step was performed." },
+  degree_of_conformance:{ label: "Degree of Conformance (Fitness)", def: "A value between 0 and 1 measuring how well the overall event log matches the guideline. Note: this is NOT the same as conformance rate. Fitness accounts for the extent of violations, not just whether a trace is fully conformant." },
+  conformance_rate:     { label: "Conformance Rate",                def: "The percentage of traces in the event log that are fully conformant with the guideline. A trace is either conformant (counts) or not — it is a binary measure per trace." },
+  process_goal:         { label: "Process Goal",                    def: "A desired outcome that a process execution aims to achieve (e.g. a successful treatment or an approved application). Violations may affect whether the goal is reached." },
+  attribute:            { label: "Attribute",                       def: "A data property recorded alongside events or traces. Types include: control-flow (activity order), data (values like amount or status), resource (who performed the activity), and time (when or how long)." },
+};
+
+// ── Per-task term mapping ───────────────────────────────────────────────────
+const TASK_TERMS = {
+  task03: ["conformant_trace", "non_conformant_trace", "trace"],
+  task04: ["degree_of_conformance", "guideline", "event_log", "trace"],
+  task06: ["degree_of_conformance", "guideline", "event_log"],
+  task10: ["trace", "event_log", "conformance_rate"],
+  task11: ["guideline_violation", "guideline"],
+  task19: ["guideline_violation", "process_goal"],
+  task20: ["guideline_violation", "trace", "event_log", "attribute"],
+  task34: ["guideline", "trace", "guideline_violation"],
+};
+
+// ── TermsStrip component ────────────────────────────────────────────────────
+function TermsStrip({ taskKey, experimentId }) {
+  const termKeys = TASK_TERMS[taskKey] ?? [];
+  const [openTerm, setOpenTerm] = useState(null);
+  const openCountsRef = useRef({});
+  const openTimeRef   = useRef(null);
+
+  // Reset when task changes
+  useEffect(() => {
+    setOpenTerm(null);
+    openCountsRef.current = {};
+    openTimeRef.current = null;
+  }, [taskKey]);
+
+  if (termKeys.length === 0) return null;
+
+  async function sendTermEvent(termKey, openIndex, dwellMs) {
+    try {
+      await fetch("/api/uitracking/term-help", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          experiment_id:   experimentId ?? null,
+          task_key:        taskKey,
+          term_key:        termKey,
+          open_index:      openIndex,
+          open_datetime:   openTimeRef.current,
+          dwell_ms:        dwellMs,
+          insert_datetime: new Date().toISOString(),
+        }),
+      });
+    } catch (_) {}
+  }
+
+  function handleChipClick(termKey) {
+    const now = new Date().toISOString();
+    if (openTerm === termKey) {
+      // closing
+      const dwellMs = openTimeRef.current ? Date.now() - new Date(openTimeRef.current).getTime() : 0;
+      sendTermEvent(termKey, openCountsRef.current[termKey] ?? 1, dwellMs);
+      setOpenTerm(null);
+      openTimeRef.current = null;
+    } else {
+      // closing previous if any
+      if (openTerm) {
+        const dwellMs = openTimeRef.current ? Date.now() - new Date(openTimeRef.current).getTime() : 0;
+        sendTermEvent(openTerm, openCountsRef.current[openTerm] ?? 1, dwellMs);
+      }
+      // opening new
+      openCountsRef.current[termKey] = (openCountsRef.current[termKey] ?? 0) + 1;
+      openTimeRef.current = now;
+      setOpenTerm(termKey);
+    }
+  }
+
+  const activeDef = openTerm ? TERM_DEFS[openTerm] : null;
+
+  return (
+    <div style={{ marginBottom: "1rem", paddingBottom: "1rem", borderBottom: "1px solid #f0f0f0" }}>
+      <p style={{ fontSize: "0.62rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.15em", color: "#5a6061", margin: "0 0 0.5rem 0" }}>
+        Key Terms
+      </p>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem" }}>
+        {termKeys.map(key => {
+          const term = TERM_DEFS[key];
+          if (!term) return null;
+          const isActive = openTerm === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => handleChipClick(key)}
+              style={{
+                padding: "0.25rem 0.625rem",
+                borderRadius: "999px",
+                border: isActive ? "1.5px solid #00305e" : "1.5px solid #cbd5e1",
+                backgroundColor: isActive ? "#00305e" : "transparent",
+                color: isActive ? "white" : "#00305e",
+                fontSize: "0.72rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "all 0.15s ease",
+                display: "flex", alignItems: "center", gap: "0.3rem",
+              }}
+            >
+              <span style={{ fontSize: "0.65rem" }}>{isActive ? "▲" : "?"}</span>
+              {term.label}
+            </button>
+          );
+        })}
+      </div>
+      {activeDef && (
+        <div style={{
+          marginTop: "0.625rem",
+          backgroundColor: "#eef2f8",
+          borderLeft: "3px solid #00305e",
+          borderRadius: "0 0.375rem 0.375rem 0",
+          padding: "0.625rem 0.75rem",
+          fontSize: "0.78rem",
+          color: "#2d3435",
+          lineHeight: 1.65,
+        }}>
+          <strong style={{ color: "#00305e" }}>{activeDef.label}:</strong>{" "}
+          {activeDef.def}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const TaskAnswerPanel = ({
   options = [],
   answerType = "free_text",
@@ -127,6 +264,9 @@ const TaskAnswerPanel = ({
 
         {/* Scrollable content */}
         <div style={{ flex: 1, overflowY: "auto", scrollbarWidth: "none", padding: "2rem" }}>
+
+          {/* Key Terms strip */}
+          <TermsStrip taskKey={taskKey} experimentId={experimentId} />
 
           {/* Task Label with toggle info */}
           {taskLabel && (

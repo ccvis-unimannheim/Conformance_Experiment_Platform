@@ -158,6 +158,17 @@ class FitnessHelpEvent(BaseModel):
     insert_datetime: str        # ISO timestamp when the popup was closed / event was posted
 
 
+class TermHelpEvent(BaseModel):
+    """One open→close interaction with a per-task term explanation chip."""
+    experiment_id: Optional[str] = None
+    task_key: str               # e.g. "task06"
+    term_key: str               # e.g. "degree_of_conformance"
+    open_index: int             # cumulative open count for this term in this session
+    open_datetime: Optional[str] = None
+    dwell_ms: int
+    insert_datetime: str
+
+
 class Administrator(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     id: str = Field(alias="_id")
