@@ -22,13 +22,13 @@ const TERM_DEFS = {
 // ── Per-task term mapping ───────────────────────────────────────────────────
 const TASK_TERMS = {
   task03: ["conformant_trace", "non_conformant_trace", "trace"],
-  task04: ["degree_of_conformance", "guideline", "event_log", "trace"],
+  task04: ["degree_of_conformance", "event_log", "trace"],
   task06: ["degree_of_conformance", "guideline", "event_log"],
-  task10: ["trace", "event_log", "conformance_rate"],
+  task10: ["trace", "event_log", "degree_of_conformance"],
   task11: ["guideline_violation", "guideline"],
   task19: ["guideline_violation", "process_goal"],
-  task20: ["guideline_violation", "trace", "event_log", "attribute"],
-  task34: ["guideline", "trace", "guideline_violation"],
+  task20: ["attribute", "trace", "event_log", "guideline_violation"],
+  task34: ["guideline_violation", "trace", "guideline"],
 };
 
 // ── TermsStrip component ────────────────────────────────────────────────────
