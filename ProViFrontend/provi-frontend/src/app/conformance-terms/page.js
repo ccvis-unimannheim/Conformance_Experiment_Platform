@@ -111,7 +111,24 @@ export default function ConformanceTermsPage() {
           }}>
             <div style={{ padding: "2.5rem 3rem", display: "flex", flexDirection: "column", gap: "1.75rem" }}>
 
-              {/* ── 1. Guideline */}
+              {/* ── 1. Trace */}
+              <section>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
+                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>linear_scale</span>
+                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
+                    Trace
+                  </h2>
+                </div>
+                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
+                  A <strong>trace</strong> is the sequence of activities recorded for a single process execution (one case).
+                  For example, one patient visit or one loan application corresponds to one trace. Each trace can be
+                  compared against the guideline to assess whether it was executed correctly.
+                </p>
+              </section>
+
+              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+
+              {/* ── 2. Guideline */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>account_tree</span>
@@ -124,23 +141,6 @@ export default function ConformanceTermsPage() {
                   activities are involved and the allowed sequences in which they may be performed. It serves as the
                   reference against which actual process behaviour is compared. A guideline can be represented as a
                   process model (e.g. a BPMN diagram).
-                </p>
-              </section>
-
-              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
-
-              {/* ── 2. Trace */}
-              <section>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
-                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>linear_scale</span>
-                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
-                    Trace
-                  </h2>
-                </div>
-                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
-                  A <strong>trace</strong> is the sequence of activities recorded for a single process execution (one case).
-                  For example, one patient visit or one loan application corresponds to one trace. Each trace can be
-                  compared against the guideline to assess whether it was executed correctly.
                 </p>
               </section>
 
