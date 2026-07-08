@@ -33,7 +33,6 @@ const TASK_TERMS = {
 
 // ── TermsStrip component ────────────────────────────────────────────────────
 function TermsStrip({ taskKey, experimentId }) {
-  console.log("[TermsStrip] taskKey =", taskKey, "| matched terms =", TASK_TERMS[taskKey]);
   const termKeys = TASK_TERMS[taskKey] ?? [];
   const [openTerm, setOpenTerm] = useState(null);
   const openCountsRef = useRef({});
