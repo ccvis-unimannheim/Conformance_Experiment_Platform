@@ -45,10 +45,20 @@ IDIOMS = ["bar_chart", "scatter_plot", "table", "table_bar_chart", "flow_chart_t
 # ---------------------------------------------------------------------------
 GT_TIER = "MANUAL"
 
-PARAM_SPEC = []
+PARAM_SPEC = [
+    {
+        "key": "attribute_set",
+        "label": "Attribute set to include in root-cause analysis (select relevant case / event attributes)",
+        "widget": "attribute-picker",
+        "source": "log.case_attributes",
+        "default": "",
+        "required": False,
+    },
+]
 
 ANSWER_FORMATS = [
     {"key": "free-text", "gt_shape": "reference", "decisive_default": False},
+    {"key": "mc-multi",  "gt_shape": "mc",         "decisive_default": True},
 ]
 
 RUBRIC = (
@@ -64,6 +74,34 @@ RUBRIC = (
     "for vague claims unsupported by the visualized decision-tree / attribute "
     "evidence."
 )
+
+
+def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
+    """For mc-multi: candidate attributes ranked by correlation with violations as
+    selectable options. The admin flags which attributes are the correct root-cause factors.
+    For free-text: returns empty dict — the static RUBRIC is used as the reference.
+    """
+    if answer_format == "free-text":
+        return {}
+
+    feat = task20_trace_feature_dataframe(log, alignments)
+    if feat.empty:
+        return {"options": []}
+
+    corr_df = task20_attribute_correlation_dataframe(feat)
+    if corr_df.empty:
+        return {"options": []}
+
+    return {
+        "options": [
+            {
+                "label": f"{row['attribute']} ({row['type']}, r={row['correlation']:+.2f})",
+                "value": row["attribute"],
+                "correct": False,
+            }
+            for _, row in corr_df.head(8).iterrows()
+        ]
+    }
 
 
 import os

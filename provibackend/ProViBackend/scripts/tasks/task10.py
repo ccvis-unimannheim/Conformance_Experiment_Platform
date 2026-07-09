@@ -27,6 +27,101 @@ logger = logging.getLogger(__name__)
 IDIOMS = ["stacked_bar", "line_graph", "horizon_chart", "boxplot", "heatmap", "calendar",
           "bar_chart", "scatter_plot", "table", "table_bar_chart", "pie_chart"]
 
+# ---------------------------------------------------------------------------
+# Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8; design doc §2 row 10)
+#
+# Task 10 (SEMI): admin picks the conformance interval boundaries; the answer
+# is the resulting percentage per range (pct-set).  Two canonical presets are
+# offered; the admin selects one.  GT is then computed deterministically via
+# _resolve_ranges() with those boundaries — the same function the visualizations use.
+# ---------------------------------------------------------------------------
+GT_TIER = "SEMI"
+
+PARAM_SPEC = [
+    {
+        "key": "conformance_bins",
+        "label": "Conformance interval boundaries",
+        "widget": "select-one",
+        "options": [
+            {
+                "label": "Standard (0–20 %, 20–40 %, 40–60 %, 60–80 %, 80–100 %)",
+                "value": "0.0,0.2,0.4,0.6,0.8,1.01",
+            },
+            {
+                "label": "High-fitness focus (80–85 %, 85–90 %, 90–95 %, 95–<100 %, 100 %)",
+                "value": "0.80,0.85,0.90,0.95,1.0,1.01",
+            },
+        ],
+        "default": "0.0,0.2,0.4,0.6,0.8,1.01",
+        "required": True,
+    },
+]
+
+ANSWER_FORMATS = [
+    {"key": "pct-set", "gt_shape": "labelled-set", "decisive_default": True},
+    {"key": "rank",    "gt_shape": "rank",          "decisive_default": True},
+]
+
+
+def _parse_bins(raw) -> list | None:
+    """Parse comma-separated bin boundaries from a param string."""
+    if not raw:
+        return None
+    try:
+        return [float(x.strip()) for x in str(raw).split(",") if x.strip()]
+    except (ValueError, TypeError):
+        return None
+
+
+def validate_params(log, params) -> list:
+    raw = params.get("conformance_bins", "")
+    if not raw:
+        return ["conformance_bins is required."]
+    bins = _parse_bins(raw)
+    if bins is None or len(bins) < 3:
+        return ["conformance_bins must be at least 3 comma-separated numbers (≥ 2 intervals)."]
+    if bins != sorted(bins):
+        return ["conformance_bins must be in strictly ascending order."]
+    if bins[0] < 0.0 or bins[-1] > 1.01:
+        return ["conformance_bins values must be between 0.0 and 1.01."]
+    return []
+
+
+def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
+    """Conformance distribution: percentage of traces per admin-specified range.
+
+    Uses the same adaptive _resolve_ranges() as the visualizations so the GT is
+    always consistent with what participants see.
+
+    pct-set: labelled-set of {range_label → "XX.X%"} for every non-empty range.
+    rank:    conformance ranges ordered from most to fewest traces.
+    """
+    bins = _parse_bins(params.get("conformance_bins"))
+    labels = make_conformance_labels(bins) if bins else None
+    range_df, _, _ = _resolve_ranges(fitness_df, bins, labels)
+    active = range_df[range_df["count"] > 0]
+    if active.empty:
+        return {"value": None, "options": []}
+
+    if answer_format == "rank":
+        ranked = active.sort_values("count", ascending=False).reset_index(drop=True)
+        return {
+            "options": [
+                {"label": row["range"], "value": row["range"]}
+                for _, row in ranked.iterrows()
+            ]
+        }
+
+    # pct-set (default): one entry per active range with its percentage
+    return {
+        "value": None,
+        "options": [
+            {"label": row["range"], "value": f"{row['percentage']:.1f}%", "correct": True}
+            for _, row in active.iterrows()
+        ],
+    }
+
+
 import os
 import numpy as np
 import pandas as pd
@@ -458,9 +553,14 @@ def generate(df, output_dir: str, log=None, conformance_bins=None):
     logger.info("\n--- Generating Task 10 visualizations ---")
 
     if conformance_bins:
-        bins = list(conformance_bins)
-        labels = make_conformance_labels(bins)
-        logger.info(f"      -> Custom conformance bins: {bins}")
+        if isinstance(conformance_bins, str):
+            conformance_bins = _parse_bins(conformance_bins)
+        if conformance_bins:
+            bins = list(conformance_bins)
+            labels = make_conformance_labels(bins)
+            logger.info(f"      -> Custom conformance bins: {bins}")
+        else:
+            bins, labels = CONFORMANCE_BINS, CONFORMANCE_LABELS
     else:
         bins, labels = CONFORMANCE_BINS, CONFORMANCE_LABELS
 
