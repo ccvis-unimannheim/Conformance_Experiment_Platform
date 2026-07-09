@@ -57,8 +57,21 @@ PARAM_SPEC = [
 ]
 
 ANSWER_FORMATS = [
-    {"key": "free-text", "gt_shape": "reference", "decisive_default": False},
+    {"key": "free-text",  "gt_shape": "reference", "decisive_default": False},
+    {"key": "mc-single",  "gt_shape": "mc",         "decisive_default": True},
 ]
+
+RUBRIC = (
+    "A strong answer names at least one specific violation pattern (activity + move type) "
+    "with a strong association with missing or achieving the process goal, and states the "
+    "direction of the effect: negative risk difference = associated with missing the goal, "
+    "positive = associated with achieving it. Full marks require an approximate magnitude "
+    "(e.g. 'associated with a −35 pp drop in goal-achievement rate'). "
+    "Award partial marks for naming the correct pattern and direction without the magnitude. "
+    "Deduct marks for incorrect direction, or for citing a low-support pattern as the "
+    "strongest effect without flagging its low confidence. "
+    "No credit for vague claims not grounded in the risk-difference values shown."
+)
 
 
 def validate_params(log, params) -> list:
@@ -72,6 +85,35 @@ def validate_params(log, params) -> list:
     if present == total:
         return [f"Goal activity '{act}' is present in all traces — effect on outcome is undefined."]
     return []
+
+
+def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
+    """For mc-single: top violation patterns ranked by |risk difference| as selectable
+    options. The admin flags which pattern is the correct answer (strongest effect).
+    For free-text: returns empty dict — the static RUBRIC is used as the reference.
+    """
+    if answer_format == "free-text":
+        return {}
+
+    outcome_activity = params.get("outcome_activity", "")
+    if not outcome_activity:
+        outcome_activity = infer_outcome_activity(log)
+
+    eff = task19_effects(log, alignments, outcome_activity)
+    records = eff["records"]
+    if not records:
+        return {"options": []}
+
+    return {
+        "options": [
+            {
+                "label": f"{r['pattern']} (risk diff: {r['risk_diff']:+.1f} pp)",
+                "value": r["pattern"],
+                "correct": False,
+            }
+            for r in records[:4]
+        ]
+    }
 
 
 import os

@@ -60,7 +60,7 @@ export default function WelcomePage() {
 
       {/* Main */}
       <main className="pb-32 min-h-screen" style={{ paddingTop: "6rem" }}>
-        <div className="max-w-4xl mx-auto px-6">
+        <div className="max-w-3xl mx-auto px-6">
 
           {/* Card */}
           <div className="bg-white border border-surface-container-high rounded-xl shadow-sm overflow-hidden">
@@ -84,39 +84,39 @@ export default function WelcomePage() {
                 </p>
 
                 {/* Info chips */}
-                <div className="mt-8 flex flex-col gap-3 text-sm text-on-surface-variant font-medium border-t border-outline-variant pt-6">
-                  <div className="flex items-center gap-3">
-                    <span className="material-symbols-outlined text-primary" style={{ fontSize: "1.25rem" }}>schedule</span>
-                    <span>Estimated time: <span className="font-bold text-on-surface">25–30 minutes</span></span>
+                <div className="mt-8 flex gap-3 border-t border-outline-variant pt-6">
+                  <div className="flex flex-1 items-center justify-center gap-2 bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 text-sm text-on-surface-variant font-medium">
+                    <span className="material-symbols-outlined text-primary" style={{ fontSize: "1.1rem" }}>schedule</span>
+                    <span>Estimated time: <span className="font-bold text-on-surface">25–30 min</span></span>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="material-symbols-outlined text-primary" style={{ fontSize: "1.25rem" }}>laptop_mac</span>
-                    <span>Recommended device: <span className="font-bold text-on-surface">Computer or laptop</span></span>
+                  <div className="flex flex-1 items-center justify-center gap-2 bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 text-sm text-on-surface-variant font-medium">
+                    <span className="material-symbols-outlined text-primary" style={{ fontSize: "1.1rem" }}>laptop_mac</span>
+                    <span>Use a <span className="font-bold text-on-surface">computer or laptop</span></span>
                   </div>
                 </div>
               </section>
 
               {/* Experiment structure */}
               <section>
-                <h2 className="font-headline text-xl font-bold text-primary mb-4">
+                <h2 className="font-headline text-xl font-bold text-on-surface mb-4">
                   Experiment Structure
                 </h2>
 
                 <div className="divide-y divide-outline-variant" style={{ "--tw-divide-opacity": 0.1 }}>
                   {STEPS.map((s) => (
-                    <div key={s.num} className="py-4">
-                      <div className="flex items-center gap-3 mb-1">
-                        <span
-                          className="font-headline font-bold text-primary shrink-0 text-xs"
-                          style={{ letterSpacing: "0.15em" }}
-                        >
-                          {s.num}
-                        </span>
-                        <h4 className="font-headline text-xs font-bold uppercase tracking-wider text-primary">
+                    <div key={s.num} className="py-4 flex gap-4">
+                      <span
+                        className="font-headline font-bold text-primary shrink-0 text-xs w-7 pt-0.5"
+                        style={{ letterSpacing: "0.15em" }}
+                      >
+                        {s.num}
+                      </span>
+                      <div>
+                        <h4 className="font-headline text-xs font-bold uppercase tracking-wider text-primary mb-1">
                           {s.title}
                         </h4>
+                        <p className="text-on-surface-variant leading-relaxed">{s.desc}</p>
                       </div>
-                      <p className="text-sm text-on-surface-variant leading-relaxed pl-9">{s.desc}</p>
                     </div>
                   ))}
                 </div>
