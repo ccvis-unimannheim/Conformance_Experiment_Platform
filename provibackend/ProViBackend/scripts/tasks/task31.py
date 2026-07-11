@@ -19,7 +19,7 @@ PARAM_SPEC = [
     {
         "key": "outcome_activity",
         "label": "Positive-outcome activity (present in trace = Positive group)",
-        "hint": "Traces containing this activity form the 'Positive' group; the chart compares this group against the rest.",
+        "hint": "The 'Positive' group is made up of traces that contain this activity",
         "widget": "activity-picker",
         "source": "log.activities",
         "default": "",
