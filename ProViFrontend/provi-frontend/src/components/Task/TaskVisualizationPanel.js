@@ -112,6 +112,11 @@ const TaskVisualizationPanel = ({ svgUrl, taskNumber = 1, loadingSvg = false }) 
                   maxScale={6}
                   onTransformed={handleTransformed}
                   onPanningStart={() => setLoupeOn(false)}
+                  // Zoom disabled on the task-execution page (scroll / pinch /
+                  // double-click). Remove these three props to re-enable zooming:
+                  wheel={{ disabled: true }}
+                  pinch={{ disabled: true }}
+                  doubleClick={{ disabled: true }}
                 >
                   {/* Mouse events on this div — img has pointer-events:none from library CSS */}
                   <div
@@ -139,8 +144,8 @@ const TaskVisualizationPanel = ({ svgUrl, taskNumber = 1, loadingSvg = false }) 
                   </div>
                 </TransformWrapper>
 
-                {/* Controls outside TransformWrapper — no stacking context conflicts,
-                    uses imperative ref API to call zoomIn/zoomOut/resetTransform */}
+                {/* Zoom controls hidden on the task-execution page (kept in code for reuse).
+                    Uncomment this block to restore the zoom in / out / reset buttons:
                 <div style={{
                   position: "absolute", bottom: "12px", right: "12px",
                   display: "flex", alignItems: "center", gap: "4px",
@@ -155,6 +160,7 @@ const TaskVisualizationPanel = ({ svgUrl, taskNumber = 1, loadingSvg = false }) 
                   <button onClick={() => transformRef.current?.zoomOut()}       style={btnStyle} title="Zoom out"  aria-label="Zoom out">−</button>
                   <button onClick={() => { transformRef.current?.resetTransform(); setScale(1); }} style={{ ...btnStyle, fontSize: "14px" }} title="Reset zoom" aria-label="Reset zoom">↺</button>
                 </div>
+                */}
               </div>
             )}
           </div>
