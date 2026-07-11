@@ -49,6 +49,8 @@ PARAM_SPEC = [
     {
         "key": "attribute_set",
         "label": "Attribute set to include in root-cause analysis (select relevant case / event attributes)",
+        # Internal to reading the chart — the participant sees the analysed attributes directly.
+        "hide_hint": True,
         "widget": "attribute-picker",
         "source": "log.case_attributes",
         "default": "",

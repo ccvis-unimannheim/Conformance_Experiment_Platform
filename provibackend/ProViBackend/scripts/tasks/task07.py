@@ -46,6 +46,7 @@ PARAM_SPEC = [
     {
         "key": "time_granularity",
         "label": "Time-bin granularity",
+        "hint": "The timeline is grouped into these time bins.",
         "widget": "select-one",
         # Static fallback list; when a dataset_id is known the param-spec endpoint
         # overwrites `options` via `source` with only the granularities that yield

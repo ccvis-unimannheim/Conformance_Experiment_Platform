@@ -47,6 +47,8 @@ PARAM_SPEC = [
     {
         "key": "trace_ids",
         "label": "Specific traces to show (optional; default = first 10 traces in log order)",
+        # Internal to reading the chart — the participant sees the traces directly.
+        "hide_hint": True,
         "widget": "select-many",
         "source": "log.trace_ids",
         "default": [],

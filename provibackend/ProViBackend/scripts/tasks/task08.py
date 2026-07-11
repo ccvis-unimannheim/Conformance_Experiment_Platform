@@ -46,6 +46,7 @@ PARAM_SPEC = [
     {
         "key": "high_cooccurrence_threshold",
         "label": "High co-occurrence threshold (share of traces 0–1 at/above which a violation pair counts as highly co-occurring)",
+        "hint": "Two violations count as frequently co-occurring when they appear together in at least this share of traces.",
         "widget": "threshold",
         "default": DEFAULT_HIGH_COOCCURRENCE_THRESHOLD,
         "required": False,

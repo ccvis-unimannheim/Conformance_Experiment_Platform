@@ -42,6 +42,7 @@ PARAM_SPEC = [
     {
         "key": "predominant_threshold",
         "label": "Predominant-conformance threshold (fitness 0–1 above which behaviour predominantly follows the model)",
+        "hint": "Behaviour counts as predominantly conforming when a trace's fitness is above this value.",
         "widget": "threshold",
         "default": DEFAULT_PREDOMINANT_THRESHOLD,
         "required": False,
