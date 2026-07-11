@@ -143,6 +143,11 @@ const SVGDisplay = ({ selectedSVG, zoomResetTrigger }) => {
         onZoomStop={handleZoomStop}
         maxScale={4}
         ref={transformComponentRef}
+        // Scroll / pinch / double-click zoom disabled on the task-execution page.
+        // Remove these three props to re-enable interactive zooming:
+        wheel={{ disabled: true }}
+        pinch={{ disabled: true }}
+        doubleClick={{ disabled: true }}
       >
         {({ zoomIn, zoomOut, resetTransform, ...rest }) => (
           <div className="flex flex-col items-center justify-center w-full h-full p-5">
@@ -158,7 +163,8 @@ const SVGDisplay = ({ selectedSVG, zoomResetTrigger }) => {
                 style={{ width: "100%", height: "100%", objectFit: "contain" }}
               />
             </TransformComponent>
-            <Controls scale={scale} transformRef={transformComponentRef} />
+            {/* Zoom controls hidden on the task-execution page (kept in code for reuse):
+            <Controls scale={scale} transformRef={transformComponentRef} /> */}
           </div>
         )}
       </TransformWrapper>

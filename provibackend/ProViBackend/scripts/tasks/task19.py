@@ -40,7 +40,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "scatter_plot", "table", "table_bar_chart", "parallel_sets",
+IDIOMS = ["bar_chart", "scatter_plot", "table", "table_bar_chart", "matrix", "parallel_sets",
           "flow_chart_table", "flow_chart_elaborate_table", "flow_chart_elaborate"]
 
 GT_TIER = "MANUAL"
@@ -126,7 +126,8 @@ import matplotlib.patches as mpatches
 from matplotlib import gridspec
 
 from shared import (
-    save_svg, make_table, draw_parallel_sets, render_empty_state_svg,
+    save_svg, make_table, auto_col_widths, draw_parallel_sets, draw_value_heatmap,
+    render_empty_state_svg,
     alignment_pairs_to_rows, chevron_nodes_from_alignment_rows, draw_chevron_strip,
     chevron_figure_width, parse_bpmn_model, compose_bpmn_panels, render_bpmn_annotated,
     contrasting_text_color, place_scatter_labels,
@@ -141,11 +142,18 @@ from tasks.task28 import build_task28_context
 TOP_N = 10          # patterns shown where an idiom would otherwise crowd
 MIN_SUPPORT = 5     # below this #traces a pattern's effect is flagged low-confidence
 
+# Neutral with/without colours for the info-equivalent idioms (table, bar_chart,
+# matrix, parallel_sets). Deliberately NOT signed by positive/negative effect —
+# the participant must derive the effect from the two rates themselves.
+_C_WITH    = GREY_MED    # "With violation" series
+_C_WITHOUT = GREY_LIGHT  # "Without violation" series
+
 _EMPTY_STEMS = [
     ("task19_bar_chart.svg",                       "Goal Effect by Violation Pattern"),
     ("task19_scatter_plot.svg",                    "Support vs. Goal Effect"),
     ("task19_table.svg",                           "Violation Effect on Process Goal"),
     ("task19_table_and_bar_chart.svg",             "Violation Effect on Process Goal"),
+    ("task19_matrix.svg",                          "Violation Effect on Process Goal"),
     ("task19_parallel_sets.svg",                   "Violation Pattern vs. Goal"),
     ("task19_flow_chart_and_table.svg",            "Goal-missing Violations & Effect Table"),
     ("task19_flow_chart_elaborate_bpmn_table.svg", "Goal Effect on the Model & Table"),
@@ -296,35 +304,38 @@ def _effect_colors(records):
 # ---------------------------------------------------------------------------
 
 def task19_bar_chart(eff, output_dir):
-    """Top-N patterns by |risk difference|, signed horizontal bars (negative =
-    associated with missing the goal); low-support patterns hatched + faded."""
+    """Grouped horizontal bars per violation pattern: outcome rate WITH vs. WITHOUT
+    the violation. Two neutral colours (no positive/negative pre-categorisation);
+    the participant derives the effect from the two rates themselves."""
     path = os.path.join(output_dir, "task19_bar_chart.svg")
     records = eff["records"][:TOP_N]
     if not records:
-        render_empty_state_svg(path, "Goal Effect by Violation Pattern", "No violation patterns found.")
+        render_empty_state_svg(path, "Violation Effect on Process Goal", "No violation patterns found.")
         return
-    recs = records[::-1]
-    labels = [r["pattern"] for r in recs]
-    diffs = [r["risk_diff"] for r in recs]
-    colors = _effect_colors(recs)
+    recs = records[::-1]  # highest-|difference| pattern ends up on top
+    labels    = [r["pattern"] for r in recs]
+    with_vals = [r["rate_with"] for r in recs]
+    wout_vals = [r["rate_without"] for r in recs]
 
-    fig, ax = plt.subplots(figsize=(11, max(4.0, len(recs) * 0.5 + 1.5)))
+    fig, ax = plt.subplots(figsize=(11, max(4.0, len(recs) * 0.6 + 1.6)))
     y = np.arange(len(labels))
-    for i, (r, d) in enumerate(zip(recs, diffs)):
-        ax.barh(i, d, color=colors[i], edgecolor="white",
-                hatch="//" if r["low_support"] else None,
-                alpha=0.55 if r["low_support"] else 1.0)
-    ax.axvline(0, color="#333333", linewidth=1.0)
+    bh = 0.38
+    bars_with = ax.barh(y + bh / 2, with_vals, height=bh, color=_C_WITH,
+                        edgecolor="white", label="With violation")
+    bars_wout = ax.barh(y - bh / 2, wout_vals, height=bh, color=_C_WITHOUT,
+                        edgecolor="white", label="Without violation")
+    for bars, vals in ((bars_with, with_vals), (bars_wout, wout_vals)):
+        for bar, v in zip(bars, vals):
+            ax.text(min(v + 1.0, 101.5), bar.get_y() + bar.get_height() / 2,
+                    f"{v:.1f}%", va="center", ha="left", fontsize=FONT_ANNOT - 1)
+
     ax.set_yticks(y)
     ax.set_yticklabels(labels, fontsize=FONT_ANNOT)
-    ax.set_xlabel("Risk difference in goal rate (percentage points)", fontsize=FONT_LABEL)
-    ax.set_title("Violation Patterns Associated with the Process Goal", fontsize=FONT_TITLE)
-    ax.legend(handles=[
-        mpatches.Patch(color=GREY_DARK, label="Associated with missing the goal (−)"),
-        mpatches.Patch(color=GREY_MED, label="Associated with achieving the goal (+)"),
-        mpatches.Patch(facecolor="#cccccc", hatch="//", label=f"Low support (< {MIN_SUPPORT} traces)"),
-    ], loc="lower center", bbox_to_anchor=(0.5, -0.35),
-       ncol=3, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
+    ax.set_xlim(0, 112)
+    ax.set_xlabel("Outcome rate (%)", fontsize=FONT_LABEL)
+    ax.set_title("Violation Effect on Process Goal", fontsize=FONT_TITLE)
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.22),
+              ncol=2, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
     ax.xaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
@@ -364,24 +375,52 @@ def task19_scatter_plot(eff, output_dir):
 
 
 def task19_table(eff, output_dir):
-    """Pattern | #Traces with | Outcome rate with | without | Risk diff | Relative risk."""
+    """Violation Pattern | Outcome Rate With (%) | Outcome Rate Without (%).
+
+    Info-equivalent with the bar_chart / matrix / parallel_sets idioms: only the
+    two raw outcome rates per pattern, no derived metrics (risk diff, relative
+    risk) and no trace counts."""
     path = os.path.join(output_dir, "task19_table.svg")
-    records = eff["records"]
+    records = eff["records"][:TOP_N]
     if not records:
         render_empty_state_svg(path, "Violation Effect on Process Goal", "No violation patterns found.")
         return
-    cell_text, col_labels, col_widths = _effect_table_data(records)
-    fig_h = max(3.0, 1.6 + len(cell_text) * 0.46)
-    fig, ax = plt.subplots(figsize=(13.5, fig_h))
+    col_labels = ["Violation Pattern", "Outcome Rate With (%)", "Outcome Rate Without (%)"]
+    cell_text = [
+        [r["pattern"], f"{r['rate_with']:.1f}%", f"{r['rate_without']:.1f}%"]
+        for r in records
+    ]
+    fig_h = max(3.0, 1.4 + len(cell_text) * 0.46)
+    fig, ax = plt.subplots(figsize=(11, fig_h))
     ax.axis("off")
     make_table(ax, cell_text=cell_text, col_labels=col_labels,
-               bbox=[0.02, 0.05, 0.96, 0.82], col_widths=col_widths,
-               font_size=9.5, cell_pad=0.08)
-    ax.set_title("Violation Patterns Associated with the Process Goal (ranked by |risk diff|)",
-                 fontsize=FONT_TITLE, pad=10)
-    ax.text(0.02, 0.02, f"* low support (< {MIN_SUPPORT} traces) — interpret with caution. "
-                        "Associations are observational, not causal.",
-            transform=ax.transAxes, fontsize=FONT_ANNOT - 1, color="#666666")
+               bbox=[0.03, 0.05, 0.94, 0.9],
+               col_widths=auto_col_widths(col_labels, cell_text),
+               font_size=10, cell_pad=0.09)
+    ax.set_title("Violation Effect on Process Goal", fontsize=FONT_TITLE, pad=8)
+    save_svg(fig, path)
+
+
+def task19_matrix(eff, output_dir):
+    """Rows = violation patterns, columns = With / Without violation; each cell is
+    the outcome rate (%) on a fixed 0→100 colour scale with a numeric annotation.
+    Info-equivalent with the table / bar_chart idioms."""
+    path = os.path.join(output_dir, "task19_matrix.svg")
+    records = eff["records"][:TOP_N]
+    if not records:
+        render_empty_state_svg(path, "Violation Effect on Process Goal", "No violation patterns found.")
+        return
+    labels = [r["pattern"] for r in records]
+    data = np.array([[r["rate_with"], r["rate_without"]] for r in records], dtype=float)
+
+    fig_h = max(3.0, 0.5 * len(labels) + 1.8)
+    fig, ax = plt.subplots(figsize=(7.5, fig_h))
+    draw_value_heatmap(
+        fig, ax, data, labels, ["With Violation", "Without Violation"],
+        cbar_label="Outcome Rate (%)", cell_fmt="{:.1f}%", annotate=True, vmax=100.0,
+    )
+    ax.set_title("Violation Effect on Process Goal", fontsize=FONT_TITLE)
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 
@@ -434,34 +473,55 @@ def task19_parallel_sets(eff, output_dir):
 
     top = records[:TOP_N]
     top_keys = [(r["activity"], r["move_type"]) for r in top]
-    rank_of = {k: i for i, k in enumerate(top_keys)}
-    left_labels = [r["pattern"] for r in top] + ["none of top-N"]
+    base_labels = [r["pattern"] for r in top] + ["None of top-N"]
 
-    # Assign each trace to its highest-ranked top-N pattern (else 'none of top-N').
-    assign = []
-    for s in eff["patterns_per_trace"]:
-        best_rank, best_key = None, None
-        for k in s:
-            if k in rank_of and (best_rank is None or rank_of[k] < best_rank):
-                best_rank, best_key = rank_of[k], k
-        assign.append(top[best_rank]["pattern"] if best_key is not None else "none of top-N")
-
+    # Presence-based rows: every trace contributes to EACH top-N pattern it
+    # exhibits (its "WITH" set), so all patterns shown by the table/bar/matrix
+    # idioms also appear here — rather than assigning each trace to a single
+    # strongest pattern, which would drop patterns that never rank highest.
+    # Traces exhibiting no top-N pattern fall into the "None of top-N" baseline.
+    # A trace with several patterns is counted once per pattern (same as the
+    # other idioms, which evaluate each pattern over all traces containing it).
     goal = eff["goal"]
-    matrix = np.zeros((len(left_labels), 2))
-    index_of = {lab: i for i, lab in enumerate(left_labels)}
-    for lab, g in zip(assign, goal):
-        matrix[index_of[lab], 0 if g else 1] += 1
+    matrix = np.zeros((len(base_labels), 2))
+    for s, g in zip(eff["patterns_per_trace"], goal):
+        present = [i for i, k in enumerate(top_keys) if k in s]
+        col = 0 if g else 1
+        if present:
+            for i in present:
+                matrix[i, col] += 1
+        else:
+            matrix[len(top_keys), col] += 1
 
-    fig, ax = plt.subplots(figsize=(10, max(6, len(left_labels) * 0.5 + 2)))
+    # Percentage labels on the left axis segments so participants can read the
+    # rates instead of only eyeballing ribbon widths. Each pattern's segment rate
+    # equals the "Outcome Rate With (%)" the other idioms report for it.
+    row_tot = matrix.sum(axis=1)
+    left_labels = [
+        f"{lab}  ({(matrix[i, 0] / row_tot[i] * 100) if row_tot[i] else 0.0:.1f}% goal)"
+        for i, lab in enumerate(base_labels)
+    ]
+    # Right axis: the TRUE overall goal split (from per-trace goal, not the
+    # per-pattern rows, which count multi-pattern traces more than once).
+    overall = float(goal.mean() * 100) if len(goal) else 0.0
+    right_labels = [f"Goal achieved ({overall:.1f}%)",
+                    f"Goal missed ({100 - overall:.1f}%)"]
+
+    fig, ax = plt.subplots(figsize=(11, max(6, len(left_labels) * 0.5 + 2)))
     ax.axis("off")
     left_colors = [GREY_MED if i % 2 == 0 else GREY_LIGHT for i in range(len(left_labels))]
     draw_parallel_sets(
-        ax, left_labels, ["Goal achieved", "Goal missed"], matrix, left_colors,
+        ax, left_labels, right_labels, matrix, left_colors,
         right_colors=[GREY_LIGHTER, GREY_DARK],
-        left_title="Top violation pattern present", right_title="Process goal",
+        left_title="Violation pattern present", right_title="Process goal",
+        # Label every present pattern (h > 0), not just those above the default
+        # 3% threshold: the "None of top-N" baseline dwarfs the violation rows, so
+        # small-but-present patterns would otherwise lose their label and break
+        # information equivalence with the table / bar_chart / matrix idioms.
+        label_min_frac=0.0,
     )
     # Title above the column headers (which draw_parallel_sets places at y=1.08).
-    fig.suptitle("Violation Pattern vs. Process Goal (ribbon = # traces)",
+    fig.suptitle("Violation Pattern vs. Process Goal (ribbon = traces exhibiting the pattern)",
                  fontsize=FONT_TITLE, y=0.99)
     fig.subplots_adjust(top=0.80)
     save_svg(fig, path)
@@ -639,6 +699,7 @@ def generate(log, alignments, model_path, output_dir: str, outcome_activity: str
     task19_scatter_plot(eff, output_dir)
     task19_table(eff, output_dir)
     task19_table_and_bar_chart(eff, output_dir)
+    task19_matrix(eff, output_dir)
     task19_parallel_sets(eff, output_dir)
     task19_flow_chart_and_table(eff, alignments, output_dir)
     task19_flow_chart_elaborate_bpmn_table(eff, model_path, output_dir)

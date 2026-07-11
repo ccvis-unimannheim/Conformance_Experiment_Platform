@@ -22,6 +22,7 @@ try:
         get_log_time_granularities,
         get_log_violations,
         get_log_worst_traces,
+        get_log_trace_ids,
         get_log_violated_activities_task34,
         _FILE_RENAME,
         _TASK_RENAME_SKIP,
@@ -37,6 +38,7 @@ except ImportError:
     get_log_time_granularities = None
     get_log_violations = None
     get_log_worst_traces = None
+    get_log_trace_ids = None
     get_log_violated_activities_task34 = None
     _FILE_RENAME = {}
     _TASK_RENAME_SKIP = {}
@@ -93,6 +95,8 @@ _LOG_VIOLATIONS_CACHE: dict[str, list[dict]] = {}
 # Cache of top-10 worst-fitness traces (task34); alignment computation is shared
 # with _LOG_VIOLATIONS_CACHE but cached separately to avoid coupled invalidation.
 _LOG_WORST_TRACES_CACHE: dict[str, list[dict]] = {}
+# Cache of all traces as {value, label} picker options (task04's trace_ids).
+_LOG_TRACE_IDS_CACHE: dict[str, list[dict]] = {}
 # Cache of violated activities for task34's activity-picker dropdown.
 _LOG_VIOLATED_ACTS_TASK34_CACHE: dict[str, list[dict]] = {}
 
@@ -145,6 +149,17 @@ def _dataset_worst_traces(dataset_id: str) -> list[dict]:
     return traces
 
 
+def _dataset_trace_ids(dataset_id: str) -> list[dict]:
+    """All traces of this dataset as {value, label} picker options (task04, cached)."""
+    if dataset_id in _LOG_TRACE_IDS_CACHE:
+        return _LOG_TRACE_IDS_CACHE[dataset_id]
+    if get_log_trace_ids is None:
+        return []
+    traces = get_log_trace_ids(str(DATA_DIRECTORY / dataset_id))
+    _LOG_TRACE_IDS_CACHE[dataset_id] = traces
+    return traces
+
+
 def _dataset_violated_activities_task34(dataset_id: str) -> list[dict]:
     """Violated activities for task34's activity-picker dropdown (cached)."""
     if dataset_id in _LOG_VIOLATED_ACTS_TASK34_CACHE:
@@ -166,6 +181,8 @@ def _param_candidates(source: str, dataset_id: str) -> list:
         return _dataset_violations(dataset_id)
     if source == "log.worst_traces":
         return _dataset_worst_traces(dataset_id)
+    if source == "log.trace_ids":
+        return _dataset_trace_ids(dataset_id)
     if source == "log.violated_activities_task34":
         return _dataset_violated_activities_task34(dataset_id)
     return []
