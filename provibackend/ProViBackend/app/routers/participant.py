@@ -105,18 +105,34 @@ def _trial_contract_fields(task_instances_by_task_id: dict, task_id: str) -> dic
 
 
 def _build_param_hints(task_key: str, parameters: dict) -> list[dict]:
-    """Return [{label, value}] for each non-empty configured parameter."""
+    """Return [{label, value}] for each configured parameter shown to participants.
+
+    Participant-facing wording is decoupled from the (precise, admin-facing)
+    PARAM_SPEC ``label``:
+      - ``hide_hint: True`` suppresses the hint entirely (param is internal to
+        reading the visualization, e.g. which traces are shown).
+      - ``hint`` overrides the displayed text (falls back to ``label``).
+    Empty values (None, "", empty list/dict) are skipped so unset pickers do not
+    render a confusing "[ ]".
+    """
     try:
         spec = task_registry.get_param_spec(task_key)
     except KeyError:
         return []
     hints = []
     for entry in spec:
+        if entry.get("hide_hint"):
+            continue
         key = entry.get("key", "")
         value = parameters.get(key)
-        if value is None or value == "":
+        if value is None or (isinstance(value, (str, list, dict, tuple)) and len(value) == 0):
             continue
-        hints.append({"label": entry["label"], "value": str(value)})
+        if isinstance(value, (list, tuple)):
+            value_str = ", ".join(str(v) for v in value)
+        else:
+            value_str = str(value)
+        label = entry.get("hint") or entry["label"]
+        hints.append({"label": label, "value": value_str})
     return hints
 
 

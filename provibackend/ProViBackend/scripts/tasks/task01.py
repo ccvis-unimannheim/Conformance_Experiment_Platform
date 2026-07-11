@@ -32,6 +32,7 @@ PARAM_SPEC = [
     {
         "key": "outcome_activity",
         "label": "Log split condition (activity present in trace marks the Positive group)",
+        "hint": "Traces containing this activity form the 'Positive' group; the chart compares this group against the rest.",
         "widget": "activity-picker",
         "source": "log.activities",
         "default": "",

@@ -49,6 +49,7 @@ PARAM_SPEC = [
     {
         "key": "outcome_activity",
         "label": "Process goal activity (present in trace = goal achieved)",
+        "hint": "A trace reaches the process goal when it contains this activity.",
         "widget": "activity-picker",
         "source": "log.activities",
         "default": "",
