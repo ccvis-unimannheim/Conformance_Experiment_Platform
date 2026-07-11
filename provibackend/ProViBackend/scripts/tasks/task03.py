@@ -81,7 +81,7 @@ import matplotlib.pyplot as plt
 from matplotlib import gridspec
 
 from shared import (
-    save_svg, make_table,
+    save_svg, make_table, auto_col_widths,
     draw_composition_stacked_bars, draw_value_heatmap,
     render_empty_state_svg, format_threshold,
     GREY_MED, GREY_LIGHT, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
@@ -99,6 +99,17 @@ N_TIME_BUCKETS = 4
 _COLOR_CONFORM     = GREY_MED    # medium-dark grey
 _COLOR_NON_CONFORM = GREY_LIGHT  # medium grey
 _GROUPS = ["Conformant", "Non-conformant"]
+
+# Canonical category headings — kept identical across *every* Task 3 idiom so no
+# single idiom exposes more/less framing than another (information fairness). The
+# top-N / bucket qualifiers use the module constants (not the per-run row count)
+# so the wording stays the same in every idiom regardless of how many rows fit.
+CAT_ACTIVITY   = f"Activity Presence (top-{TOP_N})"
+CAT_THROUGHPUT = "Throughput Time (quartile buckets)"
+CAT_VARIANT    = f"Variant Composition (top-{TOP_K_VARIANTS})"
+
+# Shared figure super-title, identical across every Task 3 idiom.
+FIG_SUPTITLE = "Conformant vs. Non-conformant: Behavioral Factors"
 
 
 # ---------------------------------------------------------------------------
@@ -253,7 +264,7 @@ def task03_bar_chart(presence_df: pd.DataFrame, throughput_buckets, variant_df: 
     ax.set_xticks(x)
     ax.set_xticklabels(acts, rotation=35, ha="right", fontsize=FONT_ANNOT - 1)
     ax.set_ylabel("Presence rate (% of traces)", fontsize=FONT_LABEL)
-    ax.set_title(f"Activity Presence (top-{len(acts)})", fontsize=FONT_LABEL)
+    ax.set_title(CAT_ACTIVITY, fontsize=FONT_LABEL)
     if len(acts):
         ax.set_ylim(0, min(115, presence_df[["Conformant", "Non-conformant"]].values.max() * 1.18))
     ax.spines[["top", "right"]].set_visible(False)
@@ -275,7 +286,7 @@ def task03_bar_chart(presence_df: pd.DataFrame, throughput_buckets, variant_df: 
     else:
         ax.text(0.5, 0.5, "No throughput-time variance", ha="center", va="center",
                 transform=ax.transAxes, fontsize=FONT_ANNOT)
-    ax.set_title("Throughput Time (quartile buckets)", fontsize=FONT_LABEL)
+    ax.set_title(CAT_THROUGHPUT, fontsize=FONT_LABEL)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
@@ -304,7 +315,7 @@ def task03_bar_chart(presence_df: pd.DataFrame, throughput_buckets, variant_df: 
         ax.text(0.5, 0.5, "No variant data", ha="center", va="center",
                 transform=ax.transAxes, fontsize=FONT_ANNOT)
     ax.set_ylabel("Share of group's traces (%)", fontsize=FONT_LABEL)
-    ax.set_title(f"Variant Composition (top-{len(variants)} by |Δ|)", fontsize=FONT_LABEL)
+    ax.set_title(CAT_VARIANT, fontsize=FONT_LABEL)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
@@ -314,32 +325,47 @@ def task03_bar_chart(presence_df: pd.DataFrame, throughput_buckets, variant_df: 
     fig.legend(handles, lbls, loc="lower center", bbox_to_anchor=(0.5, 0),
                ncol=2, frameon=False, fontsize=FONT_ANNOT)
 
-    fig.suptitle("Conformant vs. Non-conformant: Behavioral Factor Composition", fontsize=FONT_TITLE)
+    fig.suptitle(FIG_SUPTITLE, fontsize=FONT_TITLE)
     fig.tight_layout(rect=[0, 0.08, 1, 0.93])
     save_svg(fig, os.path.join(output_dir, "task03_bar_chart.svg"))
 
 
-def task03_table(presence_df: pd.DataFrame, throughput_df: pd.DataFrame,
+def _task03_throughput_bucket_rows(throughput_buckets):
+    """Rows for the throughput-time table section: one row per quartile bucket,
+    cells = share (%) of each group's traces in that bucket — mirroring how the
+    matrix / stacked-bar idioms present throughput, so the table exposes exactly
+    the same information (fairness)."""
+    if throughput_buckets is None:
+        return [["—", "—", "—"]]
+    labels, counts = throughput_buckets
+    totals = {g: float(sum(counts[g])) for g in _GROUPS}
+    rows = []
+    for si, lab in enumerate(labels):
+        row = [lab]
+        for g in _GROUPS:
+            row.append(f"{(counts[g][si] / totals[g] * 100) if totals[g] else 0.0:.1f}%")
+        rows.append(row)
+    return rows
+
+
+def task03_table(presence_df: pd.DataFrame, throughput_buckets,
                   variant_df: pd.DataFrame, output_dir: str):
     """One figure, three labelled sections — Activity Presence | Throughput Time |
     Variant Composition — each its own table."""
     presence_rows = [
-        [row["activity"], f"{row['Conformant']:.1f}%", f"{row['Non-conformant']:.1f}%",
-         f"{row['difference']:.1f}pp"]
+        [row["activity"], f"{row['Conformant']:.1f}%", f"{row['Non-conformant']:.1f}%"]
         for _, row in presence_df.iterrows()
-    ] or [["—", "—", "—", "—"]]
+    ] or [["—", "—", "—"]]
+    presence_labels = ["Activity", "Presence Conformant (%)", "Presence Non-conformant (%)"]
 
-    throughput_rows = [
-        [row["Group"], f"{row['Mean']:.1f}", f"{row['Median']:.1f}", f"{row['Std']:.1f}",
-         f"{row['Min']:.1f}", f"{row['Max']:.1f}"]
-        for _, row in throughput_df.iterrows()
-    ] or [["—", "—", "—", "—", "—", "—"]]
+    throughput_rows   = _task03_throughput_bucket_rows(throughput_buckets)
+    throughput_labels = ["Throughput time", "Conformant (%)", "Non-conformant (%)"]
 
     variant_rows = [
-        [row["variant"], f"{row['Conformant']:.1f}%", f"{row['Non-conformant']:.1f}%",
-         f"{row['difference']:.1f}pp"]
+        [row["variant"], f"{row['Conformant']:.1f}%", f"{row['Non-conformant']:.1f}%"]
         for _, row in variant_df.iterrows()
-    ] or [["—", "—", "—", "—"]]
+    ] or [["—", "—", "—"]]
+    variant_labels = ["Variant", "Share Conformant (%)", "Share Non-conformant (%)"]
 
     height_ratios = [max(1, len(presence_rows)), max(1, len(throughput_rows)), max(1, len(variant_rows))]
     fig_h = max(6.0, 1.2 + sum(height_ratios) * 0.45)
@@ -348,57 +374,51 @@ def task03_table(presence_df: pd.DataFrame, throughput_df: pd.DataFrame,
 
     ax1 = fig.add_subplot(gs[0]); ax1.axis("off")
     make_table(
-        ax1, cell_text=presence_rows,
-        col_labels=["Activity", "Presence Conformant (%)", "Presence Non-conformant (%)", "Δ"],
-        bbox=[0.02, 0.02, 0.96, 0.90], col_widths=[0.40, 0.22, 0.24, 0.14],
+        ax1, cell_text=presence_rows, col_labels=presence_labels,
+        bbox=[0.02, 0.02, 0.96, 0.90], col_widths=auto_col_widths(presence_labels, presence_rows),
         font_size=9.5, cell_pad=0.08,
     )
-    ax1.set_title(f"1. Activity Presence (top-{len(presence_rows)})", fontsize=FONT_TITLE, pad=4)
+    ax1.set_title(CAT_ACTIVITY, fontsize=FONT_TITLE, pad=4)
 
     ax2 = fig.add_subplot(gs[1]); ax2.axis("off")
     make_table(
-        ax2, cell_text=throughput_rows,
-        col_labels=["Group", "Mean (h)", "Median (h)", "Std (h)", "Min (h)", "Max (h)"],
-        bbox=[0.02, 0.02, 0.96, 0.90], col_widths=[0.24, 0.15, 0.15, 0.15, 0.15, 0.16],
+        ax2, cell_text=throughput_rows, col_labels=throughput_labels,
+        bbox=[0.02, 0.02, 0.96, 0.90], col_widths=auto_col_widths(throughput_labels, throughput_rows),
         font_size=9.5, cell_pad=0.08,
     )
-    ax2.set_title("2. Throughput Time", fontsize=FONT_TITLE, pad=4)
+    ax2.set_title(CAT_THROUGHPUT, fontsize=FONT_TITLE, pad=4)
 
     ax3 = fig.add_subplot(gs[2]); ax3.axis("off")
     make_table(
-        ax3, cell_text=variant_rows,
-        col_labels=["Variant", "Share Conformant (%)", "Share Non-conformant (%)", "Δ"],
-        bbox=[0.02, 0.02, 0.96, 0.90], col_widths=[0.18, 0.30, 0.30, 0.14],
+        ax3, cell_text=variant_rows, col_labels=variant_labels,
+        bbox=[0.02, 0.02, 0.96, 0.90], col_widths=auto_col_widths(variant_labels, variant_rows),
         font_size=9.5, cell_pad=0.08,
     )
-    ax3.set_title(f"3. Variant Composition (top-{len(variant_rows)})", fontsize=FONT_TITLE, pad=4)
+    ax3.set_title(CAT_VARIANT, fontsize=FONT_TITLE, pad=4)
 
-    fig.suptitle("Conformant vs. Non-conformant: Behavioral Factors", fontsize=FONT_TITLE, y=0.99)
+    fig.suptitle(FIG_SUPTITLE, fontsize=FONT_TITLE, y=0.99)
     save_svg(fig, os.path.join(output_dir, "task03_table.svg"))
 
 
-def task03_table_and_bar_chart(presence_df: pd.DataFrame, throughput_df: pd.DataFrame,
+def task03_table_and_bar_chart(presence_df: pd.DataFrame, throughput_buckets,
                                 variant_df: pd.DataFrame, output_dir: str):
     """Left: three-section table (Activity Presence | Throughput Time | Variant
     Composition), same as task03_table. Right: a single bar panel showing the
     top-N activity-presence differences (the most visually informative factor)."""
     presence_rows = [
-        [row["activity"], f"{row['Conformant']:.1f}%", f"{row['Non-conformant']:.1f}%",
-         f"{row['difference']:.1f}pp"]
+        [row["activity"], f"{row['Conformant']:.1f}%", f"{row['Non-conformant']:.1f}%"]
         for _, row in presence_df.iterrows()
-    ] or [["—", "—", "—", "—"]]
+    ] or [["—", "—", "—"]]
+    presence_labels = ["Activity", "Presence Conformant (%)", "Presence Non-conformant (%)"]
 
-    throughput_rows = [
-        [row["Group"], f"{row['Mean']:.1f}", f"{row['Median']:.1f}", f"{row['Std']:.1f}",
-         f"{row['Min']:.1f}", f"{row['Max']:.1f}"]
-        for _, row in throughput_df.iterrows()
-    ] or [["—", "—", "—", "—", "—", "—"]]
+    throughput_rows   = _task03_throughput_bucket_rows(throughput_buckets)
+    throughput_labels = ["Throughput time", "Conformant (%)", "Non-conformant (%)"]
 
     variant_rows = [
-        [row["variant"], f"{row['Conformant']:.1f}%", f"{row['Non-conformant']:.1f}%",
-         f"{row['difference']:.1f}pp"]
+        [row["variant"], f"{row['Conformant']:.1f}%", f"{row['Non-conformant']:.1f}%"]
         for _, row in variant_df.iterrows()
-    ] or [["—", "—", "—", "—"]]
+    ] or [["—", "—", "—"]]
+    variant_labels = ["Variant", "Share Conformant (%)", "Share Non-conformant (%)"]
 
     height_ratios = [max(1, len(presence_rows)), max(1, len(throughput_rows)), max(1, len(variant_rows))]
     fig_h = max(8.0, 2.2 + sum(height_ratios) * 0.5)
@@ -410,30 +430,27 @@ def task03_table_and_bar_chart(presence_df: pd.DataFrame, throughput_df: pd.Data
 
     ax1 = fig.add_subplot(gs_left[0]); ax1.axis("off")
     make_table(
-        ax1, cell_text=presence_rows,
-        col_labels=["Activity", "Presence Conf. (%)", "Presence Non-conf. (%)", "Δ"],
-        bbox=[0.01, 0.05, 0.98, 0.85], col_widths=[0.40, 0.22, 0.24, 0.14],
+        ax1, cell_text=presence_rows, col_labels=presence_labels,
+        bbox=[0.01, 0.05, 0.98, 0.85], col_widths=auto_col_widths(presence_labels, presence_rows),
         font_size=9, cell_pad=0.08,
     )
-    ax1.set_title(f"1. Activity Presence (top-{len(presence_rows)})", fontsize=FONT_TITLE, pad=8)
+    ax1.set_title(CAT_ACTIVITY, fontsize=FONT_TITLE, pad=8)
 
     ax2 = fig.add_subplot(gs_left[1]); ax2.axis("off")
     make_table(
-        ax2, cell_text=throughput_rows,
-        col_labels=["Group", "Mean (h)", "Median (h)", "Std (h)", "Min (h)", "Max (h)"],
-        bbox=[0.01, 0.05, 0.98, 0.85], col_widths=[0.24, 0.15, 0.15, 0.15, 0.15, 0.16],
+        ax2, cell_text=throughput_rows, col_labels=throughput_labels,
+        bbox=[0.01, 0.05, 0.98, 0.85], col_widths=auto_col_widths(throughput_labels, throughput_rows),
         font_size=9, cell_pad=0.08,
     )
-    ax2.set_title("2. Throughput Time", fontsize=FONT_TITLE, pad=8)
+    ax2.set_title(CAT_THROUGHPUT, fontsize=FONT_TITLE, pad=8)
 
     ax3 = fig.add_subplot(gs_left[2]); ax3.axis("off")
     make_table(
-        ax3, cell_text=variant_rows,
-        col_labels=["Variant", "Share Conf. (%)", "Share Non-conf. (%)", "Δ"],
-        bbox=[0.01, 0.05, 0.98, 0.85], col_widths=[0.18, 0.30, 0.30, 0.14],
+        ax3, cell_text=variant_rows, col_labels=variant_labels,
+        bbox=[0.01, 0.05, 0.98, 0.85], col_widths=auto_col_widths(variant_labels, variant_rows),
         font_size=9, cell_pad=0.08,
     )
-    ax3.set_title(f"3. Variant Composition (top-{len(variant_rows)})", fontsize=FONT_TITLE, pad=8)
+    ax3.set_title(CAT_VARIANT, fontsize=FONT_TITLE, pad=8)
 
     ax_bar = fig.add_subplot(gs[1])
     acts  = presence_df["activity"].tolist()
@@ -453,7 +470,7 @@ def task03_table_and_bar_chart(presence_df: pd.DataFrame, throughput_df: pd.Data
     ax_bar.xaxis.grid(True, linestyle="--", alpha=0.5)
     ax_bar.set_axisbelow(True)
 
-    fig.suptitle("Conformant vs. Non-conformant: Behavioral Factors", fontsize=FONT_TITLE, y=0.99)
+    fig.suptitle(FIG_SUPTITLE, fontsize=FONT_TITLE, y=0.99)
     save_svg(fig, os.path.join(output_dir, "task03_table_and_bar_chart.svg"))
 
 
@@ -500,7 +517,7 @@ def task03_stacked_bar(trace_rows: list, throughput_buckets, variant_df: pd.Data
                 transform=ax.transAxes, fontsize=FONT_ANNOT)
     ax.set_ylabel("Share (%)", fontsize=FONT_LABEL)
     ax.set_ylim(0, 100)
-    ax.set_title("Activity Presence", fontsize=FONT_LABEL)
+    ax.set_title(CAT_ACTIVITY, fontsize=FONT_LABEL)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
@@ -524,7 +541,7 @@ def task03_stacked_bar(trace_rows: list, throughput_buckets, variant_df: pd.Data
                 transform=ax.transAxes, fontsize=FONT_ANNOT)
     ax.set_ylabel("Share (%)", fontsize=FONT_LABEL)
     ax.set_ylim(0, 100)
-    ax.set_title("Throughput Time", fontsize=FONT_LABEL)
+    ax.set_title(CAT_THROUGHPUT, fontsize=FONT_LABEL)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
@@ -548,12 +565,12 @@ def task03_stacked_bar(trace_rows: list, throughput_buckets, variant_df: pd.Data
                 transform=ax.transAxes, fontsize=FONT_ANNOT)
     ax.set_ylabel("Share (%)", fontsize=FONT_LABEL)
     ax.set_ylim(0, 100)
-    ax.set_title("Variant Composition", fontsize=FONT_LABEL)
+    ax.set_title(CAT_VARIANT, fontsize=FONT_LABEL)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
 
-    fig.suptitle("Conformant vs. Non-conformant: Behavioral Factor Composition", fontsize=FONT_TITLE)
+    fig.suptitle(FIG_SUPTITLE, fontsize=FONT_TITLE)
     fig.tight_layout(rect=[0, 0, 1, 0.93])
     save_svg(fig, path)
 
@@ -598,17 +615,17 @@ def task03_matrix(presence_df: pd.DataFrame, throughput_buckets, variant_df: pd.
 
     draw_value_heatmap(fig, axes[0], presence_data, acts, _GROUPS, xlabel="Conformance Group",
                        cbar_label="Presence rate (%)", cell_fmt="{:.0f}%", annotate=True)
-    axes[0].set_title(f"Activity Presence (top-{len(acts)})", fontsize=FONT_LABEL)
+    axes[0].set_title(CAT_ACTIVITY, fontsize=FONT_LABEL)
 
     draw_value_heatmap(fig, axes[1], tt_data, tt_labels, _GROUPS, xlabel="Conformance Group",
                        cbar_label="Share of traces (%)", cell_fmt="{:.0f}%", annotate=True)
-    axes[1].set_title("Throughput Time (quartile buckets)", fontsize=FONT_LABEL)
+    axes[1].set_title(CAT_THROUGHPUT, fontsize=FONT_LABEL)
 
     draw_value_heatmap(fig, axes[2], variant_data, variants, _GROUPS, xlabel="Conformance Group",
                        cbar_label="Share of group (%)", cell_fmt="{:.0f}%", annotate=True)
-    axes[2].set_title(f"Variant Composition (top-{len(variants)})", fontsize=FONT_LABEL)
+    axes[2].set_title(CAT_VARIANT, fontsize=FONT_LABEL)
 
-    fig.suptitle("Conformant vs. Non-conformant: Behavioral Factors", fontsize=FONT_TITLE)
+    fig.suptitle(FIG_SUPTITLE, fontsize=FONT_TITLE)
     fig.tight_layout(rect=[0, 0, 1, 0.95])
     save_svg(fig, path)
 
@@ -712,16 +729,15 @@ def generate(log, fitness_df, output_dir: str, conformant_threshold: float = 1.0
     if n_nc == 0:
         logger.warning("      No non-conformant traces — Non-conformant group is empty.")
 
-    presence_df       = _task03_activity_presence_df(trace_rows)
-    throughput_df     = _task03_throughput_stats_df(trace_rows)
+    presence_df        = _task03_activity_presence_df(trace_rows)
     throughput_buckets = _task03_throughput_buckets(trace_rows)
-    variant_df        = _task03_variant_df(trace_rows)
+    variant_df         = _task03_variant_df(trace_rows)
     logger.info(f"      -> Top-{len(presence_df)} activities, "
                 f"top-{len(variant_df)} variants extracted.")
 
     task03_bar_chart(presence_df, throughput_buckets, variant_df, output_dir)
-    task03_table(presence_df, throughput_df, variant_df, output_dir)
-    task03_table_and_bar_chart(presence_df, throughput_df, variant_df, output_dir)
+    task03_table(presence_df, throughput_buckets, variant_df, output_dir)
+    task03_table_and_bar_chart(presence_df, throughput_buckets, variant_df, output_dir)
 
     task03_stacked_bar(trace_rows, throughput_buckets, variant_df, output_dir)
     task03_matrix(presence_df, throughput_buckets, variant_df, output_dir)

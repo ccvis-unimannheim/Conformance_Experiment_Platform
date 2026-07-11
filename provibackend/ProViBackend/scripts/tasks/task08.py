@@ -204,9 +204,17 @@ def _top_violations(violation_freq, n=_TOP_N):
 
 
 def _viol_label(v) -> str:
-    """Format a (activity, violation_type) tuple as 'type: activity'."""
-    act, vtype = v
-    return f"{vtype}: {act}"
+    """Return a violation's display label in 'type: activity' form.
+
+    Violation identifiers are strings produced by _classify_step (e.g.
+    "Move on Model: A_ACCEPTED"), which are already in that form, so they pass
+    through unchanged. A legacy (activity, violation_type) tuple is still
+    accepted and reformatted for safety.
+    """
+    if isinstance(v, tuple):
+        act, vtype = v
+        return f"{vtype}: {act}"
+    return str(v)
 
 
 def _short_label(label: str, max_len: int = 28) -> str:

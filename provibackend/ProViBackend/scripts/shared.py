@@ -161,6 +161,29 @@ def make_table(
     )
     return tbl
 
+
+def auto_col_widths(col_labels, cell_text, header_weight: float = 1.15,
+                    padding: float = 2.0) -> list:
+    """Relative column widths proportional to the widest text in each column.
+
+    Because make_table stretches the table across its bbox, sizing each column
+    by the longest string it must hold (header included) guarantees no column is
+    ever narrower than its content — so header labels can't spill over the cell
+    border.
+
+    header_weight scales the header's character count (headers render a touch
+    heavier than body text); padding adds a little slack per column.
+    """
+    ncols = len(col_labels)
+    max_chars = [len(str(col_labels[j])) * header_weight for j in range(ncols)]
+    for row in cell_text:
+        for j in range(min(ncols, len(row))):
+            max_chars[j] = max(max_chars[j], float(len(str(row[j]))))
+    widths = [c + padding for c in max_chars]
+    total = float(sum(widths)) or 1.0
+    return [w / total for w in widths]
+
+
 # ---------------------------------------------------------------------------
 # Alignment parsing helpers
 #
@@ -880,13 +903,16 @@ def draw_composition_stacked_bars(ax, group_labels, pattern_labels, rates,
 def draw_value_heatmap(fig, ax, data, row_labels, col_labels,
                        xlabel: str = "", cbar_label: str = "Rate (%)",
                        cell_fmt: str = "{:.1f}%", annotate: bool = True,
-                       cmap=None, rotate_xticks: int = 0):
+                       cmap=None, rotate_xticks: int = 0, vmax: float = None):
     """Colour-encoded matrix/heatmap with optional per-cell value labels + colorbar.
 
     Convention used across the platform: Matrix = annotated grid (annotate=True);
     Heatmap = continuous colour intensity (annotate=False).
 
     data: array-like of shape (len(row_labels), len(col_labels)).
+    vmax: upper bound of the colour scale. When None it adapts to the data
+    (max(data.max(), 1.0)); pass an explicit value (e.g. 100 for percentages) to
+    fix the scale so equal values map to equal colours across figures.
     """
     import matplotlib as _mpl
     from matplotlib.colors import to_hex as _to_hex, Normalize as _Norm
@@ -894,7 +920,8 @@ def draw_value_heatmap(fig, ax, data, row_labels, col_labels,
     data = np.asarray(data, dtype=float)
     if cmap is None:
         cmap = CIVIDIS_R
-    vmax = max(data.max(), 1.0) if data.size else 1.0
+    if vmax is None:
+        vmax = max(data.max(), 1.0) if data.size else 1.0
     im = ax.imshow(data, cmap=cmap, vmin=0, vmax=vmax, aspect="auto")
 
     ax.set_xticks(range(len(col_labels)))
@@ -2039,6 +2066,8 @@ def draw_parallel_sets(
     bar_w: float = 0.10,
     x_left: float = 0.12,
     x_right: float = 0.88,
+    label_min_frac: float = 0.03,
+    wrap_labels: bool = True,
 ):
     """Draw a two-dimension Parallel Sets chart onto *ax*.
 
@@ -2068,6 +2097,14 @@ def draw_parallel_sets(
         n = len(right_labels)
         right_colors = [to_hex(_CIV(0.15 + 0.70 * i / max(n - 1, 1))) for i in range(n)]
 
+    # Wrap the "…  (…)" suffix onto a second line so long labels stay narrow (both
+    # callers separate the parenthetical with a double space).
+    def _wrap(lbl):
+        s = str(lbl)
+        return s.replace("  ", "\n", 1) if wrap_labels and "  " in s else s
+    left_labels  = [_wrap(l) for l in left_labels]
+    right_labels = [_wrap(l) for l in right_labels]
+
     ctrl_x  = (x_left + x_right) / 2.0
     g_hts   = matrix.sum(axis=1) / total
     c_hts   = matrix.sum(axis=0) / total
@@ -2075,14 +2112,16 @@ def draw_parallel_sets(
     c_bots  = _np.concatenate([[0.0], _np.cumsum(c_hts[:-1])])
 
     # Left bars
+    left_texts, right_texts = [], []
     for label, color, h, bot in zip(left_labels, left_colors, g_hts, g_bots):
         ax.add_patch(plt.Rectangle(
             (x_left - bar_w / 2, bot), bar_w, h,
             facecolor=color, edgecolor="white", linewidth=0.8, zorder=3,
         ))
-        if h > 0.03:
-            ax.text(x_left - bar_w / 2 - 0.015, bot + h / 2, label,
-                    ha="right", va="center", fontsize=FONT_ANNOT, color="#333333")
+        if h > label_min_frac:
+            left_texts.append(ax.text(
+                x_left - bar_w / 2 - 0.015, bot + h / 2, label,
+                ha="right", va="center", fontsize=FONT_ANNOT, color="#333333"))
 
     # Right bars
     for label, color, h, bot in zip(right_labels, right_colors, c_hts, c_bots):
@@ -2090,9 +2129,10 @@ def draw_parallel_sets(
             (x_right - bar_w / 2, bot), bar_w, h,
             facecolor=color, edgecolor="white", linewidth=0.8, zorder=3,
         ))
-        if h > 0.03:
-            ax.text(x_right + bar_w / 2 + 0.015, bot + h / 2, label,
-                    ha="left", va="center", fontsize=FONT_ANNOT - 1, color="#333333")
+        if h > label_min_frac:
+            right_texts.append(ax.text(
+                x_right + bar_w / 2 + 0.015, bot + h / 2, label,
+                ha="left", va="center", fontsize=FONT_ANNOT - 1, color="#333333"))
 
     # Bezier ribbons
     g_fill = g_bots.copy()
@@ -2133,6 +2173,60 @@ def draw_parallel_sets(
     if right_title:
         ax.text(x_right, 1.08, right_title, ha="center", va="bottom",
                 fontsize=FONT_LABEL, fontweight="bold")
+
+    # Reserve exact horizontal room for the (data-anchored, non-autoscaling) side
+    # labels: measure their rendered pixel widths and solve for x-limits so neither
+    # side overruns the axes. Font size and axes position are fixed, so the label
+    # pixel widths and axes pixel width are invariant under the x-limit change,
+    # making this a closed-form solve rather than a fixed-point iteration.
+    ax.set_ylim(-0.05, 1.22)
+    fig = ax.figure
+    try:
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        w_px = ax.get_window_extent(renderer).width
+        pad_px = 8.0
+        l_px = max((t.get_window_extent(renderer).width for t in left_texts), default=0.0) + pad_px
+        r_px = max((t.get_window_extent(renderer).width for t in right_texts), default=0.0) + pad_px
+        base = (x_right - x_left) + bar_w                    # ribbon span in data units
+        frac = min((l_px + r_px) / w_px, 0.62) if w_px else 0.0   # clamp so D stays sane
+        span = base / (1.0 - frac)
+        xmin = (x_left - bar_w / 2) - (l_px / w_px) * span if w_px else x_left - 0.5
+        xmax = (x_right + bar_w / 2) + (r_px / w_px) * span if w_px else x_right + 0.5
+        ax.set_xlim(xmin, xmax)
+
+        # De-collide left labels: thin adjacent slivers (imbalanced categories)
+        # otherwise overprint their labels. Spread them to a minimum vertical gap
+        # and draw a leader from each sliver back to its shifted label.
+        if len(left_texts) > 1 and w_px:
+            h_px = ax.get_window_extent(renderer).height
+            y0, y1 = ax.get_ylim()
+            per_px = (y1 - y0) / h_px if h_px else 0.0
+            items = sorted(
+                ((t, t.get_position()[1],
+                  (t.get_text().count("\n") + 1) * FONT_ANNOT * 1.42 * per_px) for t in left_texts),
+                key=lambda it: it[1],
+            )
+            orig_y = [it[1] for it in items]
+            new_y = list(orig_y)
+            gaps = [it[2] for it in items]
+            for i in range(1, len(items)):
+                need = new_y[i - 1] + 0.5 * (gaps[i - 1] + gaps[i])
+                if new_y[i] < need:
+                    new_y[i] = need
+            # If the cluster overran the top, slide it all down to fit.
+            overshoot = new_y[-1] - 1.12
+            if overshoot > 0:
+                new_y = [y - overshoot for y in new_y]
+            label_x = x_left - bar_w / 2 - 0.015
+            for (t, oy, _g), ny in zip(items, new_y):
+                if abs(ny - oy) > 1e-4:
+                    t.set_position((label_x, ny))
+                    ax.plot([x_left - bar_w / 2, label_x + 0.006], [oy, ny],
+                            color="#999999", linewidth=0.6, zorder=2.5)
+    except Exception:
+        # Renderer unavailable — fall back to a generous static margin.
+        ax.set_xlim(-0.55, 1.55)
 
 
 # ---------------------------------------------------------------------------

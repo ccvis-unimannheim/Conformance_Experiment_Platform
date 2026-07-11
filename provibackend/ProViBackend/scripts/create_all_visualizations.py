@@ -353,7 +353,7 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
         "task01": lambda d: task01.generate(log, fitness_df, d, outcome_activity=outcome_activity()),
         "task02": lambda d: task02.generate(fitness_df, d, predominant_threshold=predominant_threshold()),
         "task03": lambda d: task03.generate(log, fitness_df, d, conformant_threshold=conformant_threshold()),
-        "task04": lambda d: task04.generate(log, fitness_df, d, top_n=int(p.get("top_n", task04.TOP_N))),
+        "task04": lambda d: task04.generate(log, fitness_df, d, trace_ids=(p.get("trace_ids") or None)),
         "task05": lambda d: task05.generate(log, alignments, d, outcome_activity=outcome_activity()),
         "task06": lambda d: task06.generate(fitness_df, d, log=log, alignments=alignments, model_path=model_path),
         "task07": lambda d: task07.generate(log, fitness_df, d, time_granularity=time_granularity()),
@@ -581,6 +581,31 @@ def get_log_worst_traces(dataset_dir: str) -> list[dict]:
                 f"Rank {rank + 1} — trace #{trace_idx + 1} | "
                 f"fitness {fitness:.4f}  ({n_viol} violations)"
             ),
+        })
+    return options
+
+
+def get_log_trace_ids(dataset_dir: str) -> list[dict]:
+    """Every trace in this dataset as a picker option for task04's `trace_ids`.
+
+    Returns [{"value": "<case_id>", "label": "<case_id> — fitness 0.812"}, ...] in
+    log order. `value` is the trace's case id (concept:name); task04.generate /
+    compute_ground_truth accept these ids in `trace_ids`. Powers the
+    'log.trace_ids' param-spec source.
+    """
+    log_path, _model_path, _ = _resolve_dataset_paths(dataset_dir, None)
+    log = load_event_log(log_path)
+    alignments = get_or_compute_alignments(dataset_dir, log)
+
+    options = []
+    for i, trace in enumerate(log):
+        if i >= len(alignments):
+            break
+        case_id = str(trace.attributes.get("concept:name", i))
+        fitness = float(alignments[i].get("fitness", 1.0))
+        options.append({
+            "value": case_id,
+            "label": f"{case_id} — fitness {fitness:.3f}",
         })
     return options
 
