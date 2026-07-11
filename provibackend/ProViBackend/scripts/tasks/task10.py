@@ -41,7 +41,7 @@ PARAM_SPEC = [
     {
         "key": "conformance_bins",
         "label": "Conformance interval boundaries",
-        "hint": "Conformance scores are grouped into these intervals.",
+        "hint": "Conformance scores are grouped into these intervals",
         "widget": "select-one",
         "options": [
             {

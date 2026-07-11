@@ -41,7 +41,7 @@ PARAM_SPEC = [
     {
         "key": "compare_attribute",
         "label": "Case attribute used to split traces into sub-logs (e.g. AMOUNT_REQ)",
-        "hint": "Traces are split into sub-logs by this case attribute.",
+        "hint": "Traces are split into sub-logs by this case attribute",
         "widget": "text",
         "default": "AMOUNT_REQ",
         "required": True,
