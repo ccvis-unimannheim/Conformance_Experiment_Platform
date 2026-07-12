@@ -16,7 +16,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 IDIOMS = [
-    "bar_chart", "heatmap",
+    "bar_chart", "matrix",
     "table", "table_bar_chart",
     "flow_chart_elaborate_bpmn_table",
 ]
@@ -248,7 +248,7 @@ def task11_bar_chart(selected, trace_coverage, n_traces, output_dir):
     ax.set_facecolor("#fafbfc")
 
     for i, (lbl, cnt, pct, bc) in enumerate(zip(labels, counts, pcts, bar_colors)):
-        ax.barh(i, cnt, color=bc, edgecolor=_C_DARK, linewidth=0.8, height=0.65)
+        ax.barh(i, cnt, color=bc, edgecolor="none", height=0.65)
         ax.text(cnt + max_c * 0.012, i,
                 f"{cnt:,} traces  ({pct:.1f}%)",
                 va="center", fontsize=FONT_ANNOT, color=_C_DARK)
@@ -258,9 +258,7 @@ def task11_bar_chart(selected, trace_coverage, n_traces, output_dir):
     ax.invert_yaxis()
     ax.set_xlabel("Number of traces containing this violation", fontsize=FONT_LABEL)
     ax.set_title(
-        f"Predefined Violation Frequency  ({n} violation{'s' if n != 1 else ''})\n"
-        f"Bars = traces in which the violation appears at least once  ·  "
-        f"{n_traces:,} total traces",
+        f"Predefined Violation Frequency  ({n} violation{'s' if n != 1 else ''})",
         fontsize=FONT_TITLE,
     )
     ax.spines[["top", "right"]].set_visible(False)
@@ -271,19 +269,19 @@ def task11_bar_chart(selected, trace_coverage, n_traces, output_dir):
     save_svg(fig, os.path.join(output_dir, "task11_bar_chart.svg"))
 
 
-# ── Idiom 2: Heatmap — activity × type for selected violations ────────────────
+# ── Idiom 2: Matrix — activity × type for selected violations ─────────────────
 
-def task11_heatmap(selected, trace_coverage, n_traces, output_dir):
+def task11_matrix(selected, trace_coverage, n_traces, output_dir):
     """Activity × violation-type grid restricted to the selected violations.
 
     Rows = distinct activities in the selection (ordered by descending total
     trace coverage across their selected move types).  Columns = the subset of
     the three move types that appears at least once among the selected pairs,
     in canonical order.  Cell = # traces containing that (activity, type) pair;
-    annotated with count and %; unselected cells are left at 0 and shown pale.
+    annotated with count and %; unselected cells shown as grey "–".
     """
     if not selected:
-        _no_violations(output_dir, "heatmap")
+        _no_violations(output_dir, "matrix")
         return
 
     selected_set = set(selected)
@@ -346,8 +344,7 @@ def task11_heatmap(selected, trace_coverage, n_traces, output_dir):
     cbar.outline.set_visible(False)
 
     ax.set_title(
-        "Predefined Violation Frequency: Activity × Type\n"
-        f"Cell = # traces containing that violation  ·  {n_traces:,} total traces",
+        "Predefined Violation Frequency: Activity × Type",
         fontsize=FONT_TITLE,
     )
     ax.tick_params(axis="both", length=0)
@@ -355,7 +352,7 @@ def task11_heatmap(selected, trace_coverage, n_traces, output_dir):
         spine.set_visible(False)
 
     fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task11_heatmap.svg"))
+    save_svg(fig, os.path.join(output_dir, "task11_matrix.svg"))
 
 
 # ── Idiom 3: Table — violations ranked by trace frequency ─────────────────────
@@ -398,8 +395,7 @@ def task11_table(selected, trace_coverage, n_traces, output_dir):
         cell_pad=0.09,
     )
     ax.set_title(
-        f"Predefined Violation Frequency  ({n_rows} violation{'s' if n_rows != 1 else ''})\n"
-        f"% = traces containing that violation ÷ {n_traces:,} total traces",
+        f"Predefined Violation Frequency  ({n_rows} violation{'s' if n_rows != 1 else ''})",
         fontsize=FONT_TITLE, pad=14,
     )
     fig.tight_layout(pad=1.2)
@@ -449,7 +445,7 @@ def task11_table_bar_chart(selected, trace_coverage, n_traces, output_dir):
     for i, (act, vt, cnt) in enumerate(data):
         bc = mcolors.to_hex(_CMAP_SEQ(cnt / max_c if max_c > 0 else 0.0))
         ax_bar.barh(i, cnt, color=bc,
-                    edgecolor=_C_DARK, linewidth=0.8, height=0.65)
+                    edgecolor="none", height=0.65)
         pct = cnt / n_traces * 100 if n_traces > 0 else 0
         ax_bar.text(cnt + max_c * 0.012, i,
                     f"{cnt:,}  ({pct:.1f}%)",
@@ -658,7 +654,7 @@ def generate(log, alignments, output_dir, model_path=None, target_violations=Non
                 activity_trace_count[act] += 1
 
     task11_bar_chart(selected, trace_coverage, n_traces, output_dir)
-    task11_heatmap(selected, trace_coverage, n_traces, output_dir)
+    task11_matrix(selected, trace_coverage, n_traces, output_dir)
     task11_table(selected, trace_coverage, n_traces, output_dir)
     task11_table_bar_chart(selected, trace_coverage, n_traces, output_dir)
     task11_flow_chart_elaborate_bpmn_table(
