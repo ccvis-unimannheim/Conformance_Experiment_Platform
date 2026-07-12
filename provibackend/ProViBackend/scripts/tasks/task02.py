@@ -46,6 +46,7 @@ PARAM_SPEC = [
         "widget": "threshold",
         "default": DEFAULT_PREDOMINANT_THRESHOLD,
         "required": False,
+        "optional_hint": f"(optional — leave empty to use the default threshold of {DEFAULT_PREDOMINANT_THRESHOLD})",
     },
 ]
 

@@ -511,9 +511,7 @@ function SpecifyContent() {
                               {entry.required && <span className="text-error ml-0.5">*</span>}
                               {entry.required === false && (
                                 <span className="text-on-surface-variant font-normal ml-1">
-                                  {entry.widget === "threshold"
-                                    ? "(optional — leave empty to skip threshold annotation and use manual ground truth)"
-                                    : "(optional)"}
+                                  {entry.optional_hint || "(optional)"}
                                 </span>
                               )}
                             </label>

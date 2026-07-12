@@ -50,6 +50,7 @@ PARAM_SPEC = [
         "widget": "threshold",
         "default": DEFAULT_HIGH_COOCCURRENCE_THRESHOLD,
         "required": False,
+        "optional_hint": f"(optional — leave empty to use the default threshold of {DEFAULT_HIGH_COOCCURRENCE_THRESHOLD})",
         "min": 0.01,
         "max": 1.0,
         "step": 0.01,
