@@ -9,7 +9,7 @@ Visualizations (all SVG, white-grey-black palette):
   heatmap                       – activity × type grid for selected violations
   table                         – violations ranked by trace frequency
   table_bar_chart               – table + gradient bar chart
-  flow_chart_elaborate_bpmn_table – BPMN heatmap + violation frequency table
+  flow_chart_elaborate     – BPMN process view with violation details in nodes
 """
 
 import logging
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 IDIOMS = [
     "bar_chart", "matrix",
     "table", "table_bar_chart",
-    "flow_chart_elaborate_bpmn_table",
+    "flow_chart_elaborate",
 ]
 
 # ---------------------------------------------------------------------------
@@ -481,6 +481,14 @@ def _import_task09_bpmn():
     return _make_bpmn_violation_svg
 
 
+def _import_task09_bpmn_t11():
+    try:
+        from tasks.task09 import _make_bpmn_t11_svg
+    except ImportError:
+        from task09 import _make_bpmn_t11_svg
+    return _make_bpmn_t11_svg
+
+
 def _svg_dims(svg_str):
     m = _re.search(r'<svg[^>]*\bwidth="([^"]+)"[^>]*\bheight="([^"]+)"', svg_str)
     if m:
@@ -490,100 +498,63 @@ def _svg_dims(svg_str):
     return None, None
 
 
-# ── Idiom 5: Flow Chart Elaborate BPMN & Table ────────────────────────────────
+# ── Idiom 5: Flow Chart Elaborate — BPMN with embedded violation labels ───────
 
-def task11_flow_chart_elaborate_bpmn_table(selected, trace_coverage, n_traces,
-                                           activity_trace_count, model_path, output_dir):
-    """Composite SVG: BPMN heatmap (top, coloured by per-activity trace coverage)
-    + violation frequency table (bottom, one row per selected violation).
+def task11_flow_chart_elaborate(selected, trace_coverage, n_traces,
+                                activity_trace_count, model_path, output_dir):
+    """BPMN process view with violation details embedded directly in task nodes.
 
-    activity_trace_count maps activity → # traces containing any selected violation
-    there (computed with proper set-union in generate(), so no double-counting).
+    Each violating node shows:
+      Activity Name
+      ─────────────────────
+      VT: count | pct%    (one line per selected violation at this activity)
+
+    Shade = CIVIDIS_R proportional to union trace count at that activity.
+    No separate table: all task-relevant data is inside the nodes.
     """
     if not selected:
-        _no_violations(output_dir, "flow_chart_elaborate_bpmn_table")
+        _no_violations(output_dir, "flow_chart_elaborate")
         return
 
-    # ── Violation table SVG ───────────────────────────────────────────────────
-    data = [(act, vt, trace_coverage.get((act, vt), 0))
-            for act, vt in _sorted_selected(selected, trace_coverage)]
-    n_rows   = len(data)
-    tbl_w_in = 14.0
-    tbl_h_in = max(3.0, 1.3 + n_rows * 0.46)
-    tbl_fig, tbl_ax = plt.subplots(figsize=(tbl_w_in, tbl_h_in))
-    tbl_ax.axis("off")
-
-    tbl_cell_text = []
-    for i, (act, vt, count) in enumerate(data):
-        pct = count / n_traces * 100 if n_traces > 0 else 0
-        tbl_cell_text.append([str(i + 1), _short_label(act, 32),
-                               _VTYPE_SHORT.get(vt, vt), f"{count:,}", f"{pct:.1f}%"])
-
-    make_table(
-        tbl_ax,
-        cell_text=tbl_cell_text,
-        col_labels=["#", "Activity", "Type", "# Traces", "% of All"],
-        bbox=[0.01, 0.05, 0.98, 0.80],
-        col_widths=[0.05, 0.42, 0.16, 0.20, 0.14],
-        font_size=9.5,
-        scale_xy=(1, 1.75),
-        cell_pad=0.09,
-    )
-    tbl_ax.set_title(
-        f"Predefined Violation Frequency  ({n_rows} violation{'s' if n_rows != 1 else ''})  "
-        f"·  {n_traces:,} total traces  ·  % = traces containing violation",
-        fontsize=FONT_TITLE, pad=14,
-    )
-    tbl_fig.tight_layout(pad=1.2)
-
-    buf = _io.BytesIO()
-    tbl_fig.savefig(buf, format="svg", bbox_inches="tight")
-    plt.close(tbl_fig)
-    buf.seek(0)
-    tbl_svg_str = buf.read().decode("utf-8")
-    tbl_w, tbl_h = _svg_dims(tbl_svg_str)
-    if tbl_w is None:
-        tbl_w, tbl_h = tbl_w_in * 72, tbl_h_in * 72
-
-    # ── BPMN SVG — coloured by per-activity trace coverage ───────────────────
-    bpmn_svg = None
-    if model_path is not None and activity_trace_count:
+    svg = None
+    if model_path is not None:
         try:
-            _make_bpmn_violation_svg = _import_task09_bpmn()
-            bpmn_svg = _make_bpmn_violation_svg(activity_trace_count, model_path, h_scale=1.1)
+            _make_bpmn_t11_svg = _import_task09_bpmn_t11()
+            svg = _make_bpmn_t11_svg(
+                selected, trace_coverage, n_traces,
+                activity_trace_count, model_path,
+                h_scale=1.1, v_scale=2.0,
+            )
         except Exception:
-            logger.exception("task11: failed to render BPMN for flow_chart_elaborate_bpmn_table")
+            logger.exception("task11: failed to render BPMN for flow_chart_elaborate")
 
-    path = os.path.join(output_dir, "task11_flow_chart_elaborate_bpmn_table.svg")
-    if bpmn_svg is None:
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(tbl_svg_str)
+    path = os.path.join(output_dir, "task11_flow_chart_elaborate.svg")
+    if svg is None:
+        # Fallback: plain table when BPMN is unavailable
+        data = [(act, vt, trace_coverage.get((act, vt), 0))
+                for act, vt in _sorted_selected(selected, trace_coverage)]
+        n_rows   = len(data)
+        fig, ax  = plt.subplots(figsize=(10, max(3.0, 1.3 + n_rows * 0.46)))
+        ax.axis("off")
+        tbl_cell = []
+        for i, (act, vt, count) in enumerate(data):
+            pct = count / n_traces * 100 if n_traces > 0 else 0
+            tbl_cell.append([str(i + 1), _short_label(act, 32),
+                             _VTYPE_SHORT.get(vt, vt), f"{count:,}", f"{pct:.1f}%"])
+        make_table(ax, cell_text=tbl_cell,
+                   col_labels=["#", "Activity", "Type", "# Traces", "% of All"],
+                   bbox=[0.01, 0.05, 0.98, 0.80],
+                   col_widths=[0.05, 0.42, 0.16, 0.20, 0.14],
+                   font_size=9.5, scale_xy=(1, 1.75), cell_pad=0.09)
+        ax.set_title(f"Predefined Violation Frequency  ({n_rows} violation"
+                     f"{'s' if n_rows != 1 else ''})  ·  No process model provided",
+                     fontsize=FONT_TITLE, pad=14)
+        fig.tight_layout(pad=1.2)
+        save_svg(fig, path)
         return
 
-    bpmn_w, bpmn_h = _svg_dims(bpmn_svg)
-    if bpmn_w is None:
-        bpmn_w, bpmn_h = 800.0, 600.0
-
-    tbl_scale = bpmn_w / tbl_w
-    tbl_h_scl = tbl_h * tbl_scale
-    total_h   = bpmn_h + tbl_h_scl
-
-    b64_bpmn = _base64.b64encode(bpmn_svg.encode()).decode()
-    b64_tbl  = _base64.b64encode(tbl_svg_str.encode()).decode()
-
-    composite = "\n".join([
-        '<?xml version="1.0" encoding="UTF-8"?>',
-        f'<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"',
-        f'     width="{bpmn_w:.1f}" height="{total_h:.1f}" viewBox="0 0 {bpmn_w:.1f} {total_h:.1f}">',
-        '  <rect width="100%" height="100%" fill="white"/>',
-        f'  <image href="data:image/svg+xml;base64,{b64_bpmn}"',
-        f'         x="0" y="0" width="{bpmn_w:.1f}" height="{bpmn_h:.1f}"/>',
-        f'  <image href="data:image/svg+xml;base64,{b64_tbl}"',
-        f'         x="0" y="{bpmn_h:.1f}" width="{bpmn_w:.1f}" height="{tbl_h_scl:.1f}"/>',
-        '</svg>',
-    ])
     with open(path, "w", encoding="utf-8") as f:
-        f.write(composite)
+        f.write(svg)
 
 
 # ── Public entry point ────────────────────────────────────────────────────────
@@ -657,6 +628,6 @@ def generate(log, alignments, output_dir, model_path=None, target_violations=Non
     task11_matrix(selected, trace_coverage, n_traces, output_dir)
     task11_table(selected, trace_coverage, n_traces, output_dir)
     task11_table_bar_chart(selected, trace_coverage, n_traces, output_dir)
-    task11_flow_chart_elaborate_bpmn_table(
+    task11_flow_chart_elaborate(
         selected, trace_coverage, n_traces, activity_trace_count, model_path, output_dir
     )
