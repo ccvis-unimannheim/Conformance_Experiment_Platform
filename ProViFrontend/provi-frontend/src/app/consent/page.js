@@ -100,7 +100,7 @@ export default function ConsentPage() {
                 <ul className="space-y-3">
                   <li className="flex gap-3 text-on-surface-variant">
                     <span className="material-symbols-outlined text-sm text-primary pt-1">check_circle</span>
-                    <span>Participation is entirely voluntary and takes approximately <strong>15 minutes</strong>.</span>
+                    <span>Participation is entirely voluntary and takes approximately <strong>25–30 minutes</strong>.</span>
                   </li>
                   <li className="flex gap-3 text-on-surface-variant">
                     <span className="material-symbols-outlined text-sm text-primary pt-1">check_circle</span>

@@ -104,15 +104,15 @@ export default function WelcomePage() {
 
                 <div className="divide-y divide-outline-variant" style={{ "--tw-divide-opacity": 0.1 }}>
                   {STEPS.map((s) => (
-                    <div key={s.num} className="py-4 flex gap-4">
+                    <div key={s.num} className="py-4 flex gap-4 items-start">
                       <span
-                        className="font-headline font-bold text-primary shrink-0 text-xs w-7 pt-0.5"
+                        className="font-headline font-bold text-primary shrink-0 text-xs w-7 leading-4"
                         style={{ letterSpacing: "0.15em" }}
                       >
                         {s.num}
                       </span>
                       <div>
-                        <h4 className="font-headline text-xs font-bold uppercase tracking-wider text-primary mb-1">
+                        <h4 className="font-headline text-xs font-bold uppercase tracking-wider text-primary mb-1 leading-4">
                           {s.title}
                         </h4>
                         <p className="text-on-surface-variant leading-relaxed">{s.desc}</p>
