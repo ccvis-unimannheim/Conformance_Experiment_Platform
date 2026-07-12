@@ -6,7 +6,7 @@ import Link from "next/link";
 import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../../components/Admin/Toast";
 
-function IdiomPreviewModal({ experimentId, taskKey, idiomKey, idiomLabel, onClose }) {
+function IdiomPreviewModal({ experimentId, taskKey, idiomKey, idiomLabel, datasetTitle, paramsSummary, onClose }) {
   const [status, setStatus] = useState("loading");
   const [enlarged, setEnlarged] = useState(false);
 
@@ -30,7 +30,9 @@ function IdiomPreviewModal({ experimentId, taskKey, idiomKey, idiomLabel, onClos
           <div>
             <span className="text-xs font-bold bg-blue-100 text-primary px-2 py-0.5 rounded mr-2">{taskKey}</span>
             <span className="text-sm font-semibold text-on-surface">{idiomLabel}</span>
-            <span className="ml-2 text-xs text-on-surface-variant">(sample data · default params)</span>
+            <span className="ml-2 text-xs text-on-surface-variant">
+              ({datasetTitle || "dataset unknown"} · {paramsSummary || "default params"})
+            </span>
           </div>
           <div className="flex items-center gap-2">
             {status === "ready" && (
@@ -148,6 +150,7 @@ function ExperimentOverviewContent() {
   const [groupedTasks, setGroupedTasks] = useState([]);
   const [taskInstancesByTask, setTaskInstancesByTask] = useState({});
   const [rubricsByTask, setRubricsByTask] = useState({});
+  const [datasetTitleById, setDatasetTitleById] = useState({});
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("draft");
 
@@ -173,20 +176,27 @@ function ExperimentOverviewContent() {
   async function init() {
     setLoading(true);
     try {
-      const [expRes, tasksRes, idiomsRes] = await Promise.all([
+      const [expRes, tasksRes, idiomsRes, datasetsRes] = await Promise.all([
         fetch(`/api/admin/experiments`),
         fetch(`/api/admin/tasks`),
         fetch(`/api/admin/idioms`),
+        fetch(`/api/admin/datasets`),
       ]);
       if (!expRes.ok) throw new Error(`Experiments HTTP ${expRes.status}`);
       if (!tasksRes.ok) throw new Error(`Tasks HTTP ${tasksRes.status}`);
       if (!idiomsRes.ok) throw new Error(`Idioms HTTP ${idiomsRes.status}`);
+      if (!datasetsRes.ok) throw new Error(`Datasets HTTP ${datasetsRes.status}`);
 
-      const [exps, tasks, idioms] = await Promise.all([
+      const [exps, tasks, idioms, datasets] = await Promise.all([
         expRes.json(),
         tasksRes.json(),
         idiomsRes.json(),
+        datasetsRes.json(),
       ]);
+
+      const dMap = {};
+      (datasets || []).forEach((d) => { dMap[d.dataset_id] = d.dataset_title; });
+      setDatasetTitleById(dMap);
 
       const exp = exps.find((e) => getId(e) === experimentId);
       if (!exp) throw new Error("Experiment not found.");
@@ -494,7 +504,15 @@ function ExperimentOverviewContent() {
                                 </div>
                                 {idiom && (
                                   <button
-                                    onClick={() => setPreviewModal({ taskKey: task.task_key, idiomKey: idiom.idiom_key, idiomLabel: idiom.label })}
+                                    onClick={() => setPreviewModal({
+                                      taskKey: task.task_key,
+                                      idiomKey: idiom.idiom_key,
+                                      idiomLabel: idiom.label,
+                                      datasetTitle: datasetTitleById[ti?.dataset_id] || null,
+                                      paramsSummary: ti?.parameters && Object.keys(ti.parameters).length > 0
+                                        ? Object.entries(ti.parameters).map(([k, v]) => `${k}: ${v}`).join(", ")
+                                        : null,
+                                    })}
                                     title="Preview this idiom"
                                     className="text-on-surface-variant hover:text-primary transition-colors p-0.5 rounded flex-shrink-0"
                                   >
@@ -667,6 +685,8 @@ function ExperimentOverviewContent() {
           taskKey={previewModal.taskKey}
           idiomKey={previewModal.idiomKey}
           idiomLabel={previewModal.idiomLabel}
+          datasetTitle={previewModal.datasetTitle}
+          paramsSummary={previewModal.paramsSummary}
           onClose={() => setPreviewModal(null)}
         />
       )}
