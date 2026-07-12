@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -30,14 +30,6 @@ const GENDER_OPTIONS = [
   "Prefer not to say",
 ];
 
-const AGE_OPTIONS = [
-  "Under 18",
-  "18–24",
-  "25–34",
-  "35–44",
-  "45–54",
-  "55+",
-];
 
 const EDUCATION_OPTIONS = [
   "Undergraduate / Bachelor",
@@ -152,11 +144,15 @@ const sectionHeadStyle = {
   color: C.onSurface, margin: 0,
 };
 
+const ALL_SECTION_KEYS = ["personal_info", "academic_profile", "technical_expertise", "tool_experience"];
+
 export default function PrequestionnaireComponent() {
   const router = useRouter();
 
+  const [enabledSections, setEnabledSections] = useState(new Set(ALL_SECTION_KEYS));
+
   const [gender,       setGender]       = useState("");
-  const [ageRange,     setAgeRange]     = useState("");
+  const [age,          setAge]          = useState("");
   const [education,    setEducation]    = useState("");
   const [role,         setRole]         = useState("");
   const [fieldOfStudy, setFieldOfStudy] = useState("");
@@ -170,20 +166,26 @@ export default function PrequestionnaireComponent() {
   const [error,       setError]       = useState(null);
   const [submitting,  setSubmitting]  = useState(false);
 
+  useEffect(() => {
+    fetch("/api/participant/prequestionnaire-sections")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data?.sections) setEnabledSections(new Set(data.sections));
+      })
+      .catch(() => {});
+  }, []);
+
   const toggleTool = (tool) =>
     setTools((prev) =>
       prev.includes(tool) ? prev.filter((t) => t !== tool) : [...prev, tool]
     );
 
+  const show = (key) => enabledSections.has(key);
+
   const isValid =
-    gender !== "" &&
-    ageRange !== "" &&
-    education !== "" &&
-    role !== "" &&
-    fieldOfStudy.trim() !== "" &&
-    ratings.processMining > 0 &&
-    ratings.conformanceChecking > 0 &&
-    ratings.dataVisualization > 0;
+    (!show("personal_info")    || (gender !== "" && /^\d+$/.test(age) && parseInt(age, 10) >= 1)) &&
+    (!show("academic_profile") || (education !== "" && role !== "" && fieldOfStudy.trim() !== "")) &&
+    (!show("technical_expertise") || (ratings.processMining > 0 && ratings.conformanceChecking > 0 && ratings.dataVisualization > 0));
 
   const handleContinue = async () => {
     if (!isValid) {
@@ -195,7 +197,7 @@ export default function PrequestionnaireComponent() {
     try {
       const payload = {
         gender,
-        age_range: ageRange,
+        age_range: String(age),
         education,
         role,
         field_of_study: fieldOfStudy,
@@ -279,7 +281,7 @@ export default function PrequestionnaireComponent() {
             <div style={{ padding: "3rem", display: "flex", flexDirection: "column", gap: "3rem" }}>
 
               {/* ── Personal Information */}
-              <section>
+              {show("personal_info") && <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "2rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>person</span>
                   <h2 style={sectionHeadStyle}>Personal Information</h2>
@@ -292,19 +294,46 @@ export default function PrequestionnaireComponent() {
                     <OptionGrid options={GENDER_OPTIONS} value={gender} onChange={setGender} columns={4} />
                   </div>
 
-                  {/* Age range */}
+                  {/* Age */}
                   <div>
                     <label style={fieldLabelStyle}>Age</label>
-                    <OptionGrid options={AGE_OPTIONS} value={ageRange} onChange={setAgeRange} columns={3} />
+                    <input
+                      type="number"
+                      min={1}
+                      max={120}
+                      step={1}
+                      value={age}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v === "" || /^\d+$/.test(v)) setAge(v);
+                      }}
+                      placeholder="Enter your age"
+                      style={{
+                        width: "10rem",
+                        padding: "0.75rem 1rem",
+                        border: `1px solid ${C.containerHigh}`,
+                        borderRadius: "0.5rem",
+                        fontSize: "0.875rem",
+                        color: C.onSurface,
+                        backgroundColor: C.white,
+                        outline: "none",
+                        fontFamily: "inherit",
+                        boxSizing: "border-box",
+                        transition: "border-color 0.15s ease",
+                        MozAppearance: "textfield",
+                      }}
+                      onFocus={(e) => { e.target.style.borderColor = C.primary; e.target.style.boxShadow = `0 0 0 1px ${C.primary}`; }}
+                      onBlur={(e)  => { e.target.style.borderColor = C.containerHigh; e.target.style.boxShadow = "none"; }}
+                    />
                   </div>
                 </div>
-              </section>
+              </section>}
 
               {/* ── Divider */}
-              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+              {show("personal_info") && show("academic_profile") && <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />}
 
               {/* ── Academic Profile */}
-              <section>
+              {show("academic_profile") && <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "2rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>school</span>
                   <h2 style={sectionHeadStyle}>Academic Profile</h2>
@@ -355,13 +384,13 @@ export default function PrequestionnaireComponent() {
                     </p>
                   </div>
                 </div>
-              </section>
+              </section>}
 
               {/* ── Divider */}
-              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+              {show("academic_profile") && show("technical_expertise") && <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />}
 
               {/* ── Technical Expertise */}
-              <section>
+              {show("technical_expertise") && <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "2rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>analytics</span>
                   <h2 style={sectionHeadStyle}>Technical Expertise</h2>
@@ -387,7 +416,7 @@ export default function PrequestionnaireComponent() {
 
                   {/* Slider */}
                   <div>
-                    <label style={fieldLabelStyle}>Years of Relevant Experience</label>
+                    <label style={fieldLabelStyle}>Years of Relevant Experience in Process Management & Analytics</label>
                     <div style={{ display: "flex", alignItems: "center", gap: "1.5rem" }}>
                       <input
                         type="range"
@@ -434,13 +463,13 @@ export default function PrequestionnaireComponent() {
                     </p>
                   </div>
                 </div>
-              </section>
+              </section>}
 
               {/* ── Divider */}
-              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+              {show("technical_expertise") && show("tool_experience") && <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />}
 
               {/* ── Tool Experience */}
-              <section>
+              {show("tool_experience") && <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "2rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>build</span>
                   <h2 style={sectionHeadStyle}>Tool Experience</h2>
@@ -488,7 +517,7 @@ export default function PrequestionnaireComponent() {
                     );
                   })}
                 </div>
-              </section>
+              </section>}
             </div>
 
             {/* ── CTA area (inside card, separate bg) */}

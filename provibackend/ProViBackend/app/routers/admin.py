@@ -1520,6 +1520,18 @@ async def update_experiment_knowledge_questions(experiment_id: str, body: ds.Kno
     return JSONResponse(content={"message": "Knowledge questions updated."})
 
 
+@router.patch("/experiments/{experiment_id}/prequestionnaire-sections", tags=["admin"])
+async def update_experiment_prequestionnaire_sections(experiment_id: str, body: ds.PrequestionnaireSections):
+    updated = dbc.update_document(
+        "Experiment",
+        query={"_id": experiment_id},
+        update={"$set": {"prequestionnaire_sections": body.sections}},
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
+    return JSONResponse(content={"message": "Pre-questionnaire sections updated."})
+
+
 # ---------------------------------------------------------------------------
 # GroundTruth management
 # ---------------------------------------------------------------------------

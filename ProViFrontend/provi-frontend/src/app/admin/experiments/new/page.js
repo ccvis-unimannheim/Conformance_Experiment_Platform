@@ -87,7 +87,7 @@ export default function NewExperimentPage() {
         throw new Error(err.detail || `Server error: ${response.status}`);
       }
 
-      router.push(`/admin/experiments/knowledge?experiment_id=${encodeURIComponent(experimentId)}`);
+      router.push(`/admin/experiments/prequestionnaire?experiment_id=${encodeURIComponent(experimentId)}`);
     } catch (e) {
       setSubmitError(e.message);
     } finally {
