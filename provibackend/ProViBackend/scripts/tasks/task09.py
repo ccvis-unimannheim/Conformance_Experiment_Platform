@@ -951,10 +951,10 @@ def _make_bpmn_t11_svg(selected, trace_coverage, n_traces, activity_totals,
 
     min_x, min_y = min(xs), min(ys)
     W = (max(xs) - min_x) * h_scale + 120
-    H = (max(ys) - min_y) * v_scale + 220   # extra bottom for legend
+    H = (max(ys) - min_y) * v_scale + 130
 
     def tx(x): return (x - min_x) * h_scale + 60
-    def ty(y): return (y - min_y) * v_scale + 95
+    def ty(y): return (y - min_y) * v_scale + 75
 
     def wrap_name(label, box_w, fs=9):
         mc = max(6, int((box_w - 12) / (fs * 0.58)))
@@ -976,12 +976,9 @@ def _make_bpmn_t11_svg(selected, trace_coverage, n_traces, activity_totals,
         "markerWidth='5' markerHeight='5' orient='auto' markerUnits='userSpaceOnUse'>"
         "<path d='M0,0 L10,5 L0,10 Z' fill='#999'/></marker></defs>",
         "<rect width='100%' height='100%' fill='white'/>",
-        f"<text x='{W/2:.1f}' y='34' text-anchor='middle' "
+        f"<text x='{W/2:.1f}' y='44' text-anchor='middle' "
         f"font-family='Arial,sans-serif' font-size='15' font-weight='bold' fill='#1a1a1a'>"
         "Predefined Violation Frequency — Process View</text>",
-        f"<text x='{W/2:.1f}' y='56' text-anchor='middle' "
-        f"font-family='Arial,sans-serif' font-size='10' fill='#888888'>"
-        "Node shade: lighter = fewer traces  ·  darker = more traces</text>",
     ]
 
     # Edges
@@ -996,7 +993,7 @@ def _make_bpmn_t11_svg(selected, trace_coverage, n_traces, activity_totals,
         kind, name = elem["kind"], elem["name"]
         x  = tx(b["x"])
         y  = ty(b["y"])
-        w  = b["width"]
+        w  = b["width"] * h_scale   # scale width with h_scale so waypoints align
         h  = b["height"] * v_scale
         stroke = "#aaaaaa"
 
@@ -1025,15 +1022,16 @@ def _make_bpmn_t11_svg(selected, trace_coverage, n_traces, activity_totals,
                                f"text-anchor='middle' dominant-baseline='middle' "
                                f"font-family='Arial,sans-serif' font-size='{name_fs}' "
                                f"font-weight='600' fill='{tc}'>{esc(line)}</text>")
-                # Separator line
+                # Separator line — use white on dark nodes, grey on light nodes
+                sep_color = "white" if tc == "white" else "#999999"
                 sep_margin = w * 0.12
                 out.append(f"<line x1='{x+sep_margin:.1f}' y1='{sep_y:.1f}' "
                            f"x2='{x+w-sep_margin:.1f}' y2='{sep_y:.1f}' "
-                           f"stroke='{tc}' stroke-width='0.6' stroke-opacity='0.35'/>")
+                           f"stroke='{sep_color}' stroke-width='0.8' stroke-opacity='0.5'/>")
                 # Violation lines
-                viol_fs  = 7.5
-                viol_gap = 11
-                viol_top = sep_y + 9
+                viol_fs  = 9
+                viol_gap = 12
+                viol_top = sep_y + 10
                 for vi, (svt, cnt, pct) in enumerate(viols):
                     vy = viol_top + vi * viol_gap
                     lbl = f"{svt}: {cnt:,} | {pct:.1f}%"
@@ -1051,67 +1049,32 @@ def _make_bpmn_t11_svg(selected, trace_coverage, n_traces, activity_totals,
                                f"fill='#555555'>{esc(line)}</text>")
 
         elif kind in {"exclusiveGateway", "parallelGateway"}:
-            gw = b["width"]   # gateways keep original width
-            gh = b["height"]  # and original height (scaled by v_scale already)
-            cx, cy = x + gw / 2, y + gh * v_scale / 2
-            pts_g = (f"{cx:.1f},{y:.1f} {x+gw:.1f},{cy:.1f} "
-                     f"{cx:.1f},{y+gh*v_scale:.1f} {x:.1f},{cy:.1f}")
+            gw = b["width"]
+            gh = b["height"]
+            # Center at the correct vertical position; render as a square diamond
+            cx = x + gw * h_scale / 2
+            cy = y + gh * v_scale / 2
+            gs = gh * v_scale / 2   # half-side (height and width equal → square)
+            pts_g = (f"{cx:.1f},{cy-gs:.1f} {cx+gs:.1f},{cy:.1f} "
+                     f"{cx:.1f},{cy+gs:.1f} {cx-gs:.1f},{cy:.1f}")
             out.append(f"<polygon points='{pts_g}' fill='#f0f0f0' "
                        f"stroke='{stroke}' stroke-width='1.5'/>")
             mk = "+" if kind == "parallelGateway" else "×"
-            fs = max(11.0, min(gw, gh) * 0.4)
             out.append(f"<text x='{cx:.1f}' y='{cy+1:.1f}' text-anchor='middle' "
                        f"dominant-baseline='middle' font-family='Arial,sans-serif' "
-                       f"font-size='{fs:.0f}' fill='#888'>{mk}</text>")
+                       f"font-size='16' fill='#888'>{mk}</text>")
 
         elif kind in {"startEvent", "endEvent"}:
             ew = b["width"]
             eh = b["height"]
-            cx, cy = x + ew / 2, y + eh * v_scale / 2
-            r  = min(ew, eh) / 2
+            cx, cy = x + ew * h_scale / 2, y + eh * v_scale / 2
+            r  = min(ew, eh) * h_scale / 2
             sw = 3 if kind == "endEvent" else 1.5
             out.append(f"<circle cx='{cx:.1f}' cy='{cy:.1f}' r='{r:.1f}' "
                        f"fill='white' stroke='#777' stroke-width='{sw}'/>")
             lbl = "START" if kind == "startEvent" else "END"
             out.append(f"<text x='{cx:.1f}' y='{cy + r + 13:.1f}' text-anchor='middle' "
                        f"font-family='Arial,sans-serif' font-size='8' fill='#888'>{lbl}</text>")
-
-    # ── CIVIDIS_R legend ─────────────────────────────────────────────────────────
-    max_act  = max(activity_totals, key=activity_totals.get) if activity_totals else ""
-    max_cnt  = activity_totals.get(max_act, 0)
-    ly       = H - 62
-    N_STEPS  = 5
-    STEP     = 56
-    SW_W     = 24
-    SW_H     = 14
-    LBL_FS   = 9
-    swatch_w = N_STEPS * STEP + SW_W
-    box_pad  = 14
-    box_w    = swatch_w + box_pad * 2 + 120
-    off      = max(10.0, (W - box_w) / 2)
-
-    out.append(f"<rect x='{off - box_pad:.1f}' y='{ly - 10:.1f}' "
-               f"width='{box_w:.1f}' height='{SW_H + 24:.1f}' "
-               f"rx='5' fill='#fafafa' stroke='#cccccc' stroke-width='0.8'/>")
-
-    legend_levels = [0.0, 0.25, 0.5, 0.75, 1.0]
-    legend_labels = ["0", "", "50%", "", f"{max_cnt:,}"]
-    for i, (lvl, lbl) in enumerate(zip(legend_levels, legend_labels)):
-        bx = off + i * STEP
-        r, g, b, _ = CIVIDIS_R(lvl)
-        shade = mcolors.to_hex((r, g, b))
-        out.append(f"<rect x='{bx:.1f}' y='{ly:.1f}' width='{SW_W}' height='{SW_H}' "
-                   f"fill='{shade}' stroke='#ccc' stroke-width='0.6'/>")
-        if lbl:
-            out.append(f"<text x='{bx+SW_W+3:.1f}' y='{ly+SW_H-1:.1f}' "
-                       f"font-family='Arial,sans-serif' font-size='{LBL_FS}' fill='#888'>"
-                       f"{esc(lbl)}</text>")
-
-    tail_x = off + N_STEPS * STEP + SW_W + 60
-    tail   = f"traces  ·  darkest: {_short_label(max_act, 22)}"
-    out.append(f"<text x='{tail_x:.1f}' y='{ly+SW_H-1:.1f}' "
-               f"font-family='Arial,sans-serif' font-size='{LBL_FS}' fill='#888'>"
-               f"{esc(tail)}</text>")
 
     out.append("</svg>")
     return "\n".join(out)
