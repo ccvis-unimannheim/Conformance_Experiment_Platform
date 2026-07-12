@@ -40,7 +40,7 @@ import matplotlib.patches as mpatches
 import matplotlib.colors as mcolors
 import matplotlib.cm as cm
 
-from shared import save_svg, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
+from shared import save_svg, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS, CIVIDIS_R, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
 
 # ── Cividis palette ───────────────────────────────────────────────────────────
 _C_DARK   = GREY_DARK
@@ -659,7 +659,7 @@ def task09_flow_chart_and_table(activity_type, activity_totals, type_totals, n_v
 
 # ── Idiom: Flow Chart Elaborate BPMN ─────────────────────────────────────────
 
-def _make_bpmn_violation_svg(activity_totals, model_path):
+def _make_bpmn_violation_svg(activity_totals, model_path, h_scale: float = 1.0):
     """Return SVG string: BPMN nodes shaded by violation rate. Returns None on parse failure."""
     ns = {
         "bpmn":  "http://www.omg.org/spec/BPMN/20100524/MODEL",
@@ -720,10 +720,10 @@ def _make_bpmn_violation_svg(activity_totals, model_path):
             xs.append(px); ys.append(py)
 
     min_x, min_y = min(xs), min(ys)
-    W = max(xs) - min_x + 120
+    W = (max(xs) - min_x) * h_scale + 120
     H = max(ys) - min_y + 195   # extra bottom for legend + title
 
-    def tx(x): return x - min_x + 60
+    def tx(x): return (x - min_x) * h_scale + 60
     def ty(y): return y - min_y + 95
 
     def wrap(label, box_w, fs=9):
@@ -768,7 +768,7 @@ def _make_bpmn_violation_svg(activity_totals, model_path):
         fill  = _violation_shade(rate) if kind == "task" else "#f0f0f0"
         stroke = "#777"
         v_int = int(fill[1:3], 16)
-        tc    = "white" if v_int < 140 else _C_DARK
+        tc    = "white" if v_int < 140 else "#1a1a1a"
 
         if kind == "task":
             cnt   = activity_totals.get(name, 0)
@@ -785,7 +785,7 @@ def _make_bpmn_violation_svg(activity_totals, model_path):
                            f"font-family='Arial,sans-serif' font-size='9' fill='{tc}'>"
                            f"{esc(line)}</text>")
             if cnt > 0:
-                cnt_tc = "white" if v_int < 160 else _C_MED
+                cnt_tc = "white" if v_int < 140 else "#333333"
                 out.append(f"<text x='{x+w/2:.1f}' y='{y+h-5:.1f}' "
                            f"text-anchor='middle' dominant-baseline='middle' "
                            f"font-family='Arial,sans-serif' font-size='7.5' fill='{cnt_tc}'>"
@@ -842,6 +842,239 @@ def _make_bpmn_violation_svg(activity_totals, model_path):
     out.append(f"<text x='{tail_x:.1f}' y='{ly + SW_H - 2:.1f}' "
                f"font-family='Arial,sans-serif' font-size='{LBL_FS}' fill='{_C_MED}'>"
                f"{esc(tail_text_str)}</text>")
+
+    out.append("</svg>")
+    return "\n".join(out)
+
+
+# ── T11-specific BPMN: rich node labels with embedded violation details ────────
+
+_T11_VTYPE_SHORT = {
+    "Move on Model": "MoM",
+    "Move on Log":   "MoL",
+    "Mismatch Move": "MM",
+}
+
+
+def _make_bpmn_t11_svg(selected, trace_coverage, n_traces, activity_totals,
+                        model_path, h_scale=1.1, v_scale=2.0):
+    """Return SVG string: BPMN nodes with embedded per-violation-type labels.
+
+    Each violating task node shows:
+      Activity Name (wrapped, top half)
+      ─────────────────── (separator)
+      VT: count | pct%   (one line per violation, bottom half)
+
+    Shade uses CIVIDIS_R proportional to the activity's union trace count.
+    Non-violating tasks get a neutral light fill.
+    Returns None on parse failure.
+    """
+    ns = {
+        "bpmn":   "http://www.omg.org/spec/BPMN/20100524/MODEL",
+        "bpmndi": "http://www.omg.org/spec/BPMN/20100524/DI",
+        "dc":     "http://www.omg.org/spec/DD/20100524/DC",
+        "di":     "http://www.omg.org/spec/DD/20100524/DI",
+    }
+
+    def local(tag): return tag.split("}", 1)[-1] if "}" in tag else tag
+    def esc(v):     return _html.escape("" if v is None else str(v), quote=True)
+
+    try:
+        tree = _ET.parse(model_path)
+    except Exception:
+        return None
+    root = tree.getroot()
+
+    elements = {}
+    for e in root.findall(".//bpmn:*", ns):
+        eid  = e.attrib.get("id")
+        kind = local(e.tag)
+        if eid and kind in {"task", "startEvent", "endEvent",
+                            "exclusiveGateway", "parallelGateway"}:
+            elements[eid] = {"kind": kind, "name": e.attrib.get("name", "")}
+
+    shapes = {}
+    for s in root.findall(".//bpmndi:BPMNShape", ns):
+        eid = s.attrib.get("bpmnElement")
+        b   = s.find("dc:Bounds", ns)
+        if eid and b is not None:
+            shapes[eid] = {
+                "x": float(b.attrib["x"]), "y": float(b.attrib["y"]),
+                "width": float(b.attrib["width"]), "height": float(b.attrib["height"]),
+            }
+
+    edges = {}
+    for e in root.findall(".//bpmndi:BPMNEdge", ns):
+        fid = e.attrib.get("bpmnElement")
+        pts = [(float(wp.attrib["x"]), float(wp.attrib["y"]))
+               for wp in e.findall("di:waypoint", ns)]
+        if fid and pts:
+            edges[fid] = pts
+
+    if not shapes:
+        return None
+
+    # ── Build per-activity violation list ──────────────────────────────────────
+    act_viols = {}  # act → [(short_vt, count, pct), ...]
+    for act, vt in selected:
+        cnt = trace_coverage.get((act, vt), 0)
+        pct = cnt / n_traces * 100 if n_traces > 0 else 0
+        act_viols.setdefault(act, []).append(
+            (_T11_VTYPE_SHORT.get(vt, vt), cnt, pct)
+        )
+    for act in act_viols:
+        act_viols[act].sort(key=lambda x: -x[1])
+
+    max_v = max(activity_totals.values()) if activity_totals else 1
+
+    def node_fill(act_name):
+        if act_name not in activity_totals:
+            return "#f0f1f2"
+        rate = activity_totals[act_name] / max_v
+        r, g, b, _ = CIVIDIS_R(rate)
+        return mcolors.to_hex((r, g, b))
+
+    def text_color(hex_fill):
+        r = int(hex_fill[1:3], 16) / 255
+        g = int(hex_fill[3:5], 16) / 255
+        b = int(hex_fill[5:7], 16) / 255
+        lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
+        return "white" if lum < 0.45 else "#1a1a1a"
+
+    xs, ys = [], []
+    for b in shapes.values():
+        xs += [b["x"], b["x"] + b["width"]]
+        ys += [b["y"], b["y"] + b["height"]]
+    for pts in edges.values():
+        for px, py in pts:
+            xs.append(px); ys.append(py)
+
+    min_x, min_y = min(xs), min(ys)
+    W = (max(xs) - min_x) * h_scale + 120
+    H = (max(ys) - min_y) * v_scale + 130
+
+    def tx(x): return (x - min_x) * h_scale + 60
+    def ty(y): return (y - min_y) * v_scale + 75
+
+    def wrap_name(label, box_w, fs=9):
+        mc = max(6, int((box_w - 12) / (fs * 0.58)))
+        words, lines, cur = str(label).replace("_", " ").split(), [], ""
+        for w in words:
+            cand = w if not cur else f"{cur} {w}"
+            if len(cand) <= mc: cur = cand
+            else:
+                if cur: lines.append(cur)
+                cur = w
+        if cur: lines.append(cur)
+        return lines[:3] or [str(label)]
+
+    out = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{W:.1f}" height="{H:.1f}" '
+        f'viewBox="0 0 {W:.1f} {H:.1f}">',
+        "<defs><marker id='arr' viewBox='0 0 10 10' refX='9' refY='5' "
+        "markerWidth='5' markerHeight='5' orient='auto' markerUnits='userSpaceOnUse'>"
+        "<path d='M0,0 L10,5 L0,10 Z' fill='#999'/></marker></defs>",
+        "<rect width='100%' height='100%' fill='white'/>",
+        f"<text x='{W/2:.1f}' y='44' text-anchor='middle' "
+        f"font-family='Arial,sans-serif' font-size='15' font-weight='bold' fill='#1a1a1a'>"
+        "Predefined Violation Frequency — Process View</text>",
+    ]
+
+    # Edges
+    for fid, pts in edges.items():
+        pstr = " ".join(f"{tx(x):.1f},{ty(y):.1f}" for x, y in pts)
+        out.append(f"<polyline points='{pstr}' fill='none' stroke='#b0b0b0' "
+                   f"stroke-width='1.6' marker-end='url(#arr)'/>")
+
+    # Shapes
+    for eid, b in shapes.items():
+        elem = elements.get(eid, {"kind": "task", "name": ""})
+        kind, name = elem["kind"], elem["name"]
+        x  = tx(b["x"])
+        y  = ty(b["y"])
+        w  = b["width"] * h_scale   # scale width with h_scale so waypoints align
+        h  = b["height"] * v_scale
+        stroke = "#aaaaaa"
+
+        if kind == "task":
+            fill = node_fill(name)
+            tc   = text_color(fill)
+            viols = act_viols.get(name, [])
+            has_viols = bool(viols)
+
+            out.append(f"<rect x='{x:.1f}' y='{y:.1f}' width='{w:.1f}' height='{h:.1f}' "
+                       f"rx='7' fill='{fill}' stroke='{stroke}' stroke-width='1.5'/>")
+
+            name_lines = wrap_name(name, w)
+            name_gap   = 11
+            name_fs    = 9
+
+            if has_viols:
+                # Name occupies upper third; separator divides; violations fill lower half
+                n_name = len(name_lines)
+                name_block_h = n_name * name_gap
+                sep_y = y + max(name_block_h + 10, h * 0.42)
+                name_top = sep_y - name_block_h - 4
+                for li, line in enumerate(name_lines):
+                    ly = name_top + li * name_gap
+                    out.append(f"<text x='{x+w/2:.1f}' y='{ly:.1f}' "
+                               f"text-anchor='middle' dominant-baseline='middle' "
+                               f"font-family='Arial,sans-serif' font-size='{name_fs}' "
+                               f"font-weight='600' fill='{tc}'>{esc(line)}</text>")
+                # Separator line — use white on dark nodes, grey on light nodes
+                sep_color = "white" if tc == "white" else "#999999"
+                sep_margin = w * 0.12
+                out.append(f"<line x1='{x+sep_margin:.1f}' y1='{sep_y:.1f}' "
+                           f"x2='{x+w-sep_margin:.1f}' y2='{sep_y:.1f}' "
+                           f"stroke='{sep_color}' stroke-width='0.8' stroke-opacity='0.5'/>")
+                # Violation lines
+                viol_fs  = 9
+                viol_gap = 12
+                viol_top = sep_y + 10
+                for vi, (svt, cnt, pct) in enumerate(viols):
+                    vy = viol_top + vi * viol_gap
+                    lbl = f"{svt}: {cnt:,} | {pct:.1f}%"
+                    out.append(f"<text x='{x+w/2:.1f}' y='{vy:.1f}' "
+                               f"text-anchor='middle' dominant-baseline='middle' "
+                               f"font-family='Arial,sans-serif' font-size='{viol_fs}' "
+                               f"fill='{tc}'>{esc(lbl)}</text>")
+            else:
+                # No violations: name centered
+                name_mid = y + h / 2 - (len(name_lines) - 1) * name_gap / 2
+                for li, line in enumerate(name_lines):
+                    out.append(f"<text x='{x+w/2:.1f}' y='{name_mid+li*name_gap:.1f}' "
+                               f"text-anchor='middle' dominant-baseline='middle' "
+                               f"font-family='Arial,sans-serif' font-size='{name_fs}' "
+                               f"fill='#555555'>{esc(line)}</text>")
+
+        elif kind in {"exclusiveGateway", "parallelGateway"}:
+            gw = b["width"]
+            gh = b["height"]
+            # Center at the correct vertical position; render as a square diamond
+            cx = x + gw * h_scale / 2
+            cy = y + gh * v_scale / 2
+            gs = gh * v_scale / 2   # half-side (height and width equal → square)
+            pts_g = (f"{cx:.1f},{cy-gs:.1f} {cx+gs:.1f},{cy:.1f} "
+                     f"{cx:.1f},{cy+gs:.1f} {cx-gs:.1f},{cy:.1f}")
+            out.append(f"<polygon points='{pts_g}' fill='#f0f0f0' "
+                       f"stroke='{stroke}' stroke-width='1.5'/>")
+            mk = "+" if kind == "parallelGateway" else "×"
+            out.append(f"<text x='{cx:.1f}' y='{cy+1:.1f}' text-anchor='middle' "
+                       f"dominant-baseline='middle' font-family='Arial,sans-serif' "
+                       f"font-size='16' fill='#888'>{mk}</text>")
+
+        elif kind in {"startEvent", "endEvent"}:
+            ew = b["width"]
+            eh = b["height"]
+            cx, cy = x + ew * h_scale / 2, y + eh * v_scale / 2
+            r  = min(ew, eh) * h_scale / 2
+            sw = 3 if kind == "endEvent" else 1.5
+            out.append(f"<circle cx='{cx:.1f}' cy='{cy:.1f}' r='{r:.1f}' "
+                       f"fill='white' stroke='#777' stroke-width='{sw}'/>")
+            lbl = "START" if kind == "startEvent" else "END"
+            out.append(f"<text x='{cx:.1f}' y='{cy + r + 13:.1f}' text-anchor='middle' "
+                       f"font-family='Arial,sans-serif' font-size='8' fill='#888'>{lbl}</text>")
 
     out.append("</svg>")
     return "\n".join(out)

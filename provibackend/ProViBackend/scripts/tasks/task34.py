@@ -499,9 +499,7 @@ def task34_flow_chart_elaborate_table(ctx, model_path, output_dir):
         (CAT_MID,   "#555555", 1.5, "Move on Log (extra)"),
         ("#FAFAFA", "#CCCCCC", 1.0, "Not in trace"),
     ]
-    summary = (f"{ctx['trace_label']}   |   "
-               f"Fitness: {ctx['fitness']:.4f}   |   "
-               f"Violations: {ctx['n_violations']}")
+    summary = ctx["trace_label"]
 
     compose_bpmn_panels(
         panels=[{"parsed": parsed, "node_style_fn": node_style_fn, "subtitle": summary}],
@@ -512,6 +510,7 @@ def task34_flow_chart_elaborate_table(ctx, model_path, output_dir):
         table_cols=_COL_LABELS,
         table_stretch=True,
         table_header_bg=_HDR_BG,
+        h_scale=1.1,
     )
 
 
@@ -713,13 +712,13 @@ def task34_flow_chart_elaborate(ctx, model_path, output_dir):
         (CAT_MID,   "#555555", 1.5, "Move on Log (extra)"),
         ("#FAFAFA", "#CCCCCC", 1.0, "Not in trace"),
     ]
-    summary = (f"{ctx['trace_label']}   |   Fitness: {ctx['fitness']:.4f}"
-               f"   |   Violations: {ctx['n_violations']}")
+    summary = ctx["trace_label"]
     compose_bpmn_panels(
         panels=[{"parsed": parsed, "node_style_fn": node_style_fn, "subtitle": summary}],
         out_path=out_path,
         title="BPMN Alignment — Violation Overview",
         legend_items=legend_items,
+        h_scale=1.1,
     )
 
 

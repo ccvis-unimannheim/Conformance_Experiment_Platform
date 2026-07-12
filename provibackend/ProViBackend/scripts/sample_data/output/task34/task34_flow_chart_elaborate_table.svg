@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1804.3" height="751.0" viewBox="0 0 1804.3 751.0">
+<defs><marker id="arrow-grey" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,1 L10,5 L0,9 Z" fill="#444444"/></marker><marker id="arrow-faded" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,1 L10,5 L0,9 Z" fill="#AAAAAA"/></marker></defs>
+<rect x="0" y="0" width="100%" height="100%" fill="white"/>
+<text x="24" y="40" font-family="Arial, sans-serif" font-size="13" fill="black">BPMN Alignment — Violation Attribution</text>
+<text x="24" y="80.0" font-family="Arial, sans-serif" font-size="11" fill="#333">Trace 1</text>
+<polyline points="256.0,188.0 281.0,188.0" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="418.0,188.0 442.5,188.5" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="482.1,188.5 521.7,189.0" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="628.4,189.0 668.0,189.5" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="707.6,189.5 737.0,189.0" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="864.0,189.0 893.5,189.5" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="933.1,189.5 976.5,190.0" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="1452.6,190.0 1488.6,190.5" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="1444.0,119.0 1508.9,119.0 1508.4,172.5" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="1444.0,256.0 1576.0,256.0" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="1444.0,329.0 1590.3,329.0 1590.3,269.0" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="1075.5,190.0 1103.6,190.5" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="1143.2,190.5 1193.1,190.0" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="462.3,206.5 462.3,367.0 1134.9,367.0 1134.9,287.5 1213.6,287.5" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="107.5,188.5 157.0,188.0" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="913.3,207.5 913.3,308.0 1213.6,308.0 1213.6,287.5" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="1123.4,208.5 1123.4,287.0 1213.6,287.5" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="687.8,207.5 687.8,328.0 1213.6,328.0 1213.6,287.5" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="1528.2,190.5 1590.3,190.5 1590.3,244.0" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="1233.4,305.5 1233.4,329.0 1345.0,329.0" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="1233.4,269.5 1233.4,256.0 1345.0,256.0" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="1343.4,188.5 1340.8,190.0" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="1309.9,190.0 1303.8,188.5" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<polyline points="1323.6,170.5 1323.6,119.0 1345.0,119.0" fill="none" stroke="#444444" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="butt" marker-end="url(#arrow-grey)"/>
+<circle cx="1588.5" cy="256.5" r="12.5" fill="#F5F5F5" stroke="#CCCCCC" stroke-width="3"/>
+<text x="1611.0" y="256.5" text-anchor="start" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#CCCCCC">END EVENT</text>
+<rect x="1345.0" y="96.0" width="90.0" height="46.0" rx="7" ry="7" fill="#FAFAFA" stroke="#CCCCCC" stroke-width="1.0"/>
+<text x="1390.0" y="119.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#444444">Activate Care</text>
+<rect x="1345.0" y="306.0" width="90.0" height="46.0" rx="7" ry="7" fill="#FAFAFA" stroke="#CCCCCC" stroke-width="1.0"/>
+<text x="1390.0" y="329.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#444444">Withdraw Case</text>
+<rect x="521.7" y="166.0" width="97.0" height="46.0" rx="7" ry="7" fill="#FAFAFA" stroke="#CCCCCC" stroke-width="1.0"/>
+<text x="570.2" y="189.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#444444">Complete Triage</text>
+<polygon points="686.0,171.5 704.0,189.5 686.0,207.5 668.0,189.5" fill="#F5F5F5" stroke="#CCCCCC" stroke-width="1.0"/>
+<text x="686.0" y="190.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="13.0" fill="#CCCCCC">X</text>
+<rect x="737.0" y="166.0" width="115.4" height="46.0" rx="7" ry="7" fill="#FAFAFA" stroke="#CCCCCC" stroke-width="1.0"/>
+<text x="794.7" y="189.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#444444">Complete Assessment</text>
+<polygon points="911.5,171.5 929.5,189.5 911.5,207.5 893.5,189.5" fill="#F5F5F5" stroke="#CCCCCC" stroke-width="1.0"/>
+<text x="911.5" y="190.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="13.0" fill="#CCCCCC">X</text>
+<rect x="976.5" y="167.0" width="90.0" height="46.0" rx="7" ry="7" fill="#FAFAFA" stroke="#CCCCCC" stroke-width="1.0"/>
+<text x="1021.5" y="190.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#444444">Close Case</text>
+<polygon points="1121.6,172.5 1139.6,190.5 1121.6,208.5 1103.6,190.5" fill="#F5F5F5" stroke="#CCCCCC" stroke-width="1.0"/>
+<text x="1121.6" y="191.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="13.0" fill="#CCCCCC">X</text>
+<rect x="1193.1" y="167.0" width="106.2" height="46.0" rx="7" ry="7" fill="#35456c" stroke="#888888" stroke-width="1.5"/>
+<text x="1246.2" y="190.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#ffffff">Approve Treatment</text>
+<rect x="1340.8" y="167.0" width="101.6" height="46.0" rx="7" ry="7" fill="#FAFAFA" stroke="#CCCCCC" stroke-width="1.0"/>
+<text x="1391.6" y="190.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#444444">Register Patient</text>
+<polygon points="1506.6,172.5 1524.6,190.5 1506.6,208.5 1488.6,190.5" fill="#F5F5F5" stroke="#CCCCCC" stroke-width="1.0"/>
+<text x="1506.6" y="191.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="13.0" fill="#CCCCCC">+</text>
+<rect x="1345.0" y="233.0" width="90.0" height="46.0" rx="7" ry="7" fill="#FAFAFA" stroke="#CCCCCC" stroke-width="1.0"/>
+<text x="1390.0" y="256.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#444444">Reject Case</text>
+<polygon points="1231.6,269.5 1249.6,287.5 1231.6,305.5 1213.6,287.5" fill="#F5F5F5" stroke="#CCCCCC" stroke-width="1.0"/>
+<text x="1231.6" y="288.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="13.0" fill="#CCCCCC">X</text>
+<polygon points="460.5,170.5 478.5,188.5 460.5,206.5 442.5,188.5" fill="#F5F5F5" stroke="#CCCCCC" stroke-width="1.0"/>
+<text x="460.5" y="189.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="13.0" fill="#CCCCCC">X</text>
+<rect x="281.0" y="165.0" width="124.6" height="46.0" rx="7" ry="7" fill="#FAFAFA" stroke="#CCCCCC" stroke-width="1.0"/>
+<text x="343.3" y="188.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#444444">Submit Partial Intake</text>
+<rect x="157.0" y="165.0" width="90.0" height="46.0" rx="7" ry="7" fill="#FAFAFA" stroke="#CCCCCC" stroke-width="1.0"/>
+<text x="202.0" y="188.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#444444">Open Case</text>
+<circle cx="92.5" cy="188.5" r="12.5" fill="#F5F5F5" stroke="#CCCCCC" stroke-width="2"/>
+<text x="92.5" y="219.0" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#CCCCCC">START</text>
+<polygon points="1321.8,170.5 1339.8,188.5 1321.8,206.5 1303.8,188.5" fill="#F5F5F5" stroke="#CCCCCC" stroke-width="1.0"/>
+<text x="1321.8" y="189.0" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="13.0" fill="#CCCCCC">+</text>
+<rect x="24.0" y="497.0" width="1780.3" height="22.0" fill="#243c6e"/>
+<text x="32.0" y="512.0" font-family="Arial, sans-serif" font-size="10" fill="white">Step</text>
+<text x="477.1" y="512.0" font-family="Arial, sans-serif" font-size="10" fill="white">Log Move</text>
+<text x="922.2" y="512.0" font-family="Arial, sans-serif" font-size="10" fill="white">Model Move</text>
+<text x="1367.2" y="512.0" font-family="Arial, sans-serif" font-size="10" fill="white">Status</text>
+<rect x="24.0" y="519.0" width="1780.3" height="22.0" fill="#FFFFFF" stroke="#E0E0E0" stroke-width="0.5"/>
+<text x="32.0" y="534.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">1</text>
+<text x="477.1" y="534.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">Open Case</text>
+<text x="922.2" y="534.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">Open Case</text>
+<text x="1367.2" y="534.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">Synchronous</text>
+<rect x="24.0" y="541.0" width="1780.3" height="22.0" fill="#F0F0F0" stroke="#E0E0E0" stroke-width="0.5"/>
+<text x="32.0" y="556.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">2</text>
+<text x="477.1" y="556.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">Submit Partial Intake</text>
+<text x="922.2" y="556.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">Submit Partial Intake</text>
+<text x="1367.2" y="556.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">Synchronous</text>
+<rect x="24.0" y="563.0" width="1780.3" height="22.0" fill="#FFFFFF" stroke="#E0E0E0" stroke-width="0.5"/>
+<text x="32.0" y="578.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">3</text>
+<text x="477.1" y="578.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">Complete Triage</text>
+<text x="922.2" y="578.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">Complete Triage</text>
+<text x="1367.2" y="578.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">Synchronous</text>
+<rect x="24.0" y="585.0" width="1780.3" height="22.0" fill="#F0F0F0" stroke="#E0E0E0" stroke-width="0.5"/>
+<text x="32.0" y="600.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">4</text>
+<text x="477.1" y="600.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">Complete Assessment</text>
+<text x="922.2" y="600.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">Complete Assessment</text>
+<text x="1367.2" y="600.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">Synchronous</text>
+<rect x="24.0" y="607.0" width="1780.3" height="22.0" fill="#FFFFFF" stroke="#E0E0E0" stroke-width="0.5"/>
+<text x="32.0" y="622.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">5</text>
+<text x="477.1" y="622.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">Close Case</text>
+<text x="922.2" y="622.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">Close Case</text>
+<text x="1367.2" y="622.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">Synchronous</text>
+<rect x="24.0" y="629.0" width="1780.3" height="22.0" fill="#F0F0F0" stroke="#E0E0E0" stroke-width="0.5"/>
+<text x="32.0" y="644.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">6</text>
+<text x="477.1" y="644.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">&gt;&gt;</text>
+<text x="922.2" y="644.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">Approve Treatment</text>
+<text x="1367.2" y="644.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">Move on Model</text>
+<rect x="24.0" y="651.0" width="1780.3" height="22.0" fill="#FFFFFF" stroke="#E0E0E0" stroke-width="0.5"/>
+<text x="32.0" y="666.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">7</text>
+<text x="477.1" y="666.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">Register Patient</text>
+<text x="922.2" y="666.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">Register Patient</text>
+<text x="1367.2" y="666.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">Synchronous</text>
+<rect x="24.0" y="673.0" width="1780.3" height="22.0" fill="#F0F0F0" stroke="#E0E0E0" stroke-width="0.5"/>
+<text x="32.0" y="688.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">8</text>
+<text x="477.1" y="688.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">Approve Treatment</text>
+<text x="922.2" y="688.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">&gt;&gt;</text>
+<text x="1367.2" y="688.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">Move on Log</text>
+<rect x="24.0" y="695.0" width="1780.3" height="22.0" fill="#FFFFFF" stroke="#E0E0E0" stroke-width="0.5"/>
+<text x="32.0" y="710.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">9</text>
+<text x="477.1" y="710.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">Activate Care</text>
+<text x="922.2" y="710.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">Activate Care</text>
+<text x="1367.2" y="710.0" font-family="Arial, sans-serif" font-size="9.5" fill="#222">Synchronous</text>
+<rect x="434.7" y="458.0" width="22" height="12" fill="#e0e0e0" stroke="#888888" stroke-width="1.0"/>
+<text x="464.7" y="469.0" font-family="Arial, sans-serif" font-size="9" fill="#222">Synchronous (conform)</text>
+<rect x="699.7" y="458.0" width="22" height="12" fill="#35456c" stroke="#888888" stroke-width="1.5"/>
+<text x="729.7" y="469.0" font-family="Arial, sans-serif" font-size="9" fill="#222">Move on Model (skipped)</text>
+<rect x="964.7" y="458.0" width="22" height="12" fill="#7d7c78" stroke="#555555" stroke-width="1.5"/>
+<text x="994.7" y="469.0" font-family="Arial, sans-serif" font-size="9" fill="#222">Move on Log (extra)</text>
+<rect x="1229.7" y="458.0" width="22" height="12" fill="#FAFAFA" stroke="#CCCCCC" stroke-width="1.0"/>
+<text x="1259.7" y="469.0" font-family="Arial, sans-serif" font-size="9" fill="#222">Not in trace</text>
+</svg>
