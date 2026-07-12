@@ -51,6 +51,11 @@ PARAM_SPEC = [
         "hide_hint": True,
         "widget": "select-many",
         "source": "log.trace_ids",
+        # Admin convenience: a checkbox that auto-selects one trace from each of
+        # the first N distinct variants (more fitness/behaviour variation than the
+        # log-order default). Handled entirely in the specify-page select-many UI.
+        "variant_autoselect": True,
+        "autoselect_count": 10,
         "default": [],
         "required": False,
     },

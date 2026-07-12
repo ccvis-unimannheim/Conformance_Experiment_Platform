@@ -35,7 +35,8 @@ PARAM_SPEC = [
     {
         "key": "target_violations",
         "label": "Predefined violation(s) to summarize",
-        "hint": "The chart summarises these guideline violations",
+        # The summarised guideline violations are shown directly in the chart → hint redundant.
+        "hide_hint": True,
         "widget": "select-many",
         "source": "log.violations",
         "required": True,
