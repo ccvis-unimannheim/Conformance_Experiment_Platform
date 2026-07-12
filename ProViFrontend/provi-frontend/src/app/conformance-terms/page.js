@@ -111,25 +111,7 @@ export default function ConformanceTermsPage() {
           }}>
             <div style={{ padding: "2.5rem 3rem", display: "flex", flexDirection: "column", gap: "1.75rem" }}>
 
-              {/* ── 1. Trace */}
-              <section>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
-                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>linear_scale</span>
-                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
-                    Trace
-                  </h2>
-                </div>
-                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
-                  A <strong>trace</strong> is the sequence of activities recorded for a single process execution (one case).
-                  For example, one patient visit or one loan application corresponds to one trace. Each trace can be
-                  compared against a reference process description (the <strong>guideline</strong>, defined next) to
-                  assess whether it was executed correctly.
-                </p>
-              </section>
-
-              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
-
-              {/* ── 2. Guideline */}
+              {/* ── 1. Guideline */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>account_tree</span>
@@ -140,14 +122,17 @@ export default function ConformanceTermsPage() {
                 <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
                   A <strong>guideline</strong> specifies how a process is intended to be executed — defining which
                   activities are involved and the allowed sequences in which they may be performed. It serves as the
-                  reference against which actual process behaviour is compared. A guideline can be represented as a
-                  process model (e.g. a BPMN diagram).
+                  reference against which actual process behaviour is compared. A guideline is typically represented
+                  as a <strong>process model</strong> — a diagram that maps out the process's activities and the
+                  order in which they may occur (e.g. a BPMN diagram, Petri net, or DFG). In this study, "guideline"
+                  and "process model" refer to the same underlying reference behaviour and are used interchangeably
+                  depending on context.
                 </p>
               </section>
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
 
-              {/* ── 3. Event Log */}
+              {/* ── 2. Event Log */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>table_rows</span>
@@ -197,6 +182,24 @@ export default function ConformanceTermsPage() {
                     </p>
                   </div>
                 </Collapsible>
+              </section>
+
+              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+
+              {/* ── 3. Trace */}
+              <section>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
+                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>linear_scale</span>
+                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
+                    Trace
+                  </h2>
+                </div>
+                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
+                  A <strong>trace</strong> is the sequence of activities recorded for a single process execution (one case) —
+                  i.e. all events in the event log that share the same case identifier. For example, one patient visit or
+                  one loan application corresponds to one trace. Each trace can be compared against the guideline to
+                  assess whether it was executed correctly.
+                </p>
               </section>
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
@@ -292,10 +295,13 @@ export default function ConformanceTermsPage() {
                   </h2>
                 </div>
                 <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: "0 0 1rem" }}>
-                  The <strong>degree of conformance</strong>, also called <strong>fitness</strong>, is a value between
-                  0 and 1 that measures how well the overall behaviour recorded in the event log matches the guideline.
-                  It accounts for the <em>extent</em> of violations across all traces — even a non-conformant trace
-                  may be partially conformant if only a few steps deviate.
+                  <strong>Degree of conformance</strong> is the general concept describing how well the behaviour
+                  recorded in an event log matches a guideline. In this study it is instantiated as
+                  <strong> fitness</strong> — a concrete, computed value between 0 and 1 that quantifies this match.
+                  The two terms are closely related but not strictly interchangeable: degree of conformance is the
+                  abstract notion, while fitness is the specific metric used to measure it here. Fitness accounts
+                  for the <em>extent</em> of violations across all traces — even a non-conformant trace may be
+                  partially conformant if only a few steps deviate.
                 </p>
                 <div style={{
                   display: "flex", alignItems: "flex-start", gap: "0.75rem",
@@ -367,25 +373,7 @@ export default function ConformanceTermsPage() {
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
 
-              {/* ── 8. Process Goal */}
-              <section>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
-                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>flag</span>
-                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
-                    Process Goal
-                  </h2>
-                </div>
-                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
-                  A <strong>process goal</strong> is a desired outcome or objective that a process execution is
-                  intended to achieve — for example, completing a patient treatment successfully or approving a
-                  loan application. Guideline violations may affect whether a process goal is reached, and
-                  understanding this relationship helps explain the impact of non-conformant behaviour.
-                </p>
-              </section>
-
-              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
-
-              {/* ── 9. Attribute */}
+              {/* ── 8. Attribute */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>tune</span>
@@ -416,6 +404,24 @@ export default function ConformanceTermsPage() {
                     </div>
                   ))}
                 </div>
+              </section>
+
+              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+
+              {/* ── 9. Process Goal */}
+              <section>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
+                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>flag</span>
+                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
+                    Process Goal
+                  </h2>
+                </div>
+                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
+                  A <strong>process goal</strong> is a desired outcome or objective that a process execution is
+                  intended to achieve — for example, completing a patient treatment successfully or approving a
+                  loan application. Guideline violations may affect whether a process goal is reached, and
+                  understanding this relationship helps explain the impact of non-conformant behaviour.
+                </p>
               </section>
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
