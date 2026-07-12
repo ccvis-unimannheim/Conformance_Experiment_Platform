@@ -327,32 +327,40 @@ const TaskAnswerPanel = ({
                   {taskDesc}
                 </div>
               )}
-            </div>
-          )}
 
-          {/* Chart-parameter hint — sits directly below the question (and below the
-              question's info box when expanded) and above everything else, so
-              participants can't miss it. Styled as a light-blue bulb hint box. */}
-          {paramHints.length > 0 && (
-            <div style={{
-              display: "flex",
-              alignItems: "flex-start",
-              gap: "0.625rem",
-              background: "#eff6ff",
-              border: "1px solid #cfe2fb",
-              borderRadius: "0.6rem",
-              padding: "0.75rem 0.875rem",
-              marginBottom: "1.25rem",
-            }}>
-              <span aria-hidden="true" style={{ fontSize: "1.15rem", lineHeight: 1.35, flexShrink: 0 }}>💡</span>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
-                {paramHints.map((hint, i) => (
-                  <div key={i} style={{ fontSize: "0.8rem", lineHeight: 1.5, color: "#1e3a5f" }}>
-                    <span style={{ fontWeight: 700 }}>{hint.label}:</span>{" "}
-                    <span style={{ fontFamily: "monospace" }}>{hint.value}</span>
+              {/* Chart-parameter hint — above the divider, right under the question
+                  (and below the question's info box when expanded), so participants
+                  can't miss it. Light-blue hint box with an outline bulb icon. */}
+              {paramHints.length > 0 && (
+                <div style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "0.625rem",
+                  background: "#eff6ff",
+                  border: "1px solid #cfe2fb",
+                  borderRadius: "0.6rem",
+                  padding: "0.75rem 0.875rem",
+                  marginTop: "1rem",
+                }}>
+                  <svg
+                    width="20" height="20" viewBox="0 0 24 24" fill="none"
+                    stroke="#2563eb" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"
+                    style={{ flexShrink: 0, marginTop: "0.05rem" }} aria-hidden="true"
+                  >
+                    <path d="M15 14c.2-1 .7-1.7 1.5-2.5C17.7 10.2 18 9 18 7.5A6 6 0 1 0 6 7.5c0 1.5.5 2.7 1.5 4 .8.8 1.3 1.5 1.5 2.5" />
+                    <path d="M9 18h6" />
+                    <path d="M10 22h4" />
+                  </svg>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                    {paramHints.map((hint, i) => (
+                      <div key={i} style={{ fontSize: "0.8rem", lineHeight: 1.5, color: "#1e3a5f" }}>
+                        <span style={{ fontWeight: 700 }}>{hint.label}:</span>{" "}
+                        <span style={{ fontFamily: "monospace" }}>{hint.value}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
             </div>
           )}
 

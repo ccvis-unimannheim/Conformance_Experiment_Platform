@@ -26,7 +26,7 @@ CANONICAL_TASKS = [
     },
     {
         "task_key": "task20",
-        "label": "What control-flow, data, resource, or time attributes of events, traces, or event logs lead to guideline violations?",
+        "label": "What attributes of events, traces, or event logs lead to guideline violations?",
         "description": "Identify potential root causes of non-conformance.",
         "answer_type": "single_choice",
     },
