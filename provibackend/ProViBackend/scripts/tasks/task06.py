@@ -29,7 +29,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["tile_metric", "bar_chart", "table", "heatmap"]
+IDIOMS = ["tile_metric", "bar_chart", "table", "matrix"]
 
 # ---------------------------------------------------------------------------
 # Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8)
@@ -173,8 +173,8 @@ def task06_tile_metric(df, output_dir: str):
         metric_label="Overall Mean Fitness", as_fraction=True)
 
 
-def task06_heatmap(df, output_dir: str):
-    """Single-cell heatmap of the overall mean fitness, light→dark grey.
+def task06_matrix(df, output_dir: str):
+    """Single-cell matrix of the overall mean fitness, light→dark grey.
 
     Colour-encodes the mean fitness on a fixed 0–1 scale and labels the cell with
     the actual fitness value (0–1). Drawn as a tidy square cell (aspect='equal')
@@ -195,7 +195,7 @@ def task06_heatmap(df, output_dir: str):
     cbar.set_ticks([0.0, 0.25, 0.5, 0.75, 1.0])
     ax.set_title("Overall Mean Fitness", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task06_heatmap.svg"))
+    save_svg(fig, os.path.join(output_dir, "task06_matrix.svg"))
 
 
 # ---------------------------------------------------------------------------
@@ -310,4 +310,4 @@ def generate(df, output_dir: str, log=None, alignments=None, model_path=None):
     task06_tile_metric(df, output_dir)
     task06_bar_chart(df, output_dir)
     task06_table(df, output_dir)
-    task06_heatmap(df, output_dir)
+    task06_matrix(df, output_dir)
