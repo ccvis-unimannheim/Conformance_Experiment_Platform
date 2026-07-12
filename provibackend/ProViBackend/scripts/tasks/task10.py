@@ -139,7 +139,7 @@ from shared import (
     conformance_category_series, conformance_category_counts,
     make_conformance_labels,
     CONFORMANCE_BINS, CONFORMANCE_LABELS, CONFORMANCE_CATEGORY_NAMES,
-    GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, CIVIDIS,
+    GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, CIVIDIS, CIVIDIS_R,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT, contrasting_text_color,
 )
 from matplotlib.colors import to_hex
@@ -218,23 +218,24 @@ HIGH_FITNESS_CATEGORY_BINS = [0.80, 0.85, 0.90, 0.95, 1.0, 1.01]
 def _resolve_ranges(df, bins=None, labels=None):
     """Resolve the conformance ranges used by *every* Task 10 idiom.
 
-    Returns (range_df, used_bins, used_labels). The interval definition is adaptive
-    (canonical buckets, narrow high-fitness buckets, or quantile buckets), and the
-    returned (used_bins, used_labels) describe exactly that choice so the heatmap
-    and scatter plot categorise per trace with the SAME intervals as the count
-    idioms — otherwise they would silently diverge.
+    Returns (range_df, used_bins, used_labels).
 
-    bins / labels default to the canonical conformance buckets (CONFORMANCE_BINS /
-    CONFORMANCE_LABELS in shared.py); pass a custom edge list to override them.
+    bins=None  → adaptive mode (sample preview): may switch to HIGH_FITNESS bins
+                 when fitness.min() ≥ 0.8, or fall back to quantile bins when
+                 fewer than 3 default buckets are occupied.
+    bins given → exact mode (admin-configured run / GT): the caller's bins are
+                 used as-is with no adaptive override, so participants always see
+                 the intervals the admin actually selected.
     """
-    bins = list(bins) if bins is not None else DEFAULT_BINS
+    adaptive = bins is None
+    bins   = list(bins)   if bins   is not None else DEFAULT_BINS
     labels = list(labels) if labels is not None else DEFAULT_LABELS
 
     fitness = df["fitness"].astype(float)
     if fitness.empty:
         return pd.DataFrame(columns=["range", "count", "percentage"]), bins, labels
 
-    if fitness.min() >= 0.8:
+    if adaptive and fitness.min() >= 0.8:
         return (_build_high_fitness_range_df(fitness),
                 list(HIGH_FITNESS_CATEGORY_BINS), list(HIGH_FITNESS_LABELS))
 
@@ -243,7 +244,7 @@ def _resolve_ranges(df, bins=None, labels=None):
     )
     default_counts = default_buckets.value_counts().reindex(labels, fill_value=0)
     active_default_bins = int((default_counts > 0).sum())
-    if active_default_bins >= 3:
+    if not adaptive or active_default_bins >= 3:
         total = len(fitness)
         result = pd.DataFrame({
             "range": labels,
@@ -271,12 +272,21 @@ def _resolve_ranges(df, bins=None, labels=None):
 # ---------------------------------------------------------------------------
 
 def task10_bar_chart(range_df: pd.DataFrame, output_dir: str):
-    """Bar chart: percentage of traces per conformance range."""
+    """Bar chart: percentage of traces per conformance range.
+
+    Each bar is coloured by its percentage value using CIVIDIS_R (yellow = low,
+    dark blue = high) — the same colormap and normalization as task10_heatmap,
+    so colour magnitude is consistent across all three information-equivalent idioms.
+    """
+    max_pct = range_df["percentage"].max()
+    norm = max_pct if max_pct > 0 else 1.0
+    bar_colors = [to_hex(CIVIDIS_R(float(pct) / norm)) for pct in range_df["percentage"]]
+
     fig, ax = plt.subplots(figsize=(8, 5))
     bars = ax.bar(
         range_df["range"],
         range_df["percentage"],
-        color=_task10_color_list(len(range_df)),
+        color=bar_colors,
         edgecolor="white",
         width=0.6,
     )
@@ -534,17 +544,17 @@ def generate(df, output_dir: str, log=None, conformance_bins=None):
         if isinstance(conformance_bins, str):
             conformance_bins = _parse_bins(conformance_bins)
         if conformance_bins:
-            bins = list(conformance_bins)
+            bins   = list(conformance_bins)
             labels = make_conformance_labels(bins)
-            logger.info(f"      -> Custom conformance bins: {bins}")
+            logger.info(f"      -> Admin-specified conformance bins: {bins}")
+            # Pass bins explicitly → _resolve_ranges() respects them exactly.
+            range_df, used_bins, used_labels = _resolve_ranges(df, bins, labels)
         else:
-            bins, labels = CONFORMANCE_BINS, CONFORMANCE_LABELS
+            # Parsing failed; fall through to adaptive.
+            range_df, used_bins, used_labels = _resolve_ranges(df)
     else:
-        bins, labels = CONFORMANCE_BINS, CONFORMANCE_LABELS
-
-    # Resolve the ranges ONCE so every idiom (incl. heatmap & scatter) uses the
-    # same — possibly adaptive — interval definition.
-    range_df, used_bins, used_labels = _resolve_ranges(df, bins, labels)
+        # No bins specified (sample preview) → adaptive logic selects best intervals.
+        range_df, used_bins, used_labels = _resolve_ranges(df)
     canonical = (used_bins == list(CONFORMANCE_BINS))
     category_names = CONFORMANCE_CATEGORY_NAMES if canonical else None
     logger.info(f"      -> Range counts: {dict(zip(range_df['range'], range_df['count']))}")
