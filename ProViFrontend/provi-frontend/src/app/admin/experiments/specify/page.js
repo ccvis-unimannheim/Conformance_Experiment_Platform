@@ -68,26 +68,64 @@ function ParamField({ entry, value, onChange }) {
         onChange([...selected, optValue]);
       }
     }
+    // Admin convenience: auto-select one option from each of the first N distinct
+    // variants (needs a per-option `variant` field from the backend).
+    const hasVariants = options.some((o) => typeof o === "object" && o.variant != null);
+    const showVariantPick = entry.variant_autoselect && hasVariants;
+    const autoselectCount = entry.autoselect_count ?? 10;
+    function pickFromVariants() {
+      const seen = new Set();
+      const picked = [];
+      for (const opt of options) {
+        if (typeof opt !== "object" || opt.variant == null) continue;
+        if (seen.has(opt.variant)) continue;
+        seen.add(opt.variant);
+        picked.push(opt.value);
+        if (picked.length >= autoselectCount) break;
+      }
+      onChange(picked);
+    }
+    function toggleVariantPick(checked) {
+      if (checked) pickFromVariants();
+      else onChange([]);
+    }
     return (
-      <div className="flex flex-col gap-0.5 max-h-72 overflow-y-auto border border-border-subtle rounded-lg px-3 py-2 bg-white">
-        {options.map((opt) => {
-          const optValue = typeof opt === "string" ? opt : opt.value;
-          const optLabel = typeof opt === "string" ? opt : opt.label ?? opt.value;
-          return (
-            <label
-              key={optValue}
-              className="flex items-center gap-2 text-sm py-0.5 px-1 rounded cursor-pointer hover:bg-gray-50"
-            >
-              <input
-                type="checkbox"
-                checked={selected.includes(optValue)}
-                onChange={() => toggle(optValue)}
-                className="accent-primary"
-              />
-              <span>{optLabel}</span>
-            </label>
-          );
-        })}
+      <div className="flex flex-col gap-1">
+        {showVariantPick && (
+          <label className="flex items-center gap-2 text-sm text-on-surface cursor-pointer">
+            <input
+              type="checkbox"
+              onChange={(e) => toggleVariantPick(e.target.checked)}
+              className="accent-primary"
+            />
+            <span>
+              Pick from different Variants
+              <span className="text-on-surface-variant font-normal ml-1">
+                (auto-select {autoselectCount} traces across distinct variants)
+              </span>
+            </span>
+          </label>
+        )}
+        <div className="flex flex-col gap-0.5 max-h-72 overflow-y-auto border border-border-subtle rounded-lg px-3 py-2 bg-white">
+          {options.map((opt) => {
+            const optValue = typeof opt === "string" ? opt : opt.value;
+            const optLabel = typeof opt === "string" ? opt : opt.label ?? opt.value;
+            return (
+              <label
+                key={optValue}
+                className="flex items-center gap-2 text-sm py-0.5 px-1 rounded cursor-pointer hover:bg-gray-50"
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.includes(optValue)}
+                  onChange={() => toggle(optValue)}
+                  className="accent-primary"
+                />
+                <span>{optLabel}</span>
+              </label>
+            );
+          })}
+        </div>
       </div>
     );
   }

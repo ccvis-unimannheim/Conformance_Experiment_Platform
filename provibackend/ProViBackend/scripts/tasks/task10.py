@@ -41,7 +41,8 @@ PARAM_SPEC = [
     {
         "key": "conformance_bins",
         "label": "Conformance interval boundaries",
-        "hint": "Conformance scores are grouped into these intervals",
+        # The interval ranges are shown directly in the chart → hint redundant.
+        "hide_hint": True,
         "widget": "select-one",
         "options": [
             {

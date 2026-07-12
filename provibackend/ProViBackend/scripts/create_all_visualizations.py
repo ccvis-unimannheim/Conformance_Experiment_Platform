@@ -588,8 +588,11 @@ def get_log_worst_traces(dataset_dir: str) -> list[dict]:
 def get_log_trace_ids(dataset_dir: str) -> list[dict]:
     """Every trace in this dataset as a picker option for task04's `trace_ids`.
 
-    Returns [{"value": "<case_id>", "label": "<case_id> — fitness 0.812"}, ...] in
-    log order. `value` is the trace's case id (concept:name); task04.generate /
+    Returns [{"value": "<case_id>", "label": "<case_id> — fitness 0.812",
+    "variant": 0}, ...] in log order. `value` is the trace's case id
+    (concept:name); `variant` is a 0-based index assigned by first appearance of
+    the trace's activity sequence (same variant key as task03), letting the admin
+    UI auto-select one trace per distinct variant. task04.generate /
     compute_ground_truth accept these ids in `trace_ids`. Powers the
     'log.trace_ids' param-spec source.
     """
@@ -597,15 +600,19 @@ def get_log_trace_ids(dataset_dir: str) -> list[dict]:
     log = load_event_log(log_path)
     alignments = get_or_compute_alignments(dataset_dir, log)
 
+    variant_index: dict[tuple, int] = {}
     options = []
     for i, trace in enumerate(log):
         if i >= len(alignments):
             break
         case_id = str(trace.attributes.get("concept:name", i))
         fitness = float(alignments[i].get("fitness", 1.0))
+        seq = tuple(str(event.get("concept:name", "")) for event in trace)
+        variant = variant_index.setdefault(seq, len(variant_index))
         options.append({
             "value": case_id,
             "label": f"{case_id} — fitness {fitness:.3f}",
+            "variant": variant,
         })
     return options
 
