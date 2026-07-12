@@ -125,11 +125,16 @@ TITLE = "Trace Conformance Fitness"
 
 def _task04_build_trace_df(log, fitness_df: pd.DataFrame, trace_ids=None,
                            sample_n: int = SAMPLE_N) -> pd.DataFrame:
-    """One row per concrete trace: case-id ``label`` + ``fitness`` (rounded 3 dp).
+    """One row per concrete trace: a running ``label`` ("Trace 1".."Trace N"),
+    the raw ``case_id``, and ``fitness`` (rounded 3 dp).
 
     ``trace_ids``: optional list of case-id strings. When given, exactly those
     traces are shown in that order (ids not present in the log are skipped).
     Otherwise the first ``sample_n`` traces in log order are used.
+
+    Participants see the running ``label`` rather than the raw case id (which is
+    noise to hunt for in the chart); the admin maps "Trace N → id" in the picker.
+    The ``case_id`` column is kept for reference / debugging.
     """
     records = []
     for i, trace in enumerate(log):
@@ -138,24 +143,26 @@ def _task04_build_trace_df(log, fitness_df: pd.DataFrame, trace_ids=None,
         case_id = str(trace.attributes.get("concept:name", i))
         records.append({
             "trace_index": i,
-            "label":       case_id,
+            "case_id":     case_id,
             "fitness":     round(float(fitness_df.iloc[i]["fitness"]), 3),
         })
 
-    cols = ["trace_index", "label", "fitness"]
+    cols = ["trace_index", "case_id", "fitness"]
     if not records:
-        return pd.DataFrame(columns=cols)
+        return pd.DataFrame(columns=cols + ["label"])
 
     if trace_ids:
         by_id = {}
         for r in records:
-            by_id.setdefault(r["label"], r)  # first trace wins if case ids repeat
+            by_id.setdefault(r["case_id"], r)  # first trace wins if case ids repeat
         chosen = [by_id[str(tid)] for tid in trace_ids if str(tid) in by_id]
         df = pd.DataFrame(chosen, columns=cols)
     else:
         df = pd.DataFrame(records[:sample_n], columns=cols)
 
-    return df.reset_index(drop=True)
+    df = df.reset_index(drop=True)
+    df["label"] = [f"Trace {i + 1}" for i in range(len(df))]
+    return df
 
 
 # ---------------------------------------------------------------------------

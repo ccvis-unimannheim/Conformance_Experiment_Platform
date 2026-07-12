@@ -89,6 +89,9 @@ function ParamField({ entry, value, onChange }) {
       if (checked) pickFromVariants();
       else onChange([]);
     }
+    // Trace picker: the chart labels traces by running number ("Trace 1..N") in
+    // selection order, so surface the "Trace N → id" mapping for the admin.
+    const isTracePicker = entry.source === "log.trace_ids";
     return (
       <div className="flex flex-col gap-1">
         {showVariantPick && (
@@ -105,6 +108,20 @@ function ParamField({ entry, value, onChange }) {
               </span>
             </span>
           </label>
+        )}
+        {isTracePicker && selected.length > 0 && (
+          <div className="text-xs border border-border-subtle rounded-lg px-3 py-2 bg-gray-50">
+            <span className="font-semibold text-on-surface">
+              Shown in the chart as (in this order):
+            </span>
+            <div className="mt-1 flex flex-col gap-0.5">
+              {selected.map((id, i) => (
+                <span key={id} className="text-on-surface-variant">
+                  <span className="font-semibold text-on-surface">Trace {i + 1}:</span> ID {id}
+                </span>
+              ))}
+            </div>
+          </div>
         )}
         <div className="flex flex-col gap-0.5 max-h-72 overflow-y-auto border border-border-subtle rounded-lg px-3 py-2 bg-white">
           {options.map((opt) => {
