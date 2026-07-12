@@ -248,7 +248,7 @@ def task11_bar_chart(selected, trace_coverage, n_traces, output_dir):
     ax.set_facecolor("#fafbfc")
 
     for i, (lbl, cnt, pct, bc) in enumerate(zip(labels, counts, pcts, bar_colors)):
-        ax.barh(i, cnt, color=bc, edgecolor="none", height=0.65)
+        ax.barh(i, cnt, color=bc, edgecolor="none", linewidth=0, height=0.65)
         ax.text(cnt + max_c * 0.012, i,
                 f"{cnt:,} traces  ({pct:.1f}%)",
                 va="center", fontsize=FONT_ANNOT, color=_C_DARK)
@@ -445,7 +445,7 @@ def task11_table_bar_chart(selected, trace_coverage, n_traces, output_dir):
     for i, (act, vt, cnt) in enumerate(data):
         bc = mcolors.to_hex(_CMAP_SEQ(cnt / max_c if max_c > 0 else 0.0))
         ax_bar.barh(i, cnt, color=bc,
-                    edgecolor="none", height=0.65)
+                    edgecolor="none", linewidth=0, height=0.65)
         pct = cnt / n_traces * 100 if n_traces > 0 else 0
         ax_bar.text(cnt + max_c * 0.012, i,
                     f"{cnt:,}  ({pct:.1f}%)",

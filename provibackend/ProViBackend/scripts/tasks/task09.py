@@ -768,7 +768,7 @@ def _make_bpmn_violation_svg(activity_totals, model_path, h_scale: float = 1.0):
         fill  = _violation_shade(rate) if kind == "task" else "#f0f0f0"
         stroke = "#777"
         v_int = int(fill[1:3], 16)
-        tc    = "white" if v_int < 140 else _C_DARK
+        tc    = "white" if v_int < 140 else "#1a1a1a"
 
         if kind == "task":
             cnt   = activity_totals.get(name, 0)
@@ -785,7 +785,7 @@ def _make_bpmn_violation_svg(activity_totals, model_path, h_scale: float = 1.0):
                            f"font-family='Arial,sans-serif' font-size='9' fill='{tc}'>"
                            f"{esc(line)}</text>")
             if cnt > 0:
-                cnt_tc = "white" if v_int < 160 else _C_MED
+                cnt_tc = "white" if v_int < 140 else "#333333"
                 out.append(f"<text x='{x+w/2:.1f}' y='{y+h-5:.1f}' "
                            f"text-anchor='middle' dominant-baseline='middle' "
                            f"font-family='Arial,sans-serif' font-size='7.5' fill='{cnt_tc}'>"
