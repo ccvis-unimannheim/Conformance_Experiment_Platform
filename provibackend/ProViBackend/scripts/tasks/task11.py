@@ -95,6 +95,7 @@ def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer
 import os
 import io as _io
 import base64 as _base64
+import copy as _copy
 import re as _re
 import xml.etree.ElementTree as _ET
 from collections import Counter
@@ -239,15 +240,15 @@ def task11_bar_chart(selected, trace_coverage, n_traces, output_dir):
     counts = [c for _, _, c in data]
     pcts   = [c / n_traces * 100 if n_traces > 0 else 0 for c in counts]
     max_c  = max(counts) if counts else 1
-    shades = [str(round(1 - (c / max_c) * 0.72, 3)) for c in counts]
+    bar_colors = [mcolors.to_hex(_CMAP_SEQ(c / max_c if max_c > 0 else 0.0)) for c in counts]
 
     n      = len(data)
     fig_h  = max(3.5, n * 0.70 + 2.2)
     fig, ax = plt.subplots(figsize=(12, fig_h))
     ax.set_facecolor("#fafbfc")
 
-    for i, (lbl, cnt, pct, shade) in enumerate(zip(labels, counts, pcts, shades)):
-        ax.barh(i, cnt, color=shade, edgecolor=_C_DARK, linewidth=0.8, height=0.65)
+    for i, (lbl, cnt, pct, bc) in enumerate(zip(labels, counts, pcts, bar_colors)):
+        ax.barh(i, cnt, color=bc, edgecolor=_C_DARK, linewidth=0.8, height=0.65)
         ax.text(cnt + max_c * 0.012, i,
                 f"{cnt:,} traces  ({pct:.1f}%)",
                 va="center", fontsize=FONT_ANNOT, color=_C_DARK)
@@ -299,18 +300,21 @@ def task11_heatmap(selected, trace_coverage, n_traces, output_dir):
     n_rows = len(selected_acts)
     n_cols = len(selected_vtypes)
 
-    mat = np.zeros((n_rows, n_cols))
+    # nan marks cells that are NOT predefined violations (structural matrix zeros)
+    mat = np.full((n_rows, n_cols), np.nan)
     for i, act in enumerate(selected_acts):
         for j, vt in enumerate(selected_vtypes):
             if (act, vt) in selected_set:
-                mat[i, j] = trace_coverage.get((act, vt), 0)
+                mat[i, j] = float(trace_coverage.get((act, vt), 0))
 
     fig_h  = max(3.5, n_rows * 0.70 + 2.5)
     fig, ax = plt.subplots(figsize=(10, fig_h))
     ax.set_facecolor("#fafbfc")
 
-    vmax = mat.max() if mat.max() > 0 else 1
-    im   = ax.imshow(mat, cmap=_CMAP_SEQ, aspect="auto",
+    vmax = max(float(np.nanmax(mat)), 1.0) if not np.all(np.isnan(mat)) else 1.0
+    cmap_with_bad = _copy.copy(_CMAP_SEQ)
+    cmap_with_bad.set_bad(color="#e8e8e8")  # light grey for non-predefined cells
+    im   = ax.imshow(mat, cmap=cmap_with_bad, aspect="auto",
                      norm=mcolors.PowerNorm(gamma=0.5, vmin=0, vmax=vmax))
 
     ax.set_xticks(range(n_cols))
@@ -318,15 +322,22 @@ def task11_heatmap(selected, trace_coverage, n_traces, output_dir):
     ax.set_yticks(range(n_rows))
     ax.set_yticklabels([_short_label(a, 30) for a in selected_acts], fontsize=FONT_ANNOT)
 
-    # Annotate each selected cell with count + %
+    # Annotate each cell: predefined violations get count/%, non-selected get "–"
     for i in range(n_rows):
         for j in range(n_cols):
-            val = int(mat[i, j])
-            if val > 0:
-                pct = val / n_traces * 100 if n_traces > 0 else 0
-                brightness = mat[i, j] / vmax
-                tc = "white" if brightness > 0.55 else _C_DARK
-                ax.text(j, i, f"{val:,}\n({pct:.1f}%)",
+            v = mat[i, j]
+            if np.isnan(v):
+                # Structural zero: (act, vt) not in the predefined violation set
+                ax.text(j, i, "–", ha="center", va="center",
+                        fontsize=max(FONT_ANNOT, 8), color="#aaaaaa")
+            else:
+                cnt = int(v)
+                pct = cnt / n_traces * 100 if n_traces > 0 else 0
+                norm_val = (v / vmax) ** 0.5 if vmax > 0 else 0.0
+                r, g, b, _ = _CMAP_SEQ(norm_val)
+                lum = 0.299 * r + 0.587 * g + 0.114 * b
+                tc = "white" if lum < 0.5 else _C_DARK
+                ax.text(j, i, f"{cnt:,}\n({pct:.1f}%)",
                         ha="center", va="center",
                         fontsize=max(FONT_ANNOT - 1, 6), color=tc)
 
@@ -436,8 +447,8 @@ def task11_table_bar_chart(selected, trace_coverage, n_traces, output_dir):
     # ── Right: gradient bars ──────────────────────────────────────────────────
     ax_bar.set_facecolor("#fafbfc")
     for i, (act, vt, cnt) in enumerate(data):
-        shade = str(round(1 - (cnt / max_c) * 0.72, 3))
-        ax_bar.barh(i, cnt, color=shade,
+        bc = mcolors.to_hex(_CMAP_SEQ(cnt / max_c if max_c > 0 else 0.0))
+        ax_bar.barh(i, cnt, color=bc,
                     edgecolor=_C_DARK, linewidth=0.8, height=0.65)
         pct = cnt / n_traces * 100 if n_traces > 0 else 0
         ax_bar.text(cnt + max_c * 0.012, i,
@@ -449,7 +460,7 @@ def task11_table_bar_chart(selected, trace_coverage, n_traces, output_dir):
     ax_bar.set_yticklabels(bar_labels, fontsize=FONT_ANNOT)
     ax_bar.invert_yaxis()
     ax_bar.set_xlabel("Traces containing violation", fontsize=FONT_LABEL)
-    ax_bar.set_title("Frequency  (darker = more traces)", fontsize=FONT_TITLE)
+    ax_bar.set_title("Frequency  (blue = more traces)", fontsize=FONT_TITLE)
     ax_bar.spines[["top", "right"]].set_visible(False)
     ax_bar.xaxis.grid(True, linestyle="--", alpha=0.3)
     ax_bar.set_axisbelow(True)
@@ -543,7 +554,7 @@ def task11_flow_chart_elaborate_bpmn_table(selected, trace_coverage, n_traces,
     if model_path is not None and activity_trace_count:
         try:
             _make_bpmn_violation_svg = _import_task09_bpmn()
-            bpmn_svg = _make_bpmn_violation_svg(activity_trace_count, model_path)
+            bpmn_svg = _make_bpmn_violation_svg(activity_trace_count, model_path, h_scale=1.1)
         except Exception:
             logger.exception("task11: failed to render BPMN for flow_chart_elaborate_bpmn_table")
 

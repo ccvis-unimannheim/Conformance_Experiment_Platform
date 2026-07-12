@@ -6,7 +6,7 @@
   <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
    <cc:Work>
     <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
-    <dc:date>2026-07-12T15:02:59.425439</dc:date>
+    <dc:date>2026-07-12T17:57:03.302903</dc:date>
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
@@ -35,7 +35,7 @@ C 422.231003 403.246788 422.231003 403.246788 704.528287 403.246788
 L 704.528287 271.759864 
 C 422.231003 271.759864 422.231003 271.759864 139.933719 271.759864 
 z
-" clip-path="url(#p11ea7c89a6)" style="fill: #35456c; opacity: 0.35"/>
+" clip-path="url(#p729fa18d1a)" style="fill: #35456c; opacity: 0.35"/>
    </g>
    <g id="patch_3">
     <path d="M 139.933719 271.759864 
@@ -43,7 +43,7 @@ C 422.231003 271.759864 422.231003 140.272941 704.528287 140.272941
 L 704.528287 96.223166 
 C 422.231003 96.223166 422.231003 227.710089 139.933719 227.710089 
 z
-" clip-path="url(#p11ea7c89a6)" style="fill: #35456c; opacity: 0.35"/>
+" clip-path="url(#p729fa18d1a)" style="fill: #35456c; opacity: 0.35"/>
    </g>
    <g id="patch_4">
     <path d="M 139.933719 227.710089 
@@ -51,7 +51,7 @@ C 422.231003 227.710089 422.231003 271.759864 704.528287 271.759864
 L 704.528287 140.272941 
 C 422.231003 140.272941 422.231003 96.223166 139.933719 96.223166 
 z
-" clip-path="url(#p11ea7c89a6)" style="fill: #7d7c78; opacity: 0.35"/>
+" clip-path="url(#p729fa18d1a)" style="fill: #7d7c78; opacity: 0.35"/>
    </g>
    <g id="patch_5">
     <path d="M 102.789339 403.246788 
@@ -59,7 +59,7 @@ L 177.078098 403.246788
 L 177.078098 227.710089 
 L 102.789339 227.710089 
 z
-" clip-path="url(#p11ea7c89a6)" style="fill: #35456c; stroke: #ffffff; stroke-width: 0.8; stroke-linejoin: miter"/>
+" clip-path="url(#p729fa18d1a)" style="fill: #35456c; stroke: #ffffff; stroke-width: 0.8; stroke-linejoin: miter"/>
    </g>
    <g id="text_1">
     <!-- Move on Model -->
@@ -212,7 +212,7 @@ L 177.078098 227.710089
 L 177.078098 96.223166 
 L 102.789339 96.223166 
 z
-" clip-path="url(#p11ea7c89a6)" style="fill: #7d7c78; stroke: #ffffff; stroke-width: 0.8; stroke-linejoin: miter"/>
+" clip-path="url(#p729fa18d1a)" style="fill: #7d7c78; stroke: #ffffff; stroke-width: 0.8; stroke-linejoin: miter"/>
    </g>
    <g id="text_2">
     <!-- Move on Log -->
@@ -281,7 +281,7 @@ L 741.672667 403.246788
 L 741.672667 140.272941 
 L 667.383908 140.272941 
 z
-" clip-path="url(#p11ea7c89a6)" style="fill: #ebebeb; stroke: #ffffff; stroke-width: 0.8; stroke-linejoin: miter"/>
+" clip-path="url(#p729fa18d1a)" style="fill: #ebebeb; stroke: #ffffff; stroke-width: 0.8; stroke-linejoin: miter"/>
    </g>
    <g id="text_3">
     <!-- Approve Treatment -->
@@ -467,7 +467,7 @@ L 741.672667 140.272941
 L 741.672667 96.223166 
 L 667.383908 96.223166 
 z
-" clip-path="url(#p11ea7c89a6)" style="fill: #404040; stroke: #ffffff; stroke-width: 0.8; stroke-linejoin: miter"/>
+" clip-path="url(#p729fa18d1a)" style="fill: #404040; stroke: #ffffff; stroke-width: 0.8; stroke-linejoin: miter"/>
    </g>
    <g id="text_4">
     <!-- Withdraw Case -->
@@ -1114,7 +1114,7 @@ z
   </g>
  </g>
  <defs>
-  <clipPath id="p11ea7c89a6">
+  <clipPath id="p729fa18d1a">
    <rect x="10.8" y="28.677969" width="833.618372" height="389.92"/>
   </clipPath>
  </defs>

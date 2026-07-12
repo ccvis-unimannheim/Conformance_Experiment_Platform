@@ -1631,7 +1631,7 @@ _BPMN_MARKER_DEFS = (
 
 
 def bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn=None, *, ox=0.0, oy=0.0,
-                      top_pad=88.0):
+                      top_pad=88.0, h_scale: float = 1.0):
     """Return (svg_lines, width, height) for one BPMN diagram translated by (ox, oy).
 
     The body excludes the outer <svg>, marker <defs> and legend so it can be
@@ -1655,10 +1655,10 @@ def bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn=None, *, ox=0.0, oy=0
     min_x, max_x = min(xs), max(xs)
     min_y, max_y = min(ys), max(ys)
     lp, rp, bp = 80.0, 80.0, 68.0
-    W = max_x - min_x + lp + rp
+    W = (max_x - min_x) * h_scale + lp + rp
     H = max_y - min_y + top_pad + bp
 
-    def tx(x): return x - min_x + lp + ox
+    def tx(x): return (x - min_x) * h_scale + lp + ox
     def ty(y): return y - min_y + top_pad + oy
 
     def _clean_pts(pts, min_seg=10.0):
@@ -1808,7 +1808,8 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
                         table_rows=None, table_cols=None,
                         legend_below_panels=True, legend_center=True,
                         table_stretch: bool = False,
-                        table_header_bg: str = GREY_DARK):
+                        table_header_bg: str = GREY_DARK,
+                        h_scale: float = 1.0):
     """Compose several BPMN panels (stacked vertically) + an optional table into one SVG.
 
     panels: list of {"parsed", "node_style_fn", "faded_flow_fn"(opt), "subtitle"}.
@@ -1828,7 +1829,7 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
         )
         body, w, h = bpmn_diagram_body(
             p["parsed"], p["node_style_fn"], p.get("faded_flow_fn"),
-            oy=y_cursor + 24.0, top_pad=8.0,
+            oy=y_cursor + 24.0, top_pad=8.0, h_scale=h_scale,
         )
         bodies += body
         max_w = max(max_w, w)

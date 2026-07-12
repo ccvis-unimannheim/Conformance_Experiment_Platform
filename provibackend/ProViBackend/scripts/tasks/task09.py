@@ -659,7 +659,7 @@ def task09_flow_chart_and_table(activity_type, activity_totals, type_totals, n_v
 
 # ── Idiom: Flow Chart Elaborate BPMN ─────────────────────────────────────────
 
-def _make_bpmn_violation_svg(activity_totals, model_path):
+def _make_bpmn_violation_svg(activity_totals, model_path, h_scale: float = 1.0):
     """Return SVG string: BPMN nodes shaded by violation rate. Returns None on parse failure."""
     ns = {
         "bpmn":  "http://www.omg.org/spec/BPMN/20100524/MODEL",
@@ -720,10 +720,10 @@ def _make_bpmn_violation_svg(activity_totals, model_path):
             xs.append(px); ys.append(py)
 
     min_x, min_y = min(xs), min(ys)
-    W = max(xs) - min_x + 120
+    W = (max(xs) - min_x) * h_scale + 120
     H = max(ys) - min_y + 195   # extra bottom for legend + title
 
-    def tx(x): return x - min_x + 60
+    def tx(x): return (x - min_x) * h_scale + 60
     def ty(y): return y - min_y + 95
 
     def wrap(label, box_w, fs=9):
