@@ -288,9 +288,9 @@ def task10_bar_chart(range_df: pd.DataFrame, output_dir: str):
                 f"{pct:.1f}%",
                 ha="center", va="bottom", fontsize=FONT_ANNOT,
             )
-    ax.set_xlabel("Conformance Rate divided into Ranges", fontsize=FONT_LABEL)
+    ax.set_xlabel("Conformance Category", fontsize=FONT_LABEL)
     ax.set_ylabel("Percentage of Traces (%)", fontsize=FONT_LABEL)
-    ax.set_title("Traces per Conformance Range", fontsize=FONT_TITLE)
+    ax.set_title("Conformance Category Distribution", fontsize=FONT_TITLE)
     ax.set_ylim(0, max(range_df["percentage"].max() * 1.15, 5))
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
@@ -333,28 +333,24 @@ def task10_pie_chart(range_df: pd.DataFrame, output_dir: str):
 
 
 def task10_table(range_df: pd.DataFrame, output_dir: str):
-    """Table: Conformance Range | Count (Cases) | Percentage."""
-    total = int(range_df["count"].sum())
+    """Table: Conformance Category | Percentage of Traces (no counts, no total row)."""
     cell_text = [
-        [row["range"], str(int(row["count"])), f"{row['percentage']:.2f}%"]
+        [row["range"], f"{row['percentage']:.1f}%"]
         for _, row in range_df.iterrows()
     ]
-    cell_text.append(["Total", str(total), "100.00%" if total else "0.00%"])
-
     fig_h = max(3.0, 1.2 + len(cell_text) * 0.52)
     fig, ax = plt.subplots(figsize=(7, fig_h))
     ax.axis("off")
     make_table(
         ax,
         cell_text=cell_text,
-        col_labels=["Conformance Range", "Count (Cases)", "Percentage"],
+        col_labels=["Conformance Category", "Percentage of Traces"],
         bbox=[0.05, 0.05, 0.90, 0.78],
-        col_widths=[0.45, 0.28, 0.27],
+        col_widths=[0.60, 0.40],
         font_size=11,
         scale_xy=(1, 1.7),
-        highlight_last_row=True,
     )
-    ax.set_title("Conformance Range Summary", fontsize=FONT_TITLE, pad=12)
+    ax.set_title("Conformance Category Distribution", fontsize=FONT_TITLE, pad=12)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task10_table.svg"))
 
@@ -433,42 +429,22 @@ def task10_box_plot(fitness_df: pd.DataFrame, output_dir: str):
     save_svg(fig, path)
 
 
-def task10_heatmap(time_df: pd.DataFrame, output_dir: str, bins=None, labels=None,
-                   category_names=None):
-    """HIGH: month × conformance category, trace count.
+def task10_heatmap(range_df: pd.DataFrame, output_dir: str):
+    """Single-row heatmap: colour intensity = percentage of traces per conformance category.
 
-    Continuous colour intensity encodes the per-cell trace count; cells are not
-    annotated with numbers, for consistency with the heatmaps in the other tasks.
-    The intervals (bins/labels) are the ones resolved for the whole task, so the
-    rows match the ranges shown by the other idioms.
+    Encodes the same 5 category percentages as the bar chart and table; only the
+    visual encoding mechanism differs (colour intensity instead of bar length / table cell).
     """
     path = os.path.join(output_dir, "task10_heatmap.svg")
-    if time_df is None or time_df.empty:
-        render_empty_state_svg(path, "Conformance Category over Months",
-                               "No timestamp data available.")
-        return
-    labels = list(labels) if labels is not None else CONFORMANCE_LABELS
-    # Only show the named conformance categories (Very Low … Very High) when the
-    # canonical buckets are in use; for adaptive/custom intervals the range labels
-    # alone identify the rows.
-    if category_names is not None and len(category_names) == len(labels):
-        row_labels = [f"{n}\n({r})" for n, r in zip(category_names, labels)]
-    else:
-        row_labels = list(labels)
-    tdf = time_df.copy()
-    tdf["month"] = tdf["start_time"].dt.to_period("M").dt.to_timestamp()
-    tdf["cat"] = conformance_category_series(tdf["fitness"], bins).values
-    months = sorted(tdf["month"].unique())
-    month_labels = [pd.Timestamp(m).strftime("%b '%y") for m in months]
-    data = np.zeros((len(labels), len(months)))
-    for ci in range(len(labels)):
-        for mj, m in enumerate(months):
-            data[ci, mj] = int(((tdf["cat"] == ci) & (tdf["month"] == m)).sum())
-    fig, ax = plt.subplots(figsize=(max(8, len(months) * 0.7 + 3), 4.6))
-    draw_value_heatmap(fig, ax, data, row_labels,
-                       month_labels, xlabel="Month", cbar_label="# Traces",
-                       cell_fmt="{:.0f}", annotate=False, rotate_xticks=30)
-    ax.set_title("Conformance Category Distribution over Months", fontsize=FONT_TITLE)
+    data = np.array([range_df["percentage"].values], dtype=float)
+    col_labels = list(range_df["range"])
+    row_labels = ["Percentage\nof Traces"]
+    fig, ax = plt.subplots(figsize=(max(8, len(col_labels) * 1.6), 2.8))
+    draw_value_heatmap(fig, ax, data, row_labels, col_labels,
+                       xlabel="Conformance Category",
+                       cbar_label="Percentage of Traces (%)",
+                       cell_fmt="{:.1f}%", annotate=True)
+    ax.set_title("Conformance Category Distribution", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
@@ -581,7 +557,7 @@ def generate(df, output_dir: str, log=None, conformance_bins=None):
     task10_line_graph(time_df, output_dir)
     task10_horizon_chart(time_df, output_dir)
     task10_box_plot(df, output_dir)
-    task10_heatmap(time_df, output_dir, used_bins, used_labels, category_names)
+    task10_heatmap(range_df, output_dir)
     task10_calendar(time_df, output_dir)
     task10_bar_chart(range_df, output_dir)
     task10_scatter_plot(df, output_dir, used_bins, used_labels)

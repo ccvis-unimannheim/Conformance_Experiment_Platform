@@ -310,7 +310,7 @@ export default function TaskExecutionPage() {
           <button
             onClick={() => { window.location.href = "/conformance-terms"; }}
             style={{
-              display: "flex", alignItems: "center", gap: "0.25rem",
+              display: "none", alignItems: "center", gap: "0.25rem",
               fontSize: "0.75rem", fontWeight: 500, color: "#5a6061",
               background: "none", border: "1px solid #adb3b4",
               borderRadius: "999px", padding: "0.25rem 0.75rem",
@@ -337,7 +337,7 @@ export default function TaskExecutionPage() {
               <span style={{ color: "#3c5f90", fontWeight: 700, fontSize: "0.875rem" }}>
                 Task Execution
               </span>
-              <FitnessHelpButton experimentId={experimentId} />
+              <span style={{ display: "none" }}><FitnessHelpButton experimentId={experimentId} /></span>
               <div style={{ width: "4rem", height: "6px", backgroundColor: "#ebeeef", borderRadius: "9999px", overflow: "hidden" }}>
                 <div style={{ width: `${progressPercent}%`, height: "100%", backgroundColor: "#3c5f90" }} />
               </div>
@@ -365,7 +365,7 @@ export default function TaskExecutionPage() {
           ) : (
             <>
               {!isFirstIdiom && (
-                <div style={{ marginBottom: "0.75rem" }}>
+                <div style={{ marginBottom: "0.75rem", display: "none" }}>
                   <button
                     onClick={handlePreviousIdiom}
                     style={{
