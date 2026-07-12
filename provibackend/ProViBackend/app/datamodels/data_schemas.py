@@ -56,6 +56,9 @@ class KnowledgeQuestionCreate(BaseModel):
 class KnowledgeQuestionIds(BaseModel):
     knowledge_question_ids: List[str]
 
+class PrequestionnaireSections(BaseModel):
+    sections: List[str]  # e.g. ["personal_info", "academic_profile", "technical_expertise", "tool_experience"]
+
 class FeedbackAnswersRequest(BaseModel):
     ratings:  dict        # {clarity, difficulty, usefulness, helpfulness, readability, effort, priorKnowledge}
     feedback: str | None = None
@@ -229,6 +232,7 @@ class Experiment(BaseModel):
     task_configs: List[TaskConfig] = []      # legacy flat view (mirror of task_instances)
     task_instances: List[TaskInstance] = []  # canonical: one entry per task
     knowledge_question_ids: List[str] = []   # empty = use all system questions
+    prequestionnaire_sections: List[str] = ["personal_info", "academic_profile", "technical_expertise", "tool_experience"]  # enabled sections
     created_by: str             # FK → Administrator
     created_at: str
 

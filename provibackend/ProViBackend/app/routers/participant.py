@@ -186,6 +186,21 @@ def _get_experiment_knowledge_questions(exp: dict) -> list:
     return questions
 
 
+_DEFAULT_PREQUESTIONNAIRE_SECTIONS = [
+    "personal_info", "academic_profile", "technical_expertise", "tool_experience"
+]
+
+@router.get("/prequestionnaire-sections", tags=["participant"])
+async def get_active_prequestionnaire_sections():
+    """Return enabled pre-questionnaire sections for the currently active/published experiment."""
+    experiments = dbc.get_query_db("Experiment", {"status": {"$in": ["active", "published"]}})
+    if not experiments:
+        return JSONResponse(content={"sections": _DEFAULT_PREQUESTIONNAIRE_SECTIONS})
+    exp = sorted(experiments, key=lambda e: e.get("created_at", ""), reverse=True)[0]
+    sections = exp.get("prequestionnaire_sections", _DEFAULT_PREQUESTIONNAIRE_SECTIONS)
+    return JSONResponse(content={"sections": sections})
+
+
 @router.get("/knowledge-questions", tags=["participant"])
 async def get_active_knowledge_questions():
     """Return knowledge questions for the currently active/published experiment."""
