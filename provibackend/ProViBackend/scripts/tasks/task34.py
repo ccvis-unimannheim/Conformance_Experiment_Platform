@@ -50,6 +50,7 @@ PARAM_SPEC = [
         "options":  [],
         "default":  None,
         "required": False,
+        "optional_hint": "(optional — leave empty to show the overall worst-fitness trace)",
     },
 ]
 

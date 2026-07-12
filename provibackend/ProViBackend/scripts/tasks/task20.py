@@ -55,6 +55,7 @@ PARAM_SPEC = [
         "source": "log.candidate_attributes",
         "default": [],
         "required": False,
+        "optional_hint": "(optional — leave empty to analyse the default attribute set)",
     },
 ]
 

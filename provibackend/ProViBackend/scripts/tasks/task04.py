@@ -58,6 +58,7 @@ PARAM_SPEC = [
         "autoselect_count": 10,
         "default": [],
         "required": False,
+        "optional_hint": "(optional — leave empty to show the first 10 traces in log order)",
     },
 ]
 
