@@ -315,7 +315,7 @@ def task11_heatmap(selected, trace_coverage, n_traces, output_dir):
     cmap_with_bad = _copy.copy(_CMAP_SEQ)
     cmap_with_bad.set_bad(color="#e8e8e8")  # light grey for non-predefined cells
     im   = ax.imshow(mat, cmap=cmap_with_bad, aspect="auto",
-                     norm=mcolors.PowerNorm(gamma=0.5, vmin=0, vmax=vmax))
+                     norm=mcolors.Normalize(vmin=0, vmax=vmax))
 
     ax.set_xticks(range(n_cols))
     ax.set_xticklabels(selected_vtypes, fontsize=FONT_LABEL)
@@ -333,7 +333,7 @@ def task11_heatmap(selected, trace_coverage, n_traces, output_dir):
             else:
                 cnt = int(v)
                 pct = cnt / n_traces * 100 if n_traces > 0 else 0
-                norm_val = (v / vmax) ** 0.5 if vmax > 0 else 0.0
+                norm_val = v / vmax if vmax > 0 else 0.0
                 r, g, b, _ = _CMAP_SEQ(norm_val)
                 lum = 0.299 * r + 0.587 * g + 0.114 * b
                 tc = "white" if lum < 0.5 else _C_DARK
