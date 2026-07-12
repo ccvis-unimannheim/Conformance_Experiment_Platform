@@ -142,6 +142,86 @@ function TermsStrip({ taskKey, experimentId }) {
   );
 }
 
+// ── ConfidenceModal ─────────────────────────────────────────────────────────
+// Shown after the participant clicks "Submit & Next". They must rate how
+// confident they are (1 = least, 5 = most); selecting a score submits the
+// answer together with the rating and advances to the next task.
+function ConfidenceModal({ submitting, onSelect }) {
+  const [hovered, setHovered] = useState(null);
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 1000,
+      backgroundColor: "rgba(45,52,53,0.55)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: "1.5rem",
+    }}>
+      <div style={{
+        backgroundColor: "white",
+        borderRadius: "0.9rem",
+        boxShadow: "0 24px 60px rgba(45,52,53,0.35)",
+        padding: "2rem 2.25rem",
+        width: "100%", maxWidth: "440px",
+        textAlign: "center",
+      }}>
+        <h2 style={{
+          fontSize: "1.05rem", fontWeight: 700, color: "#00305e",
+          margin: "0 0 0.5rem 0", lineHeight: 1.4,
+        }}>
+          How confident are you in your answer?
+        </h2>
+        <p style={{ fontSize: "0.8rem", color: "#5a6061", margin: "0 0 1.5rem 0", lineHeight: 1.5 }}>
+          Select a score from 1 (least confident) to 5 (most confident).
+        </p>
+
+        <div style={{ display: "flex", justifyContent: "center", gap: "0.625rem", marginBottom: "0.75rem" }}>
+          {[1, 2, 3, 4, 5].map((n) => {
+            const active = hovered === n;
+            return (
+              <button
+                key={n}
+                type="button"
+                disabled={submitting}
+                onClick={() => onSelect(n)}
+                onMouseEnter={() => setHovered(n)}
+                onMouseLeave={() => setHovered(null)}
+                style={{
+                  width: "3.25rem", height: "3.25rem",
+                  borderRadius: "0.6rem",
+                  border: active ? "2px solid #00305e" : "2px solid #cbd5e1",
+                  backgroundColor: active ? "#00305e" : "white",
+                  color: active ? "white" : "#00305e",
+                  fontSize: "1.15rem", fontWeight: 700,
+                  cursor: submitting ? "not-allowed" : "pointer",
+                  transition: "background-color 0.12s, border-color 0.12s, color 0.12s",
+                }}
+              >
+                {n}
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{
+          display: "flex", justifyContent: "space-between",
+          fontSize: "0.68rem", fontWeight: 600, color: "#9199a0",
+          textTransform: "uppercase", letterSpacing: "0.06em",
+          padding: "0 0.25rem",
+        }}>
+          <span>Least confident</span>
+          <span>Most confident</span>
+        </div>
+
+        {submitting && (
+          <p style={{ fontSize: "0.8rem", color: "#5a6061", margin: "1.25rem 0 0 0" }}>
+            Saving…
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const TaskAnswerPanel = ({
   options = [],
   answerType = "free_text",
@@ -165,8 +245,12 @@ const TaskAnswerPanel = ({
   const [submitting, setSubmitting] = useState(false);
   const [idiomExpanded, setIdiomExpanded] = useState(false);
   const [showTaskTooltip, setShowTaskTooltip] = useState(false);
+  const [showConfidence, setShowConfidence] = useState(false);
 
   const startTimeRef = useRef(Date.now());
+  // Response time is captured the moment the participant clicks "Submit & Next"
+  // (before they pick a confidence score), so rating time doesn't inflate it.
+  const pendingResponseTimeRef = useRef(0);
 
   const isLastTask = currentTaskIndex >= totalTasks - 1;
 
@@ -176,18 +260,29 @@ const TaskAnswerPanel = ({
   useEffect(() => {
     setAnswer(initialAnswer(answerType, options));
     setIdiomExpanded(false);
+    setShowConfidence(false);
     startTimeRef.current = Date.now();
   }, [currentTaskIndex, answerType]);
 
-  const handleSubmit = async (e) => {
+  // Step 1: validate the answer and open the confidence prompt. The answer is
+  // not sent until a confidence score is chosen (see submitWithConfidence).
+  const handleSubmit = (e) => {
     e.preventDefault();
+    if (submitting) return;
     if (!isAnswered(answerType, answer)) {
       alert("Please provide an answer before submitting.");
       return;
     }
+    pendingResponseTimeRef.current = Date.now() - startTimeRef.current;
+    setShowConfidence(true);
+  };
 
+  // Step 2: the participant picked a confidence score → submit answer + rating,
+  // then advance to the next task (or the end page on the last task).
+  const submitWithConfidence = async (confidence) => {
+    if (submitting) return;
     setSubmitting(true);
-    const response_time_ms = Date.now() - startTimeRef.current;
+    const response_time_ms = pendingResponseTimeRef.current;
 
     const payload = {
       experiment_id: experimentId,
@@ -199,6 +294,7 @@ const TaskAnswerPanel = ({
       presentation_order: presentationOrder,
       answer: serializeAnswer(answerType, answer),
       response_time_ms: response_time_ms,
+      confidence: confidence,
       insert_datetime: new Date().toISOString(),
     };
 
@@ -210,11 +306,12 @@ const TaskAnswerPanel = ({
         body: JSON.stringify(payload),
       });
       if (!response.ok) console.error(`Submit failed: ${response.status}`);
-      else console.log(`Answer saved for task ${taskId}, response_time_ms: ${response_time_ms}`);
+      else console.log(`Answer saved for task ${taskId}, response_time_ms: ${response_time_ms}, confidence: ${confidence}`);
     } catch (error) {
       console.warn("Backend unreachable — continuing:", error.message);
     } finally {
       setSubmitting(false);
+      setShowConfidence(false);
       setAnswer(initialAnswer(answerType, options));
       if (isLastTask) router.push("/endpage");
       else onAnswerSubmit?.();
@@ -433,6 +530,10 @@ const TaskAnswerPanel = ({
           </button>
         </div>
       </div>
+
+      {showConfidence && (
+        <ConfidenceModal submitting={submitting} onSelect={submitWithConfidence} />
+      )}
     </aside>
   );
 };

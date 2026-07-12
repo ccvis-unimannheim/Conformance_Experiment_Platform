@@ -63,6 +63,7 @@ async def post_answer(answer_from_frontend: ds.AnswerFromFrontend, provi_user_id
         answer=answer_from_frontend.answer,
         is_correct=is_correct,
         response_time_ms=answer_from_frontend.response_time_ms,
+        confidence=answer_from_frontend.confidence,
         insert_datetime=utils.get_current_datetime(),
     )
 
