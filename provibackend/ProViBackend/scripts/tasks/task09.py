@@ -1068,7 +1068,7 @@ def _make_bpmn_t11_svg(selected, trace_coverage, n_traces, activity_totals,
             ew = b["width"]
             eh = b["height"]
             cx, cy = x + ew * h_scale / 2, y + eh * v_scale / 2
-            r  = min(ew, eh) * h_scale / 2
+            r  = max(ew * h_scale, eh * v_scale) / 2  # large enough for horizontal & vertical connections
             sw = 3 if kind == "endEvent" else 1.5
             out.append(f"<circle cx='{cx:.1f}' cy='{cy:.1f}' r='{r:.1f}' "
                        f"fill='white' stroke='#777' stroke-width='{sw}'/>")
