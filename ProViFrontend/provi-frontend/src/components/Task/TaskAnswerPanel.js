@@ -330,6 +330,32 @@ const TaskAnswerPanel = ({
             </div>
           )}
 
+          {/* Chart-parameter hint — sits directly below the question (and below the
+              question's info box when expanded) and above everything else, so
+              participants can't miss it. Styled as a light-blue bulb hint box. */}
+          {paramHints.length > 0 && (
+            <div style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: "0.625rem",
+              background: "#eff6ff",
+              border: "1px solid #cfe2fb",
+              borderRadius: "0.6rem",
+              padding: "0.75rem 0.875rem",
+              marginBottom: "1.25rem",
+            }}>
+              <span aria-hidden="true" style={{ fontSize: "1.15rem", lineHeight: 1.35, flexShrink: 0 }}>💡</span>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                {paramHints.map((hint, i) => (
+                  <div key={i} style={{ fontSize: "0.8rem", lineHeight: 1.5, color: "#1e3a5f" }}>
+                    <span style={{ fontWeight: 700 }}>{hint.label}:</span>{" "}
+                    <span style={{ fontFamily: "monospace" }}>{hint.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Idiom expandable description */}
           {idiomDesc && (
             <div style={{
@@ -375,39 +401,6 @@ const TaskAnswerPanel = ({
                   {idiomDesc}
                 </div>
               )}
-            </div>
-          )}
-
-          {/* Parameter hints callout */}
-          {paramHints.length > 0 && (
-            <div style={{
-              background: "#f0f4f8",
-              borderLeft: "3px solid #00305e",
-              borderRadius: "0 0.375rem 0.375rem 0",
-              padding: "0.625rem 0.75rem",
-              marginBottom: "0.875rem",
-            }}>
-              <p style={{
-                fontSize: "0.62rem",
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: "0.12em",
-                color: "#5a6061",
-                margin: "0 0 0.375rem 0",
-              }}>
-                Chart parameters
-              </p>
-              {paramHints.map((hint, i) => (
-                <div key={i} style={{ fontSize: "0.72rem", lineHeight: 1.8 }}>
-                  <span style={{ fontWeight: 700, color: "#00305e" }}>
-                    {hint.label}:
-                  </span>
-                  {" "}
-                  <span style={{ fontFamily: "monospace", color: "#2d3435" }}>
-                    {hint.value}
-                  </span>
-                </div>
-              ))}
             </div>
           )}
 

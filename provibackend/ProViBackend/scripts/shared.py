@@ -2196,30 +2196,47 @@ def draw_parallel_sets(
         ax.set_xlim(xmin, xmax)
 
         # De-collide left labels: thin adjacent slivers (imbalanced categories)
-        # otherwise overprint their labels. Spread them to a minimum vertical gap
-        # and draw a leader from each sliver back to its shifted label.
+        # otherwise overprint their labels. A dominant category can push all the
+        # small ones into a tight band (typically at the top), so resolve overlaps
+        # in BOTH directions — cascade up, clamp under the column title, then
+        # cascade the surplus down into the empty middle — and draw a leader from
+        # each sliver back to its shifted label.
         if len(left_texts) > 1 and w_px:
             h_px = ax.get_window_extent(renderer).height
             y0, y1 = ax.get_ylim()
             per_px = (y1 - y0) / h_px if h_px else 0.0
+            # Measure each label's real rendered height (accounts for line count,
+            # font and dpi exactly) and add a little breathing room.
             items = sorted(
                 ((t, t.get_position()[1],
-                  (t.get_text().count("\n") + 1) * FONT_ANNOT * 1.42 * per_px) for t in left_texts),
+                  t.get_window_extent(renderer).height * per_px * 1.18) for t in left_texts),
                 key=lambda it: it[1],
             )
+            n = len(items)
             orig_y = [it[1] for it in items]
+            heights = [it[2] for it in items]
             new_y = list(orig_y)
-            gaps = [it[2] for it in items]
-            for i in range(1, len(items)):
-                need = new_y[i - 1] + 0.5 * (gaps[i - 1] + gaps[i])
-                if new_y[i] < need:
-                    new_y[i] = need
-            # If the cluster overran the top, slide it all down to fit.
-            overshoot = new_y[-1] - 1.12
-            if overshoot > 0:
-                new_y = [y - overshoot for y in new_y]
+            lo, hi = 0.0, 1.03   # keep labels clear of the column title (~1.08)
+
+            def _gap(i):  # required centre-to-centre spacing between i and i+1
+                return 0.5 * (heights[i] + heights[i + 1])
+
+            # Upward pass: enforce ascending minimum gaps.
+            for i in range(1, n):
+                new_y[i] = max(new_y[i], new_y[i - 1] + _gap(i - 1))
+            # Clamp the top and cascade the overflow downward into free space.
+            if new_y[-1] > hi:
+                new_y[-1] = hi
+                for i in range(n - 2, -1, -1):
+                    new_y[i] = min(new_y[i], new_y[i + 1] - _gap(i))
+            # Clamp the bottom and re-cascade upward if still overflowing.
+            if new_y[0] < lo:
+                new_y[0] = lo
+                for i in range(1, n):
+                    new_y[i] = max(new_y[i], new_y[i - 1] + _gap(i - 1))
+
             label_x = x_left - bar_w / 2 - 0.015
-            for (t, oy, _g), ny in zip(items, new_y):
+            for (t, oy, _h), ny in zip(items, new_y):
                 if abs(ny - oy) > 1e-4:
                     t.set_position((label_x, ny))
                     ax.plot([x_left - bar_w / 2, label_x + 0.006], [oy, ny],
