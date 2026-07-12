@@ -48,12 +48,12 @@ GT_TIER = "MANUAL"
 PARAM_SPEC = [
     {
         "key": "attribute_set",
-        "label": "Attribute set to include in root-cause analysis (select relevant case / event attributes)",
+        "label": "Attributes to analyse (select the case / event attributes to show; empty = default set)",
         # Internal to reading the chart — the participant sees the analysed attributes directly.
         "hide_hint": True,
-        "widget": "attribute-picker",
-        "source": "log.case_attributes",
-        "default": "",
+        "widget": "select-many",
+        "source": "log.candidate_attributes",
+        "default": [],
         "required": False,
     },
 ]
@@ -879,21 +879,29 @@ def task20_network_diagram(alignments, output_dir: str, top_n: int = 12):
 _ATTR_BAR_COLOR = GREY_MED
 _ATTR_SUPTITLE = "Guideline-Violation Rate by Candidate Attribute"
 
-# Candidate attributes excluded from task20's info-equivalent idioms. org:resource
-# is an identifier (not a magnitude): its buckets add no interpretable root-cause
-# signal here, so the four idioms show only AMOUNT_REQ and Throughput time.
+# Candidate attributes excluded from task20's default set. org:resource is an
+# identifier (not a magnitude): its buckets add no interpretable root-cause signal
+# here, so the default shows only AMOUNT_REQ and Throughput time. The admin can
+# override the shown attributes via the `attribute_set` param.
 _EXCLUDE_ATTRIBUTES = {"org:resource"}
 
 
-def _task20_attribute_panels(log, alignments):
+def _default_attributes():
+    """The out-of-the-box attribute set (AMOUNT_REQ + Throughput time)."""
+    import tasks.task13 as task13
+    return [a for a in task13.CANDIDATE_ATTRIBUTES if a not in _EXCLUDE_ATTRIBUTES]
+
+
+def _task20_attribute_panels(log, alignments, attributes=None):
     """[(meta, (bucket_labels, violation_rate_pct, trace_counts)), …] — one entry
     per bucketable candidate attribute; the shared data for all 4 info-equivalent
-    idioms. Empty list when there is no attribute evidence / no violations."""
+    idioms. ``attributes`` is the admin-selected attribute-key list (falls back to
+    the default set). Empty list when there is no attribute evidence / no violations."""
     import tasks.task13 as task13  # lazy: task13 imports task20 at module load
     feat = task20_trace_feature_dataframe(log, alignments)
     if feat.empty:
         return []
-    candidates = [a for a in task13.CANDIDATE_ATTRIBUTES if a not in _EXCLUDE_ATTRIBUTES]
+    candidates = list(attributes) if attributes else _default_attributes()
     evidence_df, attr_meta = task13._build_evidence_frame(log, feat, candidates)
     if not attr_meta or int(evidence_df["violation"].sum()) == 0:
         return []
@@ -1027,12 +1035,16 @@ _GREY_PALETTE = [GREY_MED, GREY_LIGHT, GREY_DARK, GREY_LIGHTER]
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def generate(log, alignments, output_dir: str, model_path=None):
+def generate(log, alignments, output_dir: str, model_path=None, attribute_set=None):
     """Generate all Task ID 20 SVGs into output_dir.
 
     The Decision Tree (kept exactly as-is) plus the attribute-evidence idioms
     (reused from task13), the elaborate model (reused from task18), and a
-    violation-pattern co-occurrence network. Legacy extras still rendered."""
+    violation-pattern co-occurrence network. Legacy extras still rendered.
+
+    ``attribute_set``: optional admin-selected list of attribute keys to show in
+    the attribute-evidence idioms; None/empty uses the default set (AMOUNT_REQ +
+    Throughput time)."""
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 20 visualizations ---")
     # Lazy imports to avoid the task13↔task20 circular import at module load.
@@ -1052,14 +1064,16 @@ def generate(log, alignments, output_dir: str, model_path=None):
     # Attribute-evidence idioms. The four spec idioms (bar_chart, table, matrix,
     # parallel_sets) are task20-native and information-equivalent (violation rate
     # per bucket per attribute). The kept extras (table_bar_chart + the two flow
-    # charts) still reuse task13's renderers unchanged.
+    # charts) still reuse task13's renderers unchanged. All honour the admin's
+    # selected attribute set (falling back to the default set).
+    selected_attributes = list(attribute_set) if attribute_set else _default_attributes()
     feat = task20_trace_feature_dataframe(log, alignments)
-    evidence_df, attr_meta = task13._build_evidence_frame(log, feat, list(task13.CANDIDATE_ATTRIBUTES))
+    evidence_df, attr_meta = task13._build_evidence_frame(log, feat, selected_attributes)
     if attr_meta and int(evidence_df["violation"].sum()) > 0:
         ranking = task13._rank_attributes(evidence_df, attr_meta)
         ctx = build_task28_context(alignments)
 
-        panels = _task20_attribute_panels(log, alignments)
+        panels = _task20_attribute_panels(log, alignments, selected_attributes)
         task20_bar_chart(panels, output_dir)
         task20_table(panels, output_dir)
         task20_matrix(panels, output_dir)

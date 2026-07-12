@@ -508,7 +508,11 @@ def task19_parallel_sets(eff, output_dir):
     right_labels = [f"Goal achieved ({overall:.1f}%)",
                     f"Goal missed ({100 - overall:.1f}%)"]
 
-    fig, ax = plt.subplots(figsize=(11, max(6, len(left_labels) * 0.5 + 2)))
+    # A dominant "None of top-N" baseline squeezes the violation slivers into a
+    # thin band, so give the figure plenty of height (more pixels per sliver →
+    # distinct label anchors) and use a smaller left-label font so labels need
+    # less vertical spreading.
+    fig, ax = plt.subplots(figsize=(11.5, max(8.0, len(left_labels) * 1.15 + 3.5)))
     ax.axis("off")
     left_colors = [GREY_MED if i % 2 == 0 else GREY_LIGHT for i in range(len(left_labels))]
     draw_parallel_sets(
@@ -520,6 +524,7 @@ def task19_parallel_sets(eff, output_dir):
         # small-but-present patterns would otherwise lose their label and break
         # information equivalence with the table / bar_chart / matrix idioms.
         label_min_frac=0.0,
+        left_label_fontsize=FONT_ANNOT - 2,
     )
     # Title above the column headers (which draw_parallel_sets places at y=1.08).
     fig.suptitle("Violation Pattern vs. Process Goal (ribbon = traces exhibiting the pattern)",

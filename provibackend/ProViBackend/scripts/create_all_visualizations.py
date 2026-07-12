@@ -369,7 +369,8 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
         "task17": lambda d: task17.generate(log, alignments, d, model_path=model_path),
         "task18": lambda d: task18.generate(log, alignments, model_path, d),
         "task19": lambda d: task19.generate(log, alignments, model_path, d, outcome_activity=outcome_activity()),
-        "task20": lambda d: task20.generate(log, alignments, d, model_path=model_path),
+        "task20": lambda d: task20.generate(log, alignments, d, model_path=model_path,
+                                            attribute_set=(p.get("attribute_set") or None)),
         "task21": lambda d: task21.generate(log, alignments, model_path, d),
         "task22": lambda d: task22.generate(log, fitness_df, alignments, d, model_path=model_path, compare_attribute=cmp_attr()),
         "task23": lambda d: task23.generate(alignments, d, log=log),
@@ -614,6 +615,46 @@ def get_log_trace_ids(dataset_dir: str) -> list[dict]:
             "label": f"{case_id} — fitness {fitness:.3f}",
             "variant": variant,
         })
+    return options
+
+
+def get_log_candidate_attributes(dataset_dir: str) -> list[dict]:
+    """Bucketable candidate attributes for task20's `attribute_set` picker.
+
+    Returns [{"value": key, "label": friendly}, ...] for every case/event attribute
+    that task20's attribute-evidence idioms can bucket meaningfully, plus the
+    derived throughput time. Internal/structural columns (@@*, Unnamed,
+    concept:name, time:timestamp, lifecycle:transition, case:concept:name) and
+    non-bucketable identifiers (e.g. org:resource, whose numeric ids collapse to a
+    constant) are excluded — so what the admin can pick is exactly what renders.
+    Powers the 'log.candidate_attributes' param-spec source.
+    """
+    import tasks.task13 as task13
+    import tasks.task20 as task20
+
+    log_path, _model_path, _ = _resolve_dataset_paths(dataset_dir, None)
+    log = load_event_log(log_path)
+    alignments = get_or_compute_alignments(dataset_dir, log)
+    feat = task20.task20_trace_feature_dataframe(log, alignments)
+
+    skip = {"concept:name", "time:timestamp", "lifecycle:transition", "case:concept:name"}
+
+    def _is_internal(k: str) -> bool:
+        return k in skip or k.startswith("@@") or str(k).lower().startswith("unnamed")
+
+    options = []
+    for key in task13._available_attributes(log):
+        if _is_internal(key):
+            continue
+        values, kind = task13._collect_attribute_column(log, key)
+        if kind == "missing":
+            continue
+        if task13._bucket_assign(list(values), kind) is None:
+            continue
+        options.append({"value": key, "label": key})
+    # Derived throughput time — no raw log key, always a candidate when it varies.
+    if not feat.empty and task13._bucket_assign(feat["duration_hours"].tolist(), "numeric") is not None:
+        options.append({"value": task13.THROUGHPUT_KEY, "label": "Throughput time (h)"})
     return options
 
 

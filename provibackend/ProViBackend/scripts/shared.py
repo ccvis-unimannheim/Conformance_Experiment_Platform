@@ -2068,6 +2068,7 @@ def draw_parallel_sets(
     x_right: float = 0.88,
     label_min_frac: float = 0.03,
     wrap_labels: bool = True,
+    left_label_fontsize: float = None,
 ):
     """Draw a two-dimension Parallel Sets chart onto *ax*.
 
@@ -2121,7 +2122,8 @@ def draw_parallel_sets(
         if h > label_min_frac:
             left_texts.append(ax.text(
                 x_left - bar_w / 2 - 0.015, bot + h / 2, label,
-                ha="right", va="center", fontsize=FONT_ANNOT, color="#333333"))
+                ha="right", va="center",
+                fontsize=(left_label_fontsize or FONT_ANNOT), color="#333333"))
 
     # Right bars
     for label, color, h, bot in zip(right_labels, right_colors, c_hts, c_bots):
@@ -2239,8 +2241,13 @@ def draw_parallel_sets(
             for (t, oy, _h), ny in zip(items, new_y):
                 if abs(ny - oy) > 1e-4:
                     t.set_position((label_x, ny))
+                    # Subtle leader from the sliver's true centre to its shifted
+                    # label; a small dot marks the sliver anchor so the connection
+                    # reads clearly even when several are close together.
                     ax.plot([x_left - bar_w / 2, label_x + 0.006], [oy, ny],
-                            color="#999999", linewidth=0.6, zorder=2.5)
+                            color="#b7b7b7", linewidth=0.5, zorder=2.5)
+                    ax.plot([x_left - bar_w / 2], [oy], marker="o", markersize=1.6,
+                            color="#b7b7b7", zorder=2.6)
     except Exception:
         # Renderer unavailable — fall back to a generous static margin.
         ax.set_xlim(-0.55, 1.55)
