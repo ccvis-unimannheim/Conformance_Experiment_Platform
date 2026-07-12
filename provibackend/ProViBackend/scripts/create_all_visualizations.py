@@ -637,7 +637,9 @@ def get_log_candidate_attributes(dataset_dir: str) -> list[dict]:
     alignments = get_or_compute_alignments(dataset_dir, log)
     feat = task20.task20_trace_feature_dataframe(log, alignments)
 
-    skip = {"concept:name", "time:timestamp", "lifecycle:transition", "case:concept:name"}
+    # REG_DATE is a raw registration timestamp — bucketable but meaningless as a
+    # violation driver, so it is excluded alongside the structural columns.
+    skip = {"concept:name", "time:timestamp", "lifecycle:transition", "case:concept:name", "REG_DATE"}
 
     def _is_internal(k: str) -> bool:
         return k in skip or k.startswith("@@") or str(k).lower().startswith("unnamed")
