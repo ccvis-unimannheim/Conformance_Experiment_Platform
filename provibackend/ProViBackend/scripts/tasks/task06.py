@@ -3,16 +3,19 @@ tasks/task06.py – Task ID 6: Describe / Derive / Process conformance
 (overall degree of conformance between a single log and the guidelines).
 
 The task asks a single question — the overall degree of conformance, i.e. the
-fitness value between 0 (no conformance) and 1 (perfect). Every idiom therefore
-speaks one vocabulary ("Fitness" / "Mean Fitness", 0–1); no conformant-vs-non-
-conformant split, no percentages, no trace counts beyond "# of Traces".
+fitness value between 0 (no conformance) and 1 (perfect). All four idioms encode
+exactly the same scalar: Overall Mean Fitness (0–1, 3 d.p.). No idiom exposes
+additional distribution statistics (min, max, std, trace count) so that the only
+experimental variable between conditions is visual encoding, not information quantity.
 
-Idiom mapping:
-    tile_metric – overall mean-fitness headline value (0–1)        [shared helper]
-    bar_chart   – single bar of the overall mean fitness (0–1), value labelled
-    table       – fitness summary (# traces, mean/min/max/std fitness)
-    heatmap     – single-cell mean-fitness value (0–1)
-    box_plot    – distribution of per-trace fitness (mean annotated)
+Idiom mapping (all share the same data payload: one scalar, 0–1, 3 d.p.):
+    tile_metric – headline numeric value in a bordered tile
+    bar_chart   – single bar on a 0–1 scale, value labelled
+    table       – two-column table: Metric | Value (one row only)
+    heatmap     – single-cell colour-intensity encoding on a 0–1 scale
+
+boxplot was removed: a trace-level distribution exposes median, IQR, and outliers
+that are absent from the other conditions, violating information equivalence.
 
 Public API:
     generate(df, output_dir, log=None, alignments=None, model_path=None)
@@ -26,11 +29,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Validated mapping. scatter_plot and donut_chart were removed on request: the
-# task is purely about fitness, so the per-trace scatter and the conformant-vs-
-# non-conformant donut (which mixed counts with fitness) did not fit.
-IDIOMS = ["tile_metric", "bar_chart",
-          "table", "heatmap", "box_plot"]
+IDIOMS = ["tile_metric", "bar_chart", "table", "heatmap"]
 
 # ---------------------------------------------------------------------------
 # Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8)
@@ -108,7 +107,6 @@ def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer
     return {"options": []}
 
 import os
-import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.patches import FancyBboxPatch
@@ -145,39 +143,25 @@ def task06_bar_chart(df, output_dir: str):
 
 
 def task06_table(df, output_dir: str):
-    """Fitness summary row (fitness only — Task 6 is purely about the fitness value):
-    # of Traces | Mean Fitness | Min Fitness | Max Fitness | Std Fitness (all 0–1)."""
-    total = len(df)
-    vals  = df["fitness"].values
-    mean_fitness = float(np.mean(vals)) if total else 0.0
-    min_fitness  = float(np.min(vals))  if total else 0.0
-    max_fitness  = float(np.max(vals))  if total else 0.0
-    std_fitness  = float(np.std(vals))  if total else 0.0
+    """Two-column table: Metric | Value — one row only (Overall Mean Fitness).
 
-    cell_text = [[str(total), f"{mean_fitness:.3f}", f"{min_fitness:.3f}",
-                  f"{max_fitness:.3f}", f"{std_fitness:.3f}"]]
-    # Taller canvas + wrapped headers so cell text is not clipped (mpl table centers text; PAD is weak for center)
-    fig_h = max(3.6, 1.45 + len(cell_text) * 0.58)
+    No distribution statistics (min, max, std, trace count) are shown so that
+    the table encodes exactly the same information as the other T06 idioms."""
+    mean_fitness = float(df["fitness"].mean()) if len(df) else 0.0
 
-    fig, ax = plt.subplots(figsize=(10.0, fig_h))
+    fig, ax = plt.subplots(figsize=(6.0, 3.0))
     ax.axis("off")
     make_table(
         ax,
-        cell_text=cell_text,
-        col_labels=[
-            "# of Traces",
-            "Mean Fitness",
-            "Min Fitness",
-            "Max Fitness",
-            "Std Fitness",
-        ],
-        bbox=[0.03, 0.04, 0.94, 0.80],
-        col_widths=[0.20, 0.20, 0.20, 0.20, 0.20],
-        font_size=11,
-        scale_xy=(1.12, 2.05),
+        cell_text=[["Overall Mean Fitness", f"{mean_fitness:.3f}"]],
+        col_labels=["Metric", "Value"],
+        bbox=[0.05, 0.08, 0.90, 0.72],
+        col_widths=[0.65, 0.35],
+        font_size=13,
+        scale_xy=(1.0, 2.4),
         cell_pad=0.14,
     )
-    ax.set_title("Fitness Summary", fontsize=FONT_TITLE, pad=12)
+    ax.set_title("Overall Mean Fitness", fontsize=FONT_TITLE, pad=12)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task06_table.svg"))
 
@@ -186,7 +170,7 @@ def task06_tile_metric(df, output_dir: str):
     mean_fitness = float(df["fitness"].mean()) if len(df) else 0.0
     render_fitness_tile_metric(
         mean_fitness, os.path.join(output_dir, "task06_tile_metric.svg"),
-        metric_label="Mean Fitness", as_fraction=True)
+        metric_label="Overall Mean Fitness", as_fraction=True)
 
 
 def task06_heatmap(df, output_dir: str):
@@ -212,38 +196,6 @@ def task06_heatmap(df, output_dir: str):
     ax.set_title("Overall Mean Fitness", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task06_heatmap.svg"))
-
-
-def task06_box_plot(df, output_dir: str):
-    """Boxplot of per-trace fitness values across the log, annotated with the
-    mean fitness so the idiom shows an actual fitness number."""
-    vals = df["fitness"].values
-    mean_fit = float(np.mean(vals)) if len(vals) else 0.0
-
-    fig, ax = plt.subplots(figsize=(5, 5))
-    ax.boxplot(
-        vals,
-        tick_labels=["Log"],
-        widths=0.4,
-        medianprops=dict(color="#333333", linewidth=2),
-        boxprops=dict(color="#555555"),
-        whiskerprops=dict(color="#555555"),
-        capprops=dict(color="#555555"),
-        flierprops=dict(marker="o", markerfacecolor=GREY_MED, markersize=4, alpha=0.5),
-    )
-    # Numeric fitness readout: mean as a marker + label.
-    ax.scatter([1], [mean_fit], marker="D", s=28, color=GREY_DARK, zorder=5)
-    ax.annotate(f"Mean = {mean_fit:.3f}", (1.18, mean_fit),
-                textcoords="offset points", xytext=(0, 0),
-                va="center", ha="left", fontsize=FONT_ANNOT, color=GREY_DARK)
-    ax.set_ylabel("Fitness (0–1)", fontsize=FONT_LABEL)
-    ax.set_title("Distribution of Fitness Values", fontsize=FONT_TITLE)
-    ax.set_ylim(-0.05, 1.1)
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.4)
-    ax.set_axisbelow(True)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task06_box_plot.svg"))
 
 
 # ---------------------------------------------------------------------------
@@ -349,9 +301,9 @@ def task06_tree(log, alignments, output_dir: str):
 def generate(df, output_dir: str, log=None, alignments=None, model_path=None):
     """Generate all Task ID 6 SVGs into output_dir.
 
-    The df-only idioms (tile_metric, bar_chart, table, heatmap, box_plot) always
-    render; flow_chart_elaborate + decision_tree need the central
-    log/alignments/model_path (absent → empty-state)."""
+    All four idioms derive from the same scalar (overall mean fitness, 0–1, 3 d.p.).
+    log/alignments/model_path are accepted for signature compatibility but unused
+    by the four core idioms."""
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 6 visualizations ---")
 
@@ -359,4 +311,3 @@ def generate(df, output_dir: str, log=None, alignments=None, model_path=None):
     task06_bar_chart(df, output_dir)
     task06_table(df, output_dir)
     task06_heatmap(df, output_dir)
-    task06_box_plot(df, output_dir)

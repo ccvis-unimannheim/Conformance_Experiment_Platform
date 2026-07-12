@@ -192,6 +192,25 @@ def _trace_activity_violations(rows):
     return counts
 
 
+def _build_canonical_payload(ctx):
+    """(acts, counts): trace-order activity list and per-activity total violation count.
+
+    Single shared data source for table, bar_chart, heatmap, and matrix.
+    Activity order follows first-seen order within the trace (process / trace order).
+    """
+    rows = ctx["rows"]
+    act_counts = _trace_activity_violations(rows)
+    seen: set = set()
+    ordered: list = []
+    for r in rows:
+        a = r["activity"]
+        if a and a != ">>" and a not in seen:
+            seen.add(a)
+            ordered.append(a)
+    counts = [sum(act_counts[a].values()) if a in act_counts else 0 for a in ordered]
+    return ordered, counts
+
+
 def _log_activity_violations(alignments):
     """Aggregate per-activity violation counts across all traces."""
     totals = {}
@@ -267,88 +286,42 @@ def _chevron_nodes(rows):
 # ── Idiom 1: bar_chart — most violated activities (log-level) ────────────────
 
 def task34_bar_chart(ctx, output_dir):
-    """Horizontal bar: all activities in the trace, violated ones colored by type,
-    conformant ones in light grey. Gives full context for WHERE violations occur.
+    """Horizontal bar: activity violation counts for the selected trace, in trace order.
+
+    Encodes Activity → Violation Count via bar length. Same canonical payload as
+    task34_table and task34_heatmap; no fitness, no move-type breakdown, no percentages.
     """
-    rows       = ctx["rows"]
-    act_counts = _trace_activity_violations(rows)
-    if not act_counts:
+    acts, counts = _build_canonical_payload(ctx)
+    if not any(c > 0 for c in counts):
         _no_violations(output_dir, "bar_chart")
         return
 
-    # Collect all activities that appear in the trace (preserve first-seen order)
-    seen, ordered = set(), []
-    for r in rows:
-        a = r["activity"]
-        if a and a != ">>" and a not in seen:
-            seen.add(a)
-            ordered.append(a)
-
-    totals = {a: sum(act_counts[a].values()) if a in act_counts else 0
-              for a in ordered}
-
-    # Sort: violated first (by count desc), then conformant in trace order
-    violated   = sorted([a for a in ordered if totals[a] > 0],
-                        key=lambda a: totals[a], reverse=True)[:12]
-    conformant = [a for a in ordered if totals[a] == 0]
-    acts   = violated + conformant
-    counts = [totals[a] for a in acts]
-
-    total_viol = sum(totals[a] for a in violated)
-
-    def _color(a):
-        if totals[a] == 0:
-            return _MOVE_COLORS["Synchronous"]
-        dom = max(act_counts[a], key=act_counts[a].get)
-        return {"mom": CAT_SOFT, "mol": CAT_MID}[dom]
-
-    colors = [_color(a) for a in acts]
+    max_count = max(counts) if any(c > 0 for c in counts) else 1
+    colors = [CAT_SOFT if c > 0 else _MOVE_COLORS["Synchronous"] for c in counts]
 
     fig_h = max(3.5, len(acts) * 0.52 + 1.8)
     fig, ax = plt.subplots(figsize=(11, fig_h))
     ax.set_facecolor("#fafbfc")
 
-    max_count = max(counts) if any(c > 0 for c in counts) else 1
     bars = ax.barh(range(len(acts)), counts, color=colors,
                    edgecolor="white", linewidth=0.8, height=0.52)
 
     for i, (bar, cnt) in enumerate(zip(bars, counts)):
-        if cnt > 0:
-            pct = cnt / total_viol * 100 if total_viol else 0
-            ax.text(bar.get_width() + max_count * 0.015, i,
-                    f"{cnt:,}  ({pct:.0f}%)",
-                    va="center", fontsize=FONT_ANNOT, color=CAT_STRONG)
-        else:
-            ax.text(max_count * 0.015, i, "no violation",
-                    va="center", fontsize=FONT_ANNOT - 0.5, color="#aaaaaa",
-                    style="italic")
+        ax.text(bar.get_width() + max_count * 0.015, i,
+                str(cnt),
+                va="center", fontsize=FONT_ANNOT,
+                color=CAT_STRONG if cnt > 0 else "#aaaaaa")
 
     ax.set_yticks(range(len(acts)))
     ax.set_yticklabels(acts, fontsize=FONT_ANNOT)
     ax.invert_yaxis()
-    ax.set_xlabel("Number of violations", fontsize=FONT_LABEL)
+    ax.set_xlabel("Number of Violations", fontsize=FONT_LABEL)
     ax.xaxis.set_major_locator(plt.MaxNLocator(integer=True))
     ax.set_xlim(0, max_count * 1.4)
-    ax.set_title(
-        f"Activity Violations — {ctx['trace_label']}  (fitness = {ctx['fitness']:.4f})",
-        fontsize=FONT_TITLE, pad=8,
-    )
+    ax.set_title(f"Activity Violations — {ctx['trace_label']}", fontsize=FONT_TITLE, pad=8)
     ax.spines[["top", "right"]].set_visible(False)
     ax.xaxis.grid(True, linestyle="--", alpha=0.35)
     ax.set_axisbelow(True)
-
-    # Divider line between violated and conformant sections
-    if violated and conformant:
-        ax.axhline(len(violated) - 0.5, color="#cccccc", linewidth=1.0, linestyle="--")
-
-    legend_handles = [
-        mpatches.Patch(color=CAT_SOFT,                    label="Move on Model (skipped)"),
-        mpatches.Patch(color=CAT_MID,                     label="Move on Log (extra)"),
-        mpatches.Patch(color=_MOVE_COLORS["Synchronous"], label="Synchronous (no violation)"),
-    ]
-    ax.legend(handles=legend_handles,
-              loc="lower center", bbox_to_anchor=(0.5, -0.22),
-              ncol=3, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
 
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task34_bar_chart.svg"))
@@ -412,14 +385,31 @@ def task34_stacked_bar(ctx, output_dir):
 # ── Idiom 3: table — alignment table for worst-fitness trace ──────────────────
 
 def task34_table(ctx, output_dir):
-    """Alignment detail table: step-by-step view of violations in the worst trace."""
-    rows  = ctx["rows"]
-    fig_h = max(4.7, 4.7 + len(rows) * 0.31)
-    fig, ax = plt.subplots(figsize=(15.8, fig_h))
+    """Two-column table: Activity | Number of Violations for the selected trace.
+
+    Encodes Activity → Violation Count via table cells. Same canonical payload as
+    task34_bar_chart and task34_heatmap; no alignment steps, no fitness, no move types.
+    """
+    acts, counts = _build_canonical_payload(ctx)
+    if not any(c > 0 for c in counts):
+        _no_violations(output_dir, "table")
+        return
+
+    cell_text = [[a, str(c)] for a, c in zip(acts, counts)]
+    fig_h = max(3.5, 1.2 + len(cell_text) * 0.42)
+    fig, ax = plt.subplots(figsize=(9, fig_h))
     ax.axis("off")
-    _add_trace_heading(fig, ctx, x=0.06, y=0.86)
-    _draw_alignment_table(ax, rows, bbox=[0.045, 0.08, 0.91, 0.58])
-    fig.subplots_adjust(left=0.025, right=0.985, top=0.94, bottom=0.05)
+    make_table(
+        ax,
+        cell_text=cell_text,
+        col_labels=["Activity", "Number of Violations"],
+        bbox=[0.05, 0.05, 0.90, 0.82],
+        col_widths=[0.70, 0.30],
+        font_size=11,
+        scale_xy=(1, 1.7),
+    )
+    ax.set_title(f"Activity Violations — {ctx['trace_label']}", fontsize=FONT_TITLE, pad=12)
+    fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task34_table.svg"))
 
 
@@ -525,54 +515,30 @@ def task34_flow_chart_elaborate_table(ctx, model_path, output_dir):
 
 # ── Idiom 6: heatmap — top-20 traces × activities ─────────────────────────────
 
-def task34_heatmap(ctxs, output_dir):
-    """Heatmap: rows=worst traces, cols=activities, cell=violation count.
-    Reveals which activities cause violations across which traces."""
-    if not ctxs:
+def task34_heatmap(ctx, output_dir):
+    """Single-row heatmap: activity violation counts for the selected trace.
+
+    One row (selected trace) × n columns (activities in trace order).
+    Color intensity encodes violation count. Same canonical payload as
+    task34_bar_chart and task34_table; no other traces, no fitness.
+    """
+    acts, counts = _build_canonical_payload(ctx)
+    if not any(c > 0 for c in counts):
         _no_violations(output_dir, "heatmap")
         return
 
-    show = ctxs[:20]
+    data = np.array([counts], dtype=float)          # shape (1, n_activities)
+    row_labels = [ctx["trace_label"]]
+    col_labels = acts
 
-    # Activities that appear as violations
-    act_set = {r["activity"]
-               for ctx in show
-               for r in ctx["rows"]
-               if _is_violation(r) and r["activity"] != ">>"}
-    if not act_set:
-        _no_violations(output_dir, "heatmap")
-        return
-
-    act_total = {a: sum(1 for ctx in show for r in ctx["rows"]
-                        if r["activity"] == a and _is_violation(r))
-                 for a in act_set}
-    acts = sorted(act_set, key=lambda a: act_total[a], reverse=True)
-
-    matrix = np.zeros((len(show), len(acts)), dtype=float)
-    act_idx = {a: i for i, a in enumerate(acts)}
-    for ti, ctx in enumerate(show):
-        for r in ctx["rows"]:
-            a = r["activity"]
-            if a in act_idx and _is_violation(r):
-                matrix[ti, act_idx[a]] += 1
-
-    trace_labels = [f"Trace {c['trace_index']+1} (f={c['fitness']:.2f})"
-                    for c in show]
-
-    fig_w = max(10.0, len(acts) * 0.7 + 3.5)
-    fig_h = max(4.5,  len(show) * 0.38 + 2.2)
-    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
-
-    draw_value_heatmap(fig, ax, matrix,
-                       row_labels=trace_labels,
-                       col_labels=acts,
-                       rotate_xticks=45,
-                       cbar_label="Violation count",
-                       cell_fmt="{:.0f}")
-    ax.set_title(
-        f"Violation Count per Activity — Top {len(show)} Most Violated Traces",
-        fontsize=FONT_TITLE, pad=9,
-    )
+    fig_w = max(10.0, len(acts) * 0.9 + 3.0)
+    fig, ax = plt.subplots(figsize=(fig_w, 2.8))
+    draw_value_heatmap(fig, ax, data, row_labels, col_labels,
+                       xlabel="Activity",
+                       cbar_label="Number of Violations",
+                       cell_fmt="{:.0f}", annotate=True,
+                       rotate_xticks=30)
+    ax.set_title(f"Activity Violations — {ctx['trace_label']}", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task34_heatmap.svg"))
 
@@ -777,44 +743,29 @@ def _build_activity_cooccurrence(alignments):
 
 # ── Idiom 10: matrix — activity co-occurrence matrix ─────────────────────────
 
-def task34_matrix(act_freqs, cooccur, output_dir):
-    """Square matrix: rows/cols = violated activities, cell = traces both violated."""
-    if len(act_freqs) < 2:
+def task34_matrix(ctx, output_dir):
+    """Single-column activity violation matrix for the selected trace.
+
+    Rows = activities in trace order, one column = violation count.
+    Color intensity encodes violation count. Same canonical payload as
+    task34_bar_chart, task34_table, and task34_heatmap.
+    Orientation (n×1 portrait) is distinct from the 1×n landscape heatmap.
+    """
+    acts, counts = _build_canonical_payload(ctx)
+    if not any(c > 0 for c in counts):
         _no_violations(output_dir, "matrix")
         return
 
-    acts = sorted(act_freqs, key=lambda a: act_freqs[a], reverse=True)[:12]
-    n    = len(acts)
-    idx  = {a: i for i, a in enumerate(acts)}
-    mat  = np.zeros((n, n), dtype=float)
-    for i, a in enumerate(acts):
-        mat[i, i] = float(act_freqs[a])
-    for (a, b), cnt in cooccur.items():
-        if a in idx and b in idx:
-            mat[idx[a], idx[b]] = float(cnt)
-            mat[idx[b], idx[a]] = float(cnt)
+    data = np.array([[c] for c in counts], dtype=float)   # shape (n_activities, 1)
+    row_labels = acts
+    col_labels = ["Number of Violations"]
 
-    fig, ax = plt.subplots(figsize=(max(8, n * 0.9), max(6, n * 0.8)))
-    ax.imshow(mat, cmap=_CMAP, aspect="auto", vmin=0)
-    ax.set_xticks(range(n))
-    ax.set_xticklabels(acts, rotation=40, ha="right", fontsize=FONT_ANNOT)
-    ax.set_yticks(range(n))
-    ax.set_yticklabels(acts, fontsize=FONT_ANNOT)
-
-    mat_max = mat.max() if mat.max() > 0 else 1.0
-    for i in range(n):
-        for j in range(n):
-            val   = int(mat[i, j])
-            cell_hex = to_hex(CIVIDIS_R(mat[i, j] / mat_max))
-            color = contrasting_text_color(cell_hex)
-            ax.text(j, i, str(val), ha="center", va="center",
-                    fontsize=max(FONT_ANNOT - 1, 6), color=color, fontweight="bold")
-
-    ax.set_title(
-        "Activity Co-occurrence Matrix\n"
-        "(diagonal = individual violation frequency  ·  off-diagonal = traces both violated)",
-        fontsize=FONT_TITLE,
-    )
+    fig_h = max(4.0, len(acts) * 0.55 + 2.0)
+    fig, ax = plt.subplots(figsize=(5.5, fig_h))
+    draw_value_heatmap(fig, ax, data, row_labels, col_labels,
+                       cbar_label="Number of Violations",
+                       cell_fmt="{:.0f}", annotate=True)
+    ax.set_title(f"Activity Violations — {ctx['trace_label']}", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task34_matrix.svg"))
 
@@ -977,7 +928,6 @@ def generate(log, alignments, output_dir, model_path=None, violated_activity=Non
 
     worst = _pick_ctx(ctxs, {"violated_activity": violated_activity})
     log_act  = _log_activity_violations(alignments)
-    act_freq, cooccur = _build_activity_cooccurrence(alignments)
 
     logger.info(
         f"      Representative: {worst['trace_label']} "
@@ -991,7 +941,7 @@ def generate(log, alignments, output_dir, model_path=None, violated_activity=Non
     task34_flow_chart_table(worst,                  output_dir)
     task34_flow_chart_elaborate(worst,              model_path, output_dir)
     task34_flow_chart_elaborate_table(worst,        model_path, output_dir)
-    task34_heatmap(ctxs[:20],                       output_dir)
-    task34_matrix(act_freq, cooccur,                output_dir)
+    task34_heatmap(worst,                           output_dir)
+    task34_matrix(worst,                            output_dir)
     task34_parallel_sets(log_act,                   output_dir)
     task34_table_bar_chart(worst, log_act,          output_dir)
