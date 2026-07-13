@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ExperimentSetupHeader from "../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../components/Admin/Toast";
+import { TASK_IDIOM_LABEL_OVERRIDES } from "../../../utils/idiomLabels";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:1234";
 
@@ -22,10 +23,6 @@ const ALL_IDIOMS = [
   { idiom_key: "flow_chart_table",     label: "Flow Chart & Table",                    granularity: "trace", renderer_type: "html",    active: true },
   { idiom_key: "table_bar_chart",      label: "Table & Bar Chart",                     granularity: "log",   renderer_type: "html",    active: true },
 ];
-
-const TASK_IDIOM_LABEL_OVERRIDES = {
-  "task10": { "heatmap": "Matrix" },
-};
 
 const TASK_IDIOM_KEYS = {
   "T-01": ["bar_chart", "tile_metric", "scatterplot", "table", "heatmap", "boxplot"],

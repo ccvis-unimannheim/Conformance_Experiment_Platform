@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../../components/Admin/Toast";
+import { resolveIdiomLabel } from "../../../../utils/idiomLabels";
 
 function IdiomPreviewModal({ experimentId, taskKey, idiomKey, idiomLabel, onClose }) {
   const [status, setStatus] = useState("loading");
@@ -484,7 +485,9 @@ function ExperimentOverviewContent() {
                                 </span>
                                 <div>
                                   <p className="text-xs font-semibold text-on-surface">
-                                    {idiom?.label || iid}
+                                    {idiom
+                                      ? resolveIdiomLabel(task.task_key, idiom.idiom_key, idiom.label)
+                                      : iid}
                                   </p>
                                   {idiom && (
                                     <p className="text-[10px] text-on-surface-variant">
@@ -494,7 +497,7 @@ function ExperimentOverviewContent() {
                                 </div>
                                 {idiom && (
                                   <button
-                                    onClick={() => setPreviewModal({ taskKey: task.task_key, idiomKey: idiom.idiom_key, idiomLabel: idiom.label })}
+                                    onClick={() => setPreviewModal({ taskKey: task.task_key, idiomKey: idiom.idiom_key, idiomLabel: resolveIdiomLabel(task.task_key, idiom.idiom_key, idiom.label) })}
                                     title="Preview this idiom"
                                     className="text-on-surface-variant hover:text-primary transition-colors p-0.5 rounded flex-shrink-0"
                                   >
