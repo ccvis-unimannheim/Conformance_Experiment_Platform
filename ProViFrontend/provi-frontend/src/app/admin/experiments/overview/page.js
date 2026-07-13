@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../../components/Admin/Toast";
+import { resolveIdiomLabel } from "../../../../utils/idiomLabels";
 
 function IdiomPreviewModal({ experimentId, taskKey, idiomKey, idiomLabel, datasetTitle, paramsSummary, onClose }) {
   const [status, setStatus] = useState("loading");
@@ -494,7 +495,9 @@ function ExperimentOverviewContent() {
                                 </span>
                                 <div>
                                   <p className="text-xs font-semibold text-on-surface">
-                                    {idiom?.label || iid}
+                                    {idiom
+                                      ? resolveIdiomLabel(task.task_key, idiom.idiom_key, idiom.label)
+                                      : iid}
                                   </p>
                                   {idiom && (
                                     <p className="text-[10px] text-on-surface-variant">
@@ -507,7 +510,7 @@ function ExperimentOverviewContent() {
                                     onClick={() => setPreviewModal({
                                       taskKey: task.task_key,
                                       idiomKey: idiom.idiom_key,
-                                      idiomLabel: idiom.label,
+                                      idiomLabel: resolveIdiomLabel(task.task_key, idiom.idiom_key, idiom.label),
                                       datasetTitle: datasetTitleById[ti?.dataset_id] || null,
                                       paramsSummary: ti?.parameters && Object.keys(ti.parameters).length > 0
                                         ? Object.entries(ti.parameters).map(([k, v]) => `${k}: ${v}`).join(", ")

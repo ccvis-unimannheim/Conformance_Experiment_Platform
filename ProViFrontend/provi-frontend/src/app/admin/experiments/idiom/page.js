@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../../components/Admin/Toast";
+import { TASK_IDIOM_LABEL_OVERRIDES } from "../../../../utils/idiomLabels";
 
 function getId(obj) {
   return obj._id || obj.id;
@@ -231,8 +232,13 @@ function IdiomSelectionContent() {
 
   function getIdiomsForTask(task) {
     const allowed = taskIdiomKeys[task.task_key];
-    if (!allowed) return allIdioms;
-    return allIdioms.filter((i) => allowed.includes(i.idiom_key));
+    const idioms = allowed
+      ? allIdioms.filter((i) => allowed.includes(i.idiom_key))
+      : allIdioms;
+    const overrides = TASK_IDIOM_LABEL_OVERRIDES[task.task_key] || {};
+    return idioms.map((i) =>
+      overrides[i.idiom_key] ? { ...i, label: overrides[i.idiom_key] } : i
+    );
   }
 
   function toggleIdiom(taskId, idiomId) {
