@@ -151,7 +151,10 @@ from matplotlib.colors import to_hex
 DEFAULT_BINS = CONFORMANCE_BINS
 DEFAULT_LABELS = CONFORMANCE_LABELS
 HIGH_FITNESS_BINS = [0.80, 0.85, 0.90, 0.95, 1.0]
-HIGH_FITNESS_LABELS = ["0.80 – 0.85", "0.85 – 0.90", "0.90 – 0.95", "0.95 – <1.00", "1.00"]
+# Percentage labels, matching make_conformance_labels(HIGH_FITNESS_CATEGORY_BINS)
+# so the adaptive high-fitness preview reads identically to the admin-selected
+# "High-fitness focus" preset.
+HIGH_FITNESS_LABELS = ["80–85%", "85–90%", "90–95%", "95–100%", "100%"]
 
 # Cividis ramp for adaptive conformance ranges (dark = low, light = high)
 RANGE_COLORS = [to_hex(CIVIDIS(i / 5)) for i in range(6)]

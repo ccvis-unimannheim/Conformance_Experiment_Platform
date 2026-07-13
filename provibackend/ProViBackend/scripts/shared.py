@@ -1007,22 +1007,30 @@ def draw_grouped_box_plot(ax, data, labels, colors, *, ylabel: str = "",
 # idioms) share one definition of the conformance ranges.
 # ---------------------------------------------------------------------------
 
-# 1.01 upper edge so fitness == 1.0 lands in the last (left-closed) bucket.
-CONFORMANCE_BINS = [0.0, 0.2, 0.4, 0.6, 0.8, 1.01]
-CONFORMANCE_LABELS = ["0.0 – 0.2", "0.2 – 0.4", "0.4 – 0.6", "0.6 – 0.8", "0.8 – 1.0"]
-CONFORMANCE_CATEGORY_NAMES = ["Very Low", "Low", "Medium", "High", "Very High"]
-
-
 def make_conformance_labels(bins) -> list:
-    """Human-readable "lo – hi" range labels for a list of conformance bin edges.
+    """Percentage range labels for a list of conformance (fitness) bin edges.
 
-    The final upper edge is clamped to 1.0 for display (the canonical bins use a
-    1.01 upper edge so fitness == 1.0 lands in the last left-closed bucket).
+    Fitness fractions in [0, 1] are shown as percentages to match the preset
+    option labels the admin picks (e.g. "80–85%"). Each edge keeps only the
+    decimals it needs, so 2-decimal presets like 0.85 render as "85%" instead of
+    being rounded to "80%". The final upper edge is clamped to 100% (the
+    canonical bins use a 1.01 sentinel so fitness == 1.0 lands in the last
+    left-closed bucket), and a bucket whose bounds coincide after clamping
+    (e.g. [1.0, 1.01)) renders as a single "100%".
     """
+    def _pct(x):
+        return f"{min(float(x), 1.0) * 100:.1f}".rstrip("0").rstrip(".")
     labels = []
     for lo, hi in zip(bins[:-1], bins[1:]):
-        labels.append(f"{lo:.1f} – {min(float(hi), 1.0):.1f}")
+        lo_s, hi_s = _pct(lo), _pct(hi)
+        labels.append(f"{lo_s}%" if lo_s == hi_s else f"{lo_s}–{hi_s}%")
     return labels
+
+
+# 1.01 upper edge so fitness == 1.0 lands in the last (left-closed) bucket.
+CONFORMANCE_BINS = [0.0, 0.2, 0.4, 0.6, 0.8, 1.01]
+CONFORMANCE_LABELS = make_conformance_labels(CONFORMANCE_BINS)
+CONFORMANCE_CATEGORY_NAMES = ["Very Low", "Low", "Medium", "High", "Very High"]
 
 
 def conformance_category_index(fitness_value, bins=None) -> int:
