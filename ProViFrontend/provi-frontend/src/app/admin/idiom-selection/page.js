@@ -13,7 +13,7 @@ const ALL_IDIOMS = [
   { idiom_key: "tile_metric",          label: "Tile Metric",                           granularity: "log",   renderer_type: "html",    active: true },
   { idiom_key: "scatterplot",          label: "Scatterplot (Dotted Chart)",            granularity: "trace", renderer_type: "echarts", active: true },
   { idiom_key: "table",                label: "Table",                                 granularity: "log",   renderer_type: "html",    active: true },
-  { idiom_key: "heatmap",              label: "Heatmap",                               granularity: "log",   renderer_type: "echarts", active: true },
+  { idiom_key: "heatmap",              label: "Matrix",                                granularity: "log",   renderer_type: "echarts", active: true },
   { idiom_key: "boxplot",              label: "Box and Whisker Plot",                  granularity: "log",   renderer_type: "echarts", active: true },
   { idiom_key: "flow_chart_basic",     label: "Flow Chart (Chevron Diagram)",          granularity: "trace", renderer_type: "svg",     active: true },
   { idiom_key: "flow_chart_elaborate", label: "Flow Chart+ (BPMN Diagram)",            granularity: "trace", renderer_type: "bpmn",    active: true },
