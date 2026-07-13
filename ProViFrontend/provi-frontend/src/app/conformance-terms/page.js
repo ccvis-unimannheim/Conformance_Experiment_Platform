@@ -301,7 +301,8 @@ export default function ConformanceTermsPage() {
                   The two terms are closely related but not strictly interchangeable: degree of conformance is the
                   abstract notion, while fitness is the specific metric used to measure it here. Fitness accounts
                   for the <em>extent</em> of violations across all traces — even a non-conformant trace may be
-                  partially conformant if only a few steps deviate.
+                  partially conformant if only a few steps deviate. When shown as a percentage, fitness values are
+                  rounded to one decimal place (e.g. 97.9%).
                 </p>
                 <div style={{
                   display: "flex", alignItems: "flex-start", gap: "0.75rem",
