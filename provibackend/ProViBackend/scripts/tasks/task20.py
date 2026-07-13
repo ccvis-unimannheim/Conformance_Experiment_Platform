@@ -94,10 +94,14 @@ def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer
     if corr_df.empty:
         return {"options": []}
 
+    # Options are still the 8 most-correlated candidate attributes, but the label
+    # shows only the attribute name and its (neutral) type — the correlation value
+    # is withheld so the option text doesn't rank the answers for the participant,
+    # who must read the strength of association off the visualization.
     return {
         "options": [
             {
-                "label": f"{row['attribute']} ({row['type']}, r={row['correlation']:+.2f})",
+                "label": f"{row['attribute']} ({row['type']})",
                 "value": row["attribute"],
                 "correct": False,
             }
