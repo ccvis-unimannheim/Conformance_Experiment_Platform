@@ -279,13 +279,25 @@ def task03_bar_chart(presence_df: pd.DataFrame, throughput_buckets, variant_df: 
     if throughput_buckets is not None:
         labels, counts = throughput_buckets
         x = np.arange(len(labels))
-        ax.bar(x - width / 2, counts["Conformant"],     width, color=_COLOR_CONFORM,
-               label="Conformant",     edgecolor="white")
-        ax.bar(x + width / 2, counts["Non-conformant"], width, color=_COLOR_NON_CONFORM,
-               label="Non-conformant", edgecolor="white")
+        bars_c  = ax.bar(x - width / 2, counts["Conformant"],     width, color=_COLOR_CONFORM,
+                         label="Conformant",     edgecolor="white")
+        bars_nc = ax.bar(x + width / 2, counts["Non-conformant"], width, color=_COLOR_NON_CONFORM,
+                         label="Non-conformant", edgecolor="white")
+        # Value labels (# traces) matching the other two panels, so the middle
+        # panel is as readable and stays consistent.
+        max_h = max([b.get_height() for b in (*bars_c, *bars_nc)], default=0)
+        for bars in (bars_c, bars_nc):
+            for bar in bars:
+                h = bar.get_height()
+                if h > 0:
+                    ax.text(bar.get_x() + bar.get_width() / 2, h + max_h * 0.01,
+                            f"{h:.0f}", ha="center", va="bottom", fontsize=7,
+                            rotation=90)
         ax.set_xticks(x)
         ax.set_xticklabels(labels, rotation=35, ha="right", fontsize=FONT_ANNOT - 1)
         ax.set_ylabel("# traces", fontsize=FONT_LABEL)
+        if max_h > 0:
+            ax.set_ylim(0, max_h * 1.22)
     else:
         ax.text(0.5, 0.5, "No throughput-time variance", ha="center", va="center",
                 transform=ax.transAxes, fontsize=FONT_ANNOT)

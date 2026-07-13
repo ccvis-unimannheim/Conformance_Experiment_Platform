@@ -3,12 +3,13 @@ tasks/task06.py – Task ID 6: Describe / Derive / Process conformance
 (overall degree of conformance between a single log and the guidelines).
 
 The task asks a single question — the overall degree of conformance, i.e. the
-fitness value between 0 (no conformance) and 1 (perfect). All four idioms encode
-exactly the same scalar: Overall Mean Fitness (0–1, 3 d.p.). No idiom exposes
-additional distribution statistics (min, max, std, trace count) so that the only
-experimental variable between conditions is visual encoding, not information quantity.
+mean fitness expressed as a percentage. All four idioms encode exactly the same
+scalar: Overall Mean Fitness (%, 1 d.p.) — matching the one-decimal percentage of
+the generated answer options. No idiom exposes additional distribution statistics
+(min, max, std, trace count) so that the only experimental variable between
+conditions is visual encoding, not information quantity.
 
-Idiom mapping (all share the same data payload: one scalar, 0–1, 3 d.p.):
+Idiom mapping (all share the same data payload: one scalar, %, 1 d.p.):
     tile_metric – headline numeric value in a bordered tile
     bar_chart   – single bar on a 0–1 scale, value labelled
     table       – two-column table: Metric | Value (one row only)
@@ -48,19 +49,22 @@ ANSWER_FORMATS = [
 
 
 def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
-    """Mean per-trace fitness × 100, rounded to the nearest integer percentage.
+    """Mean per-trace fitness × 100, as a percentage with one decimal place.
 
-    For pct: returns a scalar string e.g. "87%".
+    For pct: returns a scalar string e.g. "87.4%".
     For mc-single: correct option + 3 distractors spread across low / high / mid
     zones relative to the true value, snapped to 5-pp multiples, clamped to [0, 100].
+    The correct option carries the exact one-decimal value so it matches the number
+    shown in the visualizations; distractors stay round (e.g. "75.0%").
     """
     import random as _rnd
 
     mean_fit = float(fitness_df["fitness"].mean()) if len(fitness_df) > 0 else 0.0
-    pct = round(mean_fit * 100)
+    pct  = round(mean_fit * 100)          # integer, used for distractor zone maths
+    pct1 = round(mean_fit * 100, 1)       # one-decimal correct value (matches the viz)
 
     if answer_format == "pct":
-        return {"value": f"{pct}%"}
+        return {"value": f"{pct1:.1f}%"}
 
     if answer_format == "mc-single":
         # Three distractors from distinct directional zones so they spread across the
@@ -97,8 +101,8 @@ def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer
                     distractors.append(c)
                     break
 
-        options = [{"label": f"{pct}%", "value": f"{pct}%", "correct": True}] + [
-            {"label": f"{d}%", "value": f"{d}%", "correct": False}
+        options = [{"label": f"{pct1:.1f}%", "value": f"{pct1:.1f}%", "correct": True}] + [
+            {"label": f"{float(d):.1f}%", "value": f"{float(d):.1f}%", "correct": False}
             for d in distractors[:3]
         ]
         _rnd.Random(pct).shuffle(options)
