@@ -873,27 +873,28 @@ def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer
         - set(act_counts.keys())
     )
 
-    _DOM_LABEL = {
-        "mom": "Move on Model — skipped activity",
-        "mol": "Move on Log — extra activity",
-    }
-
     options = []
+
+    # Every option is labelled with just the bare activity name so the option
+    # text never reveals whether the activity is violated — the participant must
+    # read that off the visualization. The value mirrors the label (unique per
+    # activity, since violated/conformant activity sets are disjoint); the
+    # `correct` flag drives grading and is stripped before options reach the
+    # participant.
 
     # Correct: all violated activities, most-violated first (cap at 10)
     for act in sorted(act_counts, key=lambda a: sum(act_counts[a].values()), reverse=True)[:10]:
-        dom_key = max(act_counts[act], key=act_counts[act].get)
         options.append({
-            "label":   f"'{act}' — {_DOM_LABEL[dom_key]}",
-            "value":   f"violated::{act}",
+            "label":   f"'{act}'",
+            "value":   act,
             "correct": True,
         })
 
     # Incorrect: conformant activities from the same trace (cap at 5)
     for act in conformant_acts[:5]:
         options.append({
-            "label":   f"'{act}' — no violation",
-            "value":   f"conformant::{act}",
+            "label":   f"'{act}'",
+            "value":   act,
             "correct": False,
         })
 

@@ -49,21 +49,9 @@ CANONICAL_TASKS = [
         "answer_type": "single_choice",
     },
     {
-        "task_key": "task19",
-        "label": "What is the effect of a guideline violation on the overall process goal (reaching the outcome activity)?",
-        "description": "Discover, per violation pattern, the association between exhibiting the violation and achieving the process goal (signed risk difference and relative risk in outcome rate). Observational association, not causal.",
-        "answer_type": "single_choice",
-    },
-    {
         "task_key": "task10",
         "label": "Which percentage of traces in the event log fall into which conformance category?",
         "description": "Group traces by conformance ranges and determine their distribution.",
-        "answer_type": "single_choice",
-    },
-    {
-        "task_key": "task31",
-        "label": "Do cases with a higher degree of conformance lead to a higher probability of a positive process outcome?",
-        "description": "Explore the relationship between conformance and process outcomes.",
         "answer_type": "single_choice",
     },
     {
