@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 import ProViBackend.utils.database.connection as dbc
+from ProViBackend.app.label_overrides import resolve_idiom_label
 
 router = APIRouter(prefix="/experiment")
 
@@ -15,7 +16,11 @@ def _resolve_task_configs(task_configs: list) -> list:
             **tc,
             "task_key":   task_doc["task_key"]  if task_doc  else None,
             "idiom_key":  idiom_doc["idiom_key"] if idiom_doc else None,
-            "idiom_label": idiom_doc["label"]    if idiom_doc else None,
+            "idiom_label": resolve_idiom_label(
+                task_doc["task_key"]  if task_doc  else "",
+                idiom_doc["idiom_key"] if idiom_doc else "",
+                idiom_doc["label"]    if idiom_doc else "",
+            ) or None,
         })
     return resolved
 

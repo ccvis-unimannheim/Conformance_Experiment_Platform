@@ -23,6 +23,10 @@ const ALL_IDIOMS = [
   { idiom_key: "table_bar_chart",      label: "Table & Bar Chart",                     granularity: "log",   renderer_type: "html",    active: true },
 ];
 
+const TASK_IDIOM_LABEL_OVERRIDES = {
+  "task10": { "heatmap": "Matrix" },
+};
+
 const TASK_IDIOM_KEYS = {
   "T-01": ["bar_chart", "tile_metric", "scatterplot", "table", "heatmap", "boxplot"],
   "T-02": ["flow_chart_basic", "table", "flow_chart_table", "flow_chart_elaborate"],
@@ -119,8 +123,9 @@ function IdiomSelectionContent() {
 
   function getIdiomsForTask(task) {
     const allowed = TASK_IDIOM_KEYS[task.task_key];
-    if (!allowed) return allIdioms;
-    return allIdioms.filter((i) => allowed.includes(i.idiom_key));
+    const idioms = allowed ? allIdioms.filter((i) => allowed.includes(i.idiom_key)) : allIdioms;
+    const overrides = TASK_IDIOM_LABEL_OVERRIDES[task.task_key] || {};
+    return idioms.map((i) => overrides[i.idiom_key] ? { ...i, label: overrides[i.idiom_key] } : i);
   }
 
   function toggleIdiom(taskId, idiomId) {
