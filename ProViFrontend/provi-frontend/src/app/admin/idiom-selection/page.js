@@ -13,7 +13,7 @@ const ALL_IDIOMS = [
   { idiom_key: "tile_metric",          label: "Tile Metric",                           granularity: "log",   renderer_type: "html",    active: true },
   { idiom_key: "scatterplot",          label: "Scatterplot (Dotted Chart)",            granularity: "trace", renderer_type: "echarts", active: true },
   { idiom_key: "table",                label: "Table",                                 granularity: "log",   renderer_type: "html",    active: true },
-  { idiom_key: "heatmap",              label: "Matrix",                                granularity: "log",   renderer_type: "echarts", active: true },
+  { idiom_key: "heatmap",              label: "Heatmap",                               granularity: "log",   renderer_type: "echarts", active: true },
   { idiom_key: "boxplot",              label: "Box and Whisker Plot",                  granularity: "log",   renderer_type: "echarts", active: true },
   { idiom_key: "flow_chart_basic",     label: "Flow Chart (Chevron Diagram)",          granularity: "trace", renderer_type: "svg",     active: true },
   { idiom_key: "flow_chart_elaborate", label: "Flow Chart+ (BPMN Diagram)",            granularity: "trace", renderer_type: "bpmn",    active: true },
@@ -22,6 +22,10 @@ const ALL_IDIOMS = [
   { idiom_key: "flow_chart_table",     label: "Flow Chart & Table",                    granularity: "trace", renderer_type: "html",    active: true },
   { idiom_key: "table_bar_chart",      label: "Table & Bar Chart",                     granularity: "log",   renderer_type: "html",    active: true },
 ];
+
+const TASK_IDIOM_LABEL_OVERRIDES = {
+  "task10": { "heatmap": "Matrix" },
+};
 
 const TASK_IDIOM_KEYS = {
   "T-01": ["bar_chart", "tile_metric", "scatterplot", "table", "heatmap", "boxplot"],
@@ -119,8 +123,9 @@ function IdiomSelectionContent() {
 
   function getIdiomsForTask(task) {
     const allowed = TASK_IDIOM_KEYS[task.task_key];
-    if (!allowed) return allIdioms;
-    return allIdioms.filter((i) => allowed.includes(i.idiom_key));
+    const idioms = allowed ? allIdioms.filter((i) => allowed.includes(i.idiom_key)) : allIdioms;
+    const overrides = TASK_IDIOM_LABEL_OVERRIDES[task.task_key] || {};
+    return idioms.map((i) => overrides[i.idiom_key] ? { ...i, label: overrides[i.idiom_key] } : i);
   }
 
   function toggleIdiom(taskId, idiomId) {

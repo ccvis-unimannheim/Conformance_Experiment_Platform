@@ -8,6 +8,7 @@ from pydantic import BaseModel
 import ProViBackend.utils.config as config
 import ProViBackend.utils.database.connection as dbc
 from ProViBackend.scripts.tasks import task_registry
+from ProViBackend.app.label_overrides import resolve_idiom_label
 from ProViBackend.utils.database.assignment import (
     assign_participant_to_experiment,
     get_assignment,
@@ -262,7 +263,7 @@ async def get_active_experiment():
             "task_key":      task["task_key"],
             "task_label":    task["label"],
             "idiom_key":     idiom["idiom_key"],
-            "idiom_label":   idiom["label"],
+            "idiom_label":   resolve_idiom_label(task["task_key"], idiom["idiom_key"], idiom["label"]),
             "answer_format": contract["answer_format"],
             "answer_type":   contract["answer_type"],
             "decisive":      contract["decisive"],
@@ -379,7 +380,7 @@ async def get_assigned_trials(
             "task_key":      task["task_key"],
             "task_label":    task["label"],
             "idiom_key":     idiom["idiom_key"],
-            "idiom_label":   idiom["label"],
+            "idiom_label":   resolve_idiom_label(task["task_key"], idiom["idiom_key"], idiom["label"]),
             "answer_format": contract["answer_format"],
             "answer_type":   contract["answer_type"],
             "decisive":      contract["decisive"],
