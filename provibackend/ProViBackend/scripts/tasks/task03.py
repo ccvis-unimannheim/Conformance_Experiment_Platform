@@ -261,14 +261,15 @@ def task03_bar_chart(presence_df: pd.DataFrame, throughput_buckets, variant_df: 
         for bar in bars:
             h = bar.get_height()
             if h > 1:
-                ax.text(bar.get_x() + bar.get_width() / 2, h + 0.5,
-                        f"{h:.0f}%", ha="center", va="bottom", fontsize=7)
+                ax.text(bar.get_x() + bar.get_width() / 2, h + 1.0,
+                        f"{h:.0f}%", ha="center", va="bottom", fontsize=7,
+                        rotation=90)
     ax.set_xticks(x)
     ax.set_xticklabels(acts, rotation=35, ha="right", fontsize=FONT_ANNOT - 1)
     ax.set_ylabel("Presence rate (% of traces)", fontsize=FONT_LABEL)
     ax.set_title(CAT_ACTIVITY, fontsize=FONT_LABEL)
     if len(acts):
-        ax.set_ylim(0, min(115, presence_df[["Conformant", "Non-conformant"]].values.max() * 1.18))
+        ax.set_ylim(0, min(128, presence_df[["Conformant", "Non-conformant"]].values.max() * 1.28))
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
@@ -308,11 +309,12 @@ def task03_bar_chart(presence_df: pd.DataFrame, throughput_buckets, variant_df: 
             for bar in bars:
                 h = bar.get_height()
                 if h > 0:
-                    ax.text(bar.get_x() + bar.get_width() / 2, h + 0.5,
-                            f"{h:.0f}%", ha="center", va="bottom", fontsize=7)
+                    ax.text(bar.get_x() + bar.get_width() / 2, h + 1.0,
+                            f"{h:.0f}%", ha="center", va="bottom", fontsize=7,
+                            rotation=90)
         ax.set_xticks(x)
         ax.set_xticklabels(variants, rotation=35, ha="right", fontsize=FONT_ANNOT - 1)
-        ax.set_ylim(0, min(115, variant_df[["Conformant", "Non-conformant"]].values.max() * 1.18))
+        ax.set_ylim(0, min(128, variant_df[["Conformant", "Non-conformant"]].values.max() * 1.28))
     else:
         ax.text(0.5, 0.5, "No variant data", ha="center", va="center",
                 transform=ax.transAxes, fontsize=FONT_ANNOT)

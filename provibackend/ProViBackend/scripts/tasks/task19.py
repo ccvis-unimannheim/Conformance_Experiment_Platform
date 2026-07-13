@@ -526,10 +526,12 @@ def task19_parallel_sets(eff, output_dir):
         label_min_frac=0.0,
         left_label_fontsize=FONT_ANNOT - 2,
     )
-    # Title above the column headers (which draw_parallel_sets places at y=1.08).
+    # Title just above the column headers (which draw_parallel_sets places at
+    # y=1.08). Raise the axes (top) close to the title so the heading does not
+    # float far above the actual diagram.
     fig.suptitle("Violation Pattern vs. Process Goal (ribbon = traces exhibiting the pattern)",
-                 fontsize=FONT_TITLE, y=0.99)
-    fig.subplots_adjust(top=0.80)
+                 fontsize=FONT_TITLE, y=0.955)
+    fig.subplots_adjust(top=0.90)
     save_svg(fig, path)
 
 

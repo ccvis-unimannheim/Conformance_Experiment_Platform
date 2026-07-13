@@ -1022,9 +1022,12 @@ def task20_parallel_sets(panels, output_dir):
             left_title=m["label"], right_title="Guideline",
             label_min_frac=0.0,  # label every present bucket (info equivalence)
         )
+    # Raise the axes (top) close to the title so the heading sits just above the
+    # column headers (~y=1.08 in axes units) instead of floating far above the
+    # actual diagram.
     fig.suptitle("Attribute Bucket vs. Guideline Violation (ribbon = # traces)",
-                 fontsize=FONT_TITLE, y=0.99)
-    fig.subplots_adjust(top=0.82)
+                 fontsize=FONT_TITLE, y=0.955)
+    fig.subplots_adjust(top=0.90)
     save_svg(fig, path)
 
 
