@@ -85,7 +85,7 @@ from matplotlib import gridspec
 
 from shared import (
     save_svg, make_table, auto_col_widths,
-    draw_composition_stacked_bars,
+    draw_composition_stacked_bars, contrasting_text_color,
     render_empty_state_svg, format_threshold,
     GREY_MED, GREY_LIGHT, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
@@ -323,38 +323,34 @@ def task03_stacked_bar(throughput_buckets, output_dir: str):
 
 
 def task03_matrix(throughput_buckets, output_dir: str):
-    """Numeric grid — each column tinted with its conformance-group colour
-    (uniform per column, so it encodes the GROUP, not the value: distinct from a
-    value-encoded heatmap). Rows = throughput-time quartile buckets, columns =
-    conformance group, cells = # traces of that group in that bucket."""
+    """Numeric grid — each column filled with its conformance-group colour, the
+    same grey / olive-yellow the bar_chart and stacked_bar use (uniform per
+    column, so it encodes the GROUP, not the value: distinct from a value-encoded
+    heatmap). Rows = throughput-time quartile buckets, columns = conformance
+    group, cells = # traces of that group in that bucket."""
     path = os.path.join(output_dir, "task03_matrix.svg")
     if throughput_buckets is None:
         render_empty_state_svg(path, FIG_SUPTITLE, "No throughput-time variance.")
         return
 
-    from matplotlib.colors import to_rgb
-
-    def _tint(color, frac=0.22):
-        r, g, b = to_rgb(color)
-        return (1 - frac + frac * r, 1 - frac + frac * g, 1 - frac + frac * b)
-
     tt_labels, counts = throughput_buckets
     data = np.array([[counts[g][si] for g in _GROUPS] for si in range(len(tt_labels))], dtype=int)
     n_rows, n_cols = len(tt_labels), len(_GROUPS)
-    col_fill = [_tint(_COLOR_CONFORM), _tint(_COLOR_NON_CONFORM)]
+    col_fill = [_COLOR_CONFORM, _COLOR_NON_CONFORM]  # grey (Conformant), olive-yellow (Non-conformant)
+    col_text = [contrasting_text_color(c) for c in col_fill]
 
     fig_h = 0.55 * n_rows + 2.8
     fig, ax = plt.subplots(figsize=(7, fig_h))
 
-    # Cells filled with a light tint of their group's colour (matches the
-    # bar_chart / stacked_bar palette); the tint is uniform within a column, so
-    # it never encodes the cell value the way a heatmap does.
+    # Cells filled with their group's full bar_chart colour; the fill is uniform
+    # within a column, so it encodes the group — never the cell value the way a
+    # heatmap does. Text colour adapts to the fill so the counts stay legible.
     for ri in range(n_rows):
         for ci in range(n_cols):
             ax.add_patch(plt.Rectangle((ci, ri), 1, 1, facecolor=col_fill[ci],
-                                       edgecolor="#333333", linewidth=0.8))
+                                       edgecolor="white", linewidth=1.0))
             ax.text(ci + 0.5, ri + 0.5, f"{int(data[ri, ci])}",
-                    ha="center", va="center", fontsize=FONT_ANNOT)
+                    ha="center", va="center", fontsize=FONT_ANNOT, color=col_text[ci])
 
     ax.set_xlim(0, n_cols)
     ax.set_ylim(0, n_rows)
