@@ -134,8 +134,8 @@ CANONICAL_TASKS = [
     },
     {
         "task_key": "task03",
-        "label": "How does the overall behavior of conformant traces differ from non-conformant traces?",
-        "description": "Inspect behavioral differences between conforming and non-conforming traces to identify correlating factors.",
+        "label": "How does the Throughput-time of conformant traces differ from that of non-conformant traces?",
+        "description": "Compare the throughput-time distribution of conforming vs non-conforming traces and determine which group is slower.",
         "answer_type": "single_choice",
     },
     {
