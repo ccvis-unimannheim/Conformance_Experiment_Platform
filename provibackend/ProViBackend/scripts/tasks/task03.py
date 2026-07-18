@@ -169,19 +169,29 @@ def _task03_throughput_buckets(trace_rows: list, n_buckets: int = N_TIME_BUCKETS
     return labels, counts
 
 
+def _task03_bucket_shares(throughput_buckets):
+    """Within-group share (%) per bucket: {group: [pct_per_bucket]}. Normalising
+    within each group makes the two throughput distributions directly comparable
+    regardless of group size — the shared data for every Task 3 idiom."""
+    labels, counts = throughput_buckets
+    totals = {g: float(sum(counts[g])) for g in _GROUPS}
+    return {g: [(counts[g][si] / totals[g] * 100) if totals[g] else 0.0
+                for si in range(len(labels))]
+            for g in _GROUPS}
+
+
 def _task03_throughput_bucket_rows(throughput_buckets):
     """Rows for the throughput-time table: one row per quartile bucket, cells =
-    # traces of each group in that bucket — the same count encoding the bar_chart
-    idiom uses, so the two idioms expose exactly the same information (fairness)."""
+    share (%) of each group's traces in that bucket — normalised within each group
+    so the two distributions compare fairly despite different group sizes, the same
+    encoding every Task 3 idiom uses (information equivalence)."""
     if throughput_buckets is None:
         return [["—", "—", "—"]]
-    labels, counts = throughput_buckets
+    labels, _ = throughput_buckets
+    shares = _task03_bucket_shares(throughput_buckets)
     rows = []
     for si, lab in enumerate(labels):
-        row = [lab]
-        for g in _GROUPS:
-            row.append(f"{counts[g][si]:d}")
-        rows.append(row)
+        rows.append([lab] + [f"{shares[g][si]:.1f}%" for g in _GROUPS])
     return rows
 
 
@@ -190,17 +200,18 @@ def _task03_throughput_bucket_rows(throughput_buckets):
 # ---------------------------------------------------------------------------
 
 def task03_bar_chart(throughput_buckets, output_dir: str):
-    """Grouped bars: # traces per throughput-time quartile bucket, Conformant vs.
-    Non-conformant."""
+    """Grouped bars: share (%) of each group's traces per throughput-time quartile
+    bucket (normalised within group), Conformant vs. Non-conformant."""
     fig, ax = plt.subplots(figsize=(9, 5.5))
     width = 0.38
 
     if throughput_buckets is not None:
-        labels, counts = throughput_buckets
+        labels, _ = throughput_buckets
+        shares = _task03_bucket_shares(throughput_buckets)
         x = np.arange(len(labels))
-        bars_c  = ax.bar(x - width / 2, counts["Conformant"],     width, color=_COLOR_CONFORM,
+        bars_c  = ax.bar(x - width / 2, shares["Conformant"],     width, color=_COLOR_CONFORM,
                          label="Conformant",     edgecolor="white")
-        bars_nc = ax.bar(x + width / 2, counts["Non-conformant"], width, color=_COLOR_NON_CONFORM,
+        bars_nc = ax.bar(x + width / 2, shares["Non-conformant"], width, color=_COLOR_NON_CONFORM,
                          label="Non-conformant", edgecolor="white")
         max_h = max([b.get_height() for b in (*bars_c, *bars_nc)], default=0)
         for bars in (bars_c, bars_nc):
@@ -208,10 +219,10 @@ def task03_bar_chart(throughput_buckets, output_dir: str):
                 h = bar.get_height()
                 if h > 0:
                     ax.text(bar.get_x() + bar.get_width() / 2, h + max_h * 0.01,
-                            f"{h:.0f}", ha="center", va="bottom", fontsize=7)
+                            f"{h:.0f}%", ha="center", va="bottom", fontsize=7)
         ax.set_xticks(x)
         ax.set_xticklabels(labels, rotation=35, ha="right", fontsize=FONT_ANNOT - 1)
-        ax.set_ylabel("# traces", fontsize=FONT_LABEL)
+        ax.set_ylabel("% of group's traces", fontsize=FONT_LABEL)
         if max_h > 0:
             ax.set_ylim(0, max_h * 1.22)
     else:
@@ -231,9 +242,9 @@ def task03_bar_chart(throughput_buckets, output_dir: str):
 
 
 def task03_table(throughput_buckets, output_dir: str):
-    """One table: throughput-time quartile buckets × per-group trace counts."""
+    """One table: throughput-time quartile buckets × per-group within-group share (%)."""
     throughput_rows   = _task03_throughput_bucket_rows(throughput_buckets)
-    throughput_labels = ["Throughput time", "Conformant (# traces)", "Non-conformant (# traces)"]
+    throughput_labels = ["Throughput time", "Conformant (%)", "Non-conformant (%)"]
 
     fig_h = max(4.0, 1.4 + max(1, len(throughput_rows)) * 0.5)
     fig = plt.figure(figsize=(9, fig_h))
@@ -249,10 +260,10 @@ def task03_table(throughput_buckets, output_dir: str):
 
 
 def task03_table_and_bar_chart(throughput_buckets, output_dir: str):
-    """Left: throughput-bucket table (# traces per group). Right: grouped horizontal
-    bars of # traces per bucket — the same throughput counts in two encodings."""
+    """Left: throughput-bucket table (within-group share % per group). Right: grouped
+    horizontal bars of the same within-group shares — one encoding in two forms."""
     throughput_rows   = _task03_throughput_bucket_rows(throughput_buckets)
-    throughput_labels = ["Throughput time", "Conformant (# traces)", "Non-conformant (# traces)"]
+    throughput_labels = ["Throughput time", "Conformant (%)", "Non-conformant (%)"]
 
     fig_h = max(5.0, 1.6 + max(1, len(throughput_rows)) * 0.5)
     fig = plt.figure(figsize=(15, fig_h))
@@ -267,15 +278,16 @@ def task03_table_and_bar_chart(throughput_buckets, output_dir: str):
 
     ax_bar = fig.add_subplot(gs[1])
     if throughput_buckets is not None:
-        labels, counts = throughput_buckets
+        labels, _ = throughput_buckets
+        shares = _task03_bucket_shares(throughput_buckets)
         x = np.arange(len(labels)); w = 0.38
-        ax_bar.barh(x - w / 2, counts["Conformant"],     w, color=_COLOR_CONFORM,
+        ax_bar.barh(x - w / 2, shares["Conformant"],     w, color=_COLOR_CONFORM,
                     label="Conformant",     edgecolor="white")
-        ax_bar.barh(x + w / 2, counts["Non-conformant"], w, color=_COLOR_NON_CONFORM,
+        ax_bar.barh(x + w / 2, shares["Non-conformant"], w, color=_COLOR_NON_CONFORM,
                     label="Non-conformant", edgecolor="white")
         ax_bar.set_yticks(x)
         ax_bar.set_yticklabels(labels, fontsize=FONT_ANNOT - 1)
-        ax_bar.set_xlabel("# traces", fontsize=FONT_LABEL)
+        ax_bar.set_xlabel("% of group's traces", fontsize=FONT_LABEL)
     else:
         ax_bar.text(0.5, 0.5, "No throughput-time variance", ha="center", va="center",
                     transform=ax_bar.transAxes, fontsize=FONT_ANNOT)
@@ -293,21 +305,23 @@ def task03_table_and_bar_chart(throughput_buckets, output_dir: str):
 
 
 def task03_stacked_bar(throughput_buckets, output_dir: str):
-    """Stacked bar per conformance group; segments = throughput-time quartile
-    buckets, segment height = # traces of that group in that bucket (so the total
-    bar height is the group size). Uses trace counts to stay consistent with the
-    bar_chart / table / matrix idioms."""
+    """100%-stacked bar per conformance group; segments = throughput-time quartile
+    buckets, segment height = share (%) of that group's traces in the bucket. The
+    within-group normalisation keeps it consistent with the bar_chart / table /
+    matrix idioms and makes the two distributions comparable despite group sizes."""
     path = os.path.join(output_dir, "task03_stacked_bar.svg")
     if throughput_buckets is None:
         render_empty_state_svg(path, FIG_SUPTITLE, "No throughput-time variance.")
         return
 
-    labels, counts = throughput_buckets
-    data = np.array([[counts[g][si] for g in _GROUPS] for si in range(len(labels))], dtype=float)
+    labels, _ = throughput_buckets
+    shares = _task03_bucket_shares(throughput_buckets)
+    data = np.array([[shares[g][si] for g in _GROUPS] for si in range(len(labels))], dtype=float)
 
     fig, ax = plt.subplots(figsize=(8, 5.5))
     draw_composition_stacked_bars(ax, _GROUPS, labels, data)
-    ax.set_ylabel("# traces", fontsize=FONT_LABEL)
+    ax.set_ylabel("Share (%)", fontsize=FONT_LABEL)
+    ax.set_ylim(0, 100)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
@@ -327,14 +341,15 @@ def task03_matrix(throughput_buckets, output_dir: str):
     same grey / olive-yellow the bar_chart and stacked_bar use (uniform per
     column, so it encodes the GROUP, not the value: distinct from a value-encoded
     heatmap). Rows = throughput-time quartile buckets, columns = conformance
-    group, cells = # traces of that group in that bucket."""
+    group, cells = share (%) of that group's traces in the bucket."""
     path = os.path.join(output_dir, "task03_matrix.svg")
     if throughput_buckets is None:
         render_empty_state_svg(path, FIG_SUPTITLE, "No throughput-time variance.")
         return
 
-    tt_labels, counts = throughput_buckets
-    data = np.array([[counts[g][si] for g in _GROUPS] for si in range(len(tt_labels))], dtype=int)
+    tt_labels, _ = throughput_buckets
+    shares = _task03_bucket_shares(throughput_buckets)
+    data = np.array([[shares[g][si] for g in _GROUPS] for si in range(len(tt_labels))], dtype=float)
     n_rows, n_cols = len(tt_labels), len(_GROUPS)
     col_fill = [_COLOR_CONFORM, _COLOR_NON_CONFORM]  # grey (Conformant), olive-yellow (Non-conformant)
     col_text = [contrasting_text_color(c) for c in col_fill]
@@ -344,12 +359,12 @@ def task03_matrix(throughput_buckets, output_dir: str):
 
     # Cells filled with their group's full bar_chart colour; the fill is uniform
     # within a column, so it encodes the group — never the cell value the way a
-    # heatmap does. Text colour adapts to the fill so the counts stay legible.
+    # heatmap does. Text colour adapts to the fill so the shares stay legible.
     for ri in range(n_rows):
         for ci in range(n_cols):
             ax.add_patch(plt.Rectangle((ci, ri), 1, 1, facecolor=col_fill[ci],
                                        edgecolor="white", linewidth=1.0))
-            ax.text(ci + 0.5, ri + 0.5, f"{int(data[ri, ci])}",
+            ax.text(ci + 0.5, ri + 0.5, f"{data[ri, ci]:.0f}%",
                     ha="center", va="center", fontsize=FONT_ANNOT, color=col_text[ci])
 
     ax.set_xlim(0, n_cols)
@@ -359,7 +374,7 @@ def task03_matrix(throughput_buckets, output_dir: str):
     ax.set_xticklabels(_GROUPS, fontsize=FONT_ANNOT)
     ax.set_yticks([r + 0.5 for r in range(n_rows)])
     ax.set_yticklabels(tt_labels, fontsize=FONT_ANNOT - 1)
-    ax.set_xlabel("Conformance Group   (cell value = # traces)", fontsize=FONT_LABEL)
+    ax.set_xlabel("Conformance Group   (cell value = % of group's traces)", fontsize=FONT_LABEL)
     ax.tick_params(length=0)
     for spine in ax.spines.values():
         spine.set_visible(False)
