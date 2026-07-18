@@ -97,11 +97,8 @@ _COLOR_CONFORM     = GREY_MED    # medium-dark grey
 _COLOR_NON_CONFORM = GREY_LIGHT  # medium grey
 _GROUPS = ["Conformant", "Non-conformant"]
 
-# Canonical category heading — kept identical across *every* Task 3 idiom so no
-# single idiom exposes more/less framing than another (information fairness).
-CAT_THROUGHPUT = "Throughput Time (quartile buckets)"
-
-# Shared figure super-title, identical across every Task 3 idiom.
+# Shared figure title — the single title on *every* Task 3 idiom, at one font
+# size (FONT_TITLE), so no idiom exposes more/less framing than another.
 FIG_SUPTITLE = "Conformant vs. Non-conformant: Throughput Time"
 
 
@@ -220,14 +217,16 @@ def task03_bar_chart(throughput_buckets, output_dir: str):
     else:
         ax.text(0.5, 0.5, "No throughput-time variance", ha="center", va="center",
                 transform=ax.transAxes, fontsize=FONT_ANNOT)
-    ax.set_title(CAT_THROUGHPUT, fontsize=FONT_LABEL)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
-    ax.legend(frameon=False, fontsize=FONT_ANNOT, ncol=2, loc="upper right")
 
+    handles, lbls = ax.get_legend_handles_labels()
+    if handles:
+        fig.legend(handles, lbls, loc="lower center", bbox_to_anchor=(0.5, 0.0),
+                   ncol=2, frameon=False, fontsize=FONT_ANNOT)
     fig.suptitle(FIG_SUPTITLE, fontsize=FONT_TITLE)
-    fig.tight_layout(rect=[0, 0, 1, 0.94])
+    fig.tight_layout(rect=[0, 0.07, 1, 0.94])
     save_svg(fig, os.path.join(output_dir, "task03_bar_chart.svg"))
 
 
@@ -244,7 +243,6 @@ def task03_table(throughput_buckets, output_dir: str):
         bbox=[0.05, 0.02, 0.90, 0.86], col_widths=auto_col_widths(throughput_labels, throughput_rows),
         font_size=10, cell_pad=0.09,
     )
-    ax.set_title(CAT_THROUGHPUT, fontsize=FONT_TITLE, pad=6)
 
     fig.suptitle(FIG_SUPTITLE, fontsize=FONT_TITLE, y=0.99)
     save_svg(fig, os.path.join(output_dir, "task03_table.svg"))
@@ -266,7 +264,6 @@ def task03_table_and_bar_chart(throughput_buckets, output_dir: str):
         bbox=[0.02, 0.05, 0.96, 0.82], col_widths=auto_col_widths(throughput_labels, throughput_rows),
         font_size=9.5, cell_pad=0.08,
     )
-    ax_t.set_title(CAT_THROUGHPUT, fontsize=FONT_TITLE, pad=8)
 
     ax_bar = fig.add_subplot(gs[1])
     if throughput_buckets is not None:
@@ -279,16 +276,19 @@ def task03_table_and_bar_chart(throughput_buckets, output_dir: str):
         ax_bar.set_yticks(x)
         ax_bar.set_yticklabels(labels, fontsize=FONT_ANNOT - 1)
         ax_bar.set_xlabel("# traces", fontsize=FONT_LABEL)
-        ax_bar.legend(frameon=False, fontsize=FONT_ANNOT, loc="lower right", ncol=2)
     else:
         ax_bar.text(0.5, 0.5, "No throughput-time variance", ha="center", va="center",
                     transform=ax_bar.transAxes, fontsize=FONT_ANNOT)
-    ax_bar.set_title("Throughput-Time Buckets (# traces)", fontsize=FONT_TITLE, pad=8)
     ax_bar.spines[["top", "right"]].set_visible(False)
     ax_bar.xaxis.grid(True, linestyle="--", alpha=0.5)
     ax_bar.set_axisbelow(True)
 
+    handles, lbls = ax_bar.get_legend_handles_labels()
+    if handles:
+        fig.legend(handles, lbls, loc="lower center", bbox_to_anchor=(0.5, 0.0),
+                   ncol=2, frameon=False, fontsize=FONT_ANNOT)
     fig.suptitle(FIG_SUPTITLE, fontsize=FONT_TITLE, y=0.99)
+    fig.tight_layout(rect=[0, 0.06, 1, 0.95])
     save_svg(fig, os.path.join(output_dir, "task03_table_and_bar_chart.svg"))
 
 
@@ -307,39 +307,51 @@ def task03_stacked_bar(throughput_buckets, output_dir: str):
 
     fig, ax = plt.subplots(figsize=(8, 5.5))
     draw_composition_stacked_bars(ax, _GROUPS, labels, data)
-    ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1.0), frameon=False,
-              fontsize=FONT_ANNOT - 1, title="Throughput time", title_fontsize=FONT_ANNOT)
     ax.set_ylabel("# traces", fontsize=FONT_LABEL)
-    ax.set_title(CAT_THROUGHPUT, fontsize=FONT_LABEL)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
 
+    handles, lbls = ax.get_legend_handles_labels()
+    if handles:
+        fig.legend(handles, lbls, loc="lower center", bbox_to_anchor=(0.5, 0.0),
+                   ncol=min(len(lbls), 4), frameon=False, fontsize=FONT_ANNOT,
+                   title="Throughput time", title_fontsize=FONT_ANNOT)
     fig.suptitle(FIG_SUPTITLE, fontsize=FONT_TITLE)
-    fig.tight_layout(rect=[0, 0, 1, 0.93])
+    fig.tight_layout(rect=[0, 0.10, 1, 0.93])
     save_svg(fig, path)
 
 
 def task03_matrix(throughput_buckets, output_dir: str):
-    """Plain numeric grid (NO colour, NO colorbar — distinct from a heatmap):
-    rows = throughput-time quartile buckets, columns = conformance group,
-    cells = # traces of that group in that bucket."""
+    """Numeric grid — each column tinted with its conformance-group colour
+    (uniform per column, so it encodes the GROUP, not the value: distinct from a
+    value-encoded heatmap). Rows = throughput-time quartile buckets, columns =
+    conformance group, cells = # traces of that group in that bucket."""
     path = os.path.join(output_dir, "task03_matrix.svg")
     if throughput_buckets is None:
         render_empty_state_svg(path, FIG_SUPTITLE, "No throughput-time variance.")
         return
 
+    from matplotlib.colors import to_rgb
+
+    def _tint(color, frac=0.22):
+        r, g, b = to_rgb(color)
+        return (1 - frac + frac * r, 1 - frac + frac * g, 1 - frac + frac * b)
+
     tt_labels, counts = throughput_buckets
     data = np.array([[counts[g][si] for g in _GROUPS] for si in range(len(tt_labels))], dtype=int)
     n_rows, n_cols = len(tt_labels), len(_GROUPS)
+    col_fill = [_tint(_COLOR_CONFORM), _tint(_COLOR_NON_CONFORM)]
 
-    fig_h = 0.55 * n_rows + 2.6
+    fig_h = 0.55 * n_rows + 2.8
     fig, ax = plt.subplots(figsize=(7, fig_h))
 
-    # White cells with thin borders — a bare matrix of numbers, no colour fill.
+    # Cells filled with a light tint of their group's colour (matches the
+    # bar_chart / stacked_bar palette); the tint is uniform within a column, so
+    # it never encodes the cell value the way a heatmap does.
     for ri in range(n_rows):
         for ci in range(n_cols):
-            ax.add_patch(plt.Rectangle((ci, ri), 1, 1, facecolor="white",
+            ax.add_patch(plt.Rectangle((ci, ri), 1, 1, facecolor=col_fill[ci],
                                        edgecolor="#333333", linewidth=0.8))
             ax.text(ci + 0.5, ri + 0.5, f"{int(data[ri, ci])}",
                     ha="center", va="center", fontsize=FONT_ANNOT)
@@ -351,11 +363,10 @@ def task03_matrix(throughput_buckets, output_dir: str):
     ax.set_xticklabels(_GROUPS, fontsize=FONT_ANNOT)
     ax.set_yticks([r + 0.5 for r in range(n_rows)])
     ax.set_yticklabels(tt_labels, fontsize=FONT_ANNOT - 1)
-    ax.set_xlabel("Conformance Group", fontsize=FONT_LABEL)
+    ax.set_xlabel("Conformance Group   (cell value = # traces)", fontsize=FONT_LABEL)
     ax.tick_params(length=0)
     for spine in ax.spines.values():
         spine.set_visible(False)
-    ax.set_title(CAT_THROUGHPUT, fontsize=FONT_LABEL)
 
     fig.suptitle(FIG_SUPTITLE, fontsize=FONT_TITLE)
     fig.tight_layout(rect=[0, 0, 1, 0.95])
