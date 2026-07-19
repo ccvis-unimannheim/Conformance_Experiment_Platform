@@ -394,7 +394,7 @@ def task11_table(selected, trace_coverage, n_traces, output_dir):
                           f"{pct:.1f}%"])
 
     n_rows = len(cell_text)
-    fig_h  = max(3.5, 1.3 + n_rows * 0.46)
+    fig_h  = max(3.2, 0.9 + n_rows * 0.52)
     fig, ax = plt.subplots(figsize=(13, fig_h))
     ax.axis("off")
 
@@ -402,10 +402,10 @@ def task11_table(selected, trace_coverage, n_traces, output_dir):
         ax,
         cell_text=cell_text,
         col_labels=["Number", "Activity", "Type", "Number of Traces", "Percentage of All"],
-        bbox=[0.01, 0.05, 0.98, 0.80],
+        bbox=[0.01, 0.03, 0.98, 0.90],
         col_widths=[0.08, 0.34, 0.20, 0.22, 0.16],
-        font_size=9.5,
-        scale_xy=(1, 1.75),
+        font_size=13,
+        scale_xy=(1, 1.4),
         cell_pad=0.09,
     )
     ax.set_title(
