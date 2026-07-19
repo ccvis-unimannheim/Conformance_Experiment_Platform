@@ -1507,9 +1507,12 @@ def parse_bpmn_model(model_path: str) -> dict:
         dlen = math.hypot(bx - px, by - py)
         if dlen < 1e-9:
             return pts
-        t = min(16.0, dlen * 0.92)
+        # _adj_ep already snapped the endpoint to the circle's bounding box edge.
+        # Nudge it a few units further INTO the circle (along travel direction) so
+        # the arrowhead visibly meets the end event instead of stopping short.
+        t = min(4.0, dlen * 0.4)
         ux, uy = (bx - px) / dlen, (by - py) / dlen
-        return pts[:-1] + [(bx - ux * t, by - uy * t)]
+        return pts[:-1] + [(bx + ux * t, by + uy * t)]
 
     def _dedup(pts, tol=0.05):
         if not pts:
@@ -1664,8 +1667,12 @@ def bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn=None, *, ox=0.0, oy=0
     min_x, max_x = min(xs), max(xs)
     min_y, max_y = min(ys), max(ys)
     lp, rp, bp = 80.0, 80.0, 68.0
-    # Reserve vertical space above the diagram for external log-move badges.
-    badge_pad = 62.0 if badges else 0.0
+    # Reserve vertical space above the diagram for external log-move badges, which
+    # are drawn the same size as a model activity node.
+    _task_hs = [b["height"] for eid, b in shapes.items()
+                if elements.get(eid, {}).get("kind") == "task"]
+    _badge_node_h = max(_task_hs) if _task_hs else 46.0
+    badge_pad = (_badge_node_h + 34.0) if badges else 0.0
     W = (max_x - min_x) * h_scale + lp + rp
     H = max_y - min_y + top_pad + badge_pad + bp
 
@@ -1769,8 +1776,9 @@ def bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn=None, *, ox=0.0, oy=0
             node_boxes.append(box2)
             if el2.get("kind") == "task":
                 name_box.setdefault(el2.get("name", ""), box2)
-        fs = min(node_font_size, 11.0)
-        bh = 26.0
+        fs = node_font_size
+        badge_text = contrasting_text_color(GREY_DARK)   # white on the navy fill
+        badge_dash = "#8ba0cf"                            # light-blue dashes, clear on navy
         seen = {}
         for badge in badges:
             box = name_box.get(badge.get("anchor"))
@@ -1779,24 +1787,30 @@ def bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn=None, *, ox=0.0, oy=0
             ax, ay, aw, ah = box
             label = str(badge.get("label", ""))
             k = seen.get(badge["anchor"], 0); seen[badge["anchor"]] = k + 1
-            bw = max(72.0, len(label) * fs * 0.62 + 16.0)
+            # Draw the badge the same size as a model activity node.
+            bw, bh = aw, ah
             acx = ax + aw / 2.0
-            bx = acx - bw / 2.0 + k * (bw * 0.55)
+            bx = acx - bw / 2.0 + k * (bw + 12.0)
             # Sit above the TOPMOST node overlapping the badge's x-range, so the
             # badge never overlaps a node (e.g. a parallel branch above the anchor).
             top = ay
             for nx, ny, nw, nh in node_boxes:
                 if nx < bx + bw and nx + nw > bx and ny < ay:
                     top = min(top, ny)
-            by = top - 16.0 - bh
+            by = top - 20.0 - bh
+            # Dark-blue dashed connector from the badge down to the anchor node.
             out.append(f'<line x1="{acx:.1f}" y1="{by + bh:.1f}" x2="{acx:.1f}" y2="{ay:.1f}" '
-                       f'stroke="{GREY_DARK}" stroke-width="1.5" stroke-dasharray="4 3"/>')
+                       f'stroke="{GREY_DARK}" stroke-width="1.6" stroke-dasharray="4 3"/>')
+            # Blue-filled dashed box, same shape/size as an activity node.
             out.append(f'<rect x="{bx:.1f}" y="{by:.1f}" width="{bw:.1f}" height="{bh:.1f}" '
-                       f'rx="5" ry="5" fill="white" stroke="{GREY_DARK}" stroke-width="1.8" '
-                       f'stroke-dasharray="5 3"/>')
-            out.append(f'<text x="{bx + bw / 2.0:.1f}" y="{by + bh / 2.0:.1f}" text-anchor="middle" '
-                       f'dominant-baseline="middle" font-family="Arial, sans-serif" '
-                       f'font-size="{fs:.1f}" fill="{GREY_DARK}">{_bpmn_esc(label)}</text>')
+                       f'rx="7" ry="7" fill="{GREY_DARK}" stroke="{badge_dash}" stroke-width="2.0" '
+                       f'stroke-dasharray="6 4"/>')
+            lines = _bpmn_label_lines(label, bw, font_size=fs)
+            gap = fs * 1.17; sy = by + bh / 2.0 - (len(lines) - 1) * gap / 2.0
+            for i, ln in enumerate(lines):
+                out.append(f'<text x="{bx + bw / 2.0:.1f}" y="{sy + i * gap:.1f}" text-anchor="middle" '
+                           f'dominant-baseline="middle" font-family="Arial, sans-serif" '
+                           f'font-size="{fs:.1f}" fill="{badge_text}">{_bpmn_esc(ln)}</text>')
 
     return out, W, H
 
