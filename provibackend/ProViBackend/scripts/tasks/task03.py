@@ -87,14 +87,14 @@ from shared import (
     save_svg, make_table, auto_col_widths,
     draw_composition_stacked_bars, contrasting_text_color,
     render_empty_state_svg, format_threshold,
-    GREY_MED, GREY_LIGHT, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    GREY_DARK, GREY_LIGHTER, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 # Number of quartile buckets for the throughput-time comparison
 N_TIME_BUCKETS = 4
 
-_COLOR_CONFORM     = GREY_MED    # medium-dark grey
-_COLOR_NON_CONFORM = GREY_LIGHT  # medium grey
+_COLOR_CONFORM     = GREY_DARK      # cividis dark blue
+_COLOR_NON_CONFORM = GREY_LIGHTER   # cividis yellow
 _GROUPS = ["Conformant", "Non-conformant"]
 
 # Shared figure title — the single title on *every* Task 3 idiom, at one font
@@ -338,10 +338,10 @@ def task03_stacked_bar(throughput_buckets, output_dir: str):
 
 def task03_matrix(throughput_buckets, output_dir: str):
     """Numeric grid — each column filled with its conformance-group colour, the
-    same grey / olive-yellow the bar_chart and stacked_bar use (uniform per
-    column, so it encodes the GROUP, not the value: distinct from a value-encoded
-    heatmap). Rows = throughput-time quartile buckets, columns = conformance
-    group, cells = share (%) of that group's traces in the bucket."""
+    same cividis dark-blue / yellow the bar_chart and stacked_bar use (uniform
+    per column, so it encodes the GROUP, not the value: distinct from a
+    value-encoded heatmap). Rows = throughput-time quartile buckets, columns =
+    conformance group, cells = share (%) of that group's traces in the bucket."""
     path = os.path.join(output_dir, "task03_matrix.svg")
     if throughput_buckets is None:
         render_empty_state_svg(path, FIG_SUPTITLE, "No throughput-time variance.")
@@ -351,7 +351,7 @@ def task03_matrix(throughput_buckets, output_dir: str):
     shares = _task03_bucket_shares(throughput_buckets)
     data = np.array([[shares[g][si] for g in _GROUPS] for si in range(len(tt_labels))], dtype=float)
     n_rows, n_cols = len(tt_labels), len(_GROUPS)
-    col_fill = [_COLOR_CONFORM, _COLOR_NON_CONFORM]  # grey (Conformant), olive-yellow (Non-conformant)
+    col_fill = [_COLOR_CONFORM, _COLOR_NON_CONFORM]  # dark blue (Conformant), yellow (Non-conformant)
     col_text = [contrasting_text_color(c) for c in col_fill]
 
     fig_h = 0.55 * n_rows + 2.8
