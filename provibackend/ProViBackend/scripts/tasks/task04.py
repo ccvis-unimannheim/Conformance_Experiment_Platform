@@ -454,24 +454,70 @@ def task04_bar_chart(tdf: pd.DataFrame, output_dir: str):
     save_svg(fig, os.path.join(output_dir, "task04_bar_chart.svg"))
 
 
-def task04_table(tdf: pd.DataFrame, output_dir: str):
-    """Trace | Fitness, one row per sampled trace."""
-    cell_text = [[row["label"], f"{row['fitness']:.3f}"] for _, row in tdf.iterrows()] \
-        or [["—", "—"]]
-    col_labels = ["Trace", "Fitness"]
+def task04_table(selected, model_path, output_dir):
+    """Activity × trace move-type table: one row per activity (model tasks plus
+    any inserted ones), one column per compared trace, cell = the alignment move
+    type in that trace (Synchronous Move / Model Move / Log Move / — when the
+    trace never touches it). The tabular twin of the chevron / BPMN / heatmap —
+    same information, read as text and colour-coded with the shared palette."""
+    path = os.path.join(output_dir, "task04_table.svg")
+    title = "Move Type by Activity Across Traces"
+    activities = _task04_model_task_names(model_path)
+    if not activities or not selected:
+        fig, ax = plt.subplots(figsize=(6.5, 3.0))
+        ax.axis("off")
+        make_table(ax, cell_text=[["—", "—"]], col_labels=["Activity", "Move type"],
+                   bbox=[0.05, 0.05, 0.9, 0.92])
+        ax.set_title(title, fontsize=FONT_TITLE, pad=3)
+        fig.tight_layout(pad=1.2)
+        save_svg(fig, path)
+        return
 
+    move_maps = [_task04_move_map(t["rows"]) for t in selected]
+    # inserted (log-move) activities become extra rows, mirroring the heatmap
+    inserted = []
+    for mm in move_maps:
+        for a, c in mm.items():
+            if c == GREY_DARK and a not in activities and a not in inserted:
+                inserted.append(a)
+    rows = list(activities) + inserted
+    labels = [t["label"] for t in selected]
+    label_by_color = {c: lbl for lbl, c in _MOVE_LEGEND}
+
+    cell_text, cell_style = [], []
+    for a in rows:
+        text_row, style_row = [a], []
+        for mm in move_maps:
+            c = mm.get(a)
+            if c is None:
+                text_row.append("—")
+                style_row.append(("#ffffff", "#333333"))
+            else:
+                text_row.append(label_by_color.get(c, ""))
+                style_row.append((c, contrasting_text_color(c)))
+        cell_text.append(text_row)
+        cell_style.append(style_row)
+
+    col_labels = ["Activity"] + labels
     fig_h = max(3.0, 1.2 + len(cell_text) * 0.46)
-    fig, ax = plt.subplots(figsize=(6.5, fig_h))
+    fig_w = max(6.5, 3.2 + 1.9 * len(labels))
+    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
     ax.axis("off")
-    make_table(
+    tbl = make_table(
         ax, cell_text=cell_text, col_labels=col_labels,
-        bbox=[0.05, 0.05, 0.9, 0.92],
+        bbox=[0.03, 0.05, 0.94, 0.9],
         col_widths=auto_col_widths(col_labels, cell_text),
-        font_size=10.5, scale_xy=(1, 1.75), cell_pad=0.11,
+        font_size=9.5, scale_xy=(1, 1.7), cell_pad=0.1, zebra=False,
     )
-    ax.set_title(TITLE, fontsize=FONT_TITLE, pad=3)
+    # colour the trace cells by move type (row 0 is the header)
+    for ri, style_row in enumerate(cell_style):
+        for ci, (fc, tc) in enumerate(style_row):
+            cell = tbl[ri + 1, ci + 1]
+            cell.set_facecolor(fc)
+            cell.set_text_props(color=tc)
+    ax.set_title(title, fontsize=FONT_TITLE, pad=3)
     fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task04_table.svg"))
+    save_svg(fig, path)
 
 
 def task04_line_graph(tdf: pd.DataFrame, output_dir: str):
@@ -642,14 +688,14 @@ def generate(log, fitness_df, output_dir: str, trace_ids=None, alignments=None, 
     logger.info(f"      -> Comparing {len(tdf)} traces ({source}).")
 
     task04_bar_chart(tdf, output_dir)
-    task04_table(tdf, output_dir)
     task04_table_bar_chart(tdf, output_dir)
     task04_matrix(tdf, output_dir)
     task04_line_graph(tdf, output_dir)
 
-    # Trace-level pattern comparison — chevron, BPMN and violation heatmap of the
-    # same traces (all need the alignments / model).
+    # Trace-level pattern comparison — chevron, BPMN, violation heatmap and the
+    # move-type table of the same traces (all need the alignments / model).
     if selected:
         task04_flow_chart_basic(selected, output_dir, model_path=model_path)
         task04_flow_chart_elaborate(selected, model_path, output_dir)
         task04_heatmap(selected, model_path, output_dir)
+        task04_table(selected, model_path, output_dir)
