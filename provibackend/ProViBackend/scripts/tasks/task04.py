@@ -194,9 +194,11 @@ def _task04_select_compare_traces(log, alignments, fitness_df, trace_ids=None, n
     """Pick the traces to compare, as a list of dicts
     {label, case_id, fitness, rows, violations}.
 
-    Admin-selected ``trace_ids`` are used in order when given. Otherwise the two
-    traces with the largest gap in violation count are chosen (the most-violating
-    trace paired with a fully/least-violating one), so the comparison is striking.
+    Admin-selected ``trace_ids`` are used in order when given. Otherwise two
+    "complete" traces (those covering the most distinct activities, so the chevron
+    strips are substantial rather than trivially short) are chosen such that their
+    fitness differs as much as possible — one clearly more conformant than the
+    other — making the comparison meaningful.
     """
     n_traces = min(len(log), len(alignments), len(fitness_df))
     if n_traces == 0:
@@ -212,12 +214,22 @@ def _task04_select_compare_traces(log, alignments, fitness_df, trace_ids=None, n
         by_id = _task04_case_index(log)
         chosen = [by_id[str(t)] for t in trace_ids if str(t) in by_id][:max(n, len(trace_ids))]
     else:
-        viol_by_idx = sorted(range(n_traces),
-                             key=lambda i: _task04_trace_violations(alignments, i)[1])
-        # least-violating and most-violating → biggest gap
-        chosen = sorted({viol_by_idx[0], viol_by_idx[-1]})
-        if len(chosen) < 2 and n_traces >= 2:      # all identical → fall back to first two
-            chosen = [0, 1]
+        # Activity coverage (distinct activities) and fitness per trace.
+        coverage = [len({str(e.get("concept:name", "")) for e in log[i]}) for i in range(n_traces)]
+        fitness  = [float(fitness_df.iloc[i]["fitness"]) for i in range(n_traces)]
+        by_coverage = sorted(range(n_traces), key=lambda i: coverage[i], reverse=True)
+
+        # Grow the pool from the most-complete traces until it spans a fitness gap,
+        # then take the highest- and lowest-fitness trace in that pool. This keeps
+        # both chosen traces long/complete while maximising the conformance contrast.
+        chosen = by_coverage[:2]
+        for k in range(2, n_traces + 1):
+            pool = by_coverage[:k]
+            hi = max(pool, key=lambda i: fitness[i])
+            lo = min(pool, key=lambda i: fitness[i])
+            if hi != lo and fitness[hi] - fitness[lo] > 1e-9:
+                chosen = sorted({lo, hi}, key=lambda i: fitness[i], reverse=True)
+                break
 
     return [_info(idx, f"Trace {k + 1}") for k, idx in enumerate(chosen)]
 
