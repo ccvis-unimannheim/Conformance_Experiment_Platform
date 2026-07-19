@@ -120,13 +120,13 @@ export default function ConformanceTermsPage() {
                   </h2>
                 </div>
                 <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
-                  A <strong>guideline</strong> specifies how a process is intended to be executed — defining which
-                  activities are involved and the allowed sequences in which they may be performed. It serves as the
-                  reference against which actual process behaviour is compared. A guideline is typically represented
-                  as a <strong>process model</strong> — a diagram that maps out the process's activities and the
-                  order in which they may occur (e.g. a BPMN diagram, Petri net, or DFG). In this study, "guideline"
-                  and "process model" refer to the same underlying reference behaviour and are used interchangeably
-                  depending on context.
+                  A <strong>guideline</strong> is a set of rules that describe the intended, imperative behaviour
+                  of a process — which activities are involved and the allowed sequences in which they may be
+                  performed. It serves as the reference against which actual process behaviour is compared. In
+                  this study, we represent a guideline using a <strong>process model</strong> — a diagram that
+                  maps out the process&apos;s activities and the order in which they may occur (e.g. a BPMN diagram,
+                  Petri net, or DFG). &ldquo;Guideline&rdquo; and &ldquo;process model&rdquo; therefore refer to the same underlying
+                  reference behaviour and are used interchangeably throughout.
                 </p>
               </section>
 
@@ -158,15 +158,15 @@ export default function ConformanceTermsPage() {
                       </thead>
                       <tbody>
                         {[
-                          ["e₁","id-4","A","01.01.24  09:00"],
-                          ["e₂","id-4","B","01.01.24  09:14"],
-                          ["e₃","id-4","C","01.01.24  09:28"],
-                          ["e₄","id-4","D","01.01.24  09:43"],
-                          ["e₅","id-4","F","01.01.24  09:57"],
-                          ["e₆","id-7","A","01.01.24  11:12"],
-                          ["e₇","id-7","C","01.01.24  11:55"],
-                          ["e₈","id-7","B","01.01.24  12:38"],
-                          ["e₉","id-7","E","01.01.24  13:21"],
+                          ["e₁","id-4","Receive Order","01.01.24  09:00"],
+                          ["e₂","id-4","Check Credit","01.01.24  09:14"],
+                          ["e₃","id-4","Confirm Order","01.01.24  09:28"],
+                          ["e₄","id-4","Ship Order","01.01.24  09:57"],
+                          ["e₅","id-4","Receive Payment","01.01.24  10:20"],
+                          ["e₆","id-7","Receive Order","01.01.24  11:12"],
+                          ["e₇","id-7","Confirm Order","01.01.24  11:55"],
+                          ["e₈","id-7","Check Credit","01.01.24  12:38"],
+                          ["e₉","id-7","Cancel Order","01.01.24  13:21"],
                         ].map(([ev, cid, act, ts], i) => (
                           <tr key={i} style={{ backgroundColor: i % 2 === 0 ? C.white : C.surface }}>
                             <td style={{ padding: "0.4rem 0.75rem", fontStyle: "italic" }}>{ev}</td>
@@ -178,7 +178,8 @@ export default function ConformanceTermsPage() {
                       </tbody>
                     </table>
                     <p style={{ fontSize: "0.8125rem", color: C.onVariant, marginTop: "0.75rem", lineHeight: 1.6 }}>
-                      Events e₁–e₅ (Case id-4) form one trace: A→B→C→D→F. Events e₆–e₉ (Case id-7) form another: A→C→B→E.
+                      Events e₁–e₅ (Case id-4) form one trace: Receive Order→Check Credit→Confirm Order→Ship Order→Receive Payment.
+                      Events e₆–e₉ (Case id-7) form another: Receive Order→Confirm Order→Check Credit→Cancel Order.
                     </p>
                   </div>
                 </Collapsible>
@@ -196,8 +197,8 @@ export default function ConformanceTermsPage() {
                 </div>
                 <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
                   A <strong>trace</strong> is the sequence of activities recorded for a single process execution (one case) —
-                  i.e. all events in the event log that share the same case identifier. For example, one patient visit or
-                  one loan application corresponds to one trace. Each trace can be compared against the guideline to
+                  i.e. all events in the event log that share the same case identifier. For example, one customer order
+                  corresponds to one trace. Each trace can be compared against the guideline to
                   assess whether it was executed correctly.
                 </p>
               </section>
@@ -214,8 +215,9 @@ export default function ConformanceTermsPage() {
                 </div>
                 <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
                   A <strong>guideline violation</strong> occurs when the behaviour recorded in a trace does not
-                  match what the guideline prescribes. Violations can occur at the level of individual events,
-                  whole traces, or across the entire log.
+                  match what the guideline prescribes. We detect violations by <strong>aligning</strong> each
+                  trace with the guideline: every step in the alignment is either a match, or a deviation —
+                  an activity that was executed but shouldn't have been, or one that was expected but missing.
                 </p>
                 <Collapsible label="Types of violations">
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
@@ -286,7 +288,25 @@ export default function ConformanceTermsPage() {
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
 
-              {/* ── 6. Degree of Conformance / Fitness */}
+              {/* ── 6. Conformance Rate */}
+              <section>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
+                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>percent</span>
+                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
+                    Conformance Rate
+                  </h2>
+                </div>
+                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
+                  The <strong>conformance rate</strong> is the percentage of traces in the event log that are
+                  fully conformant with the guideline. A trace is counted as conformant only if it contains
+                  no violations at all — it is a binary measure per trace. For example, a conformance rate of
+                  70% means that 70 out of every 100 traces are fully conformant.
+                </p>
+              </section>
+
+              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+
+              {/* ── 7. Degree of Conformance / Fitness */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>speed</span>
@@ -295,14 +315,15 @@ export default function ConformanceTermsPage() {
                   </h2>
                 </div>
                 <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: "0 0 1rem" }}>
-                  <strong>Degree of conformance</strong> is the general concept describing how well the behaviour
-                  recorded in an event log matches a guideline. In this study it is instantiated as
-                  <strong> fitness</strong> — a concrete, computed value between 0 and 1 that quantifies this match.
-                  The two terms are closely related but not strictly interchangeable: degree of conformance is the
-                  abstract notion, while fitness is the specific metric used to measure it here. Fitness accounts
-                  for the <em>extent</em> of violations across all traces — even a non-conformant trace may be
-                  partially conformant if only a few steps deviate. When shown as a percentage, fitness values are
-                  rounded to one decimal place (e.g. 97.9%).
+                  The <strong>degree of conformance</strong> describes how closely the behaviour recorded in an
+                  event log matches a guideline overall. In this study we measure it as <strong>fitness</strong> —
+                  a value between 0 (no match at all) and 1 (perfect match). Fitness is not just a count of how
+                  many traces are conformant: it also weighs <em>how many</em> deviations occur within each trace,
+                  so a trace with only one small deviation scores higher than one with many. Fitness can be
+                  computed in different ways — e.g. token-based <strong>replay fitness</strong> or
+                  <strong> alignment fitness</strong>; this study uses alignment fitness throughout, since
+                  alignments also pinpoint exactly which activities deviated. When shown as a percentage, fitness
+                  values are rounded to one decimal place (e.g. 97.9%).
                 </p>
                 <div style={{
                   display: "flex", alignItems: "flex-start", gap: "0.75rem",
@@ -356,24 +377,6 @@ export default function ConformanceTermsPage() {
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
 
-              {/* ── 7. Conformance Rate */}
-              <section>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
-                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>percent</span>
-                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
-                    Conformance Rate
-                  </h2>
-                </div>
-                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
-                  The <strong>conformance rate</strong> is the percentage of traces in the event log that are
-                  fully conformant with the guideline. A trace is counted as conformant only if it contains
-                  no violations at all — it is a binary measure per trace. For example, a conformance rate of
-                  70% means that 70 out of every 100 traces are fully conformant.
-                </p>
-              </section>
-
-              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
-
               {/* ── 8. Attribute */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
@@ -388,7 +391,7 @@ export default function ConformanceTermsPage() {
                 </p>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                   {[
-                    ["compare_arrows", "#15803d", "#f0fdf4", "#bbf7d0", "Control-flow attribute", "Describes the order or sequence in which activities are executed (e.g. which step comes next)."],
+                    ["compare_arrows", "#15803d", "#f0fdf4", "#bbf7d0", "Control-flow attribute", "The activity label itself — which step was performed (e.g. \"Check Credit\" or \"Ship Order\")."],
                     ["storage",        "#1d4ed8", "#eff6ff", "#bfdbfe", "Data attribute",         "Captures data values associated with an event or case (e.g. amount, category, status)."],
                     ["person",         "#7c3aed", "#f5f3ff", "#ddd6fe", "Resource attribute",     "Records who or what performed an activity (e.g. a specific employee or system)."],
                     ["schedule",       "#b45309", "#fffbeb", "#fde68a", "Time attribute",          "Captures when an activity occurred or how long it took (e.g. timestamp, duration)."],
@@ -419,9 +422,9 @@ export default function ConformanceTermsPage() {
                 </div>
                 <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
                   A <strong>process goal</strong> is a desired outcome or objective that a process execution is
-                  intended to achieve — for example, completing a patient treatment successfully or approving a
-                  loan application. Guideline violations may affect whether a process goal is reached, and
-                  understanding this relationship helps explain the impact of non-conformant behaviour.
+                  intended to achieve — for example, successfully shipping an order and receiving payment for it.
+                  Guideline violations may affect whether a process goal is reached, and understanding this
+                  relationship helps explain the impact of non-conformant behaviour.
                 </p>
               </section>
 

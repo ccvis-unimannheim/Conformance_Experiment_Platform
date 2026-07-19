@@ -512,7 +512,11 @@ def task34_flow_chart_elaborate_table(ctx, model_path, output_dir):
     for r in ctx["rows"]:
         act, mt = r["activity"], r["moveType"]
         if act and act != ">>":
-            if priority[mt] > priority.get(act_status.get(act, "Synchronous"), 0):
+            # First sighting always records the activity (even Synchronous,
+            # priority 0) so it's distinguishable from "not in trace" at all —
+            # a later, higher-priority move type for the same activity still
+            # overrides it.
+            if act not in act_status or priority[mt] > priority[act_status[act]]:
                 act_status[act] = mt
 
     def node_style_fn(eid, elem):
@@ -725,7 +729,11 @@ def task34_flow_chart_elaborate(ctx, model_path, output_dir):
     for r in ctx["rows"]:
         act, mt = r["activity"], r["moveType"]
         if act and act != ">>":
-            if priority[mt] > priority.get(act_status.get(act, "Synchronous"), 0):
+            # First sighting always records the activity (even Synchronous,
+            # priority 0) so it's distinguishable from "not in trace" at all —
+            # a later, higher-priority move type for the same activity still
+            # overrides it.
+            if act not in act_status or priority[mt] > priority[act_status[act]]:
                 act_status[act] = mt
 
     def node_style_fn(eid, elem):
