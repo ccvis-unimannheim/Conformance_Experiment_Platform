@@ -8,9 +8,9 @@ class PreliminaryAnswersRequest(BaseModel):
     education: str
     role: str
     field_of_study: str
+    rating_business_process_management: int # 1–5
     rating_process_mining: int       # 1–5
     rating_conformance_checking: int # 1–5
-    rating_data_visualization: int   # 1–5
     years_experience: int            # 0–15
     tools: List[str] = []            # PM tools used (moved from knowledge survey)
 
