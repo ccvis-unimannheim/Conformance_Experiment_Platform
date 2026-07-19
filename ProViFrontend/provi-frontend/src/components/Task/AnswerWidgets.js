@@ -79,7 +79,7 @@ function numericMeta(answerFormat) {
   switch (answerFormat) {
     case "pct":
     case "pct-set":
-      return { suffix: "%", step: "0.1", min: 0, max: 100, hint: "Enter a percentage (0–100)." };
+      return { suffix: "%", step: "0.1", min: 0, max: 100, hint: "Enter a number between 0 and 100, including decimals where applicable." };
     case "count":
     case "count-set":
       return { suffix: "", step: "1", min: 0, max: undefined, hint: "Enter a whole number (≥ 0)." };
