@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../../components/Admin/Toast";
+import EditTaskModal from "../../../../components/Admin/EditTaskModal";
 
 // ---------------------------------------------------------------------------
 // Static classification characteristics from the task taxonomy.
@@ -82,16 +83,35 @@ export default function TaskSelectionPage() {
     setToast((t) => ({ ...t, visible: false }));
   }, []);
 
+  // Edit Task modal state
+  const [editingTask, setEditingTask] = useState(null);
+
   useEffect(() => {
     if (!experimentId) router.replace("/admin/experiments/new");
   }, [experimentId, router]);
 
-  useEffect(() => {
-    fetch("/api/admin/tasks")
+  const fetchTasks = useCallback(() => {
+    return fetch("/api/admin/tasks")
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(setAllTasks)
       .catch((e) => setLoadError(e.message));
   }, []);
+
+  useEffect(() => {
+    fetchTasks();
+  }, [fetchTasks]);
+
+  async function saveEditedTask(payload) {
+    const taskId = getTaskId(editingTask);
+    const res = await fetch(`/api/admin/tasks/${encodeURIComponent(taskId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    showToast("Task updated successfully!");
+    await fetchTasks();
+  }
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -392,6 +412,13 @@ export default function TaskSelectionPage() {
                             </div>
                           )}
                         </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setEditingTask(task); }}
+                          title="Edit task question"
+                          className="text-on-surface-variant hover:text-primary flex-shrink-0 transition-colors p-1 rounded"
+                        >
+                          <span className="material-symbols-outlined text-sm">edit</span>
+                        </button>
                       </div>
                     </div>
                   );
@@ -460,6 +487,14 @@ export default function TaskSelectionPage() {
           </button>
         </div>
       </div>
+
+      {editingTask && (
+        <EditTaskModal
+          task={editingTask}
+          onClose={() => setEditingTask(null)}
+          onSave={saveEditedTask}
+        />
+      )}
 
       <Toast
         message={toast.message}
