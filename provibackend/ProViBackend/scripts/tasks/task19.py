@@ -322,9 +322,15 @@ def task19_bar_chart(eff, output_dir):
     ax.set_yticks(y)
     ax.set_yticklabels(labels, fontsize=FONT_ANNOT)
     ax.set_xlim(0, 112)
-    ax.set_xlabel(_goal_label(eff["outcome_activity"]), fontsize=FONT_LABEL)
-    ax.set_title("Violation Effect on Process Goal", fontsize=FONT_TITLE)
-    ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.13),
+    # Goal label goes ABOVE as a subtitle (not as an x-axis label) so the bottom is
+    # free for the legend — otherwise the two collide. Point offsets keep the
+    # title↔subtitle gap constant regardless of figure height.
+    ax.set_title("Violation Effect on Process Goal", fontsize=FONT_TITLE, pad=26)
+    ax.annotate(_goal_label(eff["outcome_activity"]),
+                xy=(0.5, 1.0), xytext=(0, 6), xycoords="axes fraction",
+                textcoords="offset points", ha="center", va="bottom",
+                fontsize=FONT_LABEL, color="#555555")
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.14),
               ncol=2, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
     ax.xaxis.grid(True, linestyle="--", alpha=0.45)
@@ -491,8 +497,9 @@ def task19_table_and_bar_chart(eff, output_dir):
     ax_b.set_yticks(y)
     ax_b.set_yticklabels(labels, fontsize=FONT_ANNOT - 1)
     ax_b.set_xlim(0, 112)
-    ax_b.set_xlabel(_goal_label(eff["outcome_activity"]), fontsize=FONT_LABEL)
-    ax_b.legend(loc="lower center", bbox_to_anchor=(0.5, -0.12),
+    # No x-axis label — the shared goal-label subtitle at the figure top already states
+    # the metric; dropping it frees the bottom so the legend doesn't collide with it.
+    ax_b.legend(loc="lower center", bbox_to_anchor=(0.5, -0.10),
                 ncol=2, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT - 1)
     ax_b.spines[["top", "right"]].set_visible(False)
     ax_b.xaxis.grid(True, linestyle="--", alpha=0.45)
@@ -560,16 +567,17 @@ def task19_parallel_sets(eff, output_dir):
         left_label_fontsize=FONT_ANNOT - 2,
     )
     # draw_parallel_sets fills the axes with data-y in [-0.03, 1.11] and puts the
-    # column headers at data-y=1.04. Push the axes top near the figure top, then place
-    # the title a *fixed* short distance above those headers (in inches) so it hugs the
-    # diagram at any figure height instead of floating above a big empty gap.
+    # column headers at data-y=1.04. Push the axes top near the figure top, then stack
+    # the same main-title + goal-subtitle as the other idioms a *fixed* distance above
+    # those headers (in inches) so the block hugs the diagram at any figure height.
     top = 0.99
     fig.subplots_adjust(top=top, bottom=0.04, left=0.02, right=0.98)
     header_frac = (1.04 - (-0.03)) / (1.11 - (-0.03))     # header axes-fraction
     header_figy = 0.04 + header_frac * (top - 0.04)
-    fig.text(0.5, header_figy + 0.34 / fig_h,
-             f"Violation Pattern vs. {_goal_label(eff['outcome_activity'])}",
+    fig.text(0.5, header_figy + 0.50 / fig_h, "Violation Effect on Process Goal",
              ha="center", va="bottom", fontsize=FONT_TITLE)
+    fig.text(0.5, header_figy + 0.24 / fig_h, _goal_label(eff["outcome_activity"]),
+             ha="center", va="bottom", fontsize=FONT_LABEL, color="#555555")
     save_svg(fig, path)
 
 
