@@ -605,6 +605,9 @@ async def update_task(task_id: str, update_data: ds.TaskUpdate):
     fields = {k: v for k, v in update_data.model_dump().items() if v is not None}
     if not fields:
         raise HTTPException(status_code=400, detail="No fields to update.")
+    # Marks this document as admin-customized so the startup seed (main.py
+    # _seed_collection) stops overwriting it with seed_data.py's hardcoded values.
+    fields["_admin_edited"] = True
     updated = dbc.update_document("Task", query={"_id": task_id}, update={"$set": fields})
     if not updated:
         raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found.")
