@@ -668,20 +668,21 @@ def task34_flow_chart_basic(ctx, output_dir):
     fig, ax = plt.subplots(figsize=(fig_w, 3.2))
     draw_chevron_strip(ax, nodes, fontsize=15, uniform_width=True)
     ax.set_title("Trace Alignment", fontsize=FONT_TITLE, pad=8)
+    # Only list the move types actually present in this trace — a static
+    # 3-entry legend implied all three always occur, which isn't true.
+    present_types = {r["moveType"] for r in rows}
     legend_handles = [
-        mpatches.Patch(facecolor=_MOVE_COLORS["Synchronous"],   edgecolor="black", linewidth=0.75,
-                       label=_MOVE_DISPLAY["Synchronous"]),
-        mpatches.Patch(facecolor=_MOVE_COLORS["Move on Model"], edgecolor="black", linewidth=0.75,
-                       label=_MOVE_DISPLAY["Move on Model"]),
-        mpatches.Patch(facecolor=_MOVE_COLORS["Move on Log"],   edgecolor="black", linewidth=0.75,
-                       label=_MOVE_DISPLAY["Move on Log"]),
+        mpatches.Patch(facecolor=_MOVE_COLORS[mt], edgecolor="black", linewidth=0.75,
+                       label=_MOVE_DISPLAY[mt])
+        for mt in ("Synchronous", "Move on Model", "Move on Log")
+        if mt in present_types
     ]
     # Anchored to the axes (not the figure) so the gap below the chevrons is
     # predictable regardless of figure width; tight_layout's rect reserves the
     # room instead of squeezing the legend up against the chevron bottoms.
     ax.legend(handles=legend_handles, loc="upper center", bbox_to_anchor=(0.5, -0.18),
-              ncol=3, fontsize=FONT_LABEL + 2, frameon=True, fancybox=False, edgecolor="#cccccc",
-              handleheight=1.8, handlelength=2.4, markerscale=1.4)
+              ncol=len(legend_handles), fontsize=FONT_LABEL + 2, frameon=True, fancybox=False,
+              edgecolor="#cccccc", handleheight=1.8, handlelength=2.4, markerscale=1.4)
     fig.tight_layout(rect=[0, 0.10, 1, 1])
     save_svg(fig, os.path.join(output_dir, "task34_flow_chart_basic.svg"))
 
@@ -720,18 +721,27 @@ def task34_flow_chart_elaborate(ctx, model_path, output_dir):
         if mt == "Synchronous":    return (_MOVE_COLORS["Synchronous"], "#888888", 1.0, CAT_STRONG)
         return ("#FAFAFA", "#CCCCCC", 1.0, "#444444")
 
-    legend_items = [
-        (_MOVE_COLORS["Synchronous"], "#888888", 1.0, _MOVE_DISPLAY["Synchronous"]),
-        (CAT_SOFT,  "#888888", 1.5, _MOVE_DISPLAY["Move on Model"]),
-        (CAT_MID,   "#555555", 1.5, _MOVE_DISPLAY["Move on Log"]),
-        ("#FAFAFA", "#CCCCCC", 1.0, "Not in trace"),
-    ]
+    # Only list legend entries that actually occur among this trace's task
+    # nodes — a static 4-entry legend implied all of them always occur.
+    present_status = set(act_status.values())
+    task_names = {e["name"] for e in parsed["elements"].values() if e.get("kind") == "task"}
+    has_not_in_trace = any(name not in act_status for name in task_names)
+
+    legend_items = []
+    if "Synchronous" in present_status:
+        legend_items.append((_MOVE_COLORS["Synchronous"], "#888888", 1.0, _MOVE_DISPLAY["Synchronous"]))
+    if "Move on Model" in present_status:
+        legend_items.append((CAT_SOFT, "#888888", 1.5, _MOVE_DISPLAY["Move on Model"]))
+    if "Move on Log" in present_status:
+        legend_items.append((CAT_MID, "#555555", 1.5, _MOVE_DISPLAY["Move on Log"]))
+    if has_not_in_trace:
+        legend_items.append(("#FAFAFA", "#CCCCCC", 1.0, "Not in trace"))
     compose_bpmn_panels(
         panels=[{"parsed": parsed, "node_style_fn": node_style_fn, "subtitle": ""}],
         out_path=out_path,
         title="BPMN Alignment — Violation Overview",
         legend_items=legend_items,
-        h_scale=1.3,
+        h_scale=1.0,
         node_font_size=15.0,
         legend_font_size=13.0,
         title_font_size=16.0,
