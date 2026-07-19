@@ -95,7 +95,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
-from shared import save_svg, make_table, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS_R, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
+from shared import save_svg, make_table, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS_R, FONT_TITLE, FONT_LABEL, FONT_ANNOT, contrasting_text_color, classify_step as _classify_step
 
 # ── Cividis palette ───────────────────────────────────────────────────────────
 _C_DARK   = GREY_DARK
@@ -118,11 +118,10 @@ _VTYPE_DISPLAY = {
     "Move on Log":   "Log Move",
     "Mismatch Move": "Mismatch Move",
 }
-_C_MODEL_MOVE = "#3B6FA0"  # blue
-_C_LOG_MOVE   = "#D08A3E"  # amber
 
-# Flat per-column colour for the Matrix idiom (same convention as task09's
-# _VTYPE_COLOR — colour identifies the violation type, not a value scale).
+# Flat colour per violation type, shared by the Bar Chart and Matrix idioms
+# (colour identifies the violation type, not a value scale/magnitude — same
+# Model Move/Log Move/Mismatch Move → light/med/dark mapping as task09).
 _VTYPE_COLOR = {
     "Move on Model": _C_LIGHT,
     "Move on Log":   _C_MED,
@@ -266,9 +265,9 @@ def task11_bar_chart(selected, trace_coverage, n_traces, output_dir):
     ax.set_facecolor("#fafbfc")
 
     bars_model = ax.bar(x - width / 2, model_counts, width,
-                         color=_C_MODEL_MOVE, edgecolor="none", label="Model Move")
+                         color=_VTYPE_COLOR["Move on Model"], edgecolor="none", label="Model Move")
     bars_log = ax.bar(x + width / 2, log_counts, width,
-                       color=_C_LOG_MOVE, edgecolor="none", label="Log Move")
+                       color=_VTYPE_COLOR["Move on Log"], edgecolor="none", label="Log Move")
 
     for bars, counts in ((bars_model, model_counts), (bars_log, log_counts)):
         for bar, cnt in zip(bars, counts):
@@ -332,9 +331,7 @@ def task11_matrix(selected, trace_coverage, n_traces, output_dir):
 
     for j, vt in enumerate(selected_vtypes):
         col_color = _VTYPE_COLOR.get(vt, _C_MED)
-        r, g, b = mcolors.to_rgb(col_color)
-        lum = 0.299 * r + 0.587 * g + 0.114 * b
-        col_text_color = "white" if lum < 0.6 else _C_DARK
+        col_text_color = contrasting_text_color(col_color)
         for i, act in enumerate(selected_acts):
             if (act, vt) in selected_set:
                 cnt = trace_coverage.get((act, vt), 0)
