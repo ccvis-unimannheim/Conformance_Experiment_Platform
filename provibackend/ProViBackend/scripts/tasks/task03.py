@@ -374,7 +374,7 @@ def task03_matrix(throughput_buckets, output_dir: str):
     ax.set_xticklabels(_GROUPS, fontsize=FONT_ANNOT)
     ax.set_yticks([r + 0.5 for r in range(n_rows)])
     ax.set_yticklabels(tt_labels, fontsize=FONT_ANNOT - 1)
-    ax.set_xlabel("Conformance Group   (cell value = % of group's traces)", fontsize=FONT_LABEL)
+    ax.set_xlabel("cell value = % of group's traces", fontsize=FONT_LABEL)
     ax.tick_params(length=0)
     for spine in ax.spines.values():
         spine.set_visible(False)
