@@ -28,12 +28,20 @@ def _seed_collection(collection_name: str, items: list, key_field: str):
     startup so edits to seed_data.py propagate to existing documents; the `_id`
     is only assigned on insert. Any non-canonical fields already on the document
     (not present in seed_data) are left untouched.
+
+    Documents an admin has customized via the API (flagged `_admin_edited`,
+    e.g. `PATCH /admin/tasks/{id}`) are skipped entirely — code no longer owns
+    those fields once an admin has overridden them, otherwise every backend
+    restart would silently discard the admin's edit.
     """
     db = dbc.connect_to_database()
     for item in items:
         doc = dict(item)
         doc.pop("_id", None)
         _id = str(uuid.uuid5(_SEED_NAMESPACE, item[key_field]))
+        existing = db[collection_name].find_one({"_id": _id}, {"_admin_edited": 1})
+        if existing and existing.get("_admin_edited"):
+            continue
         db[collection_name].update_one(
             {"_id": _id},
             {"$set": doc, "$setOnInsert": {"_id": _id}},
