@@ -307,7 +307,8 @@ def task19_bar_chart(eff, output_dir):
     with_vals = [r["rate_with"] for r in recs]
     wout_vals = [r["rate_without"] for r in recs]
 
-    fig, ax = plt.subplots(figsize=(11, max(4.0, len(recs) * 0.6 + 1.6)))
+    fig_h = max(4.0, len(recs) * 0.6 + 1.6)
+    fig, ax = plt.subplots(figsize=(11, fig_h))
     y = np.arange(len(labels))
     bh = 0.38
     bars_with = ax.barh(y + bh / 2, with_vals, height=bh, color=_C_WITH,
@@ -330,12 +331,12 @@ def task19_bar_chart(eff, output_dir):
                 xy=(0.5, 1.0), xytext=(0, 6), xycoords="axes fraction",
                 textcoords="offset points", ha="center", va="bottom",
                 fontsize=FONT_LABEL, color="#555555")
-    ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.14),
-              ncol=2, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
+    # Bars carry label=... ; the legend itself is drawn by _bottom_legend below.
     ax.spines[["top", "right"]].set_visible(False)
     ax.xaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    fig.tight_layout(pad=1.2)
+    fig.tight_layout(pad=1.2)   # first: fit the long y-axis labels (left margin)
+    _bottom_legend(fig, ax, fig_h)
     save_svg(fig, path)
 
 
@@ -363,6 +364,20 @@ def _fig_title_and_goal(fig, fig_h, eff, content_top):
              ha="center", va="bottom", fontsize=FONT_TITLE)
     fig.text(0.5, content_top + 0.14 / fig_h, _goal_label(eff["outcome_activity"]),
              ha="center", va="bottom", fontsize=FONT_LABEL, color="#555555")
+
+
+def _bottom_legend(fig, ax, fig_h, center_x=0.5, fontsize=FONT_ANNOT):
+    """Place ax's series legend in a fixed-height band BELOW the x tick labels, anchored
+    in figure coordinates. An axes-fraction offset (bbox_to_anchor y<0) can't do this
+    reliably: the same fraction is a different number of inches on a short vs. tall
+    figure, so it lands on the tick labels on some pattern counts and floats far on
+    others. Reserving a constant 0.8" band and anchoring at a constant 0.12" keeps the
+    gap identical everywhere."""
+    ax.set_position([ax.get_position().x0, 0.8 / fig_h,
+                     ax.get_position().width, ax.get_position().y1 - 0.8 / fig_h])
+    fig.legend(*ax.get_legend_handles_labels(), loc="lower center",
+               bbox_to_anchor=(center_x, 0.12 / fig_h),
+               ncol=2, frameon=True, framealpha=0.9, fontsize=fontsize)
 
 
 def task19_table(eff, output_dir):
@@ -497,18 +512,21 @@ def task19_table_and_bar_chart(eff, output_dir):
     ax_b.set_yticks(y)
     ax_b.set_yticklabels(labels, fontsize=FONT_ANNOT - 1)
     ax_b.set_xlim(0, 112)
-    # No x-axis label — the shared goal-label subtitle at the figure top already states
-    # the metric; dropping it frees the bottom so the legend doesn't collide with it.
-    ax_b.legend(loc="lower center", bbox_to_anchor=(0.5, -0.10),
-                ncol=2, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT - 1)
+    # No x-axis label — the shared goal-label subtitle at the figure top states the
+    # metric; the legend is drawn below in the reserved bottom band. (Bars keep label=.)
     ax_b.spines[["top", "right"]].set_visible(False)
     ax_b.xaxis.grid(True, linestyle="--", alpha=0.45)
     ax_b.set_axisbelow(True)
-    # Reserve the same fixed top band as the standalone table for the two title lines
-    # (no tight_layout — it would fight subplots_adjust and re-introduce the gap).
+    # Fixed top band for the two title lines + fixed 0.8" bottom band for the legend;
+    # both subplots share the extent so table rows and bars stay aligned. (No
+    # tight_layout — it would fight subplots_adjust and re-introduce the gaps.)
     content_top = 1.0 - 0.85 / fig_h
-    fig.subplots_adjust(left=0.03, right=0.985, top=content_top, bottom=0.12)
+    fig.subplots_adjust(left=0.03, right=0.985, top=content_top, bottom=0.8 / fig_h)
     _fig_title_and_goal(fig, fig_h, eff, content_top)
+    pos_b = ax_b.get_position()
+    fig.legend(*ax_b.get_legend_handles_labels(), loc="lower center",
+               bbox_to_anchor=((pos_b.x0 + pos_b.x1) / 2, 0.12 / fig_h),
+               ncol=2, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT - 1)
     save_svg(fig, path)
 
 
