@@ -257,6 +257,11 @@ class Task(BaseModel):
     description: str
     answer_type: str
 
+class TaskUpdate(BaseModel):
+    label: str | None = None
+    description: str | None = None
+    answer_type: str | None = None
+
 class Question(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     id: str = Field(alias="_id")

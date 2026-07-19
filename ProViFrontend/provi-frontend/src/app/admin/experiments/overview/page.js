@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../../components/Admin/Toast";
+import EditTaskModal from "../../../../components/Admin/EditTaskModal";
 import { resolveIdiomLabel } from "../../../../utils/idiomLabels";
 
 function IdiomPreviewModal({ experimentId, taskKey, idiomKey, idiomLabel, datasetTitle, paramsSummary, onClose }) {
@@ -159,6 +160,7 @@ function ExperimentOverviewContent() {
   const [publishing, setPublishing] = useState(false);
 
   const [previewModal, setPreviewModal] = useState(null); // { taskKey, idiomKey, idiomLabel }
+  const [editingTask, setEditingTask] = useState(null);
 
   const [toast, setToast] = useState({ visible: false, message: "", isError: false });
   const showToast = useCallback((message, isError = false) => {
@@ -258,6 +260,18 @@ function ExperimentOverviewContent() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function saveEditedTask(payload) {
+    const taskId = getId(editingTask);
+    const res = await fetch(`/api/admin/tasks/${encodeURIComponent(taskId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    showToast("Task updated successfully!");
+    await init();
   }
 
   async function saveAsDraft() {
@@ -445,24 +459,32 @@ function ExperimentOverviewContent() {
                 >
                   {/* Task header */}
                   <div className="border-l-4 border-primary p-5">
-                    <div className="flex items-start gap-3">
-                      <span className="text-xs font-bold bg-blue-100 text-primary px-2 py-0.5 rounded flex-shrink-0 mt-0.5">
-                        {task.task_key}
-                      </span>
-                      <div>
-                        <p className="text-sm font-semibold text-on-surface leading-snug">
-                          {task.label}
-                        </p>
-                        {task.description && (
-                          <p className="text-xs text-on-surface-variant mt-0.5">
-                            {task.description}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <span className="text-xs font-bold bg-blue-100 text-primary px-2 py-0.5 rounded flex-shrink-0 mt-0.5">
+                          {task.task_key}
+                        </span>
+                        <div>
+                          <p className="text-sm font-semibold text-on-surface leading-snug">
+                            {task.label}
                           </p>
-                        )}
+                          {task.description && (
+                            <p className="text-xs text-on-surface-variant mt-0.5">
+                              {task.description}
+                            </p>
+                          )}
+                        </div>
                       </div>
+                      <button
+                        onClick={() => setEditingTask(task)}
+                        className="text-xs text-primary border border-primary/30 px-3 py-1.5 rounded hover:bg-blue-50 transition-colors flex-shrink-0"
+                      >
+                        Edit
+                      </button>
                     </div>
                   </div>
 
-                  <div className="divide-y divide-border-subtle">
+                  <div className="divide-y divide-border-subtle border-t border-border-subtle">
                     {/* Selected Idioms */}
                     <div className="p-5">
                       <div className="flex items-center justify-between mb-3">
@@ -691,6 +713,14 @@ function ExperimentOverviewContent() {
           datasetTitle={previewModal.datasetTitle}
           paramsSummary={previewModal.paramsSummary}
           onClose={() => setPreviewModal(null)}
+        />
+      )}
+
+      {editingTask && (
+        <EditTaskModal
+          task={editingTask}
+          onClose={() => setEditingTask(null)}
+          onSave={saveEditedTask}
         />
       )}
     </div>
