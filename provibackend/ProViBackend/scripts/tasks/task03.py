@@ -244,7 +244,7 @@ def task03_bar_chart(throughput_buckets, output_dir: str):
 def task03_table(throughput_buckets, output_dir: str):
     """One table: throughput-time quartile buckets × per-group within-group share (%)."""
     throughput_rows   = _task03_throughput_bucket_rows(throughput_buckets)
-    throughput_labels = ["Throughput time", "Conformant (%)", "Non-conformant (%)"]
+    throughput_labels = ["Throughput time", "Conformant (% of group)", "Non-conformant (% of group)"]
 
     fig_h = max(4.0, 1.4 + max(1, len(throughput_rows)) * 0.5)
     fig = plt.figure(figsize=(9, fig_h))
@@ -263,7 +263,7 @@ def task03_table_and_bar_chart(throughput_buckets, output_dir: str):
     """Left: throughput-bucket table (within-group share % per group). Right: grouped
     horizontal bars of the same within-group shares — one encoding in two forms."""
     throughput_rows   = _task03_throughput_bucket_rows(throughput_buckets)
-    throughput_labels = ["Throughput time", "Conformant (%)", "Non-conformant (%)"]
+    throughput_labels = ["Throughput time", "Conformant (% of group)", "Non-conformant (% of group)"]
 
     fig_h = max(5.0, 1.6 + max(1, len(throughput_rows)) * 0.5)
     fig = plt.figure(figsize=(15, fig_h))
