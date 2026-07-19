@@ -112,10 +112,11 @@ _TRACE_COLOR = GREY_MED
 # Consistent figure title across every idiom.
 TITLE = "Trace Conformance Fitness"
 
-# Activity-name font in the chevron flow chart. 11pt fills the chevron's built-in
-# width headroom (calibrated for ~9pt) without touching the arrow edges; the
-# shared auto-shrink still handles any unusually long label. Bump here to retune.
-_CHEVRON_FONT = 11
+# Activity-name font in the chevron flow chart. The chevron width has a fixed
+# margin on top of its per-character allowance, so realistic activity names stay
+# inside the arrow at 13pt; the shared auto-shrink still catches any outlier.
+# Bump here to retune.
+_CHEVRON_FONT = 13
 
 
 # ---------------------------------------------------------------------------
