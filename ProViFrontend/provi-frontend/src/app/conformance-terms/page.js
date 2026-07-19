@@ -4,6 +4,7 @@ import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 
 import ProcessModelImage from "../../public/images/order_to_cash_model.jpeg";
 import HeaderLogos from "../../components/General/HeaderLogos";
@@ -57,8 +58,60 @@ function Collapsible({ label, children }) {
   );
 }
 
+function ImageLightbox({ src, alt, onClose }) {
+  React.useEffect(() => {
+    const onKeyDown = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 200,
+        backgroundColor: "rgba(20,24,25,0.85)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close"
+        style={{
+          position: "absolute", top: "1.25rem", right: "1.5rem",
+          width: "2.5rem", height: "2.5rem", borderRadius: "50%",
+          border: "none", backgroundColor: "rgba(255,255,255,0.15)", color: C.white,
+          fontSize: "1.5rem", lineHeight: 1, cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}
+      >
+        <span className="material-symbols-outlined">close</span>
+      </button>
+      <p style={{
+        position: "absolute", top: "1.5rem", left: "1.5rem",
+        color: "rgba(255,255,255,0.7)", fontSize: "0.8125rem",
+      }}>
+        Scroll or pinch to zoom · drag to pan · click outside to close
+      </p>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: "90vw", height: "85vh" }}
+      >
+        <TransformWrapper initialScale={1} minScale={0.5} maxScale={8} centerOnInit>
+          <TransformComponent wrapperStyle={{ width: "100%", height: "100%" }} contentStyle={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- lightbox needs the raw <img> for react-zoom-pan-pinch to control */}
+            <img src={src} alt={alt} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: "0.5rem" }} />
+          </TransformComponent>
+        </TransformWrapper>
+      </div>
+    </div>
+  );
+}
+
 export default function ConformanceTermsPage() {
   const router = useRouter();
+  const [imageZoomOpen, setImageZoomOpen] = React.useState(false);
 
   return (
     <div style={{ backgroundColor: C.surface, color: C.onSurface, minHeight: "100vh", fontFamily: "'Inter', Arial, sans-serif" }}>
@@ -109,16 +162,32 @@ export default function ConformanceTermsPage() {
           }}>
             <p style={{ fontSize: "0.8125rem", color: C.onVariant, margin: "0 0 0.75rem", lineHeight: 1.6 }}>
               This is the <strong>process model (guideline)</strong> used throughout this study — an order-to-cash
-              process. The definitions below refer back to it.
+              process. The definitions below refer back to it. Click the diagram to enlarge.
             </p>
-            <div style={{ overflowX: "auto" }}>
+            <button
+              type="button"
+              onClick={() => setImageZoomOpen(true)}
+              aria-label="Enlarge process model diagram"
+              style={{
+                display: "block", width: "100%", padding: 0, border: "none", background: "none", cursor: "zoom-in",
+                overflowX: "auto",
+              }}
+            >
               <Image
                 src={ProcessModelImage}
                 alt="Order-to-cash process model (BPMN): Receive Order, Check Credit, Confirm Order, Prepare Shipment, Issue Invoice, Ship Order, Receive Payment, Cancel Order"
                 style={{ width: "100%", height: "auto", borderRadius: "0.5rem" }}
               />
-            </div>
+            </button>
           </div>
+
+          {imageZoomOpen && (
+            <ImageLightbox
+              src={ProcessModelImage.src}
+              alt="Order-to-cash process model (BPMN): Receive Order, Check Credit, Confirm Order, Prepare Shipment, Issue Invoice, Ship Order, Receive Payment, Cancel Order"
+              onClose={() => setImageZoomOpen(false)}
+            />
+          )}
 
           {/* Content card */}
           <div style={{
