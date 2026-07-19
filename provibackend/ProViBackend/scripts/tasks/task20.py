@@ -956,7 +956,7 @@ def task20_table(panels, output_dir):
     if not panels:
         render_empty_state_svg(path, _ATTR_SUPTITLE, "No candidate attribute could be bucketed.")
         return
-    col_labels = ["Bucket", "Violation Rate (%)"]
+    col_labels = ["Attribute Value", "Violation Rate (%)"]
     height_ratios = [max(1, len(labels)) for (_m, (labels, _r, _c)) in panels]
     fig_h = max(4.0, 1.0 + sum(height_ratios) * 0.42 + len(panels) * 0.55)
     fig = plt.figure(figsize=(8, fig_h))
@@ -1068,7 +1068,7 @@ def task20_table_bar_chart(panels, output_dir):
     if not panels:
         render_empty_state_svg(path, _ATTR_SUPTITLE, "No candidate attribute could be bucketed.")
         return
-    col_labels = ["Bucket", "Violation Rate (%)"]
+    col_labels = ["Attribute Value", "Violation Rate (%)"]
     height_ratios = [max(1, len(labels)) for (_m, (labels, _r, _c)) in panels]
     fig_h = max(4.0, 1.0 + sum(height_ratios) * 0.5 + len(panels) * 0.6)
     fig = plt.figure(figsize=(11, fig_h))

@@ -348,6 +348,7 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
     def conformant_threshold():
         raw = p.get("conformant_threshold")
         return 1.0 if (raw is None or raw == "") else float(raw)
+    def target_patterns_task19():       return p.get("target_patterns", None)
 
     return {
         "task01": lambda d: task01.generate(log, fitness_df, d, outcome_activity=outcome_activity()),
@@ -368,7 +369,8 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
         "task16": lambda d: task16.generate(log, fitness_df, alignments, d, model_path=model_path),
         "task17": lambda d: task17.generate(log, alignments, d, model_path=model_path),
         "task18": lambda d: task18.generate(log, alignments, model_path, d),
-        "task19": lambda d: task19.generate(log, alignments, model_path, d, outcome_activity=outcome_activity()),
+        "task19": lambda d: task19.generate(log, alignments, model_path, d, outcome_activity=outcome_activity(),
+                                            target_patterns=target_patterns_task19()),
         "task20": lambda d: task20.generate(log, alignments, d, model_path=model_path,
                                             attribute_set=(p.get("attribute_set") or None)),
         "task21": lambda d: task21.generate(log, alignments, model_path, d),
