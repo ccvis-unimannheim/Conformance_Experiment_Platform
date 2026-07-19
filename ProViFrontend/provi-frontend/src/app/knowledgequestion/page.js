@@ -5,8 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import ProjectLogo from "../../public/images/logo-no-background.png";
-import UniLogo from "../../public/images/Logo_UMA_EN_RGB.png";
+import HeaderLogos from "../../components/General/HeaderLogos";
 
 const C = {
   primary:       "#00305e",
@@ -127,10 +126,7 @@ export default function KnowledgeQuestionPage() {
           maxWidth: "56rem", margin: "0 auto", width: "100%",
           display: "flex", justifyContent: "space-between", alignItems: "center",
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <Image priority src={ProjectLogo} width={90} height={36} alt="ProVi Logo" style={{ objectFit: "contain" }} />
-            <Image priority src={UniLogo} width={140} height={36} alt="University of Mannheim Logo" style={{ objectFit: "contain" }} />
-          </div>
+          <HeaderLogos />
           <div />
         </div>
       </header>

@@ -14,7 +14,7 @@ const geistMono = localFont({
 });
 
 export const metadata = {
-  title: "ProVi",
+  title: "ProCon",
   description: "Survey for Process Visualization",
 };
 
