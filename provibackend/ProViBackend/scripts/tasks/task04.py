@@ -37,65 +37,53 @@ IDIOMS = ["flow_chart_basic",
 # ---------------------------------------------------------------------------
 # Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8; design doc §2 row 4)
 #
-# Task 4 (SEMI): compare conformance of individual traces. The admin optionally
-# picks exactly which traces to show; otherwise the first 10 traces in log order
-# are used. The answer is either one fitness percentage per trace (pct-set) or
-# the traces ordered from most to least conformant (rank).
+# Task 4 (MANUAL): compare the trace-level conformance PATTERNS of two traces. By
+# default the two traces with the largest violation-count gap are shown; the admin
+# can override the selection (and pick more than two). The participant answers in
+# free text, comparing where each trace conforms to or deviates from the guideline;
+# grading is against the static RUBRIC.
 # ---------------------------------------------------------------------------
-GT_TIER = "SEMI"
+GT_TIER = "MANUAL"
 
 PARAM_SPEC = [
     {
         "key": "trace_ids",
-        "label": "Specific traces to show (optional; default = first 10 traces in log order)",
+        "label": "Specific traces to compare (optional; default = the two traces with the largest violation gap)",
         # Internal to reading the chart — the participant sees the traces directly.
         "hide_hint": True,
         "widget": "select-many",
         "source": "log.trace_ids",
         # Admin convenience: a checkbox that auto-selects one trace from each of
-        # the first N distinct variants (more fitness/behaviour variation than the
-        # log-order default). Handled entirely in the specify-page select-many UI.
+        # the first N distinct variants. Handled in the specify-page select-many UI.
         "variant_autoselect": True,
-        "autoselect_count": 10,
+        "autoselect_count": 2,
         "default": [],
         "required": False,
-        "optional_hint": "(optional — leave empty to show the first 10 traces in log order)",
+        "optional_hint": "(optional — leave empty to compare the two traces with the largest violation gap)",
     },
 ]
 
 ANSWER_FORMATS = [
-    {"key": "pct-set", "gt_shape": "labelled-set", "decisive_default": True},
-    {"key": "rank",    "gt_shape": "rank",          "decisive_default": True},
+    {"key": "free-text", "gt_shape": "reference", "decisive_default": True},
 ]
+
+RUBRIC = (
+    "A complete answer compares the two traces' conformance patterns. For each "
+    "trace it identifies where the execution conforms to the guideline and where "
+    "it deviates — an activity skipped relative to the model (move on model) or an "
+    "extra activity inserted (move on log) — and contrasts the two, e.g. 'Trace 1 "
+    "is fully conformant, whereas Trace 2 skips Approve Treatment and inserts an "
+    "extra step'. Award full marks for correctly naming the key deviation(s) in "
+    "each trace and stating which trace is more conformant; partial marks for "
+    "identifying the more-conformant trace without the specific deviations; deduct "
+    "marks for misidentifying which trace conforms more."
+)
 
 
 def validate_params(log, params) -> list:
     """trace_ids is optional; the generic /specify validation already checks that
     each selected id exists in the dataset, so nothing task-specific is required."""
     return []
-
-
-def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
-    """Fitness per sampled trace as pct-set (labelled-set) or rank (fitness desc)."""
-    trace_ids = params.get("trace_ids") or None
-    tdf = _task04_build_trace_df(log, fitness_df, trace_ids=trace_ids)
-    if tdf.empty:
-        return {"value": None, "options": []}
-    if answer_format == "rank":
-        ranked = tdf.sort_values(["fitness", "label"], ascending=[False, True]).reset_index(drop=True)
-        return {
-            "options": [
-                {"label": row["label"], "value": row["label"]}
-                for _, row in ranked.iterrows()
-            ]
-        }
-    return {
-        "value": None,
-        "options": [
-            {"label": row["label"], "value": f"{round(row['fitness'] * 100)}%", "correct": True}
-            for _, row in tdf.iterrows()
-        ],
-    }
 
 
 import os
@@ -116,7 +104,7 @@ from shared import (
 )
 
 # Default number of traces to sample when the admin doesn't pick specific ones.
-SAMPLE_N = 10
+SAMPLE_N = 2
 
 # Single uniform bar/line colour — no conformant / non-conformant distinction.
 _TRACE_COLOR = GREY_MED
@@ -422,13 +410,22 @@ def generate(log, fitness_df, output_dir: str, trace_ids=None, alignments=None):
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 4 visualizations ---")
 
-    tdf = _task04_build_trace_df(log, fitness_df, trace_ids=trace_ids)
+    # Single trace selection shared by EVERY idiom: the admin-selected traces, or
+    # (default) the two traces with the largest violation-count gap. This needs
+    # alignments; without them we fall back to the first SAMPLE_N in log order.
+    selected = _task04_select_compare_traces(log, alignments, fitness_df, trace_ids=trace_ids) \
+        if alignments else []
+    if selected:
+        tdf = pd.DataFrame([{"case_id": t["case_id"], "fitness": t["fitness"], "label": t["label"]}
+                            for t in selected])
+    else:
+        tdf = _task04_build_trace_df(log, fitness_df, trace_ids=trace_ids)
     if tdf.empty:
         logger.warning("      Skipped Task 4: no trace data available.")
         return
 
-    source = "admin-selected" if trace_ids else f"first {len(tdf)} in log order"
-    logger.info(f"      -> Showing {len(tdf)} traces ({source}).")
+    source = "admin-selected" if trace_ids else "largest violation gap"
+    logger.info(f"      -> Comparing {len(tdf)} traces ({source}).")
 
     task04_bar_chart(tdf, output_dir)
     task04_table(tdf, output_dir)
@@ -437,10 +434,6 @@ def generate(log, fitness_df, output_dir: str, trace_ids=None, alignments=None):
     task04_line_graph(tdf, output_dir)
     task04_heatmap(tdf, output_dir)
 
-    # Trace-level pattern comparison — pick two traces with a large violation gap
-    # (or the admin-selected ids) and render their chevron flow charts.
-    if alignments:
-        selected = _task04_select_compare_traces(log, alignments, fitness_df, trace_ids=trace_ids)
-        vs = " vs ".join(f"{t['label']}({t['violations']} viol)" for t in selected)
-        logger.info(f"      -> Flow-chart comparison: {vs}")
+    # Trace-level pattern comparison — chevron flow chart of the same traces.
+    if selected:
         task04_flow_chart_basic(selected, output_dir)
