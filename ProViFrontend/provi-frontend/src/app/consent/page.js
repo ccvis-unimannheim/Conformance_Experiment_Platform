@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
+import Link from "next/link";
 import HeaderLogos from "../../components/General/HeaderLogos";
 
 export default function ConsentPage() {
@@ -121,6 +121,12 @@ export default function ConsentPage() {
                     <span><strong>GDPR Compliance:</strong> Data is stored on secure, encrypted servers at the University of Mannheim for academic research only.</span>
                   </li>
                 </ul>
+                <p className="text-on-surface-variant leading-relaxed mt-4">
+                  For full details on what data is collected and how it is processed, see our{" "}
+                  <Link href="/dataprotection" className="text-primary font-semibold underline hover:opacity-80">
+                    Data Protection Declaration
+                  </Link>.
+                </p>
               </section>
 
               {/* Withdrawal Rights */}

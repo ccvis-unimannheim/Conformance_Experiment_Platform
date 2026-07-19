@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import ProcessModelImage from "../../public/images/order_to_cash_model.jpeg";
 import HeaderLogos from "../../components/General/HeaderLogos";
 
 const C = {
@@ -97,6 +98,28 @@ export default function ConformanceTermsPage() {
             </p>
           </header>
 
+          {/* Process model illustration */}
+          <div style={{
+            backgroundColor: C.white,
+            border: `1px solid ${C.containerHigh}`,
+            borderRadius: "0.75rem",
+            boxShadow: "0 1px 4px rgba(45,52,53,0.06)",
+            padding: "1.5rem 1.5rem 1.25rem",
+            marginBottom: "1.5rem",
+          }}>
+            <p style={{ fontSize: "0.8125rem", color: C.onVariant, margin: "0 0 0.75rem", lineHeight: 1.6 }}>
+              This is the <strong>process model (guideline)</strong> used throughout this study — an order-to-cash
+              process. The definitions below refer back to it.
+            </p>
+            <div style={{ overflowX: "auto" }}>
+              <Image
+                src={ProcessModelImage}
+                alt="Order-to-cash process model (BPMN): Receive Order, Check Credit, Confirm Order, Prepare Shipment, Issue Invoice, Ship Order, Receive Payment, Cancel Order"
+                style={{ width: "100%", height: "auto", borderRadius: "0.5rem" }}
+              />
+            </div>
+          </div>
+
           {/* Content card */}
           <div style={{
             backgroundColor: C.white,
@@ -121,7 +144,8 @@ export default function ConformanceTermsPage() {
                   performed. It serves as the reference against which actual process behaviour is compared. In
                   this study, we represent a guideline using a <strong>process model</strong> — a diagram that
                   maps out the process&apos;s activities and the order in which they may occur (e.g. a BPMN diagram,
-                  Petri net, or DFG). &ldquo;Guideline&rdquo; and &ldquo;process model&rdquo; therefore refer to the same underlying
+                  Petri net, or DFG), such as the order-to-cash process shown at the top of this page.
+                  &ldquo;Guideline&rdquo; and &ldquo;process model&rdquo; therefore refer to the same underlying
                   reference behaviour and are used interchangeably throughout.
                 </p>
               </section>
@@ -212,10 +236,10 @@ export default function ConformanceTermsPage() {
                 <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
                   A <strong>guideline violation</strong> occurs when the behaviour recorded in a trace does not
                   match what the guideline prescribes. We detect violations by <strong>aligning</strong> each
-                  trace with the guideline: every step in the alignment is either a match, or a deviation —
-                  an activity that was executed but shouldn't have been, or one that was expected but missing.
+                  trace with the guideline: every step in the alignment is either a match, or a deviation. By
+                  construction, a deviation is always exactly one of two types — never anything else.
                 </p>
-                <Collapsible label="Types of violations">
+                <Collapsible label="The two deviation types">
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
                     <div style={{
                       display: "flex", alignItems: "flex-start", gap: "0.875rem",
