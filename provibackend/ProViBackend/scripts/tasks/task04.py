@@ -252,219 +252,24 @@ def _task04_involved_activities(rows):
     return s
 
 
-def _task04_model_structure(model_path):
-    """Pragmatic nested decomposition of the guideline model:
-    {backbone: [name,...], parallel: [[name,...],...], alt_exit: [name,...]}.
-    backbone = main sequential activities; parallel = an AND-block's lanes;
-    alt_exit = the shared XOR-escape activities (not block-structured, so shown as
-    a stacked choice group). None when there is no model."""
+def _task04_model_task_names(model_path):
+    """Ordered task names of the guideline model (for the not-in-trace chevrons)."""
     if not model_path:
-        return None
+        return []
     try:
-        parsed = parse_bpmn_model(model_path)
+        els = parse_bpmn_model(model_path).get("elements", {})
     except Exception:
-        return None
-    els = parsed.get("elements", {})
-    if not els:
-        return None
-    kind = {n: e.get("kind") for n, e in els.items()}
-    name = {n: e.get("name", "") for n, e in els.items()}
-    out = {}
-    for f in parsed.get("sequence_flows", {}).values():
-        out.setdefault(f["source"], []).append(f["target"])
-    tasks = [n for n in els if kind[n] == "task"]
-    start = next((n for n in els if kind[n] == "startEvent"), None)
-    if not tasks or start is None:
-        return None
-
-    def succ_tasks(nid):
-        res, reach_end, seen, st = set(), False, set(), list(out.get(nid, []))
-        while st:
-            t = st.pop()
-            if t in seen:
-                continue
-            seen.add(t)
-            k = kind.get(t)
-            if k == "task":
-                res.add(t)
-            elif k == "endEvent":
-                reach_end = True
-            else:
-                st += out.get(t, [])
-        return res, reach_end
-
-    par_tasks, par_lanes = set(), []
-    for n in els:
-        if kind[n] == "parallelGateway" and len(out.get(n, [])) > 1:
-            lanes = []
-            for tgt in out[n]:
-                lane, cur = [], tgt
-                while cur is not None and kind.get(cur) == "task":
-                    lane.append(name[cur]); par_tasks.add(cur)
-                    nx = out.get(cur, []); cur = nx[0] if nx else None
-                if lane:
-                    lanes.append(lane)
-            if lanes:
-                par_lanes = lanes
-                break
-
-    alt = []
-    for t in tasks:
-        if t in par_tasks:
-            continue
-        st, re = succ_tasks(t)
-        if re and not st:
-            alt.append(t)
-
-    dist = {t: 10 ** 9 for t in tasks}
-    cur, dd = succ_tasks(start)[0], 0
-    while cur and dd < 100:
-        nxt = set()
-        for t in cur:
-            if dd < dist[t]:
-                dist[t] = dd
-            nxt |= succ_tasks(t)[0]
-        cur = [t for t in nxt if dd + 1 < dist[t]]
-        dd += 1
-    backbone = sorted((t for t in tasks if t not in par_tasks and t not in alt),
-                      key=lambda t: dist[t])
-    return {"backbone": [name[t] for t in backbone],
-            "parallel": par_lanes,
-            "alt_exit": [name[t] for t in alt]}
-
-
-def _task04_wrap(label, max_chars=15):
-    """Wrap a label to at most two balanced lines for a chevron."""
-    s = str(label)
-    if len(s) <= max_chars or " " not in s:
-        return [s]
-    words, mid = s.split(" "), len(s) / 2.0
-    acc, split_i, best = 0, 1, 1e9
-    for i, w in enumerate(words[:-1]):
-        acc += len(w) + 1
-        if abs(acc - mid) < best:
-            best, split_i = abs(acc - mid), i + 1
-    return [" ".join(words[:split_i]), " ".join(words[split_i:])]
-
-
-def _task04_color_map(rows):
-    """activity name -> chevron colour for one trace: synchronous move (yellow),
-    model move / skipped (grey); anything absent from the trace stays white."""
-    cmap = {}
-    for r in rows:
-        if r["moveType"] == "Synchronous Move":
-            a = str(r["log_move"]) if str(r["log_move"]) not in _MISSING else str(r["model_move"])
-            cmap[a] = GREY_LIGHTER
-        elif r["moveType"] == "Model Move":
-            cmap[str(r["model_move"])] = GREY_MED
-    return cmap
-
-
-# Nested-chevron layout constants (data units).
-_NC_H, _NC_DEPTH, _NC_GAP, _NC_LANE_GAP = 1.0, 0.5, 0.5, 0.35
-
-
-def _task04_chev_width(label):
-    longest = max((len(l) for l in _task04_wrap(label)), default=1)
-    return max(3.6, _NC_DEPTH * 2 + 1.5 + longest * 0.30)
-
-
-def _task04_draw_chevron(ax, x, ytop, w, label, color, fontsize):
-    from matplotlib.patches import Polygon as _Poly
-    y = ytop - _NC_H; mid = y + _NC_H / 2.0
-    verts = [(x, y), (x + _NC_DEPTH, mid), (x, y + _NC_H),
-             (x + w - _NC_DEPTH, y + _NC_H), (x + w, mid), (x + w - _NC_DEPTH, y)]
-    ax.add_patch(_Poly(verts, closed=True, facecolor=color, edgecolor="#4a4a4a",
-                       linewidth=1.2, joinstyle="miter"))
-    lines = _task04_wrap(label)
-    tc = contrasting_text_color(color)
-    for i, line in enumerate(lines):
-        ax.text(x + w / 2.0, mid + (len(lines) - 1) * 0.17 - i * 0.34, line,
-                ha="center", va="center", fontsize=fontsize, color=tc)
-
-
-def _task04_nested_width(structure):
-    x = sum(_task04_chev_width(nm) + _NC_GAP for nm in structure["backbone"])
-    if structure["parallel"]:
-        x += max(_task04_chev_width(l[0]) for l in structure["parallel"]) + _NC_GAP
-    if structure["alt_exit"]:
-        x += 1.1 + max(_task04_chev_width(a) for a in structure["alt_exit"])
-    return x
-
-
-def _task04_draw_nested(ax, structure, color_fn, fontsize, badges=None):
-    """Draw the model structure as nested chevrons on ax, coloured by color_fn.
-    ``badges`` (log moves) are drawn as blue dashed boxes above their anchor."""
-    from matplotlib.patches import FancyBboxPatch as _Box
-    ax.axis("off"); ax.set_aspect("equal")
-    pos = {}  # activity name -> (centre_x, top_y) of its chevron
-    x = 0.0
-    for nm in structure["backbone"]:
-        w = _task04_chev_width(nm)
-        _task04_draw_chevron(ax, x, _NC_H / 2.0, w, nm, color_fn(nm), fontsize)
-        pos[nm] = (x + w / 2.0, _NC_H / 2.0)
-        x += w + _NC_GAP
-    if structure["parallel"]:
-        lanes = structure["parallel"]; n = len(lanes)
-        gw = max(_task04_chev_width(l[0]) for l in lanes)
-        total_h = n * _NC_H + (n - 1) * _NC_LANE_GAP
-        ax.add_patch(_Box((x - 0.16, -total_h / 2.0 - 0.32), gw + 0.32, total_h + 0.64,
-                          boxstyle="round,pad=0.02,rounding_size=0.14",
-                          facecolor="#eef0f2", edgecolor="#c8ccd0", linewidth=1.0))
-        ytop0 = total_h / 2.0
-        for i, lane in enumerate(lanes):
-            ytop = ytop0 - i * (_NC_H + _NC_LANE_GAP)
-            _task04_draw_chevron(ax, x, ytop, gw, lane[0], color_fn(lane[0]), fontsize)
-            pos[lane[0]] = (x + gw / 2.0, ytop)
-        x += gw + _NC_GAP
-    if structure["alt_exit"]:
-        x += 0.45
-        ax.plot([x, x], [-2.0, 2.0], linestyle=(0, (4, 3)), color="#999999", linewidth=1.2)
-        x += 0.55
-        alt = structure["alt_exit"]; n = len(alt)
-        gw = max(_task04_chev_width(a) for a in alt)
-        total_h = n * _NC_H + (n - 1) * _NC_LANE_GAP
-        ytop0 = total_h / 2.0
-        ax.text(x + gw / 2.0, ytop0 + 0.5, "Alternative exit", ha="center", va="bottom",
-                fontsize=max(8, fontsize - 3), style="italic", color="#666666")
-        for i, a in enumerate(alt):
-            ytop = ytop0 - i * (_NC_H + _NC_LANE_GAP)
-            _task04_draw_chevron(ax, x, ytop, gw, a, color_fn(a), fontsize)
-            pos[a] = (x + gw / 2.0, ytop)
-        x += gw
-
-    top_y = 0.5
-    if badges:
-        seen = {}
-        for b in badges:
-            p = pos.get(b.get("anchor"))
-            if not p:
-                continue
-            acx, atop = p
-            lbl = str(b.get("label", ""))
-            k = seen.get(b["anchor"], 0); seen[b["anchor"]] = k + 1
-            bw = max(2.4, _task04_chev_width(lbl) - 1.2); bh = 0.6
-            by = atop + 0.45 + k * (bh + 0.3)          # stack upward if repeated
-            ax.plot([acx, acx], [atop, by], linestyle=(0, (3, 2)),
-                    color=GREY_DARK, linewidth=1.3)
-            ax.add_patch(_Box((acx - bw / 2.0, by), bw, bh,
-                              boxstyle="round,pad=0.02,rounding_size=0.08",
-                              facecolor="white", edgecolor=GREY_DARK, linewidth=1.6,
-                              linestyle="--"))
-            ax.text(acx, by + bh / 2.0, lbl, ha="center", va="center",
-                    fontsize=max(8, fontsize - 3), color=GREY_DARK)
-            top_y = max(top_y, by + bh)
-    ax.set_xlim(-0.4, x + 0.4)
-    ax.set_ylim(-2.5, max(2.5, top_y + 0.3))
+        return []
+    vals = els.values() if isinstance(els, dict) else els
+    return [e.get("name", "") for e in vals if e.get("kind") == "task" and e.get("name")]
 
 
 def task04_flow_chart_basic(selected, output_dir: str, model_path=None):
-    """Nested chevron flow chart: the guideline model is drawn as nested chevrons
-    (sequential backbone, an AND-block as stacked lanes, and the XOR escape as a
-    stacked 'alternative exit' group), once per selected trace. Each activity is
-    coloured by that trace's alignment — synchronous move (yellow), model move /
-    skipped (grey), or white when the trace never touches it — so the chevron
-    carries the same structure and activity set as the BPMN idiom."""
+    """Chevron flow chart: one horizontal chevron strip per selected trace, stacked
+    so the two traces sit side by side (top vs bottom). Each activity chevron is
+    coloured by its alignment move type; model activities the trace never touches
+    are appended as white chevrons, so the strip covers the same activity set as
+    the BPMN idiom (information equivalence)."""
     path = os.path.join(output_dir, "task04_flow_chart_basic.svg")
     if not selected:
         fig, ax = plt.subplots(figsize=(7, 3)); ax.axis("off")
@@ -473,47 +278,39 @@ def task04_flow_chart_basic(selected, output_dir: str, model_path=None):
         save_svg(fig, path)
         return
 
-    structure = _task04_model_structure(model_path)
-    if not structure or not structure["backbone"]:
-        # No model → fall back to a flat chevron strip of each trace.
-        nodes_per_trace = [chevron_nodes_from_alignment_rows(t["rows"]) for t in selected]
-        fig_w = max((chevron_figure_width(n) for n in nodes_per_trace if n), default=9.0)
-        fig = plt.figure(figsize=(fig_w, 1.9 * len(selected) + 1.4))
-        gs = gridspec.GridSpec(len(selected), 1, hspace=0.9)
-        for r, (trace, nodes) in enumerate(zip(selected, nodes_per_trace)):
-            ax = fig.add_subplot(gs[r])
-            draw_chevron_strip(ax, nodes, fontsize=_CHEVRON_FONT)
-            ax.set_title(trace["label"], fontsize=FONT_LABEL, loc="left", pad=6)
-        handles = [mpatches.Patch(facecolor=c, edgecolor="#4a4a4a", label=lbl)
-                   for lbl, c in _MOVE_LEGEND]
-        fig.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, 0.0),
-                   ncol=len(_MOVE_LEGEND), frameon=False, fontsize=FONT_ANNOT - 1)
-        fig.tight_layout(rect=[0, 0.08, 1, 1.0])
-        save_svg(fig, path)
-        return
+    model_tasks = _task04_model_task_names(model_path)
+    nodes_per_trace, any_not_involved = [], False
+    for t in selected:
+        nodes = chevron_nodes_from_alignment_rows(t["rows"])
+        involved = _task04_involved_activities(t["rows"])
+        not_involved = [a for a in model_tasks if a not in involved]
+        if not_involved:
+            any_not_involved = True
+            nodes += [{"label": a, "color": "#ffffff"} for a in not_involved]
+        nodes_per_trace.append(nodes)
 
-    scale = 0.42
-    x_extent = _task04_nested_width(structure)
+    fig_w = max((chevron_figure_width(n) for n in nodes_per_trace if n), default=9.0)
     n_rows = len(selected)
-    fig_w = max(9.0, x_extent * scale + 1.0)
-    fig_h = n_rows * (5.0 * scale + 0.9) + 1.0
+    fig_h = 1.9 * n_rows + 1.6
 
     fig = plt.figure(figsize=(fig_w, fig_h))
-    gs = gridspec.GridSpec(n_rows, 1, hspace=0.55)
-    for r, trace in enumerate(selected):
+    gs = gridspec.GridSpec(n_rows, 1, hspace=0.9)
+    for r, (trace, nodes) in enumerate(zip(selected, nodes_per_trace)):
         ax = fig.add_subplot(gs[r])
-        cmap = _task04_color_map(trace["rows"])
-        _task04_draw_nested(ax, structure, lambda nm, _c=cmap: _c.get(nm, "#ffffff"),
-                            fontsize=min(_CHEVRON_FONT, 12),
-                            badges=_task04_log_move_badges(trace["rows"]))
-        ax.set_title(trace["label"], fontsize=FONT_LABEL, loc="left", pad=4)
+        if nodes:
+            draw_chevron_strip(ax, nodes, fontsize=_CHEVRON_FONT)
+        else:
+            ax.axis("off")
+            ax.text(0.5, 0.5, "(empty trace)", ha="center", va="center",
+                    transform=ax.transAxes, fontsize=FONT_ANNOT)
+        ax.set_title(trace["label"], fontsize=FONT_LABEL, loc="left", pad=6)
 
-    legend = list(_MOVE_LEGEND) + [("Not in this trace", "#ffffff")]
+    legend = list(_MOVE_LEGEND) + ([("Not in this trace", "#ffffff")] if any_not_involved else [])
     handles = [mpatches.Patch(facecolor=c, edgecolor="#4a4a4a", label=lbl)
                for lbl, c in legend]
     fig.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, 0.0),
                ncol=len(legend), frameon=False, fontsize=FONT_ANNOT - 1)
-    fig.tight_layout(rect=[0, 0.05, 1, 1.0])
+    fig.tight_layout(rect=[0, 0.08, 1, 1.0])
     save_svg(fig, path)
 
 
