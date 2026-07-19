@@ -140,7 +140,7 @@ CANONICAL_TASKS = [
     },
     {
         "task_key": "task04",
-        "label": "How does the degree of conformance differ between multiple logs or traces?",
+        "label": "How does the degree of conformance differ between the given 2 traces?",
         "description": "Derive and compare process conformance across multiple logs or individual traces.",
         "answer_type": "single_choice",
     },
