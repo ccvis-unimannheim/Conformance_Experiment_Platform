@@ -83,6 +83,7 @@ from shared import (
     make_table,
     CIVIDIS,
     CIVIDIS_R,
+    GREY_MED, GREY_LIGHTER, GREY_DARK,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT,
     chevron_figure_width, draw_chevron_strip,
     draw_value_heatmap,
@@ -106,6 +107,22 @@ _MOVE_COLORS = {
     "Synchronous":   "#e0e0e0",  # light grey — conformant (neutral, readable)
     "Move on Model": CAT_SOFT,   # skipped activity
     "Move on Log":   CAT_MID,    # extra activity
+}
+
+# Alignment-move palette matching task04's Flow Chart / Flow Chart+ (BPMN
+# model) idioms — used only by task34_flow_chart_basic / _flow_chart_elaborate
+# so the two tasks' trace-alignment visuals read consistently. Other task34
+# idioms keep the cividis CAT_* palette above.
+_T04_ALIGN_COLORS = {
+    "Synchronous":   GREY_LIGHTER,  # yellow
+    "Move on Model": GREY_MED,      # grey
+    "Move on Log":   GREY_DARK,     # dark navy
+}
+_T04_ALIGN_STYLE = {
+    # (edgecolor, linewidth)
+    "Synchronous":   ("#666666", 2),
+    "Move on Model": ("#444444", 3),
+    "Move on Log":   ("#333333", 3),
 }
 
 # Display labels shown to admins/participants (internal _MOVE_COLORS keys stay
@@ -281,16 +298,17 @@ def _move_legend():
     ]
 
 
-def _chevron_nodes(rows):
+def _chevron_nodes(rows, colors=None):
+    colors = colors or _MOVE_COLORS
     nodes = []
     for r in rows:
         mt = r["moveType"]
         if mt == "Synchronous":
-            nodes.append({"label": r["log_move"],   "color": _MOVE_COLORS["Synchronous"]})
+            nodes.append({"label": r["log_move"],   "color": colors["Synchronous"]})
         elif mt == "Move on Model":
-            nodes.append({"label": r["model_move"], "color": _MOVE_COLORS["Move on Model"]})
+            nodes.append({"label": r["model_move"], "color": colors["Move on Model"]})
         elif mt == "Move on Log":
-            nodes.append({"label": r["log_move"],   "color": _MOVE_COLORS["Move on Log"]})
+            nodes.append({"label": r["log_move"],   "color": colors["Move on Log"]})
     return nodes
 
 
@@ -663,7 +681,7 @@ def task34_table_bar_chart(worst, log_act_v, output_dir):
 def task34_flow_chart_basic(ctx, output_dir):
     """Chevron strip only — worst trace alignment without the detail table."""
     rows  = ctx["rows"]
-    nodes = _chevron_nodes(rows)
+    nodes = _chevron_nodes(rows, colors=_T04_ALIGN_COLORS)
     fig_w = max(14.0, chevron_figure_width(nodes))
     fig, ax = plt.subplots(figsize=(fig_w, 3.2))
     draw_chevron_strip(ax, nodes, fontsize=15, uniform_width=True)
@@ -672,8 +690,8 @@ def task34_flow_chart_basic(ctx, output_dir):
     # 3-entry legend implied all three always occur, which isn't true.
     present_types = {r["moveType"] for r in rows}
     legend_handles = [
-        mpatches.Patch(facecolor=_MOVE_COLORS[mt], edgecolor="black", linewidth=0.75,
-                       label=_MOVE_DISPLAY[mt])
+        mpatches.Patch(facecolor=_T04_ALIGN_COLORS[mt], edgecolor=_T04_ALIGN_STYLE[mt][0],
+                       linewidth=_T04_ALIGN_STYLE[mt][1], label=_MOVE_DISPLAY[mt])
         for mt in ("Synchronous", "Move on Model", "Move on Log")
         if mt in present_types
     ]
@@ -716,9 +734,10 @@ def task34_flow_chart_elaborate(ctx, model_path, output_dir):
         if kind != "task":
             return ("#F5F5F5", "#CCCCCC", 1.0, CAT_STRONG)
         mt = act_status.get(name)
-        if mt == "Move on Model":  return (CAT_SOFT, "#888888", 1.5, contrasting_text_color(CAT_SOFT))
-        if mt == "Move on Log":    return (CAT_MID,  "#555555", 1.5, contrasting_text_color(CAT_MID))
-        if mt == "Synchronous":    return (_MOVE_COLORS["Synchronous"], "#888888", 1.0, CAT_STRONG)
+        if mt in _T04_ALIGN_COLORS:
+            color = _T04_ALIGN_COLORS[mt]
+            edge, lw = _T04_ALIGN_STYLE[mt]
+            return (color, edge, lw, contrasting_text_color(color))
         return ("#FAFAFA", "#CCCCCC", 1.0, "#444444")
 
     # Only list legend entries that actually occur among this trace's task
@@ -727,13 +746,11 @@ def task34_flow_chart_elaborate(ctx, model_path, output_dir):
     task_names = {e["name"] for e in parsed["elements"].values() if e.get("kind") == "task"}
     has_not_in_trace = any(name not in act_status for name in task_names)
 
-    legend_items = []
-    if "Synchronous" in present_status:
-        legend_items.append((_MOVE_COLORS["Synchronous"], "#888888", 1.0, _MOVE_DISPLAY["Synchronous"]))
-    if "Move on Model" in present_status:
-        legend_items.append((CAT_SOFT, "#888888", 1.5, _MOVE_DISPLAY["Move on Model"]))
-    if "Move on Log" in present_status:
-        legend_items.append((CAT_MID, "#555555", 1.5, _MOVE_DISPLAY["Move on Log"]))
+    legend_items = [
+        (_T04_ALIGN_COLORS[mt], *_T04_ALIGN_STYLE[mt], _MOVE_DISPLAY[mt])
+        for mt in ("Synchronous", "Move on Model", "Move on Log")
+        if mt in present_status
+    ]
     if has_not_in_trace:
         legend_items.append(("#FAFAFA", "#CCCCCC", 1.0, "Not in trace"))
     compose_bpmn_panels(
