@@ -257,6 +257,22 @@ def _task04_violation_activities(rows):
     return {str(r["model_move"]) for r in rows if r["moveType"] == "Model Move"}
 
 
+def _task04_move_map(rows):
+    """activity name -> heatmap/chevron colour for one trace, by alignment move
+    type: synchronous move (yellow), model move (grey), log move (dark blue)."""
+    m = {}
+    for r in rows:
+        mt = r["moveType"]
+        if mt == "Synchronous Move":
+            a = str(r["log_move"]) if str(r["log_move"]) not in _MISSING else str(r["model_move"])
+            m[a] = GREY_LIGHTER
+        elif mt == "Model Move":
+            m[str(r["model_move"])] = GREY_MED
+        elif mt == "Log Move":
+            m[str(r["log_move"])] = GREY_DARK
+    return m
+
+
 def _task04_model_task_names(model_path):
     """Ordered task names of the guideline model (for the not-in-trace chevrons)."""
     if not model_path:
@@ -534,30 +550,59 @@ def task04_matrix(tdf: pd.DataFrame, output_dir: str):
 
 
 def task04_heatmap(selected, model_path, output_dir):
-    """Activity × trace violation heatmap: columns = the compared traces, rows =
-    the guideline model's activities, cell colour = violation severity (darker =
-    the trace skipped that activity). Colour only — no fitness, no numeric
-    annotation — so it reads purely as 'where does each trace violate'."""
+    """Activity × trace move-type heatmap: columns = the compared traces, rows =
+    the activities (model tasks plus any inserted ones), cell colour = the
+    alignment move type — synchronous move (yellow), model move (grey), log move
+    (dark blue), or white when the trace never touches that activity. Colour only,
+    using the same cividis-derived palette as the chevron / BPMN views; no fitness,
+    no numbers."""
     path = os.path.join(output_dir, "task04_heatmap.svg")
-    title = "Activity Violations Across Traces"
+    title = "Move Type by Activity Across Traces"
     activities = _task04_model_task_names(model_path)
     if not activities or not selected:
         render_empty_state_svg(path, title, "No model / traces available.")
         return
 
+    move_maps = [_task04_move_map(t["rows"]) for t in selected]
+    # inserted (log-move) activities become extra rows so the log-move colour appears
+    inserted = []
+    for mm in move_maps:
+        for a, c in mm.items():
+            if c == GREY_DARK and a not in activities and a not in inserted:
+                inserted.append(a)
+    rows = list(activities) + inserted
     cols = [t["label"] for t in selected]
-    viol = [_task04_violation_activities(t["rows"]) for t in selected]
-    data = np.array([[1.0 if a in vs else 0.0 for vs in viol] for a in activities], dtype=float)
+    n_rows, n_cols = len(rows), len(cols)
 
-    fig_h = max(3.0, 0.42 * len(activities) + 1.6)
-    fig_w = max(4.5, 1.7 * len(cols) + 2.8)
+    fig_h = max(3.0, 0.46 * n_rows + 1.9)
+    fig_w = max(4.5, 1.9 * n_cols + 3.2)
     fig, ax = plt.subplots(figsize=(fig_w, fig_h))
-    draw_value_heatmap(
-        fig, ax, data, activities, cols, xlabel="Trace",
-        cbar_label="Violation severity", annotate=False, cmap="Reds", vmax=1.0,
-    )
+    for ri, a in enumerate(rows):
+        for ci, mm in enumerate(move_maps):
+            ax.add_patch(mpatches.Rectangle(
+                (ci, ri), 1, 1, facecolor=mm.get(a, "#ffffff"),
+                edgecolor="#cfcfcf", linewidth=1.2))
+    ax.set_xlim(0, n_cols)
+    ax.set_ylim(0, n_rows)
+    ax.invert_yaxis()
+    ax.set_xticks([c + 0.5 for c in range(n_cols)])
+    ax.set_xticklabels(cols, fontsize=FONT_ANNOT)
+    ax.set_yticks([r + 0.5 for r in range(n_rows)])
+    ax.set_yticklabels(rows, fontsize=FONT_ANNOT - 1)
+    ax.set_xlabel("Trace", fontsize=FONT_LABEL)
+    ax.tick_params(length=0)
+    for s in ax.spines.values():
+        s.set_visible(False)
     ax.set_title(title, fontsize=FONT_TITLE)
-    fig.tight_layout(pad=1.2)
+
+    any_not_involved = any(
+        rows[ri] not in mm for ri in range(n_rows) for mm in move_maps)
+    legend = list(_MOVE_LEGEND) + ([("Not in this trace", "#ffffff")] if any_not_involved else [])
+    handles = [mpatches.Patch(facecolor=c, edgecolor="#4a4a4a", label=lbl)
+               for lbl, c in legend]
+    fig.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, 0.0),
+               ncol=len(legend), frameon=False, fontsize=FONT_ANNOT - 1)
+    fig.tight_layout(rect=[0, 0.07, 1, 1.0])
     save_svg(fig, path)
 
 
