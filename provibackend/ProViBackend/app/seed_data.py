@@ -8,7 +8,7 @@ collections are empty (see main.py lifespan).
 CANONICAL_TASKS = [
     {
         "task_key": "task06",
-        "label": "What is the overall degree of conformance between an event log and a set of guidelines?",
+        "label": "What is the overall degree of conformance between the given event log and the guideline?",
         "description": "Assess the overall conformance rate of the entire event log against the process model.",
         "answer_type": "numeric",
     },
@@ -450,6 +450,7 @@ CANONICAL_KNOWLEDGE_QUESTIONS = [
 CANONICAL_IDIOMS = [
     {"idiom_key": "bar_chart",            "label": "Bar Chart",                            "granularity": "log",   "renderer_type": "echarts", "active": True},
     {"idiom_key": "tile_metric",          "label": "Tile Metric",                          "granularity": "log",   "renderer_type": "html",    "active": True},
+    {"idiom_key": "donut_gauge",          "label": "Donut Gauge",                          "granularity": "log",   "renderer_type": "svg",     "active": True},
     {"idiom_key": "scatterplot",          "label": "Scatterplot (Dotted Chart)",           "granularity": "trace", "renderer_type": "echarts", "active": True},
     {"idiom_key": "table",                "label": "Table",                                "granularity": "log",   "renderer_type": "html",    "active": True},
     {"idiom_key": "heatmap",              "label": "Heatmap",                              "granularity": "log",   "renderer_type": "echarts", "active": True},

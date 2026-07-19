@@ -11,7 +11,7 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:1234";
 const ALL_TASKS = [
   {
     task_key: "task06",
-    label: "What is the overall degree of conformance between an event log and a set of guidelines?",
+    label: "What is the overall degree of conformance between the given event log and the guideline?",
     description: "Assess the overall conformance rate of the entire event log against the process model.",
     answer_type: "numeric",
   },
