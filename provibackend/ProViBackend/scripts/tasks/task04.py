@@ -457,9 +457,9 @@ def task04_bar_chart(tdf: pd.DataFrame, output_dir: str):
 def task04_table(selected, model_path, output_dir):
     """Activity × trace move-type table: one row per activity (model tasks plus
     any inserted ones), one column per compared trace, cell = the alignment move
-    type in that trace (Synchronous Move / Model Move / Log Move / — when the
-    trace never touches it). The tabular twin of the chevron / BPMN / heatmap —
-    same information, read as text and colour-coded with the shared palette."""
+    type in that trace (Synchronous Move / Model Move / Log Move / Not in this
+    trace). The tabular twin of the chevron / BPMN / heatmap — same information,
+    read as plain text (only the header row is coloured)."""
     path = os.path.join(output_dir, "task04_table.svg")
     title = "Move Type by Activity Across Traces"
     activities = _task04_model_task_names(model_path)
@@ -484,37 +484,25 @@ def task04_table(selected, model_path, output_dir):
     labels = [t["label"] for t in selected]
     label_by_color = {c: lbl for lbl, c in _MOVE_LEGEND}
 
-    cell_text, cell_style = [], []
+    cell_text = []
     for a in rows:
-        text_row, style_row = [a], []
+        text_row = [a]
         for mm in move_maps:
             c = mm.get(a)
-            if c is None:
-                text_row.append("—")
-                style_row.append(("#ffffff", "#333333"))
-            else:
-                text_row.append(label_by_color.get(c, ""))
-                style_row.append((c, contrasting_text_color(c)))
+            text_row.append("Not in this trace" if c is None else label_by_color.get(c, ""))
         cell_text.append(text_row)
-        cell_style.append(style_row)
 
     col_labels = ["Activity"] + labels
     fig_h = max(3.0, 1.2 + len(cell_text) * 0.46)
-    fig_w = max(6.5, 3.2 + 1.9 * len(labels))
+    fig_w = max(6.5, 3.2 + 2.1 * len(labels))
     fig, ax = plt.subplots(figsize=(fig_w, fig_h))
     ax.axis("off")
-    tbl = make_table(
+    make_table(
         ax, cell_text=cell_text, col_labels=col_labels,
         bbox=[0.03, 0.05, 0.94, 0.9],
         col_widths=auto_col_widths(col_labels, cell_text),
-        font_size=9.5, scale_xy=(1, 1.7), cell_pad=0.1, zebra=False,
+        font_size=9.5, scale_xy=(1, 1.7), cell_pad=0.1,
     )
-    # colour the trace cells by move type (row 0 is the header)
-    for ri, style_row in enumerate(cell_style):
-        for ci, (fc, tc) in enumerate(style_row):
-            cell = tbl[ri + 1, ci + 1]
-            cell.set_facecolor(fc)
-            cell.set_text_props(color=tc)
     ax.set_title(title, fontsize=FONT_TITLE, pad=3)
     fig.tight_layout(pad=1.2)
     save_svg(fig, path)
