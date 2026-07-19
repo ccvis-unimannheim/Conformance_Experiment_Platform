@@ -252,6 +252,11 @@ def _task04_involved_activities(rows):
     return s
 
 
+def _task04_violation_activities(rows):
+    """Model activities the trace violates by skipping them (move on model)."""
+    return {str(r["model_move"]) for r in rows if r["moveType"] == "Model Move"}
+
+
 def _task04_model_task_names(model_path):
     """Ordered task names of the guideline model (for the not-in-trace chevrons)."""
     if not model_path:
@@ -528,20 +533,32 @@ def task04_matrix(tdf: pd.DataFrame, output_dir: str):
     save_svg(fig, os.path.join(output_dir, "task04_matrix.svg"))
 
 
-def task04_heatmap(tdf: pd.DataFrame, output_dir: str):
-    """Trace × Fitness grid: continuous colour intensity, no numeric annotation."""
-    labels = tdf["label"].tolist()
-    data = tdf["fitness"].values.astype(float).reshape(-1, 1)
+def task04_heatmap(selected, model_path, output_dir):
+    """Activity × trace violation heatmap: columns = the compared traces, rows =
+    the guideline model's activities, cell colour = violation severity (darker =
+    the trace skipped that activity). Colour only — no fitness, no numeric
+    annotation — so it reads purely as 'where does each trace violate'."""
+    path = os.path.join(output_dir, "task04_heatmap.svg")
+    title = "Activity Violations Across Traces"
+    activities = _task04_model_task_names(model_path)
+    if not activities or not selected:
+        render_empty_state_svg(path, title, "No model / traces available.")
+        return
 
-    fig_h = max(3.0, 0.3 * len(labels) + 1.4)
-    fig, ax = plt.subplots(figsize=(4.5, fig_h))
+    cols = [t["label"] for t in selected]
+    viol = [_task04_violation_activities(t["rows"]) for t in selected]
+    data = np.array([[1.0 if a in vs else 0.0 for vs in viol] for a in activities], dtype=float)
+
+    fig_h = max(3.0, 0.42 * len(activities) + 1.6)
+    fig_w = max(4.5, 1.7 * len(cols) + 2.8)
+    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
     draw_value_heatmap(
-        fig, ax, data, labels, ["Fitness"],
-        cbar_label="Fitness", annotate=False,
+        fig, ax, data, activities, cols, xlabel="Trace",
+        cbar_label="Violation severity", annotate=False, cmap="Reds", vmax=1.0,
     )
-    ax.set_title(TITLE, fontsize=FONT_TITLE)
+    ax.set_title(title, fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task04_heatmap.svg"))
+    save_svg(fig, path)
 
 
 # ---------------------------------------------------------------------------
@@ -584,9 +601,10 @@ def generate(log, fitness_df, output_dir: str, trace_ids=None, alignments=None, 
     task04_table_bar_chart(tdf, output_dir)
     task04_matrix(tdf, output_dir)
     task04_line_graph(tdf, output_dir)
-    task04_heatmap(tdf, output_dir)
 
-    # Trace-level pattern comparison — chevron + BPMN idioms of the same traces.
+    # Trace-level pattern comparison — chevron, BPMN and violation heatmap of the
+    # same traces (all need the alignments / model).
     if selected:
         task04_flow_chart_basic(selected, output_dir, model_path=model_path)
         task04_flow_chart_elaborate(selected, model_path, output_dir)
+        task04_heatmap(selected, model_path, output_dir)
