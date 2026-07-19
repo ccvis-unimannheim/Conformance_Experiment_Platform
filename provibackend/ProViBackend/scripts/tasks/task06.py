@@ -216,16 +216,16 @@ def task06_gauge_chart(df, output_dir: str):
     r_outer, r_inner = 1.0, 0.6
     split_angle = 180 - fitness * 180  # 180deg (0%) .. 0deg (100%)
 
-    fig, ax = plt.subplots(figsize=(4.5, 2.7))
+    fig, ax = plt.subplots(figsize=(6.5, 3.75))
     ax.add_patch(Wedge((0, 0), r_outer, split_angle, 180, width=r_outer - r_inner,
                         facecolor=GREY_DARK, edgecolor="white", linewidth=2))
     ax.add_patch(Wedge((0, 0), r_outer, 0, split_angle, width=r_outer - r_inner,
                         facecolor="#e0e0e0", edgecolor="white", linewidth=2))
-    ax.text(0, -0.18, f"{pct:.1f}%", ha="center", va="center",
-            fontsize=30, fontweight="bold", color=GREY_DARK)
+    ax.text(0, 0.17, f"{pct:.1f}%", ha="center", va="center",
+            fontsize=33, fontweight="bold", color=GREY_DARK)
     ax.set_title("Fitness", fontsize=FONT_TITLE)
     ax.set_xlim(-1.15, 1.15)
-    ax.set_ylim(-0.4, 1.15)
+    ax.set_ylim(-0.05, 1.15)
     ax.set_aspect("equal")
     ax.axis("off")
     fig.tight_layout(pad=1.0)

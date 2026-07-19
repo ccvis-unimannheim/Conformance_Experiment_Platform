@@ -53,6 +53,10 @@ PARAM_SPEC = [
                 "label": "High-fitness focus (80–85 %, 85–90 %, 90–95 %, 95–<100 %, 100 %)",
                 "value": "0.80,0.85,0.90,0.95,1.0,1.01",
             },
+            {
+                "label": "Study-defined categories (Perfectly conformant = 100 %, Minor 75–<100 %, Moderate 50–75 %, Major <50 %)",
+                "value": "0.0,0.5,0.75,1.0,1.01",
+            },
         ],
         "default": "0.0,0.2,0.4,0.6,0.8,1.01",
         "required": True,
@@ -60,9 +64,17 @@ PARAM_SPEC = [
 ]
 
 ANSWER_FORMATS = [
-    {"key": "pct-set", "gt_shape": "labelled-set", "decisive_default": True},
-    {"key": "rank",    "gt_shape": "rank",          "decisive_default": True},
+    {"key": "free-text", "gt_shape": "reference", "decisive_default": False},
 ]
+
+RUBRIC = (
+    "A strong answer states the percentage of traces in each conformance category "
+    "(as defined by the selected interval boundaries), covering every category that "
+    "contains traces. Full credit requires an approximately correct percentage "
+    "(within ±5 percentage points) for each category, or a correct ranking of which "
+    "categories contain the most to fewest traces. No credit for percentages computed "
+    "against the wrong boundary set, or for omitting a category that contains traces."
+)
 
 
 def _parse_bins(raw) -> list | None:
@@ -90,37 +102,23 @@ def validate_params(log, params) -> list:
 
 
 def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
-    """Conformance distribution: percentage of traces per admin-specified range.
+    """Conformance distribution: percentage of traces per admin-specified range —
+    kept as the free-text reference value so answers can be checked against it.
 
     Uses the same adaptive _resolve_ranges() as the visualizations so the GT is
     always consistent with what participants see.
-
-    pct-set: labelled-set of {range_label → "XX.X%"} for every non-empty range.
-    rank:    conformance ranges ordered from most to fewest traces.
     """
     bins = _parse_bins(params.get("conformance_bins"))
-    labels = make_conformance_labels(bins) if bins else None
+    labels = _labels_for_bins(bins) if bins else None
     range_df, _, _ = _resolve_ranges(fitness_df, bins, labels)
     active = range_df[range_df["count"] > 0]
     if active.empty:
-        return {"value": None, "options": []}
+        return {}
 
-    if answer_format == "rank":
-        ranked = active.sort_values("count", ascending=False).reset_index(drop=True)
-        return {
-            "options": [
-                {"label": row["range"], "value": row["range"]}
-                for _, row in ranked.iterrows()
-            ]
-        }
-
-    # pct-set (default): one entry per active range with its percentage
     return {
-        "value": None,
-        "options": [
-            {"label": row["range"], "value": f"{row['percentage']:.1f}%", "correct": True}
-            for _, row in active.iterrows()
-        ],
+        "reference": ", ".join(
+            f"{row['range']}: {row['percentage']:.1f}%" for _, row in active.iterrows()
+        ),
     }
 
 
@@ -156,8 +154,20 @@ HIGH_FITNESS_BINS = [0.80, 0.85, 0.90, 0.95, 1.0]
 # "High-fitness focus" preset.
 HIGH_FITNESS_LABELS = ["80–85%", "85–90%", "90–95%", "95–100%", "100%"]
 
+# Study-defined preset: named categories instead of generic "X–Y%" range labels
+# (the "Perfectly conformant" bucket is [1.0, 1.01) — fitness == 1.00 exactly).
+STUDY_DEFINED_BINS = [0.0, 0.5, 0.75, 1.0, 1.01]
+STUDY_DEFINED_LABELS = ["Major deviations", "Moderate deviations", "Minor deviations", "Perfectly conformant"]
+
 # Cividis ramp for adaptive conformance ranges (dark = low, light = high)
 RANGE_COLORS = [to_hex(CIVIDIS(i / 5)) for i in range(6)]
+
+
+def _labels_for_bins(bins):
+    """Named category labels for the study-defined preset; auto "X–Y%" labels otherwise."""
+    if list(bins) == STUDY_DEFINED_BINS:
+        return list(STUDY_DEFINED_LABELS)
+    return make_conformance_labels(bins)
 
 
 def _task10_color_list(n: int):
@@ -314,33 +324,75 @@ def task10_bar_chart(range_df: pd.DataFrame, output_dir: str):
 
 
 def task10_pie_chart(range_df: pd.DataFrame, output_dir: str):
-    """Pie chart: proportion of traces per conformance range."""
-    # Only include ranges with at least one trace
-    active = range_df[range_df["count"] > 0]
-    if active.empty:
-        active = range_df
+    """Pie chart: proportion of traces per conformance range.
 
-    active_colors = [_task10_color_list(len(range_df))[i] for i in active.index]
-    fig, ax = plt.subplots(figsize=(8, 6))
-    wedges, _texts, autotexts = ax.pie(
-        active["count"],
+    All categories are included in the pie and legend, even ones with zero
+    traces, so the legend always shows the complete set of categories in use —
+    a zero-count category simply renders as a zero-width wedge but still gets
+    its correct rank colour in the legend. Percentage labels sit outside the
+    pie with a leader line to their wedge, since thin/small slices make inside
+    labels overlap."""
+    # Colour by conformance rank (low → high category), matching the bar chart
+    # and heatmap's CIVIDIS_R convention: low conformance = yellow, high = blue.
+    # Applied uniformly regardless of count, so a category's colour never
+    # depends on how much data happens to be in it this run.
+    n = len(range_df)
+    colors = [to_hex(CIVIDIS_R(i / max(n - 1, 1))) for i in range(n)]
+
+    fig, ax = plt.subplots(figsize=(9, 7))
+    wedges, _texts = ax.pie(
+        range_df["count"],
         labels=None,
-        colors=active_colors,
+        colors=colors,
         startangle=90,
-        autopct=lambda pct: f"{pct:.1f}%" if pct >= 1 else "",
-        pctdistance=0.68,
         wedgeprops=dict(edgecolor="white", linewidth=2),
-        textprops=dict(fontsize=FONT_ANNOT),
     )
-    for color, autotext in zip(active_colors, autotexts):
-        autotext.set_color(contrasting_text_color(color))
+
+    total = range_df["count"].sum()
+    active = [
+        (count / total * 100, (wedge.theta1 + wedge.theta2) / 2.0)
+        for wedge, count in zip(wedges, range_df["count"])
+        if count > 0 and total > 0
+    ]
+    active.sort(key=lambda t: t[1])
+
+    # Adjacent thin wedges can land close enough in angle that their outside
+    # labels still collide. Fan a closely-following label's angle away from its
+    # neighbour (one left, one right of their true positions) instead of
+    # pushing it further out, so both leader lines stay the same length.
+    MIN_GAP_DEG = 12
+    FAN_DEG = 3
+    BASE_RADIUS = 1.3
+    label_angle_offsets = [0.0] * len(active)
+    for i in range(1, len(active)):
+        if abs(active[i][1] - active[i - 1][1]) < MIN_GAP_DEG:
+            label_angle_offsets[i - 1] -= FAN_DEG
+            label_angle_offsets[i] += FAN_DEG
+
+    for i, (pct, angle_deg) in enumerate(active):
+        true_angle = np.deg2rad(angle_deg)
+        x0, y0 = np.cos(true_angle), np.sin(true_angle)
+        label_angle = np.deg2rad(angle_deg + label_angle_offsets[i])
+        xl, yl = np.cos(label_angle), np.sin(label_angle)
+        ax.annotate(
+            f"{pct:.1f}%",
+            xy=(x0, y0),
+            xytext=(xl * BASE_RADIUS, yl * BASE_RADIUS),
+            ha="left" if xl >= 0 else "right", va="center",
+            fontsize=FONT_ANNOT,
+            arrowprops=dict(arrowstyle="-", color=GREY_MED, lw=1),
+        )
+    ax.set_xlim(-1.7, 1.7)
+    ax.set_ylim(-1.7, 1.7)
+
     ax.legend(
-        wedges, list(active["range"]),
-        loc="lower center", bbox_to_anchor=(0.5, -0.08),
+        wedges, list(range_df["range"]),
+        loc="lower center", bbox_to_anchor=(0.5, -0.1),
         fontsize=FONT_ANNOT, frameon=True, framealpha=0.9,
-        ncol=min(len(active), 3),
+        ncol=len(range_df),
+        title="Conformance Category\n",
     )
-    ax.set_title("Conformance Range Proportions", fontsize=FONT_TITLE)
+    ax.set_title("Conformance Category Distribution", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task10_pie_chart.svg"))
 
@@ -548,7 +600,7 @@ def generate(df, output_dir: str, log=None, conformance_bins=None):
             conformance_bins = _parse_bins(conformance_bins)
         if conformance_bins:
             bins   = list(conformance_bins)
-            labels = make_conformance_labels(bins)
+            labels = _labels_for_bins(bins)
             logger.info(f"      -> Admin-specified conformance bins: {bins}")
             # Pass bins explicitly → _resolve_ranges() respects them exactly.
             range_df, used_bins, used_labels = _resolve_ranges(df, bins, labels)
