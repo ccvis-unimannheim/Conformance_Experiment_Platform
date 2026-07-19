@@ -7,8 +7,7 @@ import TaskVisualizationPanel from "../../components/Task/TaskVisualizationPanel
 import TaskAnswerPanel from "../../components/Task/TaskAnswerPanel";
 import { UITrackingProvider } from "../../utils/usertracking";
 
-import ProjectLogo from "../../public/images/logo-no-background.png";
-import UniLogo from "../../public/images/Logo_UMA_EN_RGB.png";
+import HeaderLogos from "../../components/General/HeaderLogos";
 
 function groupTrialsByTask(trials) {
   const groups = [];
@@ -324,10 +323,7 @@ export default function TaskExecutionPage() {
             Key Concept
           </button>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flex: 1, padding: "0 1rem", maxWidth: "56rem", margin: "0 auto" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <Image priority src={ProjectLogo} width={90} height={36} alt="ProVi Logo" style={{ objectFit: "contain" }} />
-              <Image priority src={UniLogo} width={140} height={36} alt="University of Mannheim Logo" style={{ objectFit: "contain" }} />
-            </div>
+            <HeaderLogos />
             <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
               {totalTasks > 0 && (
                 <span style={{ fontSize: "10px", fontWeight: 700, color: "#5a6061", textTransform: "uppercase", letterSpacing: "0.1em" }}>

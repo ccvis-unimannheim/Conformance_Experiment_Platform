@@ -2078,6 +2078,7 @@ def draw_parallel_sets(
     label_min_frac: float = 0.03,
     wrap_labels: bool = True,
     left_label_fontsize: float = None,
+    emphasize_left_head: bool = False,
 ):
     """Draw a two-dimension Parallel Sets chart onto *ax*.
 
@@ -2092,6 +2093,9 @@ def draw_parallel_sets(
     right_title   : column header above right axis
     bar_w         : width of the bar rectangles (axes units)
     x_left/right  : x position of the left/right bar centres (axes units)
+    emphasize_left_head : bold the part of each left label before the wrapped
+    "  (...)" suffix (e.g. the bucket name), so it stands out from the metric
+    that follows it.
     """
     import numpy as _np
     from matplotlib.patches import PathPatch as _PP
@@ -2109,10 +2113,24 @@ def draw_parallel_sets(
 
     # Wrap the "…  (…)" suffix onto a second line so long labels stay narrow (both
     # callers separate the parenthetical with a double space).
-    def _wrap(lbl):
+    def _split(lbl):
         s = str(lbl)
-        return s.replace("  ", "\n", 1) if wrap_labels and "  " in s else s
-    left_labels  = [_wrap(l) for l in left_labels]
+        return s.split("  ", 1) if wrap_labels and "  " in s else (s, None)
+
+    def _wrap(lbl):
+        head, tail = _split(lbl)
+        return f"{head}\n{tail}" if tail is not None else head
+
+    def _wrap_emph(lbl):
+        # Bolds only the part before the wrapped "  (...)" suffix (e.g. the bucket
+        # name) via mathtext, so it reads distinctly from the metric that follows.
+        head, tail = _split(lbl)
+        if tail is None:
+            return head
+        safe = head.replace("_", r"\_").replace(" ", r"\ ")
+        return f"$\\mathbf{{{safe}}}$\n{tail}"
+
+    left_labels = [(_wrap_emph(l) if emphasize_left_head else _wrap(l)) for l in left_labels]
     right_labels = [_wrap(l) for l in right_labels]
 
     ctrl_x  = (x_left + x_right) / 2.0
@@ -2179,10 +2197,10 @@ def draw_parallel_sets(
 
     # Column titles
     if left_title:
-        ax.text(x_left,  1.08, left_title,  ha="center", va="bottom",
+        ax.text(x_left,  1.04, left_title,  ha="center", va="bottom",
                 fontsize=FONT_LABEL, fontweight="bold")
     if right_title:
-        ax.text(x_right, 1.08, right_title, ha="center", va="bottom",
+        ax.text(x_right, 1.04, right_title, ha="center", va="bottom",
                 fontsize=FONT_LABEL, fontweight="bold")
 
     # Reserve exact horizontal room for the (data-anchored, non-autoscaling) side
@@ -2190,7 +2208,7 @@ def draw_parallel_sets(
     # side overruns the axes. Font size and axes position are fixed, so the label
     # pixel widths and axes pixel width are invariant under the x-limit change,
     # making this a closed-form solve rather than a fixed-point iteration.
-    ax.set_ylim(-0.05, 1.22)
+    ax.set_ylim(-0.03, 1.11)
     fig = ax.figure
     try:
         fig.canvas.draw()
@@ -2227,7 +2245,7 @@ def draw_parallel_sets(
             orig_y = [it[1] for it in items]
             heights = [it[2] for it in items]
             new_y = list(orig_y)
-            lo, hi = 0.0, 1.03   # keep labels clear of the column title (~1.08)
+            lo, hi = 0.0, 0.99   # keep labels clear of the column title (~1.04)
 
             def _gap(i):  # required centre-to-centre spacing between i and i+1
                 return 0.5 * (heights[i] + heights[i + 1])

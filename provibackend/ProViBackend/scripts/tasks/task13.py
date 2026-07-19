@@ -120,7 +120,11 @@ from tasks.task28 import build_task28_context
 # task20's per-trace ``duration_hours``).
 THROUGHPUT_KEY = "__throughput_hours__"
 
-# Candidate attributes ("reasons"). Configurable via generate(..., candidate_attributes=).
+# Legacy hard-coded reasons — kept only as an explicit override example. The
+# dataset-INDEPENDENT default is discover_candidate_attributes(), which derives the
+# candidate reasons from whatever attributes the log actually carries; these BPIC12
+# names are no longer used as a fallback (that would probe non-existent keys and
+# emit spurious "not found" warnings on other datasets).
 CANDIDATE_ATTRIBUTES = ["AMOUNT_REQ", "org:resource", THROUGHPUT_KEY]
 
 NUMERIC_BUCKETS = 4   # quantile buckets for a numeric attribute's bar/parallel dim
@@ -277,6 +281,53 @@ def _bucket_assign(values, kind: str):
     labels = top + (["Other"] if present.nunique() > len(top) else [])
     out = [None if x is None else (x if x in top else "Other") for x in s]
     return out, labels
+
+
+# Structural / format-level keys that are never candidate reasons. The check is
+# dataset-independent: a key that isn't in a given log simply won't appear, so this
+# set is safe across datasets (REG_DATE is a raw registration timestamp — bucketable
+# but not an interpretable violation driver).
+_NON_CANDIDATE_KEYS = {
+    "concept:name", "time:timestamp", "lifecycle:transition",
+    "case:concept:name", "REG_DATE",
+}
+
+
+def _is_structural_key(key: str) -> bool:
+    return (key in _NON_CANDIDATE_KEYS
+            or str(key).startswith("@@")
+            or str(key).lower().startswith("unnamed"))
+
+
+def discover_candidate_attributes(log, feat=None) -> list:
+    """Dataset-independent default candidate attributes ("reasons").
+
+    Every case/event attribute of THIS log that the attribute-evidence idioms can
+    meaningfully bucket, plus the derived throughput time when it varies. Structural
+    keys and non-bucketable columns are skipped. This is the single source of truth
+    shared by the task13/18/20/21 rendering defaults and the admin picker
+    (create_all_visualizations.get_log_candidate_attributes), so the default set
+    adapts to the dataset instead of assuming BPIC12's attributes.
+
+    Returns [] when the log carries no bucketable attribute — a valid result that
+    lets the callers emit their normal empty-state instead of probing hard-coded
+    keys. ``feat`` is task20's trace-feature frame (for the throughput column); pass
+    it when already computed to avoid recomputation.
+    """
+    keys = []
+    for key in _available_attributes(log):
+        if _is_structural_key(key):
+            continue
+        values, kind = _collect_attribute_column(log, key)
+        if kind == "missing":
+            continue
+        if _bucket_assign(list(values), kind) is None:
+            continue
+        keys.append(key)
+    if feat is not None and not feat.empty and "duration_hours" in feat:
+        if _bucket_assign(feat["duration_hours"].tolist(), "numeric") is not None:
+            keys.append(THROUGHPUT_KEY)
+    return keys
 
 
 def _bucket_rates(values, kind: str, violation):
@@ -685,9 +736,6 @@ def generate(log, alignments, model_path, output_dir: str, candidate_attributes=
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 13 visualizations ---")
 
-    if candidate_attributes is None:
-        candidate_attributes = list(CANDIDATE_ATTRIBUTES)
-
     if not log or not alignments:
         logger.warning("      task13: empty log / alignments — emitting empty-state SVGs.")
         _emit_all_empty(output_dir, "No log or alignment data available.")
@@ -698,6 +746,9 @@ def generate(log, alignments, model_path, output_dir: str, candidate_attributes=
         logger.warning("      task13: no trace features — emitting empty-state SVGs.")
         _emit_all_empty(output_dir, "No per-trace features available.")
         return
+
+    if candidate_attributes is None:
+        candidate_attributes = discover_candidate_attributes(log, feat)
 
     evidence_df, attr_meta = _build_evidence_frame(log, feat, candidate_attributes)
     if not attr_meta:

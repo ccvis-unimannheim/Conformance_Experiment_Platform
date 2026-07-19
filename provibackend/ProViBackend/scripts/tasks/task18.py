@@ -69,7 +69,7 @@ from shared import (
 # Reuse: violation label + per-trace features.
 from tasks.task20 import task20_trace_feature_dataframe
 # Reuse: candidate-attribute evidence frame + default candidate set (attribute context).
-from tasks.task13 import _build_evidence_frame, CANDIDATE_ATTRIBUTES
+from tasks.task13 import _build_evidence_frame, discover_candidate_attributes
 # Reuse: representative-trace picker for the chevron flow idiom.
 from tasks.task28 import build_task28_context
 
@@ -172,9 +172,6 @@ def task18_responsibility(log, alignments, candidate_attributes=None):
         has_attrs – whether an attribute context column is available
     Reused by task21 (exploratory composite) for the event candidates.
     """
-    if candidate_attributes is None:
-        candidate_attributes = list(CANDIDATE_ATTRIBUTES)
-
     rows = _violation_activity_rows(alignments)
     occ, contain = _activity_log_stats(log)
 
@@ -182,6 +179,8 @@ def task18_responsibility(log, alignments, candidate_attributes=None):
     attr_meta, evidence_df = [], None
     feat = task20_trace_feature_dataframe(log, alignments)
     if feat is not None and not feat.empty:
+        if candidate_attributes is None:
+            candidate_attributes = discover_candidate_attributes(log, feat)
         evidence_df, attr_meta = _build_evidence_frame(log, feat, candidate_attributes)
 
     if not rows:

@@ -637,26 +637,12 @@ def get_log_candidate_attributes(dataset_dir: str) -> list[dict]:
     alignments = get_or_compute_alignments(dataset_dir, log)
     feat = task20.task20_trace_feature_dataframe(log, alignments)
 
-    # REG_DATE is a raw registration timestamp — bucketable but meaningless as a
-    # violation driver, so it is excluded alongside the structural columns.
-    skip = {"concept:name", "time:timestamp", "lifecycle:transition", "case:concept:name", "REG_DATE"}
-
-    def _is_internal(k: str) -> bool:
-        return k in skip or k.startswith("@@") or str(k).lower().startswith("unnamed")
-
+    # Single source of truth: the same discovery the task13/18/20/21 defaults use,
+    # so what the admin can pick is exactly what renders by default.
     options = []
-    for key in task13._available_attributes(log):
-        if _is_internal(key):
-            continue
-        values, kind = task13._collect_attribute_column(log, key)
-        if kind == "missing":
-            continue
-        if task13._bucket_assign(list(values), kind) is None:
-            continue
-        options.append({"value": key, "label": key})
-    # Derived throughput time — no raw log key, always a candidate when it varies.
-    if not feat.empty and task13._bucket_assign(feat["duration_hours"].tolist(), "numeric") is not None:
-        options.append({"value": task13.THROUGHPUT_KEY, "label": "Throughput time (h)"})
+    for key in task13.discover_candidate_attributes(log, feat):
+        label = "Throughput time (h)" if key == task13.THROUGHPUT_KEY else key
+        options.append({"value": key, "label": label})
     return options
 
 
