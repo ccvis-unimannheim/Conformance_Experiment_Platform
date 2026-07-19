@@ -312,6 +312,40 @@ def _chevron_nodes(rows, colors=None):
     return nodes
 
 
+def _log_move_badges(rows, task_names):
+    """Badges for Move on Log steps: {'label': activity, 'anchor': nearest real
+    model task in the trace's own step order}.
+
+    Log Move activities aren't model tasks, so they have no BPMN node of their
+    own — the badge is drawn hanging off the closest real task instead (the
+    preceding one in the trace; the next one if the log move is the very first
+    step). Steps with no real task anywhere in the trace are dropped (nothing
+    to anchor to).
+    """
+    badges = []
+    for i, r in enumerate(rows):
+        if r["moveType"] != "Move on Log":
+            continue
+        label = r["log_move"]
+        if not label or label in (">>", "(skip)"):
+            continue
+        anchor = None
+        for j in range(i - 1, -1, -1):
+            a = rows[j]["activity"]
+            if a and a != ">>" and a in task_names:
+                anchor = a
+                break
+        if anchor is None:
+            for j in range(i + 1, len(rows)):
+                a = rows[j]["activity"]
+                if a and a != ">>" and a in task_names:
+                    anchor = a
+                    break
+        if anchor is not None:
+            badges.append({"label": label, "anchor": anchor})
+    return badges
+
+
 # ── Idiom 1: bar_chart — most violated activities (log-level) ────────────────
 
 def task34_bar_chart(ctx, output_dir):
@@ -724,9 +758,12 @@ def task34_flow_chart_elaborate(ctx, model_path, output_dir):
                                "Could not parse BPMN model.")
         return
 
+    rows = ctx["rows"]
+    task_names = {e["name"] for e in parsed["elements"].values() if e.get("kind") == "task"}
+
     priority  = {"Move on Model": 2, "Move on Log": 1, "Synchronous": 0}
     act_status = {}
-    for r in ctx["rows"]:
+    for r in rows:
         act, mt = r["activity"], r["moveType"]
         if act and act != ">>":
             # First sighting always records the activity (even Synchronous,
@@ -748,21 +785,27 @@ def task34_flow_chart_elaborate(ctx, model_path, output_dir):
             return (color, edge, lw, contrasting_text_color(color))
         return ("#FAFAFA", "#CCCCCC", 1.0, "#444444")
 
-    # Only list legend entries that actually occur among this trace's task
-    # nodes — a static 4-entry legend implied all of them always occur.
+    # Log Move activities aren't model tasks, so they can't be shown by
+    # colouring a node — draw them as dashed badges floating above their
+    # nearest real task instead (shared.bpmn_diagram_body's `badges` support).
+    badges = _log_move_badges(rows, task_names)
+
+    # Only list legend entries that actually occur — a static list implied
+    # all of them always occur, which isn't true.
     present_status = set(act_status.values())
-    task_names = {e["name"] for e in parsed["elements"].values() if e.get("kind") == "task"}
     has_not_in_trace = any(name not in act_status for name in task_names)
 
     legend_items = [
         (_T04_ALIGN_COLORS[mt], *_T04_ALIGN_STYLE[mt], _MOVE_DISPLAY[mt])
-        for mt in ("Synchronous", "Move on Model", "Move on Log")
+        for mt in ("Synchronous", "Move on Model")
         if mt in present_status
     ]
+    if badges:
+        legend_items.append((GREY_DARK, "#8ba0cf", 2.0, _MOVE_DISPLAY["Move on Log"], "6 4"))
     if has_not_in_trace:
         legend_items.append(("#FAFAFA", "#CCCCCC", 1.0, "Not in trace"))
     compose_bpmn_panels(
-        panels=[{"parsed": parsed, "node_style_fn": node_style_fn, "subtitle": ""}],
+        panels=[{"parsed": parsed, "node_style_fn": node_style_fn, "subtitle": "", "badges": badges}],
         out_path=out_path,
         title="BPMN Alignment — Violation Overview",
         legend_items=legend_items,
