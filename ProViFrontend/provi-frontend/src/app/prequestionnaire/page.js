@@ -50,9 +50,9 @@ const TOOL_OPTIONS = [
 ];
 
 const RATING_FIELDS = [
-  { key: "processMining",       label: "Process Mining" },
-  { key: "conformanceChecking", label: "Conformance Checking" },
-  { key: "dataVisualization",   label: "Data Visualization" },
+  { key: "businessProcessManagement", label: "Business Process Management" },
+  { key: "processMining",             label: "Process Mining" },
+  { key: "conformanceChecking",       label: "Conformance Checking" },
 ];
 
 // ── n-column grid option button (education / role / gender / age)
@@ -156,9 +156,9 @@ export default function PrequestionnaireComponent() {
   const [role,         setRole]         = useState("");
   const [fieldOfStudy, setFieldOfStudy] = useState("");
   const [ratings, setRatings] = useState({
-    processMining:       0,
-    conformanceChecking: 0,
-    dataVisualization:   0,
+    businessProcessManagement: 0,
+    processMining:             0,
+    conformanceChecking:       0,
   });
   const [yearsExp,    setYearsExp]    = useState(0);
   const [tools,       setTools]       = useState([]);
@@ -184,7 +184,7 @@ export default function PrequestionnaireComponent() {
   const isValid =
     (!show("personal_info")    || (gender !== "" && /^\d+$/.test(age) && parseInt(age, 10) >= 1)) &&
     (!show("academic_profile") || (education !== "" && role !== "" && fieldOfStudy.trim() !== "")) &&
-    (!show("technical_expertise") || (ratings.processMining > 0 && ratings.conformanceChecking > 0 && ratings.dataVisualization > 0));
+    (!show("technical_expertise") || (ratings.businessProcessManagement > 0 && ratings.processMining > 0 && ratings.conformanceChecking > 0));
 
   const handleContinue = async () => {
     if (!isValid) {
@@ -200,9 +200,9 @@ export default function PrequestionnaireComponent() {
         education,
         role,
         field_of_study: fieldOfStudy,
-        rating_process_mining:       ratings.processMining,
-        rating_conformance_checking: ratings.conformanceChecking,
-        rating_data_visualization:   ratings.dataVisualization,
+        rating_business_process_management: ratings.businessProcessManagement,
+        rating_process_mining:              ratings.processMining,
+        rating_conformance_checking:        ratings.conformanceChecking,
         years_experience: yearsExp,
         tools,
       };
