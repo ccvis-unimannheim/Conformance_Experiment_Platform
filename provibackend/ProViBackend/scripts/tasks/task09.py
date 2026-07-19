@@ -1006,9 +1006,9 @@ def _make_bpmn_t11_svg(selected, trace_coverage, n_traces, activity_totals,
             out.append(f"<rect x='{x:.1f}' y='{y:.1f}' width='{w:.1f}' height='{h:.1f}' "
                        f"rx='7' fill='{fill}' stroke='{stroke}' stroke-width='1.5'/>")
 
-            name_lines = wrap_name(name, w)
-            name_gap   = 11
-            name_fs    = 9
+            name_gap   = 13
+            name_fs    = 10
+            name_lines = wrap_name(name, w, fs=name_fs)
 
             if has_viols:
                 # Name occupies upper third; separator divides; violations fill lower half
@@ -1029,9 +1029,9 @@ def _make_bpmn_t11_svg(selected, trace_coverage, n_traces, activity_totals,
                            f"x2='{x+w-sep_margin:.1f}' y2='{sep_y:.1f}' "
                            f"stroke='{sep_color}' stroke-width='0.8' stroke-opacity='0.5'/>")
                 # Violation lines
-                viol_fs  = 9
-                viol_gap = 12
-                viol_top = sep_y + 10
+                viol_fs  = 12
+                viol_gap = 15
+                viol_top = sep_y + 11
                 for vi, (svt, cnt, pct) in enumerate(viols):
                     vy = viol_top + vi * viol_gap
                     lbl = f"{svt}: {cnt:,} | {pct:.1f}%"
