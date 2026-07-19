@@ -99,7 +99,7 @@ from shared import (
     save_svg, make_table, auto_col_widths, draw_value_heatmap,
     alignment_pairs_to_rows, chevron_nodes_from_alignment_rows,
     draw_chevron_strip, chevron_figure_width,
-    GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK,
+    GREY_MED, GREY_LIGHTER, GREY_DARK,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
@@ -111,6 +111,11 @@ _TRACE_COLOR = GREY_MED
 
 # Consistent figure title across every idiom.
 TITLE = "Trace Conformance Fitness"
+
+# Activity-name font in the chevron flow chart. 11pt fills the chevron's built-in
+# width headroom (calibrated for ~9pt) without touching the arrow edges; the
+# shared auto-shrink still handles any unusually long label. Bump here to retune.
+_CHEVRON_FONT = 11
 
 
 # ---------------------------------------------------------------------------
@@ -162,10 +167,9 @@ def _task04_build_trace_df(log, fitness_df: pd.DataFrame, trace_ids=None,
 # Move-type palette (mirrors shared.chevron_nodes_from_alignment_rows) used for
 # the chevron / flow-chart legend.
 _MOVE_LEGEND = [
-    ("Synchronous (conformant)",      GREY_LIGHTER),
-    ("Skipped activity (move on model)", GREY_MED),
-    ("Inserted activity (move on log)",  GREY_DARK),
-    ("Mismatch",                      GREY_LIGHT),
+    ("Synchronous Move", GREY_LIGHTER),
+    ("Model Move",       GREY_MED),
+    ("Log Move",         GREY_DARK),
 ]
 
 
@@ -244,7 +248,7 @@ def task04_flow_chart_basic(selected, output_dir: str):
     for r, (trace, nodes) in enumerate(zip(selected, nodes_per_trace)):
         ax = fig.add_subplot(gs[r])
         if nodes:
-            draw_chevron_strip(ax, nodes, fontsize=FONT_ANNOT)
+            draw_chevron_strip(ax, nodes, fontsize=_CHEVRON_FONT)
         else:
             ax.axis("off")
             ax.text(0.5, 0.5, "(empty trace)", ha="center", va="center",
@@ -255,8 +259,7 @@ def task04_flow_chart_basic(selected, output_dir: str):
                for lbl, c in _MOVE_LEGEND]
     fig.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, 0.0),
                ncol=len(_MOVE_LEGEND), frameon=False, fontsize=FONT_ANNOT - 1)
-    fig.suptitle(TITLE, fontsize=FONT_TITLE)
-    fig.tight_layout(rect=[0, 0.08, 1, 0.95])
+    fig.tight_layout(rect=[0, 0.08, 1, 1.0])
     save_svg(fig, path)
 
 def task04_bar_chart(tdf: pd.DataFrame, output_dir: str):
