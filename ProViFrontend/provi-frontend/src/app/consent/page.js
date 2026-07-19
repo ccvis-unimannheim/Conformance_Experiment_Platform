@@ -3,8 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import UniLogo from "../../public/images/Logo_UMA_EN_RGB.png";
-import ProjectLogo from "../../public/images/logo-no-background.png";
+import HeaderLogos from "../../components/General/HeaderLogos";
 
 export default function ConsentPage() {
   const router = useRouter();
@@ -55,10 +54,7 @@ export default function ConsentPage() {
         boxSizing: "border-box",
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", padding: "0 2rem", maxWidth: "56rem", margin: "0 auto" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <Image priority src={ProjectLogo} width={90} height={36} alt="ProVi Logo" style={{ objectFit: "contain" }} />
-            <Image priority src={UniLogo} width={140} height={36} alt="University of Mannheim Logo" style={{ objectFit: "contain" }} />
-          </div>
+          <HeaderLogos />
         </div>
       </nav>
 
