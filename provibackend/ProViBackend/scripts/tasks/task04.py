@@ -29,7 +29,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["flow_chart_basic",
+IDIOMS = ["flow_chart_basic", "flow_chart_elaborate",
           "bar_chart", "table",
           "line_graph", "table_bar_chart",
           "matrix", "heatmap"]
@@ -99,6 +99,8 @@ from shared import (
     save_svg, make_table, auto_col_widths, draw_value_heatmap,
     alignment_pairs_to_rows, chevron_nodes_from_alignment_rows,
     draw_chevron_strip, chevron_figure_width,
+    parse_bpmn_model, compose_bpmn_panels, render_empty_state_svg,
+    contrasting_text_color,
     GREY_MED, GREY_LIGHTER, GREY_DARK,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
@@ -275,6 +277,79 @@ def task04_flow_chart_basic(selected, output_dir: str):
     fig.tight_layout(rect=[0, 0.08, 1, 1.0])
     save_svg(fig, path)
 
+
+def _task04_bpmn_node_style(rows):
+    """node_style_fn colouring model tasks by this trace's alignment: synchronous
+    move -> yellow (conformant), model move -> grey (skipped); everything else
+    white. Log moves (inserted activities) are not model tasks — the table lists
+    them instead. Uses the same colours as the chevron for information equivalence."""
+    conform, skipped = set(), set()
+    for r in rows:
+        if r["moveType"] == "Synchronous Move":
+            lbl = str(r["log_move"]) if str(r["log_move"]) not in ("-", "None", "(skip)", "") \
+                else str(r["model_move"])
+            conform.add(lbl)
+        elif r["moveType"] == "Model Move":
+            skipped.add(str(r["model_move"]))
+
+    def _style(eid, elem):
+        if elem.get("kind") == "task":
+            name = elem.get("name", "")
+            if name in skipped:
+                return (GREY_MED, "#444444", 3, contrasting_text_color(GREY_MED))
+            if name in conform:
+                return (GREY_LIGHTER, "#666666", 2, contrasting_text_color(GREY_LIGHTER))
+        return ("white", "#888888", 2, "#333333")
+    return _style
+
+
+def _task04_log_moves(rows):
+    """Inserted activities (log moves) of a trace — absent from the model."""
+    return [str(r["log_move"]) for r in rows if r["moveType"] == "Log Move"]
+
+
+def task04_flow_chart_elaborate(selected, model_path, output_dir):
+    """BPMN idiom, information-equivalent to the chevron: the guideline model is
+    drawn once per trace (stacked), each model task coloured by that trace's
+    alignment — Synchronous Move (yellow) or Model Move / skipped (grey). Log Move
+    (inserted) activities aren't model tasks, so they are listed in the table
+    beneath, whose dark-blue header matches the Log Move legend colour. Together
+    the panels + table encode the same three move types the chevron shows."""
+    path = os.path.join(output_dir, "task04_flow_chart_elaborate.svg")
+    title = "Trace-Level Conformance on the Process Model"
+    if not selected or not model_path:
+        render_empty_state_svg(path, title, "No traces or model available.")
+        return
+    try:
+        parsed = parse_bpmn_model(model_path)
+    except Exception as e:
+        logger.warning(f"      task04: BPMN parse failed: {e}")
+        render_empty_state_svg(path, title, "BPMN model could not be parsed.")
+        return
+    if not parsed.get("elements"):
+        render_empty_state_svg(path, title, "No BPMN geometry to render.")
+        return
+
+    panels = [{
+        "parsed": parsed,
+        "node_style_fn": _task04_bpmn_node_style(t["rows"]),
+        "subtitle": t["label"],
+    } for t in selected]
+    table_rows = [[t["label"], ", ".join(_task04_log_moves(t["rows"])) or "—"] for t in selected]
+
+    compose_bpmn_panels(
+        panels, path,
+        title=title,
+        legend_items=[
+            (GREY_LIGHTER, "#666666", 2, "Synchronous Move"),
+            (GREY_MED,     "#444444", 3, "Model Move"),
+            (GREY_DARK,    "#333333", 3, "Log Move"),
+        ],
+        table_rows=table_rows,
+        table_cols=["Trace", "Log Move"],
+    )
+
+
 def task04_bar_chart(tdf: pd.DataFrame, output_dir: str):
     """One uniform-coloured bar per trace; fitness value labelled above each bar."""
     fig, ax = plt.subplots(figsize=(max(7, len(tdf) * 0.75), 5))
@@ -412,7 +487,7 @@ def task04_heatmap(tdf: pd.DataFrame, output_dir: str):
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def generate(log, fitness_df, output_dir: str, trace_ids=None, alignments=None):
+def generate(log, fitness_df, output_dir: str, trace_ids=None, alignments=None, model_path=None):
     """Generate all Task ID 4 SVGs into output_dir.
 
     ``trace_ids`` is the admin-configured list of case-id strings (from
@@ -450,6 +525,7 @@ def generate(log, fitness_df, output_dir: str, trace_ids=None, alignments=None):
     task04_line_graph(tdf, output_dir)
     task04_heatmap(tdf, output_dir)
 
-    # Trace-level pattern comparison — chevron flow chart of the same traces.
+    # Trace-level pattern comparison — chevron + BPMN idioms of the same traces.
     if selected:
         task04_flow_chart_basic(selected, output_dir)
+        task04_flow_chart_elaborate(selected, model_path, output_dir)
