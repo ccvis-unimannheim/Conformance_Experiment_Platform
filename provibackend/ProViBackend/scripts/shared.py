@@ -1791,16 +1791,35 @@ def bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn=None, *, ox=0.0, oy=0
             bw, bh = aw, ah
             acx = ax + aw / 2.0
             bx = acx - bw / 2.0 + k * (bw + 12.0)
-            # Sit above the TOPMOST node overlapping the badge's x-range, so the
-            # badge never overlaps a node (e.g. a parallel branch above the anchor).
+            # Blockers: any node stacked above the anchor's own column (e.g. a
+            # parallel branch directly above it) — the badge must clear these,
+            # and the connector must detour around them rather than being drawn
+            # straight through their fill.
+            blockers = sorted(
+                (box2 for box2 in node_boxes
+                 if box2 is not box and box2[1] < ay
+                 and box2[0] < ax + aw and box2[0] + box2[2] > ax),
+                key=lambda b: b[1],
+            )
             top = ay
-            for nx, ny, nw, nh in node_boxes:
-                if nx < bx + bw and nx + nw > bx and ny < ay:
-                    top = min(top, ny)
+            for _, ny, _, _ in blockers:
+                top = min(top, ny)
             by = top - 20.0 - bh
-            # Dark-blue dashed connector from the badge down to the anchor node.
-            out.append(f'<line x1="{acx:.1f}" y1="{by + bh:.1f}" x2="{acx:.1f}" y2="{ay:.1f}" '
-                       f'stroke="{GREY_DARK}" stroke-width="1.6" stroke-dasharray="4 3"/>')
+            # Dark-blue dashed connector from the badge down to the anchor node,
+            # jogging sideways around any blocking node instead of crossing it.
+            conn_pts = [(acx, by + bh)]
+            if blockers:
+                detour_x = max(bx2 + bw2 for bx2, _by2, bw2, _bh2 in blockers) + 14.0
+                conn_pts += [
+                    (acx, by + bh + 6.0),
+                    (detour_x, by + bh + 6.0),
+                    (detour_x, ay - 6.0),
+                    (acx, ay - 6.0),
+                ]
+            conn_pts.append((acx, ay))
+            pts_str = " ".join(f"{px:.1f},{py:.1f}" for px, py in conn_pts)
+            out.append(f'<polyline points="{pts_str}" fill="none" stroke="{GREY_DARK}" '
+                       f'stroke-width="1.6" stroke-dasharray="4 3"/>')
             # Blue-filled dashed box, same shape/size as an activity node.
             out.append(f'<rect x="{bx:.1f}" y="{by:.1f}" width="{bw:.1f}" height="{bh:.1f}" '
                        f'rx="7" ry="7" fill="{GREY_DARK}" stroke="{badge_dash}" stroke-width="2.0" '
