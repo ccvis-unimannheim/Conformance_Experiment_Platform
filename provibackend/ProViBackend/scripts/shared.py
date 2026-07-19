@@ -1639,7 +1639,7 @@ _BPMN_MARKER_DEFS = (
 
 
 def bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn=None, *, ox=0.0, oy=0.0,
-                      top_pad=88.0, h_scale: float = 1.0):
+                      top_pad=88.0, h_scale: float = 1.0, node_font_size: float = 9.0):
     """Return (svg_lines, width, height) for one BPMN diagram translated by (ox, oy).
 
     The body excludes the outer <svg>, marker <defs> and legend so it can be
@@ -1716,12 +1716,12 @@ def bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn=None, *, ox=0.0, oy=0
                 f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" '
                 f'rx="7" ry="7" fill="{fill}" stroke="{stroke}" stroke-width="{sw}"{dash_attr}/>'
             )
-            lines = _bpmn_label_lines(name, w)
-            gap = 10.5; sy = y + h / 2.0 - (len(lines) - 1) * gap / 2.0
+            lines = _bpmn_label_lines(name, w, font_size=node_font_size)
+            gap = node_font_size * 1.17; sy = y + h / 2.0 - (len(lines) - 1) * gap / 2.0
             for i, line in enumerate(lines):
                 out.append(
                     f'<text x="{x + w / 2.0:.1f}" y="{sy + i * gap:.1f}" text-anchor="middle" '
-                    f'dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" '
+                    f'dominant-baseline="middle" font-family="Arial, sans-serif" font-size="{node_font_size}" '
                     f'fill="{tc}">{_bpmn_esc(line)}</text>'
                 )
         elif kind in {"exclusiveGateway", "parallelGateway"}:
@@ -1756,7 +1756,7 @@ def bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn=None, *, ox=0.0, oy=0
     return out, W, H
 
 
-def _bpmn_legend_lines(legend_items, y, x0=24.0):
+def _bpmn_legend_lines(legend_items, y, x0=24.0, font_size=9.0):
     out = []
     for i, item in enumerate(legend_items):
         # Legend item is (fill, stroke, stroke_width, label) or, optionally, a
@@ -1772,7 +1772,7 @@ def _bpmn_legend_lines(legend_items, y, x0=24.0):
         )
         out.append(
             f'<text x="{lx + 30:.1f}" y="{y:.1f}" font-family="Arial, sans-serif" '
-            f'font-size="9" fill="#222">{_bpmn_esc(lbl)}</text>'
+            f'font-size="{font_size}" fill="#222">{_bpmn_esc(lbl)}</text>'
         )
     return out
 
@@ -1817,7 +1817,11 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
                         legend_below_panels=True, legend_center=True,
                         table_stretch: bool = False,
                         table_header_bg: str = GREY_DARK,
-                        h_scale: float = 1.0):
+                        h_scale: float = 1.0,
+                        node_font_size: float = 9.0,
+                        legend_font_size: float = 9.0,
+                        title_font_size: float = 13.0,
+                        title_center: bool = False):
     """Compose several BPMN panels (stacked vertically) + an optional table into one SVG.
 
     panels: list of {"parsed", "node_style_fn", "faded_flow_fn"(opt), "subtitle"}.
@@ -1825,6 +1829,9 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
     legend_below_panels: place the legend strip between the diagram and the table
         (default) rather than at the very bottom of the canvas.
     legend_center: horizontally centre the legend strip on the canvas (default).
+    node_font_size/legend_font_size/title_font_size: override the default (9/9/13)
+        text sizes. title_center: horizontally centre the main title (default:
+        left-aligned, matching prior behavior).
     """
     panel_gap = 26.0
     y_cursor = 64.0  # below the main title
@@ -1838,6 +1845,7 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
         body, w, h = bpmn_diagram_body(
             p["parsed"], p["node_style_fn"], p.get("faded_flow_fn"),
             oy=y_cursor + 24.0, top_pad=8.0, h_scale=h_scale,
+            node_font_size=node_font_size,
         )
         bodies += body
         max_w = max(max_w, w)
@@ -1887,14 +1895,20 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
 
     H_total = y_cursor + 34.0
     W = max(max_w, 24.0 + 265.0 * len(legend_items))
+    if title_center:
+        title_line = (f'<text x="{W / 2.0:.1f}" y="40" text-anchor="middle" '
+                      f'font-family="Arial, sans-serif" font-size="{title_font_size}" '
+                      f'fill="black">{_bpmn_esc(title)}</text>')
+    else:
+        title_line = (f'<text x="24" y="40" font-family="Arial, sans-serif" '
+                      f'font-size="{title_font_size}" fill="black">{_bpmn_esc(title)}</text>')
     out = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{W:.1f}" height="{H_total:.1f}" '
         f'viewBox="0 0 {W:.1f} {H_total:.1f}">',
         _BPMN_MARKER_DEFS,
         '<rect x="0" y="0" width="100%" height="100%" fill="white"/>',
-        f'<text x="24" y="40" font-family="Arial, sans-serif" font-size="13" '
-        f'fill="black">{_bpmn_esc(title)}</text>',
+        title_line,
     ]
     def _legend_x0():
         if not legend_center:
@@ -1907,7 +1921,7 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
     out += bodies
     out += table_lines
     legend_y = legend_below_y if legend_below_y is not None else (H_total - 14)
-    out += _bpmn_legend_lines(legend_items, legend_y, x0=_legend_x0())
+    out += _bpmn_legend_lines(legend_items, legend_y, x0=_legend_x0(), font_size=legend_font_size)
     out.append("</svg>")
     with open(out_path, "w", encoding="utf-8") as fh:
         fh.write("\n".join(out))

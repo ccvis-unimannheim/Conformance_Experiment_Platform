@@ -56,6 +56,7 @@ PARAM_SPEC = [
 
 ANSWER_FORMATS = [
     {"key": "mc-multi", "gt_shape": "mc", "decisive_default": True},
+    {"key": "free-text", "gt_shape": "reference", "decisive_default": False},
 ]
 
 RUBRIC = (
@@ -105,6 +106,14 @@ _MOVE_COLORS = {
     "Synchronous":   "#e0e0e0",  # light grey — conformant (neutral, readable)
     "Move on Model": CAT_SOFT,   # skipped activity
     "Move on Log":   CAT_MID,    # extra activity
+}
+
+# Display labels shown to admins/participants (internal _MOVE_COLORS keys stay
+# as returned by shared.classify_step so they keep matching across tasks).
+_MOVE_DISPLAY = {
+    "Synchronous":   "Synchronous Move",
+    "Move on Model": "Model Move",
+    "Move on Log":   "Log Move",
 }
 
 # Table row fills (cividis-sampled)
@@ -387,30 +396,36 @@ def task34_stacked_bar(ctx, output_dir):
 # ── Idiom 3: table — alignment table for worst-fitness trace ──────────────────
 
 def task34_table(ctx, output_dir):
-    """Two-column table: Activity | Number of Violations for the selected trace.
+    """Two-column table: Activity | Type — one row per alignment step, in trace order.
 
-    Encodes Activity → Violation Count via table cells. Same canonical payload as
-    task34_bar_chart and task34_heatmap; no alignment steps, no fitness, no move types.
+    Lists each step's activity together with its move type (Model Move / Log
+    Move / Synchronous Move) instead of a single aggregate violation count,
+    so the reader can see what actually happened at each step.
     """
-    acts, counts = _build_canonical_payload(ctx)
-    if not any(c > 0 for c in counts):
+    rows = ctx["rows"]
+    if not rows:
         _no_violations(output_dir, "table")
         return
 
-    cell_text = [[a, str(c)] for a, c in zip(acts, counts)]
+    cell_text = []
+    for r in rows:
+        mt = r["moveType"]
+        act = r["model_move"] if mt == "Move on Model" else r["log_move"]
+        cell_text.append([act, _MOVE_DISPLAY.get(mt, mt)])
+
     fig_h = max(3.5, 1.2 + len(cell_text) * 0.42)
     fig, ax = plt.subplots(figsize=(9, fig_h))
     ax.axis("off")
     make_table(
         ax,
         cell_text=cell_text,
-        col_labels=["Activity", "Number of Violations"],
+        col_labels=["Activity", "Type"],
         bbox=[0.05, 0.05, 0.90, 0.82],
-        col_widths=[0.70, 0.30],
+        col_widths=[0.60, 0.40],
         font_size=11,
         scale_xy=(1, 1.7),
     )
-    ax.set_title(f"Activity Violations — {ctx['trace_label']}", fontsize=FONT_TITLE, pad=12)
+    ax.set_title("Activity Violations", fontsize=FONT_TITLE, pad=12)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task34_table.svg"))
 
@@ -651,23 +666,20 @@ def task34_flow_chart_basic(ctx, output_dir):
     nodes = _chevron_nodes(rows)
     fig_w = max(14.0, chevron_figure_width(nodes))
     fig, ax = plt.subplots(figsize=(fig_w, 3.8))
-    draw_chevron_strip(ax, nodes, fontsize=11, uniform_width=True)
-    ax.set_title(
-        f"Trace Alignment — {ctx['trace_label']}  "
-        f"(fitness = {ctx['fitness']:.4f}, violations = {ctx['n_violations']})",
-        fontsize=FONT_TITLE, pad=8,
-    )
+    draw_chevron_strip(ax, nodes, fontsize=13, uniform_width=True)
+    ax.set_title("Trace Alignment", fontsize=FONT_TITLE, pad=8)
     legend_handles = [
         mpatches.Patch(facecolor=_MOVE_COLORS["Synchronous"],   edgecolor="black", linewidth=0.75,
-                       label="Synchronous (conform)"),
+                       label=_MOVE_DISPLAY["Synchronous"]),
         mpatches.Patch(facecolor=_MOVE_COLORS["Move on Model"], edgecolor="black", linewidth=0.75,
-                       label="Move on Model (skipped)"),
+                       label=_MOVE_DISPLAY["Move on Model"]),
         mpatches.Patch(facecolor=_MOVE_COLORS["Move on Log"],   edgecolor="black", linewidth=0.75,
-                       label="Move on Log (extra)"),
+                       label=_MOVE_DISPLAY["Move on Log"]),
     ]
     fig.legend(handles=legend_handles, loc="lower center",
                bbox_to_anchor=(0.5, 0.01), ncol=3,
-               fontsize=FONT_ANNOT, frameon=True, fancybox=False, edgecolor="#cccccc")
+               fontsize=FONT_LABEL + 1, frameon=True, fancybox=False, edgecolor="#cccccc",
+               handleheight=1.8, handlelength=2.4, markerscale=1.4)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task34_flow_chart_basic.svg"))
 
@@ -707,18 +719,21 @@ def task34_flow_chart_elaborate(ctx, model_path, output_dir):
         return ("#FAFAFA", "#CCCCCC", 1.0, "#444444")
 
     legend_items = [
-        (_MOVE_COLORS["Synchronous"], "#888888", 1.0, "Synchronous (conform)"),
-        (CAT_SOFT,  "#888888", 1.5, "Move on Model (skipped)"),
-        (CAT_MID,   "#555555", 1.5, "Move on Log (extra)"),
+        (_MOVE_COLORS["Synchronous"], "#888888", 1.0, _MOVE_DISPLAY["Synchronous"]),
+        (CAT_SOFT,  "#888888", 1.5, _MOVE_DISPLAY["Move on Model"]),
+        (CAT_MID,   "#555555", 1.5, _MOVE_DISPLAY["Move on Log"]),
         ("#FAFAFA", "#CCCCCC", 1.0, "Not in trace"),
     ]
-    summary = ctx["trace_label"]
     compose_bpmn_panels(
-        panels=[{"parsed": parsed, "node_style_fn": node_style_fn, "subtitle": summary}],
+        panels=[{"parsed": parsed, "node_style_fn": node_style_fn, "subtitle": ""}],
         out_path=out_path,
         title="BPMN Alignment — Violation Overview",
         legend_items=legend_items,
-        h_scale=1.1,
+        h_scale=1.6,
+        node_font_size=13.0,
+        legend_font_size=12.0,
+        title_font_size=16.0,
+        title_center=True,
     )
 
 
@@ -850,9 +865,12 @@ def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer
                        dominant violation type.
     Incorrect options = activities that appear synchronously (no violations)
                        in the same trace, used as distractors.
+    free-text: falls through to the static RUBRIC; no value is computed.
     """
     import random as _rnd
 
+    if answer_format == "free-text":
+        return {}
     if answer_format != "mc-multi":
         return {"options": []}
     if not alignments:
