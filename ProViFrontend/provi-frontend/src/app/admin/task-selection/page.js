@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ExperimentSetupHeader from "../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../components/Admin/Toast";
+import EditTaskModal from "../../../components/Admin/EditTaskModal";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:1234";
 
@@ -74,6 +75,9 @@ export default function TaskSelectionPage() {
   const [newTaskDesc, setNewTaskDesc] = useState("");
   const [newTaskAnswerType, setNewTaskAnswerType] = useState("single_choice");
   const [modalError, setModalError] = useState("");
+
+  // Edit Task modal state
+  const [editingTask, setEditingTask] = useState(null);
 
   // Toast state
   const [toast, setToast] = useState({ visible: false, message: "", isError: false });
@@ -171,6 +175,18 @@ export default function TaskSelectionPage() {
     } catch (e) {
       setModalError(`Error: ${e.message}`);
     }
+  }
+
+  async function saveEditedTask(payload) {
+    const taskId = getTaskId(editingTask);
+    const res = await fetch(`${BASE_URL}/admin/tasks/${encodeURIComponent(taskId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    showToast("Task updated successfully!");
+    await fetchTasks();
   }
 
   async function goToStep2() {
@@ -308,6 +324,13 @@ export default function TaskSelectionPage() {
                             </p>
                           )}
                         </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setEditingTask(task); }}
+                          title="Edit task question"
+                          className="text-on-surface-variant hover:text-primary flex-shrink-0 transition-colors p-1 rounded"
+                        >
+                          <span className="material-symbols-outlined text-sm">edit</span>
+                        </button>
                       </div>
                     </div>
                   );
@@ -468,6 +491,14 @@ export default function TaskSelectionPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {editingTask && (
+        <EditTaskModal
+          task={editingTask}
+          onClose={() => setEditingTask(null)}
+          onSave={saveEditedTask}
+        />
       )}
 
       <Toast
