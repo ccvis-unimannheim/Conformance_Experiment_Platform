@@ -1639,7 +1639,7 @@ _BPMN_MARKER_DEFS = (
 
 
 def bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn=None, *, ox=0.0, oy=0.0,
-                      top_pad=88.0, h_scale: float = 1.0):
+                      top_pad=88.0, h_scale: float = 1.0, node_font_size: float = 9.0):
     """Return (svg_lines, width, height) for one BPMN diagram translated by (ox, oy).
 
     The body excludes the outer <svg>, marker <defs> and legend so it can be
@@ -1716,12 +1716,12 @@ def bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn=None, *, ox=0.0, oy=0
                 f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" '
                 f'rx="7" ry="7" fill="{fill}" stroke="{stroke}" stroke-width="{sw}"{dash_attr}/>'
             )
-            lines = _bpmn_label_lines(name, w)
-            gap = 10.5; sy = y + h / 2.0 - (len(lines) - 1) * gap / 2.0
+            lines = _bpmn_label_lines(name, w, font_size=node_font_size)
+            gap = node_font_size * 1.17; sy = y + h / 2.0 - (len(lines) - 1) * gap / 2.0
             for i, line in enumerate(lines):
                 out.append(
                     f'<text x="{x + w / 2.0:.1f}" y="{sy + i * gap:.1f}" text-anchor="middle" '
-                    f'dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" '
+                    f'dominant-baseline="middle" font-family="Arial, sans-serif" font-size="{node_font_size:.1f}" '
                     f'fill="{tc}">{_bpmn_esc(line)}</text>'
                 )
         elif kind in {"exclusiveGateway", "parallelGateway"}:
@@ -1817,7 +1817,7 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
                         legend_below_panels=True, legend_center=True,
                         table_stretch: bool = False,
                         table_header_bg: str = GREY_DARK,
-                        h_scale: float = 1.0):
+                        h_scale: float = 1.0, node_font_size: float = 9.0):
     """Compose several BPMN panels (stacked vertically) + an optional table into one SVG.
 
     panels: list of {"parsed", "node_style_fn", "faded_flow_fn"(opt), "subtitle"}.
@@ -1838,6 +1838,7 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
         body, w, h = bpmn_diagram_body(
             p["parsed"], p["node_style_fn"], p.get("faded_flow_fn"),
             oy=y_cursor + 24.0, top_pad=8.0, h_scale=h_scale,
+            node_font_size=node_font_size,
         )
         bodies += body
         max_w = max(max_w, w)

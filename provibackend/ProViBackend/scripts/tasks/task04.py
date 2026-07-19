@@ -335,7 +335,6 @@ def task04_flow_chart_elaborate(selected, model_path, output_dir):
         "node_style_fn": _task04_bpmn_node_style(t["rows"]),
         "subtitle": t["label"],
     } for t in selected]
-    table_rows = [[t["label"], ", ".join(_task04_log_moves(t["rows"])) or "—"] for t in selected]
 
     compose_bpmn_panels(
         panels, path,
@@ -345,8 +344,7 @@ def task04_flow_chart_elaborate(selected, model_path, output_dir):
             (GREY_MED,     "#444444", 3, "Model Move"),
             (GREY_DARK,    "#333333", 3, "Log Move"),
         ],
-        table_rows=table_rows,
-        table_cols=["Trace", "Log Move"],
+        node_font_size=14,
     )
 
 
