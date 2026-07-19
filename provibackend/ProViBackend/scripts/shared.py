@@ -1762,13 +1762,15 @@ def bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn=None, *, ox=0.0, oy=0
     # inserted activity occurred. badges: list of {"label", "anchor"} (anchor = a
     # task name in the model).
     if badges:
-        name_box = {}
+        node_boxes, name_box = [], {}
         for eid2, b2 in shapes.items():
             el2 = elements.get(eid2, {})
+            box2 = (tx(b2["x"]), ty(b2["y"]), b2["width"], b2["height"])
+            node_boxes.append(box2)
             if el2.get("kind") == "task":
-                name_box.setdefault(el2.get("name", ""),
-                                    (tx(b2["x"]), ty(b2["y"]), b2["width"], b2["height"]))
+                name_box.setdefault(el2.get("name", ""), box2)
         fs = min(node_font_size, 11.0)
+        bh = 26.0
         seen = {}
         for badge in badges:
             box = name_box.get(badge.get("anchor"))
@@ -1778,10 +1780,15 @@ def bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn=None, *, ox=0.0, oy=0
             label = str(badge.get("label", ""))
             k = seen.get(badge["anchor"], 0); seen[badge["anchor"]] = k + 1
             bw = max(72.0, len(label) * fs * 0.62 + 16.0)
-            bh = 26.0
             acx = ax + aw / 2.0
             bx = acx - bw / 2.0 + k * (bw * 0.55)
-            by = ay - 50.0
+            # Sit above the TOPMOST node overlapping the badge's x-range, so the
+            # badge never overlaps a node (e.g. a parallel branch above the anchor).
+            top = ay
+            for nx, ny, nw, nh in node_boxes:
+                if nx < bx + bw and nx + nw > bx and ny < ay:
+                    top = min(top, ny)
+            by = top - 16.0 - bh
             out.append(f'<line x1="{acx:.1f}" y1="{by + bh:.1f}" x2="{acx:.1f}" y2="{ay:.1f}" '
                        f'stroke="{GREY_DARK}" stroke-width="1.5" stroke-dasharray="4 3"/>')
             out.append(f'<rect x="{bx:.1f}" y="{by:.1f}" width="{bw:.1f}" height="{bh:.1f}" '
