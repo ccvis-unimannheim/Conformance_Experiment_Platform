@@ -25,23 +25,14 @@ IDIOMS = [
 # Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8;
 # design doc §2 row 11)
 #
-# Task 11 (SEMI): trace-level frequency of a set of predefined violations.
-# The admin picks one or more (activity, move_type) pairs from the log;
-# every idiom shows how many traces each one appears in (% of all traces).
+# Task 11 (SEMI): trace-level frequency of every distinct violation found in
+# the log. No admin parameter selection — all idioms and the ground truth
+# summarize every (activity, move_type) violation present, sorted by trace
+# count (see generate()'s and compute_ground_truth()'s fallback behavior).
 # ---------------------------------------------------------------------------
 GT_TIER = "SEMI"
 
-PARAM_SPEC = [
-    {
-        "key": "target_violations",
-        "label": "Predefined violation(s) to summarize",
-        # The summarised guideline violations are shown directly in the chart → hint redundant.
-        "hide_hint": True,
-        "widget": "select-many",
-        "source": "log.violations",
-        "required": True,
-    },
-]
+PARAM_SPEC = []
 
 ANSWER_FORMATS = [
     {"key": "pct-set",   "gt_shape": "labelled-set", "decisive_default": True},
@@ -51,7 +42,7 @@ ANSWER_FORMATS = [
 RUBRIC = (
     "A strong answer states the trace-level frequency of each predefined violation — "
     "i.e. the percentage of all traces in which that violation appears at least once — "
-    "for every violation in the specified set. "
+    "for every distinct violation found in the log. "
     "Full credit requires a correct percentage for each violation, rounded to the nearest "
     "whole number. Partial credit for values within ±5 percentage points of the true value, "
     "or for correctly ranking violations by trace frequency. No credit for raw occurrence "
@@ -60,24 +51,23 @@ RUBRIC = (
 )
 
 
-def validate_params(log, params) -> list:
-    violations = params.get("target_violations")
-    if not violations or (isinstance(violations, list) and len(violations) == 0):
-        return ["At least one guideline violation must be selected."]
-    return []
-
-
 def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
-    """Trace-level frequency per selected violation, shaped for the chosen answer format.
+    """Trace-level frequency per violation, shaped for the chosen answer format.
 
     pct-set: one labelled row per violation, value = % of all traces (rounded), correct=True.
+    No admin parameter selection: defaults to every distinct violation found in
+    the log, sorted by trace count (mirrors generate()'s fallback).
     free-text: falls through to the static RUBRIC; no value is computed.
     """
     if answer_format == "free-text":
         return {}
     trace_coverage, n_traces = _extract_trace_coverage(alignments)
     violations = params.get("target_violations") or []
-    selected = _resolve_violations(violations, trace_coverage)
+    selected = (
+        _resolve_violations(violations, trace_coverage)
+        if violations
+        else [pair for pair, _ in trace_coverage.most_common()]
+    )
     if not selected:
         return {"value": None, "options": []}
     options = []
@@ -95,7 +85,6 @@ def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer
 import os
 import io as _io
 import base64 as _base64
-import copy as _copy
 import re as _re
 import xml.etree.ElementTree as _ET
 from collections import Counter
@@ -121,6 +110,23 @@ _VTYPE_SHORT = {
     "Move on Model": "MoM",
     "Move on Log":   "MoL",
     "Mismatch Move": "MM",
+}
+# Display labels shown to admins/participants (internal _VTYPES keys stay as
+# returned by shared.classify_step so they keep matching across tasks).
+_VTYPE_DISPLAY = {
+    "Move on Model": "Model Move",
+    "Move on Log":   "Log Move",
+    "Mismatch Move": "Mismatch Move",
+}
+_C_MODEL_MOVE = "#3B6FA0"  # blue
+_C_LOG_MOVE   = "#D08A3E"  # amber
+
+# Flat per-column colour for the Matrix idiom (same convention as task09's
+# _VTYPE_COLOR — colour identifies the violation type, not a value scale).
+_VTYPE_COLOR = {
+    "Move on Model": _C_LIGHT,
+    "Move on Log":   _C_MED,
+    "Mismatch Move": _C_DARK,
 }
 
 # Accepts full names or short codes when parsing a violation spec.
@@ -225,46 +231,66 @@ def _sorted_selected(selected, trace_coverage):
 # ── Idiom 1: Bar Chart — trace count per predefined violation ─────────────────
 
 def task11_bar_chart(selected, trace_coverage, n_traces, output_dir):
-    """Horizontal bar per selected violation, sorted by trace count descending.
+    """Vertical grouped bar chart: one Model Move bar and one Log Move bar per activity.
 
-    Each bar shows the number of traces in which that violation occurs,
-    labelled with the count and its percentage of all traces.
+    Activities are sorted by combined (Model Move + Log Move) trace count,
+    descending. Mismatch Move is not shown in this idiom.
     """
     if not selected:
         _no_violations(output_dir, "bar_chart")
         return
 
-    data = [(act, vt, trace_coverage.get((act, vt), 0))
-            for act, vt in _sorted_selected(selected, trace_coverage)]
-    labels = [_violation_label(act, vt) for act, vt, _ in data]
-    counts = [c for _, _, c in data]
-    pcts   = [c / n_traces * 100 if n_traces > 0 else 0 for c in counts]
-    max_c  = max(counts) if counts else 1
-    bar_colors = [mcolors.to_hex(_CMAP_SEQ(c / max_c if max_c > 0 else 0.0)) for c in counts]
+    acts = {}
+    for act, vt in selected:
+        if vt not in ("Move on Model", "Move on Log"):
+            continue
+        acts.setdefault(act, {"Move on Model": 0, "Move on Log": 0})
+        acts[act][vt] = trace_coverage.get((act, vt), 0)
 
-    n      = len(data)
-    fig_h  = max(3.5, n * 0.70 + 2.2)
-    fig, ax = plt.subplots(figsize=(12, fig_h))
+    if not acts:
+        _no_violations(output_dir, "bar_chart")
+        return
+
+    ordered_acts = sorted(acts, key=lambda a: -(acts[a]["Move on Model"] + acts[a]["Move on Log"]))
+    model_counts = [acts[a]["Move on Model"] for a in ordered_acts]
+    log_counts   = [acts[a]["Move on Log"] for a in ordered_acts]
+    labels       = [_short_label(a, 22) for a in ordered_acts]
+
+    n = len(ordered_acts)
+    x = np.arange(n)
+    width = 0.36
+    max_c = max(model_counts + log_counts) if (model_counts or log_counts) else 1
+
+    fig_w = max(8, n * 1.1 + 2.5)
+    fig, ax = plt.subplots(figsize=(fig_w, 6))
     ax.set_facecolor("#fafbfc")
 
-    for i, (lbl, cnt, pct, bc) in enumerate(zip(labels, counts, pcts, bar_colors)):
-        ax.barh(i, cnt, color=bc, edgecolor="none", linewidth=0, height=0.65)
-        ax.text(cnt + max_c * 0.012, i,
-                f"{cnt:,} traces  ({pct:.1f}%)",
-                va="center", fontsize=FONT_ANNOT, color=_C_DARK)
+    bars_model = ax.bar(x - width / 2, model_counts, width,
+                         color=_C_MODEL_MOVE, edgecolor="none", label="Model Move")
+    bars_log = ax.bar(x + width / 2, log_counts, width,
+                       color=_C_LOG_MOVE, edgecolor="none", label="Log Move")
 
-    ax.set_yticks(range(n))
-    ax.set_yticklabels(labels, fontsize=FONT_ANNOT)
-    ax.invert_yaxis()
-    ax.set_xlabel("Number of traces containing this violation", fontsize=FONT_LABEL)
+    for bars, counts in ((bars_model, model_counts), (bars_log, log_counts)):
+        for bar, cnt in zip(bars, counts):
+            if cnt <= 0:
+                continue
+            pct = cnt / n_traces * 100 if n_traces > 0 else 0
+            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + max_c * 0.02,
+                     f"{cnt:,}\n({pct:.1f}%)", ha="center", va="bottom",
+                     fontsize=max(FONT_ANNOT - 1, 7), color=_C_DARK)
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, rotation=30, ha="right", fontsize=FONT_ANNOT)
+    ax.set_ylabel("Number of traces containing this violation", fontsize=FONT_LABEL)
     ax.set_title(
-        f"Predefined Violation Frequency  ({n} violation{'s' if n != 1 else ''})",
+        f"Predefined Violation Frequency by Activity  ({n} activit{'y' if n == 1 else 'ies'})",
         fontsize=FONT_TITLE,
     )
     ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    ax.set_xlim(0, max_c * 1.42)
+    ax.set_ylim(0, max_c * 1.30)
+    ax.legend(loc="upper right", frameon=False, fontsize=FONT_ANNOT)
     fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task11_bar_chart.svg"))
 
@@ -277,8 +303,11 @@ def task11_matrix(selected, trace_coverage, n_traces, output_dir):
     Rows = distinct activities in the selection (ordered by descending total
     trace coverage across their selected move types).  Columns = the subset of
     the three move types that appears at least once among the selected pairs,
-    in canonical order.  Cell = # traces containing that (activity, type) pair;
-    annotated with count and %; unselected cells shown as grey "–".
+    in canonical order.  Each column has one flat colour identifying its
+    violation type (colour is categorical, not a value scale — no colour bar
+    or legend is drawn; the column headers are the only key needed).  Cell =
+    # traces containing that (activity, type) pair, annotated with count and
+    %; non-predefined cells shown as grey "–".
     """
     if not selected:
         _no_violations(output_dir, "matrix")
@@ -298,50 +327,38 @@ def task11_matrix(selected, trace_coverage, n_traces, output_dir):
     n_rows = len(selected_acts)
     n_cols = len(selected_vtypes)
 
-    # nan marks cells that are NOT predefined violations (structural matrix zeros)
-    mat = np.full((n_rows, n_cols), np.nan)
-    for i, act in enumerate(selected_acts):
-        for j, vt in enumerate(selected_vtypes):
-            if (act, vt) in selected_set:
-                mat[i, j] = float(trace_coverage.get((act, vt), 0))
-
-    fig_h  = max(3.5, n_rows * 0.70 + 2.5)
+    fig_h  = max(3.5, n_rows * 0.70 + 2.2)
     fig, ax = plt.subplots(figsize=(10, fig_h))
-    ax.set_facecolor("#fafbfc")
 
-    vmax = max(float(np.nanmax(mat)), 1.0) if not np.all(np.isnan(mat)) else 1.0
-    cmap_with_bad = _copy.copy(_CMAP_SEQ)
-    cmap_with_bad.set_bad(color="#e8e8e8")  # light grey for non-predefined cells
-    im   = ax.imshow(mat, cmap=cmap_with_bad, aspect="auto",
-                     norm=mcolors.Normalize(vmin=0, vmax=vmax))
-
-    ax.set_xticks(range(n_cols))
-    ax.set_xticklabels(selected_vtypes, fontsize=FONT_LABEL)
-    ax.set_yticks(range(n_rows))
-    ax.set_yticklabels([_short_label(a, 30) for a in selected_acts], fontsize=FONT_ANNOT)
-
-    # Annotate each cell: predefined violations get count/%, non-selected get "–"
-    for i in range(n_rows):
-        for j in range(n_cols):
-            v = mat[i, j]
-            if np.isnan(v):
-                # Structural zero: (act, vt) not in the predefined violation set
-                ax.text(j, i, "–", ha="center", va="center",
-                        fontsize=max(FONT_ANNOT, 8), color="#aaaaaa")
-            else:
-                cnt = int(v)
+    for j, vt in enumerate(selected_vtypes):
+        col_color = _VTYPE_COLOR.get(vt, _C_MED)
+        r, g, b = mcolors.to_rgb(col_color)
+        lum = 0.299 * r + 0.587 * g + 0.114 * b
+        col_text_color = "white" if lum < 0.6 else _C_DARK
+        for i, act in enumerate(selected_acts):
+            if (act, vt) in selected_set:
+                cnt = trace_coverage.get((act, vt), 0)
                 pct = cnt / n_traces * 100 if n_traces > 0 else 0
-                norm_val = v / vmax if vmax > 0 else 0.0
-                r, g, b, _ = _CMAP_SEQ(norm_val)
-                lum = 0.299 * r + 0.587 * g + 0.114 * b
-                tc = "white" if lum < 0.5 else _C_DARK
-                ax.text(j, i, f"{cnt:,}\n({pct:.1f}%)",
-                        ha="center", va="center",
-                        fontsize=max(FONT_ANNOT - 1, 6), color=tc)
+                fc, tc = col_color, col_text_color
+                text = f"{cnt:,}\n({pct:.1f}%)"
+                fontsize = max(FONT_ANNOT - 1, 6)
+            else:
+                # Structural zero: (act, vt) not in the predefined violation set
+                fc, tc = "#e8e8e8", "#aaaaaa"
+                text = "–"
+                fontsize = max(FONT_ANNOT, 8)
+            ax.add_patch(plt.Rectangle((j, i), 1, 1, facecolor=fc,
+                                        edgecolor="white", linewidth=1.5))
+            ax.text(j + 0.5, i + 0.5, text, ha="center", va="center",
+                    fontsize=fontsize, color=tc)
 
-    cbar = fig.colorbar(im, ax=ax, fraction=0.03, pad=0.01)
-    cbar.set_label("Traces containing violation", fontsize=FONT_ANNOT)
-    cbar.outline.set_visible(False)
+    ax.set_xlim(0, n_cols)
+    ax.set_ylim(0, n_rows)
+    ax.invert_yaxis()
+    ax.set_xticks([j + 0.5 for j in range(n_cols)])
+    ax.set_xticklabels([_VTYPE_DISPLAY.get(vt, vt) for vt in selected_vtypes], fontsize=FONT_LABEL)
+    ax.set_yticks([i + 0.5 for i in range(n_rows)])
+    ax.set_yticklabels([_short_label(a, 30) for a in selected_acts], fontsize=FONT_ANNOT)
 
     ax.set_title(
         "Predefined Violation Frequency: Activity × Type",
@@ -358,7 +375,7 @@ def task11_matrix(selected, trace_coverage, n_traces, output_dir):
 # ── Idiom 3: Table — violations ranked by trace frequency ─────────────────────
 
 def task11_table(selected, trace_coverage, n_traces, output_dir):
-    """Ranked table: Rank | Violation | # Traces | % of All Traces.
+    """Ranked table: Number | Activity | Type | Number of Traces | Percentage of All.
 
     Rows correspond 1-to-1 to the selected violations, sorted descending by
     trace count.  Percentages are independent (no cumulative column — traces
@@ -375,7 +392,7 @@ def task11_table(selected, trace_coverage, n_traces, output_dir):
     for rank, (act, vt, count) in enumerate(data, 1):
         pct = count / n_traces * 100 if n_traces > 0 else 0
         cell_text.append([str(rank), _short_label(act, 32),
-                          _VTYPE_SHORT.get(vt, vt),
+                          _VTYPE_DISPLAY.get(vt, vt),
                           f"{count:,}",
                           f"{pct:.1f}%"])
 
@@ -387,9 +404,9 @@ def task11_table(selected, trace_coverage, n_traces, output_dir):
     make_table(
         ax,
         cell_text=cell_text,
-        col_labels=["#", "Activity", "Type", "# Traces", "% of All"],
+        col_labels=["Number", "Activity", "Type", "Number of Traces", "Percentage of All"],
         bbox=[0.01, 0.05, 0.98, 0.80],
-        col_widths=[0.05, 0.42, 0.16, 0.20, 0.14],
+        col_widths=[0.08, 0.34, 0.20, 0.22, 0.16],
         font_size=9.5,
         scale_xy=(1, 1.75),
         cell_pad=0.09,
