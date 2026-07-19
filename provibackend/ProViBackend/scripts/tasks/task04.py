@@ -240,11 +240,36 @@ def _task04_select_compare_traces(log, alignments, fitness_df, trace_ids=None, n
 # Visualizations
 # ---------------------------------------------------------------------------
 
-def task04_flow_chart_basic(selected, output_dir: str):
+def _task04_involved_activities(rows):
+    """Model activities the trace touches — synchronously executed or skipped
+    (move on model). Log moves are inserted activities, not model tasks."""
+    s = set()
+    for r in rows:
+        if r["moveType"] == "Synchronous Move":
+            s.add(str(r["log_move"]) if str(r["log_move"]) not in _MISSING else str(r["model_move"]))
+        elif r["moveType"] == "Model Move":
+            s.add(str(r["model_move"]))
+    return s
+
+
+def _task04_model_task_names(model_path):
+    """Ordered task names of the guideline model (for the not-in-trace chevrons)."""
+    if not model_path:
+        return []
+    try:
+        els = parse_bpmn_model(model_path).get("elements", {})
+    except Exception:
+        return []
+    vals = els.values() if isinstance(els, dict) else els
+    return [e.get("name", "") for e in vals if e.get("kind") == "task" and e.get("name")]
+
+
+def task04_flow_chart_basic(selected, output_dir: str, model_path=None):
     """Chevron flow chart: one horizontal chevron strip per selected trace, stacked
     so the two traces sit side by side (top vs bottom). Each activity chevron is
-    coloured by its alignment move type, so a participant can read off — and
-    compare — where each trace conforms to or deviates from the guideline."""
+    coloured by its alignment move type; model activities the trace never touches
+    are appended as white chevrons, so the strip covers the same activity set as
+    the BPMN idiom (information equivalence)."""
     path = os.path.join(output_dir, "task04_flow_chart_basic.svg")
     if not selected:
         fig, ax = plt.subplots(figsize=(7, 3)); ax.axis("off")
@@ -253,7 +278,17 @@ def task04_flow_chart_basic(selected, output_dir: str):
         save_svg(fig, path)
         return
 
-    nodes_per_trace = [chevron_nodes_from_alignment_rows(t["rows"]) for t in selected]
+    model_tasks = _task04_model_task_names(model_path)
+    nodes_per_trace, any_not_involved = [], False
+    for t in selected:
+        nodes = chevron_nodes_from_alignment_rows(t["rows"])
+        involved = _task04_involved_activities(t["rows"])
+        not_involved = [a for a in model_tasks if a not in involved]
+        if not_involved:
+            any_not_involved = True
+            nodes += [{"label": a, "color": "#ffffff"} for a in not_involved]
+        nodes_per_trace.append(nodes)
+
     fig_w = max((chevron_figure_width(n) for n in nodes_per_trace if n), default=9.0)
     n_rows = len(selected)
     fig_h = 1.9 * n_rows + 1.6
@@ -270,10 +305,11 @@ def task04_flow_chart_basic(selected, output_dir: str):
                     transform=ax.transAxes, fontsize=FONT_ANNOT)
         ax.set_title(trace["label"], fontsize=FONT_LABEL, loc="left", pad=6)
 
+    legend = list(_MOVE_LEGEND) + ([("Not in this trace", "#ffffff")] if any_not_involved else [])
     handles = [mpatches.Patch(facecolor=c, edgecolor="#4a4a4a", label=lbl)
-               for lbl, c in _MOVE_LEGEND]
+               for lbl, c in legend]
     fig.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, 0.0),
-               ncol=len(_MOVE_LEGEND), frameon=False, fontsize=FONT_ANNOT - 1)
+               ncol=len(legend), frameon=False, fontsize=FONT_ANNOT - 1)
     fig.tight_layout(rect=[0, 0.08, 1, 1.0])
     save_svg(fig, path)
 
@@ -552,5 +588,5 @@ def generate(log, fitness_df, output_dir: str, trace_ids=None, alignments=None, 
 
     # Trace-level pattern comparison — chevron + BPMN idioms of the same traces.
     if selected:
-        task04_flow_chart_basic(selected, output_dir)
+        task04_flow_chart_basic(selected, output_dir, model_path=model_path)
         task04_flow_chart_elaborate(selected, model_path, output_dir)
