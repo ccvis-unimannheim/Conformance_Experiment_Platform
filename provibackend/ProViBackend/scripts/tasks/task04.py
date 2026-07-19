@@ -29,43 +29,55 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "table",
+IDIOMS = ["flow_chart_basic",
+          "bar_chart", "table",
           "line_graph", "table_bar_chart",
           "matrix", "heatmap"]
 
 # ---------------------------------------------------------------------------
 # Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8; design doc §2 row 4)
 #
-# Task 4 (SEMI): compare conformance of individual traces. The admin optionally
-# picks exactly which traces to show; otherwise the first 10 traces in log order
-# are used. The answer is either one fitness percentage per trace (pct-set) or
-# the traces ordered from most to least conformant (rank).
+# Task 4 (MANUAL): compare the trace-level conformance PATTERNS of two traces. By
+# default the two traces with the largest violation-count gap are shown; the admin
+# can override the selection (and pick more than two). The participant answers in
+# free text, comparing where each trace conforms to or deviates from the guideline;
+# grading is against the static RUBRIC.
 # ---------------------------------------------------------------------------
-GT_TIER = "SEMI"
+GT_TIER = "MANUAL"
 
 PARAM_SPEC = [
     {
         "key": "trace_ids",
-        "label": "Specific traces to show (optional; default = first 10 traces in log order)",
+        "label": "Specific traces to compare (optional; default = the two traces with the largest violation gap)",
         # Internal to reading the chart — the participant sees the traces directly.
         "hide_hint": True,
         "widget": "select-many",
         "source": "log.trace_ids",
         # Admin convenience: a checkbox that auto-selects one trace from each of
-        # the first N distinct variants (more fitness/behaviour variation than the
-        # log-order default). Handled entirely in the specify-page select-many UI.
+        # the first N distinct variants. Handled in the specify-page select-many UI.
         "variant_autoselect": True,
-        "autoselect_count": 10,
+        "autoselect_count": 2,
         "default": [],
         "required": False,
-        "optional_hint": "(optional — leave empty to show the first 10 traces in log order)",
+        "optional_hint": "(optional — leave empty to compare the two traces with the largest violation gap)",
     },
 ]
 
 ANSWER_FORMATS = [
-    {"key": "pct-set", "gt_shape": "labelled-set", "decisive_default": True},
-    {"key": "rank",    "gt_shape": "rank",          "decisive_default": True},
+    {"key": "free-text", "gt_shape": "reference", "decisive_default": True},
 ]
+
+RUBRIC = (
+    "A complete answer compares the two traces' conformance patterns. For each "
+    "trace it identifies where the execution conforms to the guideline and where "
+    "it deviates — an activity skipped relative to the model (move on model) or an "
+    "extra activity inserted (move on log) — and contrasts the two, e.g. 'Trace 1 "
+    "is fully conformant, whereas Trace 2 skips Approve Treatment and inserts an "
+    "extra step'. Award full marks for correctly naming the key deviation(s) in "
+    "each trace and stating which trace is more conformant; partial marks for "
+    "identifying the more-conformant trace without the specific deviations; deduct "
+    "marks for misidentifying which trace conforms more."
+)
 
 
 def validate_params(log, params) -> list:
@@ -74,44 +86,25 @@ def validate_params(log, params) -> list:
     return []
 
 
-def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
-    """Fitness per sampled trace as pct-set (labelled-set) or rank (fitness desc)."""
-    trace_ids = params.get("trace_ids") or None
-    tdf = _task04_build_trace_df(log, fitness_df, trace_ids=trace_ids)
-    if tdf.empty:
-        return {"value": None, "options": []}
-    if answer_format == "rank":
-        ranked = tdf.sort_values(["fitness", "label"], ascending=[False, True]).reset_index(drop=True)
-        return {
-            "options": [
-                {"label": row["label"], "value": row["label"]}
-                for _, row in ranked.iterrows()
-            ]
-        }
-    return {
-        "value": None,
-        "options": [
-            {"label": row["label"], "value": f"{round(row['fitness'] * 100)}%", "correct": True}
-            for _, row in tdf.iterrows()
-        ],
-    }
-
-
 import os
 import numpy as np
 import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 from matplotlib import gridspec
 
 from shared import (
     save_svg, make_table, auto_col_widths, draw_value_heatmap,
-    GREY_MED, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    alignment_pairs_to_rows, chevron_nodes_from_alignment_rows,
+    draw_chevron_strip, chevron_figure_width,
+    GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK,
+    FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 # Default number of traces to sample when the admin doesn't pick specific ones.
-SAMPLE_N = 10
+SAMPLE_N = 2
 
 # Single uniform bar/line colour — no conformant / non-conformant distinction.
 _TRACE_COLOR = GREY_MED
@@ -166,9 +159,105 @@ def _task04_build_trace_df(log, fitness_df: pd.DataFrame, trace_ids=None,
     return df
 
 
+# Move-type palette (mirrors shared.chevron_nodes_from_alignment_rows) used for
+# the chevron / flow-chart legend.
+_MOVE_LEGEND = [
+    ("Synchronous (conformant)",      GREY_LIGHTER),
+    ("Skipped activity (move on model)", GREY_MED),
+    ("Inserted activity (move on log)",  GREY_DARK),
+    ("Mismatch",                      GREY_LIGHT),
+]
+
+
+def _task04_case_index(log):
+    """case_id (str) -> first trace index in the log."""
+    idx = {}
+    for i, trace in enumerate(log):
+        cid = str(trace.attributes.get("concept:name", i))
+        idx.setdefault(cid, i)
+    return idx
+
+
+def _task04_trace_violations(alignments, i):
+    """(alignment rows, #violations) for trace index i. Violations = non-sync moves."""
+    rows = alignment_pairs_to_rows(alignments[i].get("alignment", [])) if i < len(alignments) else []
+    viol = sum(1 for r in rows if r["moveType"] != "Synchronous Move")
+    return rows, viol
+
+
+def _task04_select_compare_traces(log, alignments, fitness_df, trace_ids=None, n=2):
+    """Pick the traces to compare, as a list of dicts
+    {label, case_id, fitness, rows, violations}.
+
+    Admin-selected ``trace_ids`` are used in order when given. Otherwise the two
+    traces with the largest gap in violation count are chosen (the most-violating
+    trace paired with a fully/least-violating one), so the comparison is striking.
+    """
+    n_traces = min(len(log), len(alignments), len(fitness_df))
+    if n_traces == 0:
+        return []
+
+    def _info(i, label):
+        rows, viol = _task04_trace_violations(alignments, i)
+        return {"label": label, "case_id": str(log[i].attributes.get("concept:name", i)),
+                "fitness": round(float(fitness_df.iloc[i]["fitness"]), 3),
+                "rows": rows, "violations": viol}
+
+    if trace_ids:
+        by_id = _task04_case_index(log)
+        chosen = [by_id[str(t)] for t in trace_ids if str(t) in by_id][:max(n, len(trace_ids))]
+    else:
+        viol_by_idx = sorted(range(n_traces),
+                             key=lambda i: _task04_trace_violations(alignments, i)[1])
+        # least-violating and most-violating → biggest gap
+        chosen = sorted({viol_by_idx[0], viol_by_idx[-1]})
+        if len(chosen) < 2 and n_traces >= 2:      # all identical → fall back to first two
+            chosen = [0, 1]
+
+    return [_info(idx, f"Trace {k + 1}") for k, idx in enumerate(chosen)]
+
+
 # ---------------------------------------------------------------------------
 # Visualizations
 # ---------------------------------------------------------------------------
+
+def task04_flow_chart_basic(selected, output_dir: str):
+    """Chevron flow chart: one horizontal chevron strip per selected trace, stacked
+    so the two traces sit side by side (top vs bottom). Each activity chevron is
+    coloured by its alignment move type, so a participant can read off — and
+    compare — where each trace conforms to or deviates from the guideline."""
+    path = os.path.join(output_dir, "task04_flow_chart_basic.svg")
+    if not selected:
+        fig, ax = plt.subplots(figsize=(7, 3)); ax.axis("off")
+        ax.text(0.5, 0.5, "No trace data available.", ha="center", va="center",
+                transform=ax.transAxes, fontsize=FONT_ANNOT)
+        save_svg(fig, path)
+        return
+
+    nodes_per_trace = [chevron_nodes_from_alignment_rows(t["rows"]) for t in selected]
+    fig_w = max((chevron_figure_width(n) for n in nodes_per_trace if n), default=9.0)
+    n_rows = len(selected)
+    fig_h = 1.9 * n_rows + 1.6
+
+    fig = plt.figure(figsize=(fig_w, fig_h))
+    gs = gridspec.GridSpec(n_rows, 1, hspace=0.9)
+    for r, (trace, nodes) in enumerate(zip(selected, nodes_per_trace)):
+        ax = fig.add_subplot(gs[r])
+        if nodes:
+            draw_chevron_strip(ax, nodes, fontsize=FONT_ANNOT)
+        else:
+            ax.axis("off")
+            ax.text(0.5, 0.5, "(empty trace)", ha="center", va="center",
+                    transform=ax.transAxes, fontsize=FONT_ANNOT)
+        ax.set_title(trace["label"], fontsize=FONT_LABEL, loc="left", pad=6)
+
+    handles = [mpatches.Patch(facecolor=c, edgecolor="#4a4a4a", label=lbl)
+               for lbl, c in _MOVE_LEGEND]
+    fig.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, 0.0),
+               ncol=len(_MOVE_LEGEND), frameon=False, fontsize=FONT_ANNOT - 1)
+    fig.suptitle(TITLE, fontsize=FONT_TITLE)
+    fig.tight_layout(rect=[0, 0.08, 1, 0.95])
+    save_svg(fig, path)
 
 def task04_bar_chart(tdf: pd.DataFrame, output_dir: str):
     """One uniform-coloured bar per trace; fitness value labelled above each bar."""
@@ -307,24 +396,36 @@ def task04_heatmap(tdf: pd.DataFrame, output_dir: str):
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def generate(log, fitness_df, output_dir: str, trace_ids=None):
+def generate(log, fitness_df, output_dir: str, trace_ids=None, alignments=None):
     """Generate all Task ID 4 SVGs into output_dir.
 
     ``trace_ids`` is the admin-configured list of case-id strings (from
     PARAM_SPEC "trace_ids"). When empty/None the first ``SAMPLE_N`` traces in log
     order are shown. Every idiom renders the same traces so the views are
     directly comparable (and match what the ground truth was computed for).
+
+    ``alignments`` (optional) enables the trace-level flow-chart idioms, which
+    compare the alignment (conformance) patterns of two traces side by side.
     """
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 4 visualizations ---")
 
-    tdf = _task04_build_trace_df(log, fitness_df, trace_ids=trace_ids)
+    # Single trace selection shared by EVERY idiom: the admin-selected traces, or
+    # (default) the two traces with the largest violation-count gap. This needs
+    # alignments; without them we fall back to the first SAMPLE_N in log order.
+    selected = _task04_select_compare_traces(log, alignments, fitness_df, trace_ids=trace_ids) \
+        if alignments else []
+    if selected:
+        tdf = pd.DataFrame([{"case_id": t["case_id"], "fitness": t["fitness"], "label": t["label"]}
+                            for t in selected])
+    else:
+        tdf = _task04_build_trace_df(log, fitness_df, trace_ids=trace_ids)
     if tdf.empty:
         logger.warning("      Skipped Task 4: no trace data available.")
         return
 
-    source = "admin-selected" if trace_ids else f"first {len(tdf)} in log order"
-    logger.info(f"      -> Showing {len(tdf)} traces ({source}).")
+    source = "admin-selected" if trace_ids else "largest violation gap"
+    logger.info(f"      -> Comparing {len(tdf)} traces ({source}).")
 
     task04_bar_chart(tdf, output_dir)
     task04_table(tdf, output_dir)
@@ -332,3 +433,7 @@ def generate(log, fitness_df, output_dir: str, trace_ids=None):
     task04_matrix(tdf, output_dir)
     task04_line_graph(tdf, output_dir)
     task04_heatmap(tdf, output_dir)
+
+    # Trace-level pattern comparison — chevron flow chart of the same traces.
+    if selected:
+        task04_flow_chart_basic(selected, output_dir)
