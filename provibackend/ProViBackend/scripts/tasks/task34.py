@@ -665,8 +665,8 @@ def task34_flow_chart_basic(ctx, output_dir):
     rows  = ctx["rows"]
     nodes = _chevron_nodes(rows)
     fig_w = max(14.0, chevron_figure_width(nodes))
-    fig, ax = plt.subplots(figsize=(fig_w, 3.8))
-    draw_chevron_strip(ax, nodes, fontsize=13, uniform_width=True)
+    fig, ax = plt.subplots(figsize=(fig_w, 3.2))
+    draw_chevron_strip(ax, nodes, fontsize=15, uniform_width=True)
     ax.set_title("Trace Alignment", fontsize=FONT_TITLE, pad=8)
     legend_handles = [
         mpatches.Patch(facecolor=_MOVE_COLORS["Synchronous"],   edgecolor="black", linewidth=0.75,
@@ -676,11 +676,13 @@ def task34_flow_chart_basic(ctx, output_dir):
         mpatches.Patch(facecolor=_MOVE_COLORS["Move on Log"],   edgecolor="black", linewidth=0.75,
                        label=_MOVE_DISPLAY["Move on Log"]),
     ]
-    fig.legend(handles=legend_handles, loc="lower center",
-               bbox_to_anchor=(0.5, 0.01), ncol=3,
-               fontsize=FONT_LABEL + 1, frameon=True, fancybox=False, edgecolor="#cccccc",
-               handleheight=1.8, handlelength=2.4, markerscale=1.4)
-    fig.tight_layout(pad=1.2)
+    # Anchored to the axes (not the figure) so the gap below the chevrons is
+    # predictable regardless of figure width; tight_layout's rect reserves the
+    # room instead of squeezing the legend up against the chevron bottoms.
+    ax.legend(handles=legend_handles, loc="upper center", bbox_to_anchor=(0.5, -0.18),
+              ncol=3, fontsize=FONT_LABEL + 2, frameon=True, fancybox=False, edgecolor="#cccccc",
+              handleheight=1.8, handlelength=2.4, markerscale=1.4)
+    fig.tight_layout(rect=[0, 0.10, 1, 1])
     save_svg(fig, os.path.join(output_dir, "task34_flow_chart_basic.svg"))
 
 
@@ -729,9 +731,9 @@ def task34_flow_chart_elaborate(ctx, model_path, output_dir):
         out_path=out_path,
         title="BPMN Alignment — Violation Overview",
         legend_items=legend_items,
-        h_scale=1.6,
-        node_font_size=13.0,
-        legend_font_size=12.0,
+        h_scale=1.3,
+        node_font_size=15.0,
+        legend_font_size=13.0,
         title_font_size=16.0,
         title_center=True,
     )
