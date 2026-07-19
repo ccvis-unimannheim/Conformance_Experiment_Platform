@@ -3,7 +3,7 @@ tasks/task06.py – Task ID 6: Describe / Derive / Process conformance
 (overall degree of conformance between the given event log and the guideline).
 
 The task asks a single question — the overall degree of conformance, i.e. the
-mean fitness expressed as a percentage. All three idioms encode exactly the same
+mean fitness expressed as a percentage. All five idioms encode exactly the same
 scalar: Fitness (%, 1 d.p.) — matching the one-decimal percentage of the
 generated answer options. No idiom exposes additional distribution statistics
 (min, max, std, trace count) so that the only experimental variable between
@@ -11,14 +11,13 @@ conditions is visual encoding, not information quantity.
 
 Idiom mapping (all share the same data payload: one scalar, %, 1 d.p.):
     tile_metric – headline numeric value in a bordered tile
+    bar_chart   – single bar on a 0–1 scale, value labelled
     table       – two-column table: Metric | Value (one row only)
-    donut_gauge – single bounded value as a filled ring (0–1)
+    matrix      – single-cell colour-intensity encoding on a 0–1 scale
+    gauge_chart – single bounded value as a filled half-circle arc (0–100%)
 
-bar_chart and matrix were dropped: both are comparison idioms for multiple
-categories, and this task has nothing to compare — a single aggregate scalar.
-boxplot was removed earlier for the same reason in reverse: a trace-level
-distribution exposes median, IQR, and outliers that are absent from the other
-conditions, violating information equivalence.
+boxplot was removed: a trace-level distribution exposes median, IQR, and outliers
+that are absent from the other conditions, violating information equivalence.
 
 Public API:
     generate(df, output_dir, log=None, alignments=None, model_path=None)
@@ -32,7 +31,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["tile_metric", "table", "donut_gauge"]
+IDIOMS = ["tile_metric", "bar_chart", "table", "matrix", "gauge_chart"]
 
 # ---------------------------------------------------------------------------
 # Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8)
@@ -114,16 +113,63 @@ def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer
 
 import os
 import matplotlib.pyplot as plt
-from matplotlib.patches import FancyBboxPatch
+from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.patches import FancyBboxPatch, Wedge
 
 from shared import (
     save_svg, make_table, render_fitness_tile_metric, render_empty_state_svg,
     alignment_pairs_to_rows, parse_bpmn_model, render_bpmn_annotated, contrasting_text_color,
-    GREY_LIGHTER, GREY_DARK, FONT_TITLE,
+    GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 # Reuse: task20's tree-building + decision-tree renderer for the Tree idiom.
 import tasks.task20 as task20
+
+
+def task06_bar_chart(df, output_dir: str):
+    """Single bar of the overall mean fitness (0–1), value labelled — so the
+    fitness reads off as a number, exactly as clearly as on the tile / heatmap /
+    table (no binning, no fitness bands)."""
+    mean_fitness = float(df["fitness"].mean()) if len(df) else 0.0
+
+    fig, ax = plt.subplots(figsize=(4.5, 5))
+    bar = ax.bar(["Overall"], [mean_fitness], color=GREY_MED, edgecolor="white", width=0.4)[0]
+    ax.text(bar.get_x() + bar.get_width() / 2, mean_fitness + 0.018, f"{mean_fitness:.3f}",
+            ha="center", va="bottom", fontsize=FONT_TITLE, fontweight="bold", color=GREY_DARK)
+    ax.set_ylim(0, 1.12)
+    ax.set_yticks([0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
+    ax.set_ylabel("Mean Fitness (0–1)", fontsize=FONT_LABEL)
+    ax.set_title("Overall Mean Fitness", fontsize=FONT_TITLE)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
+    ax.set_axisbelow(True)
+    fig.tight_layout(pad=1.2)
+    save_svg(fig, os.path.join(output_dir, "task06_bar_chart.svg"))
+
+
+def task06_matrix(df, output_dir: str):
+    """Single-cell matrix of the overall mean fitness, light→dark grey.
+
+    Colour-encodes the mean fitness on a fixed 0–1 scale and labels the cell with
+    the actual fitness value (0–1). Drawn as a tidy square cell (aspect='equal')
+    so it reads as one metric tile, not a stretched block.
+    """
+    fitness = float(df["fitness"].mean()) if len(df) else 0.0
+
+    cmap = LinearSegmentedColormap.from_list("grey_scale", [GREY_LIGHTER, GREY_DARK])
+    fig, ax = plt.subplots(figsize=(4.5, 4.5))
+    im = ax.imshow([[fitness]], cmap=cmap, vmin=0.0, vmax=1.0, aspect="equal")
+    text_color = "white" if fitness > 0.55 else GREY_DARK
+    ax.text(0, 0, f"{fitness:.3f}", ha="center", va="center",
+            fontsize=28, fontweight="bold", color=text_color)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    cbar = fig.colorbar(im, ax=ax, orientation="vertical", fraction=0.046, pad=0.04)
+    cbar.set_label("Mean Fitness (0–1)", fontsize=FONT_LABEL)
+    cbar.set_ticks([0.0, 0.25, 0.5, 0.75, 1.0])
+    ax.set_title("Overall Mean Fitness", fontsize=FONT_TITLE)
+    fig.tight_layout(pad=1.2)
+    save_svg(fig, os.path.join(output_dir, "task06_matrix.svg"))
 
 
 def task06_table(df, output_dir: str):
@@ -157,28 +203,33 @@ def task06_tile_metric(df, output_dir: str):
         metric_label="Fitness", as_fraction=True)
 
 
-def task06_donut_gauge(df, output_dir: str):
-    """Donut Gauge: overall fitness as a filled ring (0–1) — the filled arc's
-    length is the fitness value, the remaining track is the gap to perfect
-    conformance (1.0). Same scalar as the tile metric and table, just a more
-    visual/proportional encoding of it."""
+def task06_gauge_chart(df, output_dir: str):
+    """Gauge Chart: overall fitness as a filled half-circle arc (0–100%) — the
+    filled arc sweeps clockwise from the left (0%) toward the right (100%) as
+    fitness increases; the remaining track is the gap to perfect conformance.
+    Same scalar as the tile metric and table, shown as a percentage to read
+    directly off the arc (rather than the 0–1 fraction on the other idioms)."""
     fitness = float(df["fitness"].mean()) if len(df) else 0.0
     fitness = max(0.0, min(1.0, fitness))
+    pct = fitness * 100
 
-    fig, ax = plt.subplots(figsize=(4.5, 4.5))
-    ax.pie(
-        [fitness, 1 - fitness],
-        colors=[GREY_DARK, GREY_LIGHTER],
-        startangle=90,
-        counterclock=False,
-        wedgeprops=dict(width=0.35, edgecolor="white", linewidth=2),
-    )
-    ax.text(0, 0, f"{fitness:.3f}", ha="center", va="center",
-            fontsize=28, fontweight="bold", color=GREY_DARK)
+    r_outer, r_inner = 1.0, 0.6
+    split_angle = 180 - fitness * 180  # 180deg (0%) .. 0deg (100%)
+
+    fig, ax = plt.subplots(figsize=(4.5, 2.7))
+    ax.add_patch(Wedge((0, 0), r_outer, split_angle, 180, width=r_outer - r_inner,
+                        facecolor=GREY_DARK, edgecolor="white", linewidth=2))
+    ax.add_patch(Wedge((0, 0), r_outer, 0, split_angle, width=r_outer - r_inner,
+                        facecolor="#e0e0e0", edgecolor="white", linewidth=2))
+    ax.text(0, -0.18, f"{pct:.1f}%", ha="center", va="center",
+            fontsize=30, fontweight="bold", color=GREY_DARK)
     ax.set_title("Fitness", fontsize=FONT_TITLE)
+    ax.set_xlim(-1.15, 1.15)
+    ax.set_ylim(-0.4, 1.15)
     ax.set_aspect("equal")
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task06_donut_gauge.svg"))
+    ax.axis("off")
+    fig.tight_layout(pad=1.0)
+    save_svg(fig, os.path.join(output_dir, "task06_gauge_chart.svg"))
 
 
 # ---------------------------------------------------------------------------
@@ -284,12 +335,14 @@ def task06_tree(log, alignments, output_dir: str):
 def generate(df, output_dir: str, log=None, alignments=None, model_path=None):
     """Generate all Task ID 6 SVGs into output_dir.
 
-    All three idioms derive from the same scalar (overall mean fitness, 0–1, 3 d.p.).
+    All five idioms derive from the same scalar (overall mean fitness, 0–1, 3 d.p.).
     log/alignments/model_path are accepted for signature compatibility but unused
-    by the three core idioms."""
+    by the five core idioms."""
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 6 visualizations ---")
 
     task06_tile_metric(df, output_dir)
+    task06_bar_chart(df, output_dir)
     task06_table(df, output_dir)
-    task06_donut_gauge(df, output_dir)
+    task06_matrix(df, output_dir)
+    task06_gauge_chart(df, output_dir)
