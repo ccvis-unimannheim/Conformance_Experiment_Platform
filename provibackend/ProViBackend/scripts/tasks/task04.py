@@ -303,9 +303,35 @@ def _task04_bpmn_node_style(rows):
     return _style
 
 
-def _task04_log_moves(rows):
-    """Inserted activities (log moves) of a trace — absent from the model."""
-    return [str(r["log_move"]) for r in rows if r["moveType"] == "Log Move"]
+_MISSING = ("-", "None", "(skip)", "")
+
+
+def _task04_log_move_badges(rows):
+    """Log moves (inserted activities) as external badges, each anchored to the
+    model activity at the sequence position where the insertion occurred — the
+    most recent synchronous / model move before it (or the next one if it comes
+    first). Returns [{"label", "anchor"}]."""
+    badges, last = [], None
+    for r in rows:
+        mt = r["moveType"]
+        if mt == "Synchronous Move":
+            last = str(r["log_move"]) if str(r["log_move"]) not in _MISSING else str(r["model_move"])
+        elif mt == "Model Move":
+            last = str(r["model_move"])
+        elif mt == "Log Move":
+            badges.append({"label": str(r["log_move"]), "anchor": last})
+
+    if any(b["anchor"] is None for b in badges):
+        first = None
+        for r in rows:
+            if r["moveType"] == "Synchronous Move":
+                first = str(r["log_move"]) if str(r["log_move"]) not in _MISSING else str(r["model_move"])
+                break
+            if r["moveType"] == "Model Move":
+                first = str(r["model_move"]); break
+        for b in badges:
+            b["anchor"] = b["anchor"] or first
+    return [b for b in badges if b["anchor"]]
 
 
 def task04_flow_chart_elaborate(selected, model_path, output_dir):
@@ -334,6 +360,7 @@ def task04_flow_chart_elaborate(selected, model_path, output_dir):
         "parsed": parsed,
         "node_style_fn": _task04_bpmn_node_style(t["rows"]),
         "subtitle": t["label"],
+        "badges": _task04_log_move_badges(t["rows"]),
     } for t in selected]
 
     compose_bpmn_panels(

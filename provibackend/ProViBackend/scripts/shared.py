@@ -1639,7 +1639,8 @@ _BPMN_MARKER_DEFS = (
 
 
 def bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn=None, *, ox=0.0, oy=0.0,
-                      top_pad=88.0, h_scale: float = 1.0, node_font_size: float = 9.0):
+                      top_pad=88.0, h_scale: float = 1.0, node_font_size: float = 9.0,
+                      badges=None):
     """Return (svg_lines, width, height) for one BPMN diagram translated by (ox, oy).
 
     The body excludes the outer <svg>, marker <defs> and legend so it can be
@@ -1663,11 +1664,13 @@ def bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn=None, *, ox=0.0, oy=0
     min_x, max_x = min(xs), max(xs)
     min_y, max_y = min(ys), max(ys)
     lp, rp, bp = 80.0, 80.0, 68.0
+    # Reserve vertical space above the diagram for external log-move badges.
+    badge_pad = 62.0 if badges else 0.0
     W = (max_x - min_x) * h_scale + lp + rp
-    H = max_y - min_y + top_pad + bp
+    H = max_y - min_y + top_pad + badge_pad + bp
 
     def tx(x): return (x - min_x) * h_scale + lp + ox
-    def ty(y): return y - min_y + top_pad + oy
+    def ty(y): return y - min_y + top_pad + badge_pad + oy
 
     def _clean_pts(pts, min_seg=10.0):
         """Drop penultimate points that create a tiny final segment.
@@ -1753,6 +1756,41 @@ def bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn=None, *, ox=0.0, oy=0
                     f'dominant-baseline="middle" font-family="Arial, sans-serif" '
                     f'font-size="9" fill="{stroke}">END EVENT</text>'
                 )
+
+    # External log-move badges: a blue dashed box drawn above the model, joined by
+    # a dashed connector to the sequence position (the anchor task) where the
+    # inserted activity occurred. badges: list of {"label", "anchor"} (anchor = a
+    # task name in the model).
+    if badges:
+        name_box = {}
+        for eid2, b2 in shapes.items():
+            el2 = elements.get(eid2, {})
+            if el2.get("kind") == "task":
+                name_box.setdefault(el2.get("name", ""),
+                                    (tx(b2["x"]), ty(b2["y"]), b2["width"], b2["height"]))
+        fs = min(node_font_size, 11.0)
+        seen = {}
+        for badge in badges:
+            box = name_box.get(badge.get("anchor"))
+            if not box:
+                continue
+            ax, ay, aw, ah = box
+            label = str(badge.get("label", ""))
+            k = seen.get(badge["anchor"], 0); seen[badge["anchor"]] = k + 1
+            bw = max(72.0, len(label) * fs * 0.62 + 16.0)
+            bh = 26.0
+            acx = ax + aw / 2.0
+            bx = acx - bw / 2.0 + k * (bw * 0.55)
+            by = ay - 50.0
+            out.append(f'<line x1="{acx:.1f}" y1="{by + bh:.1f}" x2="{acx:.1f}" y2="{ay:.1f}" '
+                       f'stroke="{GREY_DARK}" stroke-width="1.5" stroke-dasharray="4 3"/>')
+            out.append(f'<rect x="{bx:.1f}" y="{by:.1f}" width="{bw:.1f}" height="{bh:.1f}" '
+                       f'rx="5" ry="5" fill="white" stroke="{GREY_DARK}" stroke-width="1.8" '
+                       f'stroke-dasharray="5 3"/>')
+            out.append(f'<text x="{bx + bw / 2.0:.1f}" y="{by + bh / 2.0:.1f}" text-anchor="middle" '
+                       f'dominant-baseline="middle" font-family="Arial, sans-serif" '
+                       f'font-size="{fs:.1f}" fill="{GREY_DARK}">{_bpmn_esc(label)}</text>')
+
     return out, W, H
 
 
@@ -1838,7 +1876,7 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
         body, w, h = bpmn_diagram_body(
             p["parsed"], p["node_style_fn"], p.get("faded_flow_fn"),
             oy=y_cursor + 24.0, top_pad=8.0, h_scale=h_scale,
-            node_font_size=node_font_size,
+            node_font_size=node_font_size, badges=p.get("badges"),
         )
         bodies += body
         max_w = max(max_w, w)
