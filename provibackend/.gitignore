@@ -172,4 +172,5 @@ ProViBackend/output/*
 
 # Local-only dev helper, not part of the pipeline
 ProViBackend/scripts/run_task20.py
+ProViBackend/scripts/run_task19.py
 

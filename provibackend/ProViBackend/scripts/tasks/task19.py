@@ -19,18 +19,21 @@ Design (settled):
     violation pattern, its measure is the effect size.
   * Honesty constraint: every title/label says "associated with", never causal
     language — these are observational associations.
-  * Top-N patterns by |risk difference| (TOP_N); patterns with tiny support
-    (< MIN_SUPPORT traces) are flagged visually as low-confidence.
+  * ``target_patterns`` (admin param): a checkbox selection of (activity, move-type)
+    violation patterns from this dataset's full "log.violations" catalogue — the
+    same source task11 uses. The admin explicitly picks which patterns to include
+    (rather than an automatic top-N cut), so charts stay readable and every idiom
+    renders exactly the chosen set. Leaving it empty shows every pattern found.
 
-Scope = 7 High + 1 Medium idiom. Stems → canonical slug after the pipeline rename:
-    task19_bar_chart.svg                       → bar_chart
-    task19_scatter_plot.svg                    → scatterplot
-    task19_table.svg                           → table
-    task19_table_and_bar_chart.svg             → table_bar_chart
-    task19_parallel_sets.svg                   → parallel_sets
-    task19_flow_chart_and_table.svg            → flow_chart_table            (chevron exemplars + effect table)
-    task19_flow_chart_elaborate_bpmn_table.svg → flow_chart_elaborate_table  (effect-coloured model + table)
-    task19_flow_chart_elaborate_bpmn.svg       → flow_chart_elaborate        (Medium: effect-coloured model alone)
+Scope = 6 idioms, all information-equivalent (per violation pattern: goal-achievement
+rate with vs. without), restricted to the admin-selected ``target_patterns``. Stems →
+canonical slug after the pipeline rename:
+    task19_bar_chart.svg           → bar_chart
+    task19_table.svg               → table
+    task19_table_and_bar_chart.svg → table_bar_chart
+    task19_matrix.svg              → matrix
+    task19_heatmap.svg             → heatmap
+    task19_parallel_sets.svg       → parallel_sets
 
 Public API:
     generate(log, alignments, model_path, output_dir, outcome_activity="Activate Care")
@@ -40,8 +43,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "scatter_plot", "table", "table_bar_chart", "matrix", "parallel_sets",
-          "flow_chart_table", "flow_chart_elaborate_table", "flow_chart_elaborate"]
+IDIOMS = ["bar_chart", "table", "table_bar_chart", "matrix", "heatmap", "parallel_sets"]
 
 GT_TIER = "MANUAL"
 
@@ -53,6 +55,15 @@ PARAM_SPEC = [
         "widget": "activity-picker",
         "source": "log.activities",
         "default": "",
+        "required": True,
+    },
+    {
+        "key": "target_patterns",
+        "label": "Violation pattern(s) to include",
+        "hint": "Every idiom renders exactly this set of (activity, violation type) patterns — "
+                "select as many or as few as should be shown",
+        "widget": "select-many",
+        "source": "log.violations",
         "required": True,
     },
 ]
@@ -69,23 +80,28 @@ RUBRIC = (
     "positive = associated with achieving it. Full marks require an approximate magnitude "
     "(e.g. 'associated with a −35 pp drop in goal-achievement rate'). "
     "Award partial marks for naming the correct pattern and direction without the magnitude. "
-    "Deduct marks for incorrect direction, or for citing a low-support pattern as the "
-    "strongest effect without flagging its low confidence. "
+    "Deduct marks for incorrect direction. "
     "No credit for vague claims not grounded in the risk-difference values shown."
 )
 
 
 def validate_params(log, params) -> list:
+    errors = []
     act = params.get("outcome_activity")
     if not act:
-        return ["A goal activity is required."]
-    total = len(log)
-    present = sum(1 for trace in log if act in {str(e.get("concept:name", "")) for e in trace})
-    if present == 0:
-        return [f"Goal activity '{act}' is not present in any trace."]
-    if present == total:
-        return [f"Goal activity '{act}' is present in all traces — effect on outcome is undefined."]
-    return []
+        errors.append("A goal activity is required.")
+    else:
+        total = len(log)
+        present = sum(1 for trace in log if act in {str(e.get("concept:name", "")) for e in trace})
+        if present == 0:
+            errors.append(f"Goal activity '{act}' is not present in any trace.")
+        elif present == total:
+            errors.append(f"Goal activity '{act}' is present in all traces — effect on outcome is undefined.")
+
+    patterns = params.get("target_patterns")
+    if not patterns or (isinstance(patterns, list) and len(patterns) == 0):
+        errors.append("At least one violation pattern must be selected.")
+    return errors
 
 
 def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
@@ -99,8 +115,9 @@ def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer
     outcome_activity = params.get("outcome_activity", "")
     if not outcome_activity:
         outcome_activity = infer_outcome_activity(log)
+    target_patterns = params.get("target_patterns")
 
-    eff = task19_effects(log, alignments, outcome_activity)
+    eff = task19_effects(log, alignments, outcome_activity, target_patterns=target_patterns)
     records = eff["records"]
     if not records:
         return {"options": []}
@@ -119,29 +136,21 @@ def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer
 
 import os
 import numpy as np
-import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 from matplotlib import gridspec
+from matplotlib.colors import to_hex
 
 from shared import (
     save_svg, make_table, auto_col_widths, draw_parallel_sets, draw_value_heatmap,
     render_empty_state_svg,
-    alignment_pairs_to_rows, chevron_nodes_from_alignment_rows, draw_chevron_strip,
-    chevron_figure_width, parse_bpmn_model, compose_bpmn_panels, render_bpmn_annotated,
-    contrasting_text_color, place_scatter_labels,
+    classify_step,
     GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
     infer_outcome_activity,
+    CIVIDIS_R,
 )
 
-# Reuse: representative-trace fallback for the chevron flow idiom.
-from tasks.task28 import build_task28_context
-
-
-TOP_N = 10          # patterns shown where an idiom would otherwise crowd
-MIN_SUPPORT = 5     # below this #traces a pattern's effect is flagged low-confidence
 
 # Neutral with/without colours for the info-equivalent idioms (table, bar_chart,
 # matrix, parallel_sets). Deliberately NOT signed by positive/negative effect —
@@ -150,15 +159,12 @@ _C_WITH    = GREY_MED    # "With violation" series
 _C_WITHOUT = GREY_LIGHT  # "Without violation" series
 
 _EMPTY_STEMS = [
-    ("task19_bar_chart.svg",                       "Goal Effect by Violation Pattern"),
-    ("task19_scatter_plot.svg",                    "Support vs. Goal Effect"),
-    ("task19_table.svg",                           "Violation Effect on Process Goal"),
-    ("task19_table_and_bar_chart.svg",             "Violation Effect on Process Goal"),
-    ("task19_matrix.svg",                          "Violation Effect on Process Goal"),
-    ("task19_parallel_sets.svg",                   "Violation Pattern vs. Goal"),
-    ("task19_flow_chart_and_table.svg",            "Goal-missing Violations & Effect Table"),
-    ("task19_flow_chart_elaborate_bpmn_table.svg", "Goal Effect on the Model & Table"),
-    ("task19_flow_chart_elaborate_bpmn.svg",       "Goal Effect on the Model"),
+    ("task19_bar_chart.svg",           "Goal Effect by Violation Pattern"),
+    ("task19_table.svg",               "Violation Effect on Process Goal"),
+    ("task19_table_and_bar_chart.svg", "Violation Effect on Process Goal"),
+    ("task19_matrix.svg",              "Violation Effect on Process Goal"),
+    ("task19_heatmap.svg",             "Violation Effect on Process Goal"),
+    ("task19_parallel_sets.svg",       "Violation Pattern vs. Goal"),
 ]
 
 
@@ -167,34 +173,70 @@ _EMPTY_STEMS = [
 # ---------------------------------------------------------------------------
 
 def _trace_patterns(alignments):
-    """Per trace: the set of (activity, move_type) violation patterns it exhibits."""
+    """Per trace: the set of (activity, move_type) violation patterns it exhibits.
+
+    Uses the platform-standard classify_step() (also used by get_log_violations(),
+    which powers the admin's "log.violations" checkbox source) so pattern keys here
+    match the admin's selection specs ('activity|Move on Model' etc.) exactly.
+    """
     out = []
     for result in alignments:
         patterns = set()
-        for step in alignment_pairs_to_rows(result.get("alignment", [])):
-            mt = step["moveType"]
-            if mt == "Synchronous Move":
+        for step in result.get("alignment", []):
+            if not isinstance(step, (list, tuple)) or len(step) < 2:
                 continue
-            activity = step["model_move"] if mt == "Model Move" else step["log_move"]
-            if not activity or str(activity) in {"-", "None", "(skip)"}:
+            act, vtype = classify_step(step[0], step[1])
+            if act is None:
                 continue
-            patterns.add((str(activity), mt))
+            patterns.add((act, vtype))
         out.append(patterns)
     return out
 
 
-def task19_effects(log, alignments, outcome_activity="Activate Care"):
+def _resolve_target_patterns(target_patterns, universe):
+    """Resolve a list of 'activity|move_type' specs (as emitted by get_log_violations,
+    the admin's checkbox source) to (activity, move_type) keys present in universe.
+
+    Returns None if target_patterns is empty (caller should then use the full
+    universe); otherwise the resolved subset (specs not found in this dataset are
+    silently dropped).
+    """
+    if not target_patterns:
+        return None
+    if isinstance(target_patterns, str):
+        target_patterns = [target_patterns]
+    resolved, seen = [], set()
+    for spec in target_patterns:
+        s = str(spec).strip()
+        if "|" not in s:
+            continue
+        act, vt = s.rsplit("|", 1)
+        key = (act.strip(), vt.strip())
+        if key in universe and key not in seen:
+            seen.add(key)
+            resolved.append(key)
+    return resolved
+
+
+def task19_effects(log, alignments, outcome_activity="Activate Care", target_patterns=None):
     """Label each trace (goal achieved yes/no) + measure each violation pattern's
     association with the goal.
+
+    ``target_patterns`` restricts ``records`` to the admin-selected (activity,
+    move_type) patterns (checkbox picks from the full "log.violations" catalogue,
+    resolved via _resolve_target_patterns) — applied once here so every idiom
+    renders the exact same set and stays information-equivalent. Empty/None shows
+    every pattern found.
 
     Returns a dict:
         records      – per-pattern dicts ranked by |risk_diff|:
                        {pattern, activity, move_type, support, rate_with, rate_without,
-                        risk_diff, rel_risk, low_support}
+                        risk_diff, rel_risk}
         goal         – per-trace bool array (goal achieved)
         goal_rate    – overall goal rate (%)
         n_traces     – #traces
-        patterns_per_trace – list[set] (reused by the parallel-sets / flow idioms)
+        outcome_activity – the activity whose presence defines the goal (for labels)
+        patterns_per_trace – list[set] (reused by the parallel-sets idiom)
     """
     goal = np.array([
         outcome_activity in {str(e.get("concept:name", "")) for e in t}
@@ -207,6 +249,9 @@ def task19_effects(log, alignments, outcome_activity="Activate Care"):
     patterns_per_trace = patterns_per_trace[:n]
 
     universe = set().union(*patterns_per_trace) if patterns_per_trace else set()
+    selected = _resolve_target_patterns(target_patterns, universe)
+    if selected is not None:
+        universe = set(selected)
     records = []
     for (activity, move_type) in universe:
         with_mask = np.array([(activity, move_type) in s for s in patterns_per_trace], dtype=bool)
@@ -227,7 +272,6 @@ def task19_effects(log, alignments, outcome_activity="Activate Care"):
             "rate_without": rate_without,
             "risk_diff": risk_diff,
             "rel_risk": rel_risk,
-            "low_support": n_with < MIN_SUPPORT,
         })
     records.sort(key=lambda r: abs(r["risk_diff"]), reverse=True)
 
@@ -236,68 +280,13 @@ def task19_effects(log, alignments, outcome_activity="Activate Care"):
         "goal": goal,
         "goal_rate": float(goal.mean() * 100) if len(goal) else 0.0,
         "n_traces": int(len(goal)),
+        "outcome_activity": outcome_activity,
         "patterns_per_trace": patterns_per_trace,
     }
 
 
-def _activity_effect_map(records):
-    """activity -> signed risk_diff (in [-100,100]) of its strongest-|effect| pattern.
-    Drives the diverging colouring of the elaborate model."""
-    best = {}
-    for r in records:
-        a = r["activity"]
-        if a not in best or abs(r["risk_diff"]) > abs(best[a]):
-            best[a] = r["risk_diff"]
-    return best
-
-
-def _effect_node_style(activity_effect):
-    """Diverging node_style_fn: fill darkness encodes |effect|; a heavy dark border
-    marks 'associated with MISSING the goal' (negative), a lighter border 'associated
-    with ACHIEVING the goal' (positive). Greyscale-only (project palette)."""
-    def _style(eid, elem):
-        if elem.get("kind") == "task":
-            name = elem.get("name", "")
-            if name in activity_effect:
-                rd = activity_effect[name]
-                mag = min(abs(rd) / 100.0, 1.0)
-                shade = int(round(235 - 150 * mag))          # white-ish → dark grey by |effect|
-                fill = f"#{shade:02x}{shade:02x}{shade:02x}"
-                if rd < 0:
-                    return (fill, "#111111", 3.2, contrasting_text_color(fill))   # missing goal
-                return (fill, "#888888", 2.0, contrasting_text_color(fill))       # achieving goal
-        return ("white", "#888888", 2, "#333333")
-    return _style
-
-
-# ---------------------------------------------------------------------------
-# Table helpers
-# ---------------------------------------------------------------------------
-
-def _fmt_rel_risk(rr):
-    return "—" if rr is None else f"{rr:.2f}×"
-
-
-def _effect_table_data(records, top_n=TOP_N):
-    """(cell_text, col_labels, col_widths). Low-support patterns get a trailing '*'."""
-    recs = records[:top_n]
-    col_labels = ["Violation pattern", "#Traces with", "Outcome rate with",
-                  "without", "Risk diff", "Relative risk"]
-    col_widths = [0.34, 0.12, 0.15, 0.12, 0.12, 0.15]
-    cell_text = []
-    for r in recs:
-        name = r["pattern"] + (" *" if r["low_support"] else "")
-        cell_text.append([
-            name, str(r["support"]), f"{r['rate_with']:.1f}%",
-            f"{r['rate_without']:.1f}%", f"{r['risk_diff']:+.1f} pp",
-            _fmt_rel_risk(r["rel_risk"]),
-        ])
-    return cell_text, col_labels, col_widths
-
-
-def _effect_colors(records):
-    """Signed bar colours: negative (missing goal) = GREY_DARK, positive = GREY_MED."""
-    return [GREY_DARK if r["risk_diff"] < 0 else GREY_MED for r in records]
+def _goal_label(outcome_activity: str) -> str:
+    return f"Reaches '{outcome_activity}' (%)"
 
 
 # ---------------------------------------------------------------------------
@@ -305,11 +294,11 @@ def _effect_colors(records):
 # ---------------------------------------------------------------------------
 
 def task19_bar_chart(eff, output_dir):
-    """Grouped horizontal bars per violation pattern: outcome rate WITH vs. WITHOUT
-    the violation. Two neutral colours (no positive/negative pre-categorisation);
+    """Grouped horizontal bars per violation pattern: goal-achievement rate WITH vs.
+    WITHOUT the violation. Two neutral colours (no positive/negative pre-categorisation);
     the participant derives the effect from the two rates themselves."""
     path = os.path.join(output_dir, "task19_bar_chart.svg")
-    records = eff["records"][:TOP_N]
+    records = eff["records"]
     if not records:
         render_empty_state_svg(path, "Violation Effect on Process Goal", "No violation patterns found.")
         return
@@ -333,9 +322,9 @@ def task19_bar_chart(eff, output_dir):
     ax.set_yticks(y)
     ax.set_yticklabels(labels, fontsize=FONT_ANNOT)
     ax.set_xlim(0, 112)
-    ax.set_xlabel("Outcome rate (%)", fontsize=FONT_LABEL)
+    ax.set_xlabel(_goal_label(eff["outcome_activity"]), fontsize=FONT_LABEL)
     ax.set_title("Violation Effect on Process Goal", fontsize=FONT_TITLE)
-    ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.22),
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.13),
               ncol=2, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
     ax.xaxis.grid(True, linestyle="--", alpha=0.45)
@@ -344,70 +333,108 @@ def task19_bar_chart(eff, output_dir):
     save_svg(fig, path)
 
 
-def task19_scatter_plot(eff, output_dir):
-    """One dot per pattern: x = support (#traces), y = risk difference; zero line.
-    Reveals which FREQUENT violations are associated with goal failure."""
-    path = os.path.join(output_dir, "task19_scatter_plot.svg")
-    records = eff["records"]
-    if not records:
-        render_empty_state_svg(path, "Support vs. Goal Effect", "No violation patterns found.")
-        return
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-    for r in records:
-        low = r["low_support"]
-        ax.scatter(r["support"], r["risk_diff"],
-                   s=60, c=(GREY_DARK if r["risk_diff"] < 0 else GREY_MED),
-                   alpha=0.35 if low else 0.85,
-                   edgecolors="#333333", linewidths=0.8,
-                   marker="o" if not low else "D")
-    ax.axhline(0, color="#333333", linewidth=1.0)
-    # Label the strongest-|effect| patterns with cluster-aware, non-crossing callouts.
-    labeled = sorted(records, key=lambda r: abs(r["risk_diff"]), reverse=True)[:6]
-    place_scatter_labels(ax, [(r["support"], r["risk_diff"], r["pattern"]) for r in labeled])
-    ax.set_xlabel("Support (# traces exhibiting the pattern)", fontsize=FONT_LABEL)
-    ax.set_ylabel("Risk difference in goal rate (pp)", fontsize=FONT_LABEL)
-    ax.set_title("Which Frequent Violations Are Associated with Goal Failure", fontsize=FONT_TITLE)
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.grid(True, linestyle="--", alpha=0.4)
-    ax.set_axisbelow(True)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, path)
-
-
-def task19_table(eff, output_dir):
-    """Violation Pattern | Outcome Rate With (%) | Outcome Rate Without (%).
-
-    Info-equivalent with the bar_chart / matrix / parallel_sets idioms: only the
-    two raw outcome rates per pattern, no derived metrics (risk diff, relative
-    risk) and no trace counts."""
-    path = os.path.join(output_dir, "task19_table.svg")
-    records = eff["records"][:TOP_N]
-    if not records:
-        render_empty_state_svg(path, "Violation Effect on Process Goal", "No violation patterns found.")
-        return
-    col_labels = ["Violation Pattern", "Outcome Rate With (%)", "Outcome Rate Without (%)"]
+def _pattern_table_data(records):
+    """(col_labels, cell_text) for the plain 3-column pattern table: Violation Pattern |
+    With Violation | Without Violation. Shared by Table and Table & Bar Chart. No "(%)"
+    in the header — the unit is stated once, in the chart's goal-label subtitle/axis,
+    matching Matrix/Heatmap's bare "With Violation" / "Without Violation" column names."""
+    col_labels = ["Violation Pattern", "With Violation", "Without Violation"]
     cell_text = [
         [r["pattern"], f"{r['rate_with']:.1f}%", f"{r['rate_without']:.1f}%"]
         for r in records
     ]
-    fig_h = max(3.0, 1.4 + len(cell_text) * 0.46)
+    return col_labels, cell_text
+
+
+def _fig_title_and_goal(fig, fig_h, eff, content_top):
+    """Draw the main title + goal-label subtitle in FIGURE coordinates, stacked in the
+    band above ``content_top`` (the axes-fraction below which the table/plot lives).
+    Fixed *inch* offsets, so the title↔subtitle↔content spacing is identical no matter
+    how tall the figure is (i.e. how many rows) — this is what avoids the earlier
+    overlap, which came from positioning the subtitle by the table's bbox height
+    instead of its true top edge."""
+    fig.text(0.5, content_top + 0.44 / fig_h, "Violation Effect on Process Goal",
+             ha="center", va="bottom", fontsize=FONT_TITLE)
+    fig.text(0.5, content_top + 0.14 / fig_h, _goal_label(eff["outcome_activity"]),
+             ha="center", va="bottom", fontsize=FONT_LABEL, color="#555555")
+
+
+def task19_table(eff, output_dir):
+    """Violation Pattern | With Violation | Without Violation (goal-achievement rate, %).
+
+    Info-equivalent with the bar_chart / matrix / parallel_sets idioms: only the
+    two raw goal-achievement rates per pattern, no derived metrics (risk diff,
+    relative risk) and no trace counts."""
+    path = os.path.join(output_dir, "task19_table.svg")
+    records = eff["records"]
+    if not records:
+        render_empty_state_svg(path, "Violation Effect on Process Goal", "No violation patterns found.")
+        return
+    col_labels, cell_text = _pattern_table_data(records)
+    fig_h = max(3.0, 1.5 + len(cell_text) * 0.46)
     fig, ax = plt.subplots(figsize=(11, fig_h))
     ax.axis("off")
     make_table(ax, cell_text=cell_text, col_labels=col_labels,
-               bbox=[0.03, 0.05, 0.94, 0.9],
+               bbox=[0.0, 0.0, 1.0, 1.0],
                col_widths=auto_col_widths(col_labels, cell_text),
                font_size=10, cell_pad=0.09)
-    ax.set_title("Violation Effect on Process Goal", fontsize=FONT_TITLE, pad=8)
+    # Position the table axes, reserving a fixed 0.85" band at the top for the two
+    # title lines; then draw them into that band in figure coords.
+    content_top = 1.0 - 0.85 / fig_h
+    fig.subplots_adjust(left=0.03, right=0.97, top=content_top, bottom=0.03)
+    _fig_title_and_goal(fig, fig_h, eff, content_top)
     save_svg(fig, path)
 
 
 def task19_matrix(eff, output_dir):
-    """Rows = violation patterns, columns = With / Without violation; each cell is
-    the outcome rate (%) on a fixed 0→100 colour scale with a numeric annotation.
-    Info-equivalent with the table / bar_chart idioms."""
+    """Side-by-side With / Without panels, rows = violation patterns — same layout
+    as Heatmap, but a flat, non-value-encoded colour wash per panel (100%-navy /
+    0%-yellow, alternating purely to tell the panels apart). The colour here carries
+    no data; the number is the only thing being read (that's Heatmap's job)."""
     path = os.path.join(output_dir, "task19_matrix.svg")
-    records = eff["records"][:TOP_N]
+    records = eff["records"]
+    if not records:
+        render_empty_state_svg(path, "Violation Effect on Process Goal", "No violation patterns found.")
+        return
+    labels = [r["pattern"] for r in records]
+    cols = [("With Violation", [r["rate_with"] for r in records]),
+            ("Without Violation", [r["rate_without"] for r in records])]
+    panel_colors = [to_hex(CIVIDIS_R(1.0)), to_hex(CIVIDIS_R(0.0))]  # 100%-navy, 0%-yellow
+    n = len(labels)
+    fig_h = max(3.0, 0.5 * n + 1.8)
+    fig, axes = plt.subplots(1, 2, figsize=(7.5, fig_h), squeeze=False,
+                             gridspec_kw={"wspace": 0.0})
+    for i, (ax, (col_label, vals)) in enumerate(zip(axes[0], cols)):
+        face = panel_colors[i % len(panel_colors)]
+        text_color = "white" if i % 2 == 0 else "#222222"
+        for ri, v in enumerate(vals):
+            ax.add_patch(plt.Rectangle((0, ri), 1, 1, facecolor=face,
+                                       edgecolor="white", linewidth=1.2))
+            ax.text(0.5, ri + 0.5, f"{v:.1f}%", ha="center", va="center",
+                    fontsize=FONT_ANNOT, color=text_color)
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, n)
+        ax.invert_yaxis()
+        ax.set_xticks([0.5])
+        ax.set_xticklabels([_goal_label(eff["outcome_activity"])], fontsize=FONT_ANNOT - 1)
+        ax.set_yticks([r + 0.5 for r in range(n)])
+        ax.set_yticklabels(labels if i == 0 else [], fontsize=FONT_ANNOT - 1)
+        ax.tick_params(length=0)
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+        ax.set_title(col_label, fontsize=FONT_LABEL)
+    fig.suptitle("Violation Effect on Process Goal", fontsize=FONT_TITLE)
+    fig.tight_layout(pad=1.2)
+    fig.subplots_adjust(wspace=0.0)  # tight_layout() re-adds a gap; force it back to 0
+    save_svg(fig, path)
+
+
+def task19_heatmap(eff, output_dir):
+    """Rows = violation patterns, columns = With / Without violation; each cell's
+    colour intensity encodes the goal-achievement rate (%) on a fixed 0→100 scale —
+    no numbers (platform convention: Matrix = numbers only, Heatmap = colour only)."""
+    path = os.path.join(output_dir, "task19_heatmap.svg")
+    records = eff["records"]
     if not records:
         render_empty_state_svg(path, "Violation Effect on Process Goal", "No violation patterns found.")
         return
@@ -418,7 +445,8 @@ def task19_matrix(eff, output_dir):
     fig, ax = plt.subplots(figsize=(7.5, fig_h))
     draw_value_heatmap(
         fig, ax, data, labels, ["With Violation", "Without Violation"],
-        cbar_label="Outcome Rate (%)", cell_fmt="{:.1f}%", annotate=True, vmax=100.0,
+        cbar_label=_goal_label(eff["outcome_activity"]), cell_fmt="{:.1f}%",
+        annotate=False, vmax=100.0,
     )
     ax.set_title("Violation Effect on Process Goal", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
@@ -426,236 +454,123 @@ def task19_matrix(eff, output_dir):
 
 
 def task19_table_and_bar_chart(eff, output_dir):
-    """Effect table (left) + signed effect bar (right)."""
+    """Table & Bar Chart combo: the same 3-column pattern table as Table, beside the
+    same grouped With/Without bars as Bar Chart — a native combination of the two
+    existing simple idioms, no derived measures."""
     path = os.path.join(output_dir, "task19_table_and_bar_chart.svg")
-    records = eff["records"][:TOP_N]
+    records = eff["records"]
     if not records:
         render_empty_state_svg(path, "Violation Effect on Process Goal", "No violation patterns found.")
         return
-    cell_text, col_labels, col_widths = _effect_table_data(records)
+    col_labels, cell_text = _pattern_table_data(records)
 
-    fig = plt.figure(figsize=(18, max(3.4, 1.6 + len(records) * 0.5)))
-    gs = gridspec.GridSpec(1, 2, width_ratios=[1.8, 1.0], wspace=0.40)
+    n = len(records)
+    fig_h = max(3.6, 1.8 + n * 0.5)
+    fig = plt.figure(figsize=(18, fig_h))
+    # Wider gap so the bar chart's long y-tick labels sit clear of the table column.
+    gs = gridspec.GridSpec(1, 2, width_ratios=[1.35, 1.0], wspace=0.45)
 
     ax_t = fig.add_subplot(gs[0])
     ax_t.axis("off")
     make_table(ax_t, cell_text=cell_text, col_labels=col_labels,
-               bbox=[0.02, 0.05, 0.96, 0.84], col_widths=col_widths,
+               bbox=[0.0, 0.0, 1.0, 1.0],
+               col_widths=auto_col_widths(col_labels, cell_text),
                font_size=9, cell_pad=0.07)
-    ax_t.set_title("Violation Effect on Goal (ranked)", fontsize=FONT_TITLE, pad=8)
 
     ax_b = fig.add_subplot(gs[1])
-    recs = records[::-1]
-    labels = [r["pattern"] for r in recs]
-    diffs = [r["risk_diff"] for r in recs]
-    colors = _effect_colors(recs)
-    for i, (r, d) in enumerate(zip(recs, diffs)):
-        ax_b.barh(i, d, color=colors[i], edgecolor="white",
-                  hatch="//" if r["low_support"] else None,
-                  alpha=0.55 if r["low_support"] else 1.0)
-    ax_b.axvline(0, color="#333333", linewidth=1.0)
-    ax_b.set_yticks(np.arange(len(labels)))
+    recs = records[::-1]  # highest-|difference| pattern ends up on top, matches Table row order
+    labels    = [r["pattern"] for r in recs]
+    with_vals = [r["rate_with"] for r in recs]
+    wout_vals = [r["rate_without"] for r in recs]
+    y = np.arange(len(labels))
+    bh = 0.38
+    ax_b.barh(y + bh / 2, with_vals, height=bh, color=_C_WITH,
+              edgecolor="white", label="With violation")
+    ax_b.barh(y - bh / 2, wout_vals, height=bh, color=_C_WITHOUT,
+              edgecolor="white", label="Without violation")
+    ax_b.set_yticks(y)
     ax_b.set_yticklabels(labels, fontsize=FONT_ANNOT - 1)
-    ax_b.set_xlabel("Risk diff (pp)", fontsize=FONT_LABEL)
+    ax_b.set_xlim(0, 112)
+    ax_b.set_xlabel(_goal_label(eff["outcome_activity"]), fontsize=FONT_LABEL)
+    ax_b.legend(loc="lower center", bbox_to_anchor=(0.5, -0.12),
+                ncol=2, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT - 1)
     ax_b.spines[["top", "right"]].set_visible(False)
-    ax_b.set_title("Signed goal effect", fontsize=FONT_TITLE, pad=8)
-    fig.tight_layout(pad=1.2)
+    ax_b.xaxis.grid(True, linestyle="--", alpha=0.45)
+    ax_b.set_axisbelow(True)
+    # Reserve the same fixed top band as the standalone table for the two title lines
+    # (no tight_layout — it would fight subplots_adjust and re-introduce the gap).
+    content_top = 1.0 - 0.85 / fig_h
+    fig.subplots_adjust(left=0.03, right=0.985, top=content_top, bottom=0.12)
+    _fig_title_and_goal(fig, fig_h, eff, content_top)
     save_svg(fig, path)
 
 
 def task19_parallel_sets(eff, output_dir):
-    """Dimension 1 = top pattern present (each trace → its strongest top-N pattern, or
-    'none of top-N'), Dimension 2 = goal achieved (yes/no); ribbon = #traces."""
+    """Dimension 1 = violation pattern present, Dimension 2 = goal achieved (yes/no);
+    ribbon = #traces. Scoped to the same admin-selected pattern set as every other
+    idiom — traces that exhibit none of the shown patterns simply don't contribute
+    a ribbon."""
     path = os.path.join(output_dir, "task19_parallel_sets.svg")
     records = eff["records"]
     if not records:
         render_empty_state_svg(path, "Violation Pattern vs. Goal", "No violation patterns found.")
         return
 
-    top = records[:TOP_N]
-    top_keys = [(r["activity"], r["move_type"]) for r in top]
-    base_labels = [r["pattern"] for r in top] + ["None of top-N"]
+    pattern_keys = [(r["activity"], r["move_type"]) for r in records]
+    left_labels_base = [r["pattern"] for r in records]
 
-    # Presence-based rows: every trace contributes to EACH top-N pattern it
-    # exhibits (its "WITH" set), so all patterns shown by the table/bar/matrix
-    # idioms also appear here — rather than assigning each trace to a single
-    # strongest pattern, which would drop patterns that never rank highest.
-    # Traces exhibiting no top-N pattern fall into the "None of top-N" baseline.
-    # A trace with several patterns is counted once per pattern (same as the
-    # other idioms, which evaluate each pattern over all traces containing it).
+    # Presence-based rows: every trace contributes to EACH shown pattern it exhibits
+    # (its "WITH" set), so all patterns shown by the table/bar/matrix idioms also
+    # appear here — rather than assigning each trace to a single strongest pattern,
+    # which would drop patterns that never rank highest. A trace with several
+    # patterns is counted once per pattern (same as the other idioms, which
+    # evaluate each pattern over all traces containing it).
     goal = eff["goal"]
-    matrix = np.zeros((len(base_labels), 2))
+    matrix = np.zeros((len(pattern_keys), 2))
     for s, g in zip(eff["patterns_per_trace"], goal):
-        present = [i for i, k in enumerate(top_keys) if k in s]
         col = 0 if g else 1
-        if present:
-            for i in present:
+        for i, k in enumerate(pattern_keys):
+            if k in s:
                 matrix[i, col] += 1
-        else:
-            matrix[len(top_keys), col] += 1
 
-    # Percentage labels on the left axis segments so participants can read the
-    # rates instead of only eyeballing ribbon widths. Each pattern's segment rate
-    # equals the "Outcome Rate With (%)" the other idioms report for it.
+    # Percentage on each left segment so participants can read the rate, not just
+    # eyeball ribbon widths. It is the share of traces WITH this pattern that reach
+    # the goal — i.e. exactly the pattern's "With Violation" value in the table/matrix.
+    # Phrased "reaches goal: X%" to match the "Reaches '<goal>'" wording those idioms
+    # and the right-axis "Goal achieved" label use.
     row_tot = matrix.sum(axis=1)
     left_labels = [
-        f"{lab}  ({(matrix[i, 0] / row_tot[i] * 100) if row_tot[i] else 0.0:.1f}% goal)"
-        for i, lab in enumerate(base_labels)
+        f"{lab}  (reaches goal: {(matrix[i, 0] / row_tot[i] * 100) if row_tot[i] else 0.0:.1f}%)"
+        for i, lab in enumerate(left_labels_base)
     ]
-    # Right axis: the TRUE overall goal split (from per-trace goal, not the
-    # per-pattern rows, which count multi-pattern traces more than once).
-    overall = float(goal.mean() * 100) if len(goal) else 0.0
-    right_labels = [f"Goal achieved ({overall:.1f}%)",
-                    f"Goal missed ({100 - overall:.1f}%)"]
+    right_labels = ["Goal achieved", "Goal missed"]
 
-    # A dominant "None of top-N" baseline squeezes the violation slivers into a
-    # thin band, so give the figure plenty of height (more pixels per sliver →
-    # distinct label anchors) and use a smaller left-label font so labels need
-    # less vertical spreading.
-    fig, ax = plt.subplots(figsize=(11.5, max(8.0, len(left_labels) * 1.15 + 3.5)))
+    fig_h = max(5.0, len(left_labels) * 0.8 + 2.0)
+    fig, ax = plt.subplots(figsize=(11.5, fig_h))
     ax.axis("off")
     left_colors = [GREY_MED if i % 2 == 0 else GREY_LIGHT for i in range(len(left_labels))]
     draw_parallel_sets(
         ax, left_labels, right_labels, matrix, left_colors,
         right_colors=[GREY_LIGHTER, GREY_DARK],
-        left_title="Violation pattern present", right_title="Process goal",
+        left_title="Violation Pattern", right_title="Process Goal",
         # Label every present pattern (h > 0), not just those above the default
-        # 3% threshold: the "None of top-N" baseline dwarfs the violation rows, so
-        # small-but-present patterns would otherwise lose their label and break
-        # information equivalence with the table / bar_chart / matrix idioms.
+        # 3% threshold — keeps information equivalence with the table / bar_chart /
+        # matrix idioms, none of which drop small-but-present patterns either.
         label_min_frac=0.0,
         left_label_fontsize=FONT_ANNOT - 2,
     )
-    # Title just above the column headers (which draw_parallel_sets places at
-    # y=1.08). Raise the axes (top) close to the title so the heading does not
-    # float far above the actual diagram.
-    fig.suptitle("Violation Pattern vs. Process Goal (ribbon = traces exhibiting the pattern)",
-                 fontsize=FONT_TITLE, y=0.955)
-    fig.subplots_adjust(top=0.90)
+    # draw_parallel_sets fills the axes with data-y in [-0.03, 1.11] and puts the
+    # column headers at data-y=1.04. Push the axes top near the figure top, then place
+    # the title a *fixed* short distance above those headers (in inches) so it hugs the
+    # diagram at any figure height instead of floating above a big empty gap.
+    top = 0.99
+    fig.subplots_adjust(top=top, bottom=0.04, left=0.02, right=0.98)
+    header_frac = (1.04 - (-0.03)) / (1.11 - (-0.03))     # header axes-fraction
+    header_figy = 0.04 + header_frac * (top - 0.04)
+    fig.text(0.5, header_figy + 0.34 / fig_h,
+             f"Violation Pattern vs. {_goal_label(eff['outcome_activity'])}",
+             ha="center", va="bottom", fontsize=FONT_TITLE)
     save_svg(fig, path)
-
-
-def _goal_missing_ctx(alignments, goal):
-    """ctx (task28 shape) for a representative violating trace that MISSED the goal;
-    falls back to task28's default representative trace if none qualifies."""
-    for i, result in enumerate(alignments):
-        if i < len(goal) and not goal[i] and float(result.get("fitness", 1.0)) < 1.0 - 1e-9:
-            rows = alignment_pairs_to_rows(result.get("alignment", []))
-            if rows:
-                return {"trace_index": i, "trace_label": f"Trace {i + 1}",
-                        "fitness": float(result.get("fitness", 0.0)),
-                        "cost": result.get("cost"), "rows": rows}
-    return build_task28_context(alignments)
-
-
-def task19_flow_chart_and_table(eff, alignments, output_dir):
-    """Chevron exemplar of a goal-missing violating trace + the effect table.
-    Stem 'flow_chart_and_table' → canonical slug 'flow_chart_table'."""
-    path = os.path.join(output_dir, "task19_flow_chart_and_table.svg")
-    records = eff["records"]
-    ctx = _goal_missing_ctx(alignments, eff["goal"])
-    if ctx is None or not records:
-        render_empty_state_svg(path, "Goal-missing Violations & Effect Table",
-                               "No usable alignment / no violation patterns.")
-        return
-
-    nodes = chevron_nodes_from_alignment_rows(ctx["rows"])
-    cell_text, col_labels, col_widths = _effect_table_data(records)
-
-    fig_w = max(14.0, chevron_figure_width(nodes))
-    fig_h = max(7.0, 3.4 + min(len(records), TOP_N) * 0.5)
-    fig = plt.figure(figsize=(fig_w, fig_h))
-    gs = gridspec.GridSpec(2, 1, height_ratios=[1.0, max(1.4, 0.5 * min(len(records), TOP_N) + 0.8)],
-                           hspace=0.30)
-
-    ax_flow = fig.add_subplot(gs[0])
-    draw_chevron_strip(ax_flow, nodes, fontsize=10)
-    ax_flow.set_title(
-        f"Goal-missing Violating Trace ({ctx['trace_label']}, fitness={ctx['fitness']:.3f})",
-        fontsize=FONT_TITLE, pad=6)
-
-    ax_tab = fig.add_subplot(gs[1])
-    ax_tab.axis("off")
-    make_table(ax_tab, cell_text=cell_text, col_labels=col_labels,
-               bbox=[0.02, 0.05, 0.96, 0.84], col_widths=col_widths,
-               font_size=9, cell_pad=0.07)
-    ax_tab.set_title("Violation Patterns Associated with the Goal (ranked)", fontsize=FONT_TITLE, pad=6)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, path)
-
-
-def _effect_legend_items():
-    return [
-        ("#414141", "#111111", 3.2, "Stronger effect, assoc. missing goal"),
-        ("#cdcdcd", "#888888", 2.0, "Stronger effect, assoc. achieving goal"),
-        ("white",   "#888888", 2,   "No measured effect"),
-    ]
-
-
-def task19_flow_chart_elaborate_bpmn_table(eff, model_path, output_dir):
-    """Desired model with violation locations coloured by signed goal effect +
-    the effect table. Stem → canonical slug 'flow_chart_elaborate_table'."""
-    path = os.path.join(output_dir, "task19_flow_chart_elaborate_bpmn_table.svg")
-    records = eff["records"]
-    if not records or not model_path:
-        render_empty_state_svg(path, "Goal Effect on the Model & Table",
-                               "No violation patterns or model available.")
-        return
-    try:
-        parsed = parse_bpmn_model(model_path)
-    except Exception as e:
-        logger.warning(f"      task19: BPMN parse failed: {e}")
-        render_empty_state_svg(path, "Goal Effect on the Model & Table",
-                               "BPMN model could not be parsed.")
-        return
-    if not parsed.get("elements"):
-        render_empty_state_svg(path, "Goal Effect on the Model & Table", "No BPMN geometry to render.")
-        return
-
-    activity_effect = _activity_effect_map(records)
-    cell_text, col_labels, _ = _effect_table_data(records)
-    panels = [{
-        "parsed": parsed,
-        "node_style_fn": _effect_node_style(activity_effect),
-        "subtitle": "Activities coloured by the signed goal effect of their violations (associated with, not causal)",
-    }]
-    compose_bpmn_panels(
-        panels, path,
-        title="Goal Effect of Violations on the Desired Model",
-        legend_items=_effect_legend_items(),
-        table_rows=cell_text,
-        table_cols=col_labels,
-    )
-
-
-def task19_flow_chart_elaborate_bpmn(eff, model_path, output_dir):
-    """MEDIUM idiom: the effect-coloured model alone (no table).
-    Stem → canonical slug 'flow_chart_elaborate'."""
-    path = os.path.join(output_dir, "task19_flow_chart_elaborate_bpmn.svg")
-    records = eff["records"]
-    if not records or not model_path:
-        render_empty_state_svg(path, "Goal Effect on the Model",
-                               "No violation patterns or model available.")
-        return
-    try:
-        parsed = parse_bpmn_model(model_path)
-    except Exception as e:
-        logger.warning(f"      task19: BPMN parse failed: {e}")
-        render_empty_state_svg(path, "Goal Effect on the Model", "BPMN model could not be parsed.")
-        return
-    if not parsed.get("elements"):
-        render_empty_state_svg(path, "Goal Effect on the Model", "No BPMN geometry to render.")
-        return
-
-    activity_effect = _activity_effect_map(records)
-    render_bpmn_annotated(
-        parsed, path,
-        title="Goal Effect of Violations on the Desired Model",
-        summary=f"Overall goal rate {eff['goal_rate']:.1f}%. Darker = stronger association; "
-                "heavy border = associated with missing the goal. Observational, not causal.",
-        node_style_fn=_effect_node_style(activity_effect),
-        legend_items=_effect_legend_items(),
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -671,10 +586,13 @@ def _emit_all_empty(output_dir, message: str):
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def generate(log, alignments, model_path, output_dir: str, outcome_activity: str = ""):
+def generate(log, alignments, model_path, output_dir: str, outcome_activity: str = "",
+             target_patterns=None):
     """Generate all Task ID 19 SVGs into output_dir. The process goal reuses task31's
     outcome activity; effects are per-violation-pattern risk differences computed from
-    the central alignment run (never recomputed)."""
+    the central alignment run (never recomputed). ``model_path`` is accepted for calling
+    convention only — no model-level idiom is produced anymore. ``target_patterns`` is
+    the admin's checkbox selection of violation patterns to show (None/empty = all)."""
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 19 visualizations ---")
     if not outcome_activity:
@@ -686,7 +604,7 @@ def generate(log, alignments, model_path, output_dir: str, outcome_activity: str
         _emit_all_empty(output_dir, "No log or alignment data available.")
         return
 
-    eff = task19_effects(log, alignments, outcome_activity)
+    eff = task19_effects(log, alignments, outcome_activity, target_patterns=target_patterns)
 
     if not eff["records"]:
         logger.warning("      task19: no guideline violations — emitting empty-state SVGs.")
@@ -704,11 +622,8 @@ def generate(log, alignments, model_path, output_dir: str, outcome_activity: str
                 f"{eff['goal_rate']:.1f}% over {eff['n_traces']} traces.")
 
     task19_bar_chart(eff, output_dir)
-    task19_scatter_plot(eff, output_dir)
     task19_table(eff, output_dir)
     task19_table_and_bar_chart(eff, output_dir)
     task19_matrix(eff, output_dir)
+    task19_heatmap(eff, output_dir)
     task19_parallel_sets(eff, output_dir)
-    task19_flow_chart_and_table(eff, alignments, output_dir)
-    task19_flow_chart_elaborate_bpmn_table(eff, model_path, output_dir)
-    task19_flow_chart_elaborate_bpmn(eff, model_path, output_dir)
