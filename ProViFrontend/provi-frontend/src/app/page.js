@@ -15,21 +15,21 @@ export default function LandingPage() {
 
       {/* Navbar — matches AdminNav exactly, without nav links */}
       <header className="bg-white border-b border-outline-variant sticky top-0 z-50">
-        <div className="flex justify-between items-center w-full px-8 py-4 max-w-screen-2xl mx-auto">
+        <div className="flex justify-between items-center w-full h-16 px-8 max-w-screen-2xl mx-auto">
           <div className="flex items-center gap-8">
             <img
               src={logoSrc(ProjectLogo)}
               alt="ProVi Logo"
-              className="h-8 w-auto"
-              width={32}
-              height={32}
+              className="h-11 w-auto"
+              width={79}
+              height={44}
             />
             <img
               src={logoSrc(UniLogo)}
               alt="University of Mannheim Logo"
-              className="h-8 w-auto ml-4 pl-4 border-l border-outline-variant"
-              width={32}
-              height={32}
+              className="h-11 w-auto ml-4 pl-4 border-l border-outline-variant"
+              width={110}
+              height={44}
             />
           </div>
           <span className="bg-surface-container text-on-surface-variant text-xs font-bold px-3 py-1.5 rounded-lg border border-outline-variant uppercase tracking-wider">

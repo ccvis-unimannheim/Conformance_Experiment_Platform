@@ -1507,9 +1507,12 @@ def parse_bpmn_model(model_path: str) -> dict:
         dlen = math.hypot(bx - px, by - py)
         if dlen < 1e-9:
             return pts
-        t = min(16.0, dlen * 0.92)
+        # _adj_ep already snapped the endpoint to the circle's bounding box edge.
+        # Nudge it a few units further INTO the circle (along travel direction) so
+        # the arrowhead visibly meets the end event instead of stopping short.
+        t = min(4.0, dlen * 0.4)
         ux, uy = (bx - px) / dlen, (by - py) / dlen
-        return pts[:-1] + [(bx - ux * t, by - uy * t)]
+        return pts[:-1] + [(bx + ux * t, by + uy * t)]
 
     def _dedup(pts, tol=0.05):
         if not pts:
@@ -1639,7 +1642,8 @@ _BPMN_MARKER_DEFS = (
 
 
 def bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn=None, *, ox=0.0, oy=0.0,
-                      top_pad=88.0, h_scale: float = 1.0):
+                      top_pad=88.0, h_scale: float = 1.0, node_font_size: float = 9.0,
+                      badges=None):
     """Return (svg_lines, width, height) for one BPMN diagram translated by (ox, oy).
 
     The body excludes the outer <svg>, marker <defs> and legend so it can be
@@ -1663,11 +1667,17 @@ def bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn=None, *, ox=0.0, oy=0
     min_x, max_x = min(xs), max(xs)
     min_y, max_y = min(ys), max(ys)
     lp, rp, bp = 80.0, 80.0, 68.0
+    # Reserve vertical space above the diagram for external log-move badges, which
+    # are drawn the same size as a model activity node.
+    _task_hs = [b["height"] for eid, b in shapes.items()
+                if elements.get(eid, {}).get("kind") == "task"]
+    _badge_node_h = max(_task_hs) if _task_hs else 46.0
+    badge_pad = (_badge_node_h + 34.0) if badges else 0.0
     W = (max_x - min_x) * h_scale + lp + rp
-    H = max_y - min_y + top_pad + bp
+    H = max_y - min_y + top_pad + badge_pad + bp
 
     def tx(x): return (x - min_x) * h_scale + lp + ox
-    def ty(y): return y - min_y + top_pad + oy
+    def ty(y): return y - min_y + top_pad + badge_pad + oy
 
     def _clean_pts(pts, min_seg=10.0):
         """Drop penultimate points that create a tiny final segment.
@@ -1716,12 +1726,12 @@ def bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn=None, *, ox=0.0, oy=0
                 f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" '
                 f'rx="7" ry="7" fill="{fill}" stroke="{stroke}" stroke-width="{sw}"{dash_attr}/>'
             )
-            lines = _bpmn_label_lines(name, w)
-            gap = 10.5; sy = y + h / 2.0 - (len(lines) - 1) * gap / 2.0
+            lines = _bpmn_label_lines(name, w, font_size=node_font_size)
+            gap = node_font_size * 1.17; sy = y + h / 2.0 - (len(lines) - 1) * gap / 2.0
             for i, line in enumerate(lines):
                 out.append(
                     f'<text x="{x + w / 2.0:.1f}" y="{sy + i * gap:.1f}" text-anchor="middle" '
-                    f'dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" '
+                    f'dominant-baseline="middle" font-family="Arial, sans-serif" font-size="{node_font_size:.1f}" '
                     f'fill="{tc}">{_bpmn_esc(line)}</text>'
                 )
         elif kind in {"exclusiveGateway", "parallelGateway"}:
@@ -1753,10 +1763,78 @@ def bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn=None, *, ox=0.0, oy=0
                     f'dominant-baseline="middle" font-family="Arial, sans-serif" '
                     f'font-size="9" fill="{stroke}">END EVENT</text>'
                 )
+
+    # External log-move badges: a blue dashed box drawn above the model, joined by
+    # a dashed connector to the sequence position (the anchor task) where the
+    # inserted activity occurred. badges: list of {"label", "anchor"} (anchor = a
+    # task name in the model).
+    if badges:
+        node_boxes, name_box = [], {}
+        for eid2, b2 in shapes.items():
+            el2 = elements.get(eid2, {})
+            box2 = (tx(b2["x"]), ty(b2["y"]), b2["width"], b2["height"])
+            node_boxes.append(box2)
+            if el2.get("kind") == "task":
+                name_box.setdefault(el2.get("name", ""), box2)
+        fs = node_font_size
+        badge_text = contrasting_text_color(GREY_DARK)   # white on the navy fill
+        badge_dash = "#8ba0cf"                            # light-blue dashes, clear on navy
+        seen = {}
+        for badge in badges:
+            box = name_box.get(badge.get("anchor"))
+            if not box:
+                continue
+            ax, ay, aw, ah = box
+            label = str(badge.get("label", ""))
+            k = seen.get(badge["anchor"], 0); seen[badge["anchor"]] = k + 1
+            # Draw the badge the same size as a model activity node.
+            bw, bh = aw, ah
+            acx = ax + aw / 2.0
+            bx = acx - bw / 2.0 + k * (bw + 12.0)
+            # Blockers: any node stacked above the anchor's own column (e.g. a
+            # parallel branch directly above it) — the badge must clear these,
+            # and the connector must detour around them rather than being drawn
+            # straight through their fill.
+            blockers = sorted(
+                (box2 for box2 in node_boxes
+                 if box2 is not box and box2[1] < ay
+                 and box2[0] < ax + aw and box2[0] + box2[2] > ax),
+                key=lambda b: b[1],
+            )
+            top = ay
+            for _, ny, _, _ in blockers:
+                top = min(top, ny)
+            by = top - 20.0 - bh
+            # Dark-blue dashed connector from the badge down to the anchor node,
+            # jogging sideways around any blocking node instead of crossing it.
+            conn_pts = [(acx, by + bh)]
+            if blockers:
+                detour_x = max(bx2 + bw2 for bx2, _by2, bw2, _bh2 in blockers) + 14.0
+                conn_pts += [
+                    (acx, by + bh + 6.0),
+                    (detour_x, by + bh + 6.0),
+                    (detour_x, ay - 6.0),
+                    (acx, ay - 6.0),
+                ]
+            conn_pts.append((acx, ay))
+            pts_str = " ".join(f"{px:.1f},{py:.1f}" for px, py in conn_pts)
+            out.append(f'<polyline points="{pts_str}" fill="none" stroke="{GREY_DARK}" '
+                       f'stroke-width="1.6" stroke-dasharray="4 3"/>')
+            # Blue-filled dashed box, same shape/size as an activity node.
+            out.append(f'<rect x="{bx:.1f}" y="{by:.1f}" width="{bw:.1f}" height="{bh:.1f}" '
+                       f'rx="7" ry="7" fill="{GREY_DARK}" stroke="{badge_dash}" stroke-width="2.0" '
+                       f'stroke-dasharray="6 4"/>')
+            lines = _bpmn_label_lines(label, bw, font_size=fs)
+            gap = fs * 1.17; sy = by + bh / 2.0 - (len(lines) - 1) * gap / 2.0
+            for i, ln in enumerate(lines):
+                out.append(f'<text x="{bx + bw / 2.0:.1f}" y="{sy + i * gap:.1f}" text-anchor="middle" '
+                           f'dominant-baseline="middle" font-family="Arial, sans-serif" '
+                           f'font-size="{fs:.1f}" fill="{badge_text}">{_bpmn_esc(ln)}</text>')
+
     return out, W, H
 
 
-def _bpmn_legend_lines(legend_items, y, x0=24.0):
+def _bpmn_legend_lines(legend_items, y, x0=24.0, font_size=9.0):
     out = []
     for i, item in enumerate(legend_items):
         # Legend item is (fill, stroke, stroke_width, label) or, optionally, a
@@ -1772,7 +1850,7 @@ def _bpmn_legend_lines(legend_items, y, x0=24.0):
         )
         out.append(
             f'<text x="{lx + 30:.1f}" y="{y:.1f}" font-family="Arial, sans-serif" '
-            f'font-size="9" fill="#222">{_bpmn_esc(lbl)}</text>'
+            f'font-size="{font_size}" fill="#222">{_bpmn_esc(lbl)}</text>'
         )
     return out
 
@@ -1817,7 +1895,11 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
                         legend_below_panels=True, legend_center=True,
                         table_stretch: bool = False,
                         table_header_bg: str = GREY_DARK,
-                        h_scale: float = 1.0):
+                        h_scale: float = 1.0,
+                        node_font_size: float = 9.0,
+                        legend_font_size: float = 9.0,
+                        title_font_size: float = 13.0,
+                        title_center: bool = False):
     """Compose several BPMN panels (stacked vertically) + an optional table into one SVG.
 
     panels: list of {"parsed", "node_style_fn", "faded_flow_fn"(opt), "subtitle"}.
@@ -1825,6 +1907,9 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
     legend_below_panels: place the legend strip between the diagram and the table
         (default) rather than at the very bottom of the canvas.
     legend_center: horizontally centre the legend strip on the canvas (default).
+    node_font_size/legend_font_size/title_font_size: override the default (9/9/13)
+        text sizes. title_center: horizontally centre the main title (default:
+        left-aligned, matching prior behavior).
     """
     panel_gap = 26.0
     y_cursor = 64.0  # below the main title
@@ -1838,6 +1923,7 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
         body, w, h = bpmn_diagram_body(
             p["parsed"], p["node_style_fn"], p.get("faded_flow_fn"),
             oy=y_cursor + 24.0, top_pad=8.0, h_scale=h_scale,
+            node_font_size=node_font_size, badges=p.get("badges"),
         )
         bodies += body
         max_w = max(max_w, w)
@@ -1887,14 +1973,20 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
 
     H_total = y_cursor + 34.0
     W = max(max_w, 24.0 + 265.0 * len(legend_items))
+    if title_center:
+        title_line = (f'<text x="{W / 2.0:.1f}" y="40" text-anchor="middle" '
+                      f'font-family="Arial, sans-serif" font-size="{title_font_size}" '
+                      f'fill="black">{_bpmn_esc(title)}</text>')
+    else:
+        title_line = (f'<text x="24" y="40" font-family="Arial, sans-serif" '
+                      f'font-size="{title_font_size}" fill="black">{_bpmn_esc(title)}</text>')
     out = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{W:.1f}" height="{H_total:.1f}" '
         f'viewBox="0 0 {W:.1f} {H_total:.1f}">',
         _BPMN_MARKER_DEFS,
         '<rect x="0" y="0" width="100%" height="100%" fill="white"/>',
-        f'<text x="24" y="40" font-family="Arial, sans-serif" font-size="13" '
-        f'fill="black">{_bpmn_esc(title)}</text>',
+        title_line,
     ]
     def _legend_x0():
         if not legend_center:
@@ -1907,7 +1999,7 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
     out += bodies
     out += table_lines
     legend_y = legend_below_y if legend_below_y is not None else (H_total - 14)
-    out += _bpmn_legend_lines(legend_items, legend_y, x0=_legend_x0())
+    out += _bpmn_legend_lines(legend_items, legend_y, x0=_legend_x0(), font_size=legend_font_size)
     out.append("</svg>")
     with open(out_path, "w", encoding="utf-8") as fh:
         fh.write("\n".join(out))
@@ -2078,6 +2170,7 @@ def draw_parallel_sets(
     label_min_frac: float = 0.03,
     wrap_labels: bool = True,
     left_label_fontsize: float = None,
+    emphasize_left_head: bool = False,
 ):
     """Draw a two-dimension Parallel Sets chart onto *ax*.
 
@@ -2092,6 +2185,9 @@ def draw_parallel_sets(
     right_title   : column header above right axis
     bar_w         : width of the bar rectangles (axes units)
     x_left/right  : x position of the left/right bar centres (axes units)
+    emphasize_left_head : bold the part of each left label before the wrapped
+    "  (...)" suffix (e.g. the bucket name), so it stands out from the metric
+    that follows it.
     """
     import numpy as _np
     from matplotlib.patches import PathPatch as _PP
@@ -2109,10 +2205,24 @@ def draw_parallel_sets(
 
     # Wrap the "…  (…)" suffix onto a second line so long labels stay narrow (both
     # callers separate the parenthetical with a double space).
-    def _wrap(lbl):
+    def _split(lbl):
         s = str(lbl)
-        return s.replace("  ", "\n", 1) if wrap_labels and "  " in s else s
-    left_labels  = [_wrap(l) for l in left_labels]
+        return s.split("  ", 1) if wrap_labels and "  " in s else (s, None)
+
+    def _wrap(lbl):
+        head, tail = _split(lbl)
+        return f"{head}\n{tail}" if tail is not None else head
+
+    def _wrap_emph(lbl):
+        # Bolds only the part before the wrapped "  (...)" suffix (e.g. the bucket
+        # name) via mathtext, so it reads distinctly from the metric that follows.
+        head, tail = _split(lbl)
+        if tail is None:
+            return head
+        safe = head.replace("_", r"\_").replace(" ", r"\ ")
+        return f"$\\mathbf{{{safe}}}$\n{tail}"
+
+    left_labels = [(_wrap_emph(l) if emphasize_left_head else _wrap(l)) for l in left_labels]
     right_labels = [_wrap(l) for l in right_labels]
 
     ctrl_x  = (x_left + x_right) / 2.0
@@ -2179,10 +2289,10 @@ def draw_parallel_sets(
 
     # Column titles
     if left_title:
-        ax.text(x_left,  1.08, left_title,  ha="center", va="bottom",
+        ax.text(x_left,  1.04, left_title,  ha="center", va="bottom",
                 fontsize=FONT_LABEL, fontweight="bold")
     if right_title:
-        ax.text(x_right, 1.08, right_title, ha="center", va="bottom",
+        ax.text(x_right, 1.04, right_title, ha="center", va="bottom",
                 fontsize=FONT_LABEL, fontweight="bold")
 
     # Reserve exact horizontal room for the (data-anchored, non-autoscaling) side
@@ -2190,7 +2300,7 @@ def draw_parallel_sets(
     # side overruns the axes. Font size and axes position are fixed, so the label
     # pixel widths and axes pixel width are invariant under the x-limit change,
     # making this a closed-form solve rather than a fixed-point iteration.
-    ax.set_ylim(-0.05, 1.22)
+    ax.set_ylim(-0.03, 1.11)
     fig = ax.figure
     try:
         fig.canvas.draw()
@@ -2227,7 +2337,7 @@ def draw_parallel_sets(
             orig_y = [it[1] for it in items]
             heights = [it[2] for it in items]
             new_y = list(orig_y)
-            lo, hi = 0.0, 1.03   # keep labels clear of the column title (~1.08)
+            lo, hi = 0.0, 0.99   # keep labels clear of the column title (~1.04)
 
             def _gap(i):  # required centre-to-centre spacing between i and i+1
                 return 0.5 * (heights[i] + heights[i + 1])

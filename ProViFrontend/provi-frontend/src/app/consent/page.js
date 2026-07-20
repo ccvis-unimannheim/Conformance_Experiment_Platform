@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
-import UniLogo from "../../public/images/Logo_UMA_EN_RGB.png";
-import ProjectLogo from "../../public/images/logo-no-background.png";
+import Link from "next/link";
+import HeaderLogos from "../../components/General/HeaderLogos";
 
 export default function ConsentPage() {
   const router = useRouter();
@@ -55,10 +54,7 @@ export default function ConsentPage() {
         boxSizing: "border-box",
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", padding: "0 2rem", maxWidth: "56rem", margin: "0 auto" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <Image priority src={ProjectLogo} width={90} height={36} alt="ProVi Logo" style={{ objectFit: "contain" }} />
-            <Image priority src={UniLogo} width={140} height={36} alt="University of Mannheim Logo" style={{ objectFit: "contain" }} />
-          </div>
+          <HeaderLogos />
         </div>
       </nav>
 
@@ -125,6 +121,12 @@ export default function ConsentPage() {
                     <span><strong>GDPR Compliance:</strong> Data is stored on secure, encrypted servers at the University of Mannheim for academic research only.</span>
                   </li>
                 </ul>
+                <p className="text-on-surface-variant leading-relaxed mt-4">
+                  For full details on what data is collected and how it is processed, see our{" "}
+                  <Link href="/dataprotection" className="text-primary font-semibold underline hover:opacity-80">
+                    Data Protection Declaration
+                  </Link>.
+                </p>
               </section>
 
               {/* Withdrawal Rights */}

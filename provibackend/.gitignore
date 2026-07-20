@@ -170,3 +170,7 @@ data/
 /tests/testdata/Road_Traffic_Fine_Management_Process.xes
 ProViBackend/output/*
 
+# Local-only dev helper, not part of the pipeline
+ProViBackend/scripts/run_task20.py
+ProViBackend/scripts/run_task19.py
+

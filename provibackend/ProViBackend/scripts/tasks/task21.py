@@ -69,7 +69,7 @@ from shared import (
 # they cannot be imported (per spec).
 try:
     import tasks.task13 as task13
-    from tasks.task13 import _build_evidence_frame, _rank_attributes, _bucket_assign, CANDIDATE_ATTRIBUTES
+    from tasks.task13 import _build_evidence_frame, _rank_attributes, _bucket_assign, discover_candidate_attributes
     from tasks.task18 import task18_responsibility
     from tasks.task20 import task20_trace_feature_dataframe
     from tasks.task28 import build_task28_context
@@ -422,13 +422,12 @@ def generate(log, alignments, model_path, output_dir: str, candidate_attributes=
         _emit_all_empty(output_dir, "No log or alignment data available.")
         return
 
-    if candidate_attributes is None:
-        candidate_attributes = list(CANDIDATE_ATTRIBUTES)
-
     # Attribute evidence (task13) + event responsibility (task18).
     feat = task20_trace_feature_dataframe(log, alignments)
     evidence_df, attr_meta = (None, [])
     if feat is not None and not feat.empty:
+        if candidate_attributes is None:
+            candidate_attributes = discover_candidate_attributes(log, feat)
         evidence_df, attr_meta = _build_evidence_frame(log, feat, candidate_attributes)
 
     resp = task18_responsibility(log, alignments, candidate_attributes)

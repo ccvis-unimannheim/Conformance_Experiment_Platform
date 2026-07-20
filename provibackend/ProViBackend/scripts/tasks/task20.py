@@ -2,31 +2,31 @@
 tasks/task20.py – Task ID 20: Explain / Discover / Reasons for guideline violations
 (the Decision-Tree member of the Reasons triad).
 
-Validated idiom mapping (9 idioms = 6 High + 3 Medium):
-    HIGH:   bar_chart, table, table_bar_chart, flow_chart_table,
-            flow_chart_elaborate_table, parallel_sets
-    MEDIUM: flow_chart_elaborate, network_diagram, decision_tree
+Information-equivalent idiom set (11 idioms). Every idiom renders the SAME kernel —
+per selected attribute, the guideline-violation rate (%) per bucket:
+    rate-only:    bar_chart, table, table_bar_chart, matrix, heatmap,
+                  tile_metric, stacked_bar
+    rate+counts:  parallel_sets, tree_map, sunburst
+    (pie_chart shows the per-bucket violation / no-violation split = the rate.)
 
-task20 is the tree companion to task13 (attribute evidence) and task18 (event
-responsibility). The bar/table/table-bar/parallel/flow idioms are the SAME
-attribute-evidence idioms as task13 — rendered here via task13's helpers (reuse, not
-re-implement) — plus a co-occurrence network of violation patterns, the elaborate
-model, and the existing Decision Tree (kept exactly as-is).
+The bucket data comes from task13's helpers (_build_evidence_frame / _bucket_rates),
+consumed here via _task20_attribute_panels(). The former decision-tree, flow-chart and
+network idioms are intentionally NOT produced: they showed a model-level perspective
+decoupled from the admin-selected attributes.
 
 Public API:
-    generate(log, alignments, output_dir, model_path=None)
+    generate(log, alignments, output_dir, model_path=None, attribute_set=None)
 
-Note: task31.py imports task20_trace_feature_dataframe, _task20_build_tree,
-      _task20_gini from this module.
+Note: task31.py imports task20_trace_feature_dataframe, _task20_gini and
+      _task20_feature_label from this module — keep them defined.
 """
 
 import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "table", "matrix", "table_bar_chart", "flow_chart_table",
-          "flow_chart_elaborate_table", "parallel_sets",
-          "flow_chart_elaborate", "network_diagram", "tree"]
+IDIOMS = ["bar_chart", "table", "table_bar_chart", "matrix", "heatmap",
+          "tile_metric", "parallel_sets"]
 
 # ---------------------------------------------------------------------------
 # Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8; design doc §2 row 20)
@@ -125,7 +125,8 @@ from shared import (
     save_svg, make_table, auto_col_widths, draw_decision_tree, draw_value_heatmap,
     draw_parallel_sets, alignment_pairs_to_rows,
     render_empty_state_svg, parse_bpmn_model, render_bpmn_annotated,
-    format_threshold, wrap_text, GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    format_threshold, wrap_text, CIVIDIS_R,
+    GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 # Reuse the Reasons-triad siblings: task13 (attribute-evidence idioms) and task18
@@ -891,10 +892,12 @@ _ATTR_SUPTITLE = "Guideline-Violation Rate by Candidate Attribute"
 _EXCLUDE_ATTRIBUTES = {"org:resource"}
 
 
-def _default_attributes():
-    """The out-of-the-box attribute set (AMOUNT_REQ + Throughput time)."""
+def _default_attributes(log, feat=None):
+    """The out-of-the-box attribute set, discovered from THIS log (dataset-
+    independent), minus non-magnitude identifiers (org:resource)."""
     import tasks.task13 as task13
-    return [a for a in task13.CANDIDATE_ATTRIBUTES if a not in _EXCLUDE_ATTRIBUTES]
+    return [a for a in task13.discover_candidate_attributes(log, feat)
+            if a not in _EXCLUDE_ATTRIBUTES]
 
 
 def _task20_attribute_panels(log, alignments, attributes=None):
@@ -906,7 +909,7 @@ def _task20_attribute_panels(log, alignments, attributes=None):
     feat = task20_trace_feature_dataframe(log, alignments)
     if feat.empty:
         return []
-    candidates = list(attributes) if attributes else _default_attributes()
+    candidates = list(attributes) if attributes else _default_attributes(log, feat)
     evidence_df, attr_meta = task13._build_evidence_frame(log, feat, candidates)
     if not attr_meta or int(evidence_df["violation"].sum()) == 0:
         return []
@@ -953,7 +956,7 @@ def task20_table(panels, output_dir):
     if not panels:
         render_empty_state_svg(path, _ATTR_SUPTITLE, "No candidate attribute could be bucketed.")
         return
-    col_labels = ["Bucket", "Violation Rate (%)"]
+    col_labels = ["Attribute Value", "Violation Rate (%)"]
     height_ratios = [max(1, len(labels)) for (_m, (labels, _r, _c)) in panels]
     fig_h = max(4.0, 1.0 + sum(height_ratios) * 0.42 + len(panels) * 0.55)
     fig = plt.figure(figsize=(8, fig_h))
@@ -971,9 +974,135 @@ def task20_table(panels, output_dir):
 
 
 def task20_matrix(panels, output_dir):
-    """One sub-matrix per attribute: rows = buckets, single Violation Rate (%)
-    column on a fixed 0→100 colour scale, numeric annotation per cell."""
+    """Side-by-side per-attribute grids (same layout as Heatmap: one column per
+    attribute, rows = buckets), but with a flat, non-value-encoded colour wash per
+    panel — alternating between the Heatmap scale's two extremes (100% dark navy,
+    0% bright yellow) purely to tell the panels apart. Unlike Heatmap's per-cell
+    gradient, the colour here carries no data; the number is the only thing being
+    read (that's Heatmap's job)."""
     path = os.path.join(output_dir, "task20_matrix.svg")
+    if not panels:
+        render_empty_state_svg(path, _ATTR_SUPTITLE, "No candidate attribute could be bucketed.")
+        return
+    from matplotlib.colors import to_hex as _to_hex
+    panel_colors = [_to_hex(CIVIDIS_R(1.0)), _to_hex(CIVIDIS_R(0.0))]  # 100%-navy, 0%-yellow
+    ncols = len(panels)
+    max_rows = max(len(labels) for (_m, (labels, _r, _c)) in panels)
+    fig_h = max(3.0, 0.5 * max_rows + 1.8)
+    fig, axes = plt.subplots(1, ncols, figsize=(max(5.0, ncols * 3.6), fig_h), squeeze=False)
+    for i, (ax, (m, (labels, rates, _counts))) in enumerate(zip(axes[0], panels)):
+        face = panel_colors[i % len(panel_colors)]
+        text_color = "white" if i % 2 == 0 else "#222222"
+        n = len(labels)
+        for ri, rate in enumerate(rates):
+            ax.add_patch(plt.Rectangle((0, ri), 1, 1, facecolor=face,
+                                       edgecolor="white", linewidth=1.2))
+            ax.text(0.5, ri + 0.5, f"{rate:.1f}%", ha="center", va="center",
+                    fontsize=FONT_ANNOT, color=text_color)
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, n)
+        ax.invert_yaxis()
+        ax.set_xticks([0.5])
+        ax.set_xticklabels(["Violation Rate (%)"], fontsize=FONT_ANNOT)
+        ax.set_yticks([r + 0.5 for r in range(n)])
+        ax.set_yticklabels(labels, fontsize=FONT_ANNOT - 1)
+        ax.tick_params(length=0)
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+        ax.set_title(m["label"], fontsize=FONT_LABEL)
+    fig.suptitle(_ATTR_SUPTITLE, fontsize=FONT_TITLE)
+    fig.tight_layout(pad=1.2)
+    save_svg(fig, path)
+
+
+def task20_parallel_sets(panels, output_dir):
+    """One flow per attribute: bucket → Violation / No violation; ribbon = #traces.
+    Left axis carries the per-bucket violation rate (%); right axis is just the
+    Violation / No violation category names, unlabelled with a percentage — matching
+    every other idiom, none of which surfaces the aggregate split either."""
+    path = os.path.join(output_dir, "task20_parallel_sets.svg")
+    if not panels:
+        render_empty_state_svg(path, _ATTR_SUPTITLE, "No candidate attribute could be bucketed.")
+        return
+    ncols = len(panels)
+    max_rows = max(len(labels) for (_m, (labels, _r, _c)) in panels)
+    # Wide panels keep the two column axes far enough apart that their titles do
+    # not collide once draw_parallel_sets reserves side-label room; tall panels give
+    # small (imbalanced) category slivers enough vertical space to label cleanly.
+    fig_h = max(5.0, max_rows * 0.75 + 2.5)
+    fig, axes = plt.subplots(1, ncols, figsize=(max(7.0, ncols * 5.8), fig_h), squeeze=False)
+    for ax, (m, (labels, rates, counts)) in zip(axes[0], panels):
+        ax.axis("off")
+        mat = np.zeros((len(labels), 2))
+        for i, (rate, cnt) in enumerate(zip(rates, counts)):
+            viol = round(rate / 100.0 * cnt)          # exact: rate = mean*100
+            mat[i, 0] = viol
+            mat[i, 1] = cnt - viol
+        left_labels = [f"{lab}  ({rate:.1f}% Violation Rate)" for lab, rate in zip(labels, rates)]
+        right_labels = ["Violation", "No violation"]
+        left_colors = [_GREY_PALETTE[i % len(_GREY_PALETTE)] for i in range(len(labels))]
+        draw_parallel_sets(
+            ax, left_labels, right_labels, mat, left_colors,
+            right_colors=[GREY_DARK, GREY_LIGHTER],
+            left_title=m["label"], right_title="Guideline",
+            label_min_frac=0.0,  # label every present bucket (info equivalence)
+            emphasize_left_head=True,  # bold the bucket name, not its violation rate
+        )
+    # Raise the axes (top) close to the title so the heading sits just above the
+    # column headers (~y=1.04 in axes units) instead of floating far above the
+    # actual diagram.
+    fig.suptitle(_ATTR_SUPTITLE, fontsize=FONT_TITLE, y=0.98)
+    fig.subplots_adjust(top=0.84)
+    save_svg(fig, path)
+
+
+# Grey palette for the left (bucket) axis of the parallel-sets idiom.
+_GREY_PALETTE = [GREY_MED, GREY_LIGHT, GREY_DARK, GREY_LIGHTER]
+
+
+def task20_table_bar_chart(panels, output_dir):
+    """Table & Bar Chart combo: per attribute, the Bucket | Violation Rate (%) table
+    beside a horizontal bar of the SAME per-bucket rates (fixed 0–100). A native
+    combination of task20_table + task20_bar_chart — no derived measures."""
+    path = os.path.join(output_dir, "task20_table_bar_chart.svg")
+    if not panels:
+        render_empty_state_svg(path, _ATTR_SUPTITLE, "No candidate attribute could be bucketed.")
+        return
+    col_labels = ["Attribute Value", "Violation Rate (%)"]
+    height_ratios = [max(1, len(labels)) for (_m, (labels, _r, _c)) in panels]
+    fig_h = max(4.0, 1.0 + sum(height_ratios) * 0.5 + len(panels) * 0.6)
+    fig = plt.figure(figsize=(11, fig_h))
+    gs = gridspec.GridSpec(len(panels), 2, width_ratios=[1.5, 1.0], hspace=0.7, wspace=0.15)
+    for i, (m, (labels, rates, _counts)) in enumerate(panels):
+        ax_t = fig.add_subplot(gs[i, 0]); ax_t.axis("off")
+        cell_text = [[lab, f"{rate:.1f}%"] for lab, rate in zip(labels, rates)]
+        make_table(ax_t, cell_text=cell_text, col_labels=col_labels,
+                   bbox=[0.04, 0.02, 0.92, 0.82],
+                   col_widths=auto_col_widths(col_labels, cell_text),
+                   font_size=10, cell_pad=0.09)
+        ax_t.set_title(m["label"], fontsize=FONT_TITLE, pad=4, loc="left")
+        ax_b = fig.add_subplot(gs[i, 1])
+        ypos = np.arange(len(labels))[::-1]   # top row = first bucket (match table order)
+        ax_b.barh(ypos, rates, color=_ATTR_BAR_COLOR, edgecolor="white")
+        for y, rate in zip(ypos, rates):
+            ax_b.text(min(rate + 1.5, 99), y, f"{rate:.1f}%", va="center",
+                      fontsize=FONT_ANNOT - 1, color="#333333")
+        ax_b.set_xlim(0, 100)
+        ax_b.set_ylim(-0.6, len(labels) - 0.4)
+        ax_b.set_yticks([])
+        ax_b.set_xlabel("Violation rate (%)", fontsize=FONT_ANNOT)
+        ax_b.spines[["top", "right", "left"]].set_visible(False)
+        ax_b.xaxis.grid(True, linestyle="--", alpha=0.45)
+        ax_b.set_axisbelow(True)
+    fig.suptitle(_ATTR_SUPTITLE, fontsize=FONT_TITLE, y=0.99)
+    save_svg(fig, path)
+
+
+def task20_heatmap(panels, output_dir):
+    """Heatmap: like the Matrix idiom but pure colour intensity (no per-cell numbers)
+    — one column per attribute, rows = buckets, violation rate (%) on a fixed 0→100
+    colour scale (platform convention: Matrix = annotated, Heatmap = colour only)."""
+    path = os.path.join(output_dir, "task20_heatmap.svg")
     if not panels:
         render_empty_state_svg(path, _ATTR_SUPTITLE, "No candidate attribute could be bucketed.")
         return
@@ -985,7 +1114,7 @@ def task20_matrix(panels, output_dir):
         data = np.asarray(rates, dtype=float).reshape(-1, 1)
         draw_value_heatmap(
             fig, ax, data, labels, ["Violation Rate (%)"],
-            cbar_label="Violation Rate (%)", cell_fmt="{:.1f}%", annotate=True, vmax=100.0,
+            cbar_label="Violation Rate (%)", annotate=False, vmax=100.0,
         )
         ax.set_title(m["label"], fontsize=FONT_LABEL)
     fig.suptitle(_ATTR_SUPTITLE, fontsize=FONT_TITLE)
@@ -993,50 +1122,37 @@ def task20_matrix(panels, output_dir):
     save_svg(fig, path)
 
 
-def task20_parallel_sets(panels, output_dir):
-    """One flow per attribute: bucket → Violation / No violation; ribbon = #traces.
-    Percentage labels on the axis segments (per-bucket violation rate on the left,
-    overall split on the right) bring it closer to the other idioms' density."""
-    path = os.path.join(output_dir, "task20_parallel_sets.svg")
+def task20_tile_metric(panels, output_dir):
+    """Tile Metric: one KPI tile per bucket showing the violation rate (%) as a
+    headline number (+ bucket label), grouped per attribute — the same per-bucket
+    rate as a scannable metric grid (tile shade redundantly encodes the rate)."""
+    path = os.path.join(output_dir, "task20_tile_metric.svg")
     if not panels:
         render_empty_state_svg(path, _ATTR_SUPTITLE, "No candidate attribute could be bucketed.")
         return
-    ncols = len(panels)
-    max_rows = max(len(labels) for (_m, (labels, _r, _c)) in panels)
-    # Wide panels keep the two column axes far enough apart that their titles do
-    # not collide once draw_parallel_sets reserves side-label room; tall panels give
-    # small (imbalanced) category slivers enough vertical space to label cleanly.
-    fig_h = max(7.5, max_rows * 0.75 + 3.5)
-    fig, axes = plt.subplots(1, ncols, figsize=(max(7.0, ncols * 5.8), fig_h), squeeze=False)
-    for ax, (m, (labels, rates, counts)) in zip(axes[0], panels):
-        ax.axis("off")
-        mat = np.zeros((len(labels), 2))
-        for i, (rate, cnt) in enumerate(zip(rates, counts)):
-            viol = round(rate / 100.0 * cnt)          # exact: rate = mean*100
-            mat[i, 0] = viol
-            mat[i, 1] = cnt - viol
-        left_labels = [f"{lab}  ({rate:.1f}% viol.)" for lab, rate in zip(labels, rates)]
-        total = float(mat.sum())
-        overall = mat[:, 0].sum() / total * 100 if total else 0.0
-        right_labels = [f"Violation ({overall:.1f}%)", f"No violation ({100 - overall:.1f}%)"]
-        left_colors = [_GREY_PALETTE[i % len(_GREY_PALETTE)] for i in range(len(labels))]
-        draw_parallel_sets(
-            ax, left_labels, right_labels, mat, left_colors,
-            right_colors=[GREY_DARK, GREY_LIGHTER],
-            left_title=m["label"], right_title="Guideline",
-            label_min_frac=0.0,  # label every present bucket (info equivalence)
-        )
-    # Raise the axes (top) close to the title so the heading sits just above the
-    # column headers (~y=1.08 in axes units) instead of floating far above the
-    # actual diagram.
-    fig.suptitle("Attribute Bucket vs. Guideline Violation (ribbon = # traces)",
-                 fontsize=FONT_TITLE, y=0.955)
-    fig.subplots_adjust(top=0.90)
+    import matplotlib as _mpl
+    norm = _mpl.colors.Normalize(vmin=0, vmax=100)
+    ncols_max = max(len(labels) for (_m, (labels, _r, _c)) in panels)
+    nrows = len(panels)
+    fig, axes = plt.subplots(nrows, 1, figsize=(max(6.0, ncols_max * 2.4), 1.9 * nrows + 1.0),
+                             squeeze=False)
+    for ax, (m, (labels, rates, _counts)) in zip(axes[:, 0], panels):
+        ax.axis("off"); ax.set_xlim(0, ncols_max); ax.set_ylim(0, 1)
+        for i, (lab, rate) in enumerate(zip(labels, rates)):
+            face = CIVIDIS_R(norm(rate))
+            ax.add_patch(mpatches.FancyBboxPatch(
+                (i + 0.08, 0.12), 0.84, 0.72,
+                boxstyle="round,pad=0.01,rounding_size=0.05",
+                facecolor=face, edgecolor="#555555", linewidth=0.8))
+            tc = "white" if norm(rate) > 0.55 else "#222222"
+            ax.text(i + 0.5, 0.56, f"{rate:.1f}%", ha="center", va="center",
+                    fontsize=15, fontweight="bold", color=tc)
+            ax.text(i + 0.5, 0.28, str(lab), ha="center", va="center",
+                    fontsize=FONT_ANNOT - 1, color=tc)
+        ax.set_title(m["label"], fontsize=FONT_LABEL, loc="left")
+    fig.suptitle(_ATTR_SUPTITLE, fontsize=FONT_TITLE)
+    fig.tight_layout(pad=1.2)
     save_svg(fig, path)
-
-
-# Grey palette for the left (bucket) axis of the parallel-sets idiom.
-_GREY_PALETTE = [GREY_MED, GREY_LIGHT, GREY_DARK, GREY_LIGHTER]
 
 
 # ---------------------------------------------------------------------------
@@ -1046,57 +1162,42 @@ _GREY_PALETTE = [GREY_MED, GREY_LIGHT, GREY_DARK, GREY_LIGHTER]
 def generate(log, alignments, output_dir: str, model_path=None, attribute_set=None):
     """Generate all Task ID 20 SVGs into output_dir.
 
-    The Decision Tree (kept exactly as-is) plus the attribute-evidence idioms
-    (reused from task13), the elaborate model (reused from task18), and a
-    violation-pattern co-occurrence network. Legacy extras still rendered.
+    Seven information-equivalent idioms, each rendering the SAME kernel — per
+    selected attribute, the guideline-violation rate (%) for every bucket — from the
+    shared ``_task20_attribute_panels`` data. ``model_path`` is accepted for calling
+    convention only (no model-level idiom is produced anymore).
 
-    ``attribute_set``: optional admin-selected list of attribute keys to show in
-    the attribute-evidence idioms; None/empty uses the default set (AMOUNT_REQ +
-    Throughput time)."""
+    Stacked Bar, Pie Chart, Sunburst and Tree Map were dropped: the first two add
+    an irrelevant "No violation" complement with no benefit over Bar Chart, Sunburst
+    forces a parent/child hierarchy the data doesn't have, and Tree Map's area
+    encoding needs more categories than these 2-3-bucket attributes provide (it stays
+    in use elsewhere, e.g. task17/task26/task29, for genuine long-tail pattern counts).
+
+    ``attribute_set``: optional admin-selected list of attribute keys to analyse;
+    None/empty uses the dataset-independent discovered default set."""
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 20 visualizations ---")
-    # Lazy imports to avoid the task13↔task20 circular import at module load.
-    import tasks.task13 as task13
-    from tasks.task28 import build_task28_context
 
-    df, tree, root_causes = task20_root_cause_analysis(log, alignments)
-    if df.empty:
+    feat = task20_trace_feature_dataframe(log, alignments)
+    if feat is None or feat.empty:
         logger.warning("      Skipped Task 20: no trace-level features found.")
         return
 
-    # Decision Tree — the module's original rendering, unchanged.
-    task20_tree(tree, output_dir)
-    # Network Diagram (new)
-    task20_network_diagram(alignments, output_dir)
+    selected_attributes = list(attribute_set) if attribute_set else _default_attributes(log, feat)
+    panels = _task20_attribute_panels(log, alignments, selected_attributes)
+    if not panels:
+        logger.warning("      task20: no attribute evidence / no violations — emitting empty-state idioms.")
 
-    # Attribute-evidence idioms. The four spec idioms (bar_chart, table, matrix,
-    # parallel_sets) are task20-native and information-equivalent (violation rate
-    # per bucket per attribute). The kept extras (table_bar_chart + the two flow
-    # charts) still reuse task13's renderers unchanged. All honour the admin's
-    # selected attribute set (falling back to the default set).
-    selected_attributes = list(attribute_set) if attribute_set else _default_attributes()
-    feat = task20_trace_feature_dataframe(log, alignments)
-    evidence_df, attr_meta = task13._build_evidence_frame(log, feat, selected_attributes)
-    if attr_meta and int(evidence_df["violation"].sum()) > 0:
-        ranking = task13._rank_attributes(evidence_df, attr_meta)
-        ctx = build_task28_context(alignments)
-
-        panels = _task20_attribute_panels(log, alignments, selected_attributes)
-        task20_bar_chart(panels, output_dir)
-        task20_table(panels, output_dir)
-        task20_matrix(panels, output_dir)
-        task20_parallel_sets(panels, output_dir)
-
-        _reuse_task13(task13.task13_table_and_bar_chart, output_dir, "table_and_bar_chart", "table_and_bar_chart", ranking, output_dir)
-        _reuse_task13(task13.task13_flow_chart_and_table, output_dir, "flow_chart_and_table", "flow_chart_and_table", ctx, ranking, output_dir)
-        _reuse_task13(task13.task13_flow_chart_elaborate_bpmn_table, output_dir,
-                      "flow_chart_elaborate_bpmn_table", "flow_chart_elaborate_bpmn_table",
-                      ctx, ranking, model_path, output_dir)
-    else:
-        logger.warning("      task20: no attribute evidence / no violations — attribute idioms skipped.")
-
-    # Flow Chart+ standalone — reuse task18's responsibility model annotation.
-    _task20_flow_chart_elaborate(log, alignments, model_path, output_dir)
+    # All idioms are information-equivalent (violation rate per bucket per attribute)
+    # and honour the admin's selected attribute set. Each renderer emits an
+    # empty-state SVG when ``panels`` is empty, so every registered idiom resolves.
+    task20_bar_chart(panels, output_dir)
+    task20_table(panels, output_dir)
+    task20_table_bar_chart(panels, output_dir)
+    task20_matrix(panels, output_dir)
+    task20_heatmap(panels, output_dir)
+    task20_tile_metric(panels, output_dir)
+    task20_parallel_sets(panels, output_dir)
 
 
 def _task20_flow_chart_elaborate(log, alignments, model_path, output_dir):

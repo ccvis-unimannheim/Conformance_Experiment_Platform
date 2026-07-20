@@ -348,12 +348,13 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
     def conformant_threshold():
         raw = p.get("conformant_threshold")
         return 1.0 if (raw is None or raw == "") else float(raw)
+    def target_patterns_task19():       return p.get("target_patterns", None)
 
     return {
         "task01": lambda d: task01.generate(log, fitness_df, d, outcome_activity=outcome_activity()),
         "task02": lambda d: task02.generate(fitness_df, d, predominant_threshold=predominant_threshold()),
         "task03": lambda d: task03.generate(log, fitness_df, d, conformant_threshold=conformant_threshold()),
-        "task04": lambda d: task04.generate(log, fitness_df, d, trace_ids=(p.get("trace_ids") or None)),
+        "task04": lambda d: task04.generate(log, fitness_df, d, trace_ids=(p.get("trace_ids") or None), alignments=alignments, model_path=model_path),
         "task05": lambda d: task05.generate(log, alignments, d, outcome_activity=outcome_activity()),
         "task06": lambda d: task06.generate(fitness_df, d, log=log, alignments=alignments, model_path=model_path),
         "task07": lambda d: task07.generate(log, fitness_df, d, time_granularity=time_granularity()),
@@ -368,7 +369,8 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
         "task16": lambda d: task16.generate(log, fitness_df, alignments, d, model_path=model_path),
         "task17": lambda d: task17.generate(log, alignments, d, model_path=model_path),
         "task18": lambda d: task18.generate(log, alignments, model_path, d),
-        "task19": lambda d: task19.generate(log, alignments, model_path, d, outcome_activity=outcome_activity()),
+        "task19": lambda d: task19.generate(log, alignments, model_path, d, outcome_activity=outcome_activity(),
+                                            target_patterns=target_patterns_task19()),
         "task20": lambda d: task20.generate(log, alignments, d, model_path=model_path,
                                             attribute_set=(p.get("attribute_set") or None)),
         "task21": lambda d: task21.generate(log, alignments, model_path, d),
@@ -637,26 +639,12 @@ def get_log_candidate_attributes(dataset_dir: str) -> list[dict]:
     alignments = get_or_compute_alignments(dataset_dir, log)
     feat = task20.task20_trace_feature_dataframe(log, alignments)
 
-    # REG_DATE is a raw registration timestamp — bucketable but meaningless as a
-    # violation driver, so it is excluded alongside the structural columns.
-    skip = {"concept:name", "time:timestamp", "lifecycle:transition", "case:concept:name", "REG_DATE"}
-
-    def _is_internal(k: str) -> bool:
-        return k in skip or k.startswith("@@") or str(k).lower().startswith("unnamed")
-
+    # Single source of truth: the same discovery the task13/18/20/21 defaults use,
+    # so what the admin can pick is exactly what renders by default.
     options = []
-    for key in task13._available_attributes(log):
-        if _is_internal(key):
-            continue
-        values, kind = task13._collect_attribute_column(log, key)
-        if kind == "missing":
-            continue
-        if task13._bucket_assign(list(values), kind) is None:
-            continue
-        options.append({"value": key, "label": key})
-    # Derived throughput time — no raw log key, always a candidate when it varies.
-    if not feat.empty and task13._bucket_assign(feat["duration_hours"].tolist(), "numeric") is not None:
-        options.append({"value": task13.THROUGHPUT_KEY, "label": "Throughput time (h)"})
+    for key in task13.discover_candidate_attributes(log, feat):
+        label = "Throughput time (h)" if key == task13.THROUGHPUT_KEY else key
+        options.append({"value": key, "label": label})
     return options
 
 

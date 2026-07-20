@@ -13,10 +13,13 @@ const TERM_DEFS = {
   guideline_violation:  { label: "Guideline Violation",             def: "Occurs when the recorded behaviour of a trace does not match the guideline. Violations are detected by aligning the trace against the guideline model — each deviation found (e.g. an extra activity not allowed by the guideline, or a required activity missing) instantiates one occurrence of a violation." },
   conformant_trace:     { label: "Conformant Trace",                def: "A trace where every activity follows a path the guideline allows — no steps are missing and no unexpected steps occur." },
   non_conformant_trace: { label: "Non-conformant Trace",            def: "A trace that contains at least one activity violating the guideline — e.g. a required step was skipped or an unexpected step was performed." },
-  degree_of_conformance:{ label: "Degree of Conformance (Fitness)", def: "Degree of conformance is the general concept; fitness is its computed value (0–1) measuring how well the event log matches the guideline. Shown as a percentage, fitness is rounded to one decimal place (e.g. 97.9%). Note: NOT the same as conformance rate — fitness accounts for the extent of violations, not just whether a trace is fully conformant." },
+  degree_of_conformance:{ label: "Degree of Conformance (Fitness)", def: "Degree of conformance is the general concept; fitness is its computed value (0–1) measuring how well the event log matches the guideline. Fitness can be computed as token-based replay fitness or alignment fitness — this study uses alignment fitness throughout. Shown as a percentage, fitness is rounded to one decimal place (e.g. 97.9%). Note: NOT the same as conformance rate — fitness weighs how many deviations occur per trace, not just whether a trace is fully conformant." },
   conformance_rate:     { label: "Conformance Rate",                def: "The percentage of traces in the event log that are fully conformant with the guideline. A trace is either conformant (counts) or not — it is a binary measure per trace." },
   process_goal:         { label: "Process Goal",                    def: "A desired outcome that a process execution aims to achieve (e.g. a successful treatment or an approved application). Violations may affect whether the goal is reached." },
   attribute:            { label: "Attribute",                       def: "A data property recorded alongside events or traces. Types include: control-flow (activity order), data (values like amount or status), resource (who performed the activity), and time (when or how long)." },
+  model_move:           { label: "Model Move",                      def: "A step where the guideline model expects an activity but it does not appear in the trace — i.e. a required activity was skipped." },
+  log_move:             { label: "Log Move",                        def: "A step where the trace contains an activity the guideline model does not expect at that point — i.e. an extra, unexpected activity." },
+  synchronous_move:     { label: "Synchronous Move",                 def: "A step where the trace's activity matches what the guideline model expects at that point — a conformant step, not a violation." },
 };
 
 // ── Per-task term mapping ───────────────────────────────────────────────────
@@ -28,7 +31,7 @@ const TASK_TERMS = {
   task11: ["guideline_violation", "guideline"],
   task19: ["guideline_violation", "process_goal"],
   task20: ["attribute", "trace", "event_log", "guideline_violation"],
-  task34: ["guideline_violation", "trace", "guideline"],
+  task34: ["guideline_violation", "trace", "guideline", "model_move", "log_move", "synchronous_move"],
 };
 
 // ── TermsStrip component ────────────────────────────────────────────────────

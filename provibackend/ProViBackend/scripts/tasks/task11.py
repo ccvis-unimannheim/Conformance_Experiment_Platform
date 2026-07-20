@@ -289,8 +289,9 @@ def task11_bar_chart(selected, trace_coverage, n_traces, output_dir):
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
     ax.set_ylim(0, max_c * 1.30)
-    ax.legend(loc="upper right", frameon=False, fontsize=FONT_ANNOT)
-    fig.tight_layout()
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=2,
+              frameon=False, fontsize=FONT_ANNOT)
+    fig.tight_layout(rect=[0, 0.06, 1, 1])
     save_svg(fig, os.path.join(output_dir, "task11_bar_chart.svg"))
 
 
@@ -372,7 +373,7 @@ def task11_matrix(selected, trace_coverage, n_traces, output_dir):
 # ── Idiom 3: Table — violations ranked by trace frequency ─────────────────────
 
 def task11_table(selected, trace_coverage, n_traces, output_dir):
-    """Ranked table: Number | Activity | Type | Number of Traces | Percentage of All.
+    """Ranked table: Activity | Type | Number of Traces | Percentage of All.
 
     Rows correspond 1-to-1 to the selected violations, sorted descending by
     trace count.  Percentages are independent (no cumulative column — traces
@@ -386,9 +387,9 @@ def task11_table(selected, trace_coverage, n_traces, output_dir):
             for act, vt in _sorted_selected(selected, trace_coverage)]
 
     cell_text = []
-    for rank, (act, vt, count) in enumerate(data, 1):
+    for act, vt, count in data:
         pct = count / n_traces * 100 if n_traces > 0 else 0
-        cell_text.append([str(rank), _short_label(act, 32),
+        cell_text.append([_short_label(act, 32),
                           _VTYPE_DISPLAY.get(vt, vt),
                           f"{count:,}",
                           f"{pct:.1f}%"])
@@ -401,9 +402,9 @@ def task11_table(selected, trace_coverage, n_traces, output_dir):
     make_table(
         ax,
         cell_text=cell_text,
-        col_labels=["Number", "Activity", "Type", "Number of Traces", "Percentage of All"],
+        col_labels=["Activity", "Type", "Number of Traces", "Percentage of All"],
         bbox=[0.01, 0.03, 0.98, 0.90],
-        col_widths=[0.08, 0.34, 0.20, 0.22, 0.16],
+        col_widths=[0.38, 0.22, 0.24, 0.16],
         font_size=13,
         scale_xy=(1, 1.4),
         cell_pad=0.09,
