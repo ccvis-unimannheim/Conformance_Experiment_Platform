@@ -50,7 +50,7 @@ CANONICAL_TASKS = [
     },
     {
         "task_key": "task10",
-        "label": "Which percentage of traces in the event log fall into which conformance category?",
+        "label": "How are the traces distributed across the different conformance categories?",
         "description": "Group traces by conformance ranges and determine their distribution.",
         "answer_type": "single_choice",
     },
