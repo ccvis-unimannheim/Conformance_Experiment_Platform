@@ -20,44 +20,61 @@ const C = {
   white:         "#ffffff",
 };
 
-const LIKERT_COLORS = ["#00305e", "#00305e", "#00305e", "#00305e", "#00305e"];
-const LIKERT_BG     = ["#e8eef5", "#e8eef5", "#e8eef5", "#e8eef5", "#e8eef5"];
+const LIKERT_COLOR = "#00305e";
+const LIKERT_BG     = "#e8eef5";
 
+// Each item cites a source instrument; scale adaptations (point count, and for
+// NASA-TLX also wording: "the task" -> "the tasks", since this is asked once
+// at the end covering the whole multi-task session) are deliberate and should
+// be reported as "adapted from" the source in the methods write-up.
 const QUESTIONS = [
   {
-    key:    "priorKnowledge",
-    label:  "1. How would you rate the sufficiency of your prior knowledge for completing the tasks?",
-    labels: ["More than sufficient", "Sufficient", "Neutral", "Insufficient", "Not sufficient at all"],
+    key:    "mentalDemand",
+    label:  "1. How mentally demanding were the tasks?",
+    labels: ["Very low", "Low", "Somewhat low", "Moderate", "Somewhat high", "High", "Very high"],
   },
   {
-    key:    "clarity",
-    label:  "2. How would you rate the clarity of the task instructions?",
-    labels: ["Very clear", "Clear", "Neutral", "Unclear", "Very unclear"],
+    key:    "physicalDemand",
+    label:  "2. How physically demanding were the tasks?",
+    labels: ["Very low", "Low", "Somewhat low", "Moderate", "Somewhat high", "High", "Very high"],
   },
   {
-    key:    "readability",
-    label:  "3. How would you rate the readability of the visualizations?",
-    labels: ["Very readable", "Readable", "Neutral", "Hard to read", "Very hard to read"],
+    key:    "temporalDemand",
+    label:  "3. How hurried or rushed was the pace of the tasks?",
+    labels: ["Very low", "Low", "Somewhat low", "Moderate", "Somewhat high", "High", "Very high"],
   },
   {
-    key:    "helpfulness",
-    label:  "4. How would you rate the helpfulness of the tooltips/explanations?",
-    labels: ["Very helpful", "Helpful", "Neutral", "Not very helpful", "Not helpful at all"],
-  },
-  {
-    key:    "usefulness",
-    label:  "5. How would you rate the usefulness of the visualizations for solving the tasks?",
-    labels: ["Very useful", "Useful", "Neutral", "Not very useful", "Not useful at all"],
-  },
-  {
-    key:    "difficulty",
-    label:  "6. How would you rate the difficulty of the tasks?",
-    labels: ["Very easy", "Easy", "Neutral", "Difficult", "Very difficult"],
+    // NASA-TLX defines Performance in the opposite direction from the other
+    // five subscales (1 = good, not 1 = low) - kept faithful to the source
+    // rather than flipped, since each item shows its own anchor labels.
+    key:    "performance",
+    label:  "4. How successful were you in accomplishing what you were asked to do?",
+    labels: ["Very good", "Good", "Somewhat good", "Moderate", "Somewhat bad", "Bad", "Very bad"],
   },
   {
     key:    "effort",
-    label:  "7. How much time and effort did completing the tasks require?",
-    labels: ["Very little", "Little", "Moderate", "Much", "Very much"],
+    label:  "5. How hard did you have to work to accomplish your level of performance?",
+    labels: ["Very low", "Low", "Somewhat low", "Moderate", "Somewhat high", "High", "Very high"],
+  },
+  {
+    key:    "frustration",
+    label:  "6. How insecure, discouraged, irritated, stressed, and annoyed were you?",
+    labels: ["Very low", "Low", "Somewhat low", "Moderate", "Somewhat high", "High", "Very high"],
+  },
+  {
+    key:    "umuxCapabilities",
+    label:  "7. The platform's capabilities meet my requirements.",
+    labels: ["Strongly disagree", "Somewhat disagree", "Slightly disagree", "Neutral", "Slightly agree", "Somewhat agree", "Strongly agree"],
+  },
+  {
+    key:    "umuxEaseOfUse",
+    label:  "8. The platform is easy to use.",
+    labels: ["Strongly disagree", "Somewhat disagree", "Slightly disagree", "Neutral", "Slightly agree", "Somewhat agree", "Strongly agree"],
+  },
+  {
+    key:    "tooltipHelpfulness",
+    label:  "9. The tooltips and explanations provided during the tasks were satisfying.",
+    labels: ["Strongly disagree", "Somewhat disagree", "Slightly disagree", "Neutral", "Slightly agree", "Somewhat agree", "Strongly agree"],
   },
 ];
 
@@ -85,22 +102,22 @@ function LikertQuestion({ question, value, onChange }) {
                 height: "2.75rem",
                 borderRadius: "0.5rem",
                 border: selected
-                  ? `2px solid ${LIKERT_COLORS[i]}`
+                  ? `2px solid ${LIKERT_COLOR}`
                   : "1.5px solid #e2e8f0",
-                backgroundColor: selected ? LIKERT_BG[i] : C.white,
-                color: selected ? LIKERT_COLORS[i] : "#94a3b8",
+                backgroundColor: selected ? LIKERT_BG : C.white,
+                color: selected ? LIKERT_COLOR : "#94a3b8",
                 fontSize: "1rem",
                 fontWeight: selected ? 800 : 500,
                 cursor: "pointer",
                 transform: selected ? "translateY(-2px) scale(1.06)" : "none",
                 transition: "all 0.12s ease",
-                boxShadow: selected ? `0 2px 8px ${LIKERT_COLORS[i]}44` : "none",
+                boxShadow: selected ? `0 2px 8px ${LIKERT_COLOR}44` : "none",
               }}
               onMouseEnter={(e) => {
                 if (!selected) {
-                  e.currentTarget.style.borderColor = LIKERT_COLORS[i];
-                  e.currentTarget.style.color = LIKERT_COLORS[i];
-                  e.currentTarget.style.backgroundColor = LIKERT_BG[i];
+                  e.currentTarget.style.borderColor = LIKERT_COLOR;
+                  e.currentTarget.style.color = LIKERT_COLOR;
+                  e.currentTarget.style.backgroundColor = LIKERT_BG;
                 }
               }}
               onMouseLeave={(e) => {
@@ -123,7 +140,7 @@ function LikertQuestion({ question, value, onChange }) {
           <div key={i} style={{
             flex: 1, textAlign: "center",
             fontSize: "0.625rem", lineHeight: 1.3,
-            color: LIKERT_COLORS[i], fontWeight: 600,
+            color: LIKERT_COLOR, fontWeight: 600,
           }}>
             {lbl}
           </div>
@@ -215,7 +232,7 @@ export default function EndPage() {
             letterSpacing: "-0.02em", lineHeight: 1.15,
             marginBottom: "1.5rem", textAlign: "center",
           }}>
-            Thank You for Your<br />Contribution
+            Thank You for Your Contribution!
           </h1>
 
           {/* Body text */}

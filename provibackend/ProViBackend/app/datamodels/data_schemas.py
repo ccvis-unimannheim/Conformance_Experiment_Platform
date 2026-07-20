@@ -60,7 +60,7 @@ class PrequestionnaireSections(BaseModel):
     sections: List[str]  # e.g. ["personal_info", "academic_profile", "technical_expertise", "tool_experience"]
 
 class FeedbackAnswersRequest(BaseModel):
-    ratings:  dict        # {clarity, difficulty, usefulness, helpfulness, readability, effort, priorKnowledge}
+    ratings:  dict        # {mentalDemand, physicalDemand, temporalDemand, performance, effort, frustration, umuxCapabilities, umuxEaseOfUse, tooltipHelpfulness}
     feedback: str | None = None
 
 class User(BaseModel):
