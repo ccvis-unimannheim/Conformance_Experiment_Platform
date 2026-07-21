@@ -389,7 +389,9 @@ export default function ConformanceTermsPage() {
                   The <strong>conformance rate</strong> is the percentage of traces in the event log that are
                   fully conformant with the guideline. A trace is counted as conformant only if it contains
                   no violations at all — it is a binary measure per trace. For example, a conformance rate of
-                  70% means that 70 out of every 100 traces are fully conformant.
+                  70% means that 70 out of every 100 traces are fully conformant. Unlike fitness or precision,
+                  &ldquo;conformance rate&rdquo; is not a standardized term in the conformance-checking literature —
+                  it is simply the name this study uses for this specific per-trace measure.
                 </p>
               </section>
 
