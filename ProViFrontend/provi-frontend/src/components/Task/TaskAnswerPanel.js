@@ -20,18 +20,23 @@ const TERM_DEFS = {
   model_move:           { label: "Model Move",                      def: "A step where the guideline model expects an activity but it does not appear in the trace — i.e. a required activity was skipped." },
   log_move:             { label: "Log Move",                        def: "A step where the trace contains an activity the guideline model does not expect at that point — i.e. an extra, unexpected activity." },
   synchronous_move:     { label: "Synchronous Move",                 def: "A step where the trace's activity matches what the guideline model expects at that point — a conformant step, not a violation." },
+  throughput_time:      { label: "Throughput Time",                 def: "The total time a single trace took from its first recorded event to its last — i.e. how long that process execution took to complete. It is a time attribute of the trace, independent of conformance; here it is compared between the Conformant and Non-conformant groups by bucketing traces into quartiles and looking at each group's share per bucket." },
+  conformance:          { label: "Conformance",                    def: "How closely a trace's recorded behaviour matches the process model — the reference behaviour it's checked against. Here it's shown per-trace as a fitness value: the higher the value, the fewer/smaller the deviations from the process model." },
+  process_model:        { label: "Process Model",                  def: "A diagram (e.g. a BPMN diagram) that describes the intended, allowed activities of a process and the order in which they may occur. Also called a guideline — it's the reference used to check whether a trace was executed correctly." },
+  conformance_category: { label: "Conformance Category",           def: "A range of fitness values (e.g. \"80–90%\") that a trace falls into based on its own fitness score. Every trace belongs to exactly one category; grouping traces this way shows what share of the log falls into each range, instead of only looking at one overall fitness number." },
+  guideline_violation_rate: { label: "Guideline-Violation Rate",   def: "The percentage of traces within a group (e.g. one attribute value, like a specific customer segment) that contain at least one guideline violation — i.e. are non-conformant. It's a rate per group, not a count of individual violations, so it lets you compare how violation-prone different groups are." },
 };
 
 // ── Per-task term mapping ───────────────────────────────────────────────────
 const TASK_TERMS = {
-  task03: ["conformant_trace", "non_conformant_trace", "trace"],
-  task04: ["degree_of_conformance", "event_log", "trace"],
+  task03: ["conformant_trace", "non_conformant_trace", "trace", "throughput_time"],
+  task04: ["conformance", "process_model", "trace", "model_move", "log_move", "synchronous_move"],
   task06: ["degree_of_conformance", "event_log", "guideline"],
-  task10: ["trace", "event_log"],
-  task11: ["guideline_violation", "guideline"],
-  task19: ["guideline_violation", "process_goal"],
-  task20: ["attribute", "trace", "event_log", "guideline_violation"],
-  task34: ["guideline_violation", "trace", "guideline", "model_move", "log_move", "synchronous_move"],
+  task10: ["trace", "conformance_category"],
+  task11: ["guideline_violation", "guideline", "model_move", "log_move"],
+  task19: ["guideline_violation", "model_move", "log_move"],
+  task20: ["attribute", "guideline_violation", "guideline_violation_rate"],
+  task34: ["trace", "guideline", "model_move", "log_move", "synchronous_move"],
 };
 
 // ── TermsStrip component ────────────────────────────────────────────────────
