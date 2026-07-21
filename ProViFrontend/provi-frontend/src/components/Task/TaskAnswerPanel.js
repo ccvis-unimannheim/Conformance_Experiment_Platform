@@ -25,6 +25,8 @@ const TERM_DEFS = {
   process_model:        { label: "Process Model",                  def: "A diagram (e.g. a BPMN diagram) that describes the intended, allowed activities of a process and the order in which they may occur. Also called a guideline — it's the reference used to check whether a trace was executed correctly." },
   conformance_category: { label: "Conformance Category",           def: "A range of fitness values (e.g. \"80–90%\") that a trace falls into based on its own fitness score. Every trace belongs to exactly one category; grouping traces this way shows what share of the log falls into each range, instead of only looking at one overall fitness number." },
   guideline_violation_rate: { label: "Guideline-Violation Rate",   def: "The percentage of traces within a group (e.g. one attribute value, like a specific customer segment) that contain at least one guideline violation — i.e. are non-conformant. It's a rate per group, not a count of individual violations, so it lets you compare how violation-prone different groups are." },
+  move_on_model:        { label: "Move on Model",                  def: "A step where the guideline model expects an activity but it does not appear in the trace — i.e. a required activity was skipped." },
+  move_on_log:          { label: "Move on Log",                    def: "A step where the trace contains an activity the guideline model does not expect at that point — i.e. an extra, unexpected activity." },
 };
 
 // ── Per-task term mapping ───────────────────────────────────────────────────
@@ -34,7 +36,7 @@ const TASK_TERMS = {
   task06: ["degree_of_conformance", "event_log", "guideline"],
   task10: ["trace", "conformance_category"],
   task11: ["guideline_violation", "guideline", "model_move", "log_move"],
-  task19: ["guideline_violation", "model_move", "log_move"],
+  task19: ["guideline_violation", "move_on_model", "move_on_log"],
   task20: ["attribute", "guideline_violation", "guideline_violation_rate"],
   task34: ["trace", "guideline", "model_move", "log_move", "synchronous_move"],
 };
