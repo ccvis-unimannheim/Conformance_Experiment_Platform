@@ -1,12 +1,11 @@
 "use client";
 
 import React from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 
-import ProcessModelImage from "../../public/images/order_to_cash_model.jpeg";
+import ProcessModelDiagram from "../../public/images/order_to_cash_model.svg";
 import HeaderLogos from "../../components/General/HeaderLogos";
 
 const C = {
@@ -58,7 +57,7 @@ function Collapsible({ label, children }) {
   );
 }
 
-function ImageLightbox({ src, alt, onClose }) {
+function ImageLightbox({ children, onClose }) {
   React.useEffect(() => {
     const onKeyDown = (e) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKeyDown);
@@ -100,8 +99,7 @@ function ImageLightbox({ src, alt, onClose }) {
       >
         <TransformWrapper initialScale={1} minScale={0.5} maxScale={8} centerOnInit>
           <TransformComponent wrapperStyle={{ width: "100%", height: "100%" }} contentStyle={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            {/* eslint-disable-next-line @next/next/no-img-element -- lightbox needs the raw <img> for react-zoom-pan-pinch to control */}
-            <img src={src} alt={alt} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: "0.5rem" }} />
+            {children}
           </TransformComponent>
         </TransformWrapper>
       </div>
@@ -173,20 +171,22 @@ export default function ConformanceTermsPage() {
                 overflowX: "auto",
               }}
             >
-              <Image
-                src={ProcessModelImage}
-                alt="Order-to-cash process model (BPMN): Receive Order, Check Credit, Confirm Order, Prepare Shipment, Issue Invoice, Ship Order, Receive Payment, Cancel Order"
+              <ProcessModelDiagram
+                role="img"
+                aria-label="Order-to-cash process model (BPMN): Receive Order, Check Credit, Confirm Order, Prepare Shipment, Issue Invoice, Ship Order, Receive Payment, Cancel Order"
                 style={{ width: "100%", height: "auto", borderRadius: "0.5rem" }}
               />
             </button>
           </div>
 
           {imageZoomOpen && (
-            <ImageLightbox
-              src={ProcessModelImage.src}
-              alt="Order-to-cash process model (BPMN): Receive Order, Check Credit, Confirm Order, Prepare Shipment, Issue Invoice, Ship Order, Receive Payment, Cancel Order"
-              onClose={() => setImageZoomOpen(false)}
-            />
+            <ImageLightbox onClose={() => setImageZoomOpen(false)}>
+              <ProcessModelDiagram
+                role="img"
+                aria-label="Order-to-cash process model (BPMN): Receive Order, Check Credit, Confirm Order, Prepare Shipment, Issue Invoice, Ship Order, Receive Payment, Cancel Order"
+                style={{ maxWidth: "100%", maxHeight: "100%", borderRadius: "0.5rem" }}
+              />
+            </ImageLightbox>
           )}
 
           {/* Content card */}
@@ -199,29 +199,58 @@ export default function ConformanceTermsPage() {
           }}>
             <div style={{ padding: "2.5rem 3rem", display: "flex", flexDirection: "column", gap: "1.75rem" }}>
 
-              {/* ── 1. Guideline */}
+              {/* ── 1. Process */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
-                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>account_tree</span>
+                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>hub</span>
                   <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
-                    Guideline
+                    Process
                   </h2>
                 </div>
                 <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
-                  A <strong>guideline</strong> is a set of rules that describe the intended, imperative behaviour
-                  of a process — which activities are involved and the allowed sequences in which they may be
-                  performed. It serves as the reference against which actual process behaviour is compared. In
-                  this study, we represent a guideline using a <strong>process model</strong> — a diagram that
-                  maps out the process&apos;s activities and the order in which they may occur (e.g. a BPMN diagram,
-                  Petri net, or DFG), such as the order-to-cash process shown at the top of this page.
-                  &ldquo;Guideline&rdquo; and &ldquo;process model&rdquo; therefore refer to the same underlying
-                  reference behaviour and are used interchangeably throughout.
+                  A <strong>process</strong> is a set of activities that are executed in a coordinated manner to
+                  achieve a certain goal — for example, order-to-cash, the process used throughout this study
+                  (shown at the top of this page).
                 </p>
               </section>
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
 
-              {/* ── 2. Event Log */}
+              {/* ── 2. Case */}
+              <section>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
+                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>assignment</span>
+                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
+                    Case
+                  </h2>
+                </div>
+                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
+                  A <strong>case</strong> represents an instance of the process, defined by all activity
+                  executions that relate to one specific trigger or input to the system whose behaviour is
+                  described by the process — for example, one customer order.
+                </p>
+              </section>
+
+              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+
+              {/* ── 3. Trace */}
+              <section>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
+                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>linear_scale</span>
+                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
+                    Trace
+                  </h2>
+                </div>
+                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
+                  A <strong>trace</strong> is a recorded representation of a case of the process — i.e. all events
+                  in the event log that share the same case identifier. Each trace can be compared against the
+                  guideline to assess whether it was executed correctly.
+                </p>
+              </section>
+
+              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+
+              {/* ── 4. Event Log */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>table_rows</span>
@@ -230,10 +259,10 @@ export default function ConformanceTermsPage() {
                   </h2>
                 </div>
                 <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: "0 0 1rem" }}>
-                  An <strong>event log</strong> is a collection of events recorded during the execution of a process.
-                  Each event captures information such as a case identifier, an activity name, and a timestamp.
-                  Events that share the same case identifier form a <strong>trace</strong>, representing one complete
-                  process execution from start to finish.
+                  An <strong>event log</strong> is a collection of events, each of which indicates (1) at what
+                  point in time, (2) which activity was executed, and (3) for which case. Events that share the
+                  same case identifier form a <strong>trace</strong>, representing one complete process execution
+                  from start to finish.
                 </p>
                 <Collapsible label="See an example event log">
                   <div style={{ overflowX: "auto" }}>
@@ -276,25 +305,118 @@ export default function ConformanceTermsPage() {
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
 
-              {/* ── 3. Trace */}
+              {/* ── 5. Attribute */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
-                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>linear_scale</span>
+                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>tune</span>
                   <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
-                    Trace
+                    Attribute
+                  </h2>
+                </div>
+                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: "0 0 1rem" }}>
+                  Events may be characterised by various <strong>attributes</strong>; for example, an event may
+                  have a timestamp, correspond to an activity, be executed by a particular person, or have
+                  associated costs.
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                  {[
+                    ["compare_arrows", "#15803d", "#f0fdf4", "#bbf7d0", "Control-flow attribute", "The activity label itself — which step was performed (e.g. \"Check Credit\" or \"Ship Order\")."],
+                    ["storage",        "#1d4ed8", "#eff6ff", "#bfdbfe", "Data attribute",         "Captures data values associated with an event or case (e.g. amount, category, status)."],
+                    ["person",         "#7c3aed", "#f5f3ff", "#ddd6fe", "Resource attribute",     "Records who or what performed an activity (e.g. a specific employee or system)."],
+                    ["schedule",       "#b45309", "#fffbeb", "#fde68a", "Time attribute",          "Captures when an activity occurred or how long it took (e.g. timestamp, duration)."],
+                  ].map(([icon, color, bg, border, label, desc]) => (
+                    <div key={label} style={{
+                      display: "flex", alignItems: "flex-start", gap: "0.875rem",
+                      padding: "0.875rem 1rem", backgroundColor: bg,
+                      border: `1px solid ${border}`, borderRadius: "0.5rem",
+                    }}>
+                      <span className="material-symbols-outlined" style={{ color, fontSize: "1.1rem", flexShrink: 0, marginTop: "0.15rem" }}>{icon}</span>
+                      <p style={{ margin: 0, fontSize: "0.875rem", color: C.onSurface, lineHeight: 1.7 }}>
+                        <strong>{label}:</strong> {desc}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+
+              {/* ── 6. Guideline */}
+              <section>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
+                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>account_tree</span>
+                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
+                    Guideline
                   </h2>
                 </div>
                 <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
-                  A <strong>trace</strong> is the sequence of activities recorded for a single process execution (one case) —
-                  i.e. all events in the event log that share the same case identifier. For example, one customer order
-                  corresponds to one trace. Each trace can be compared against the guideline to
-                  assess whether it was executed correctly.
+                  A <strong>guideline</strong> is the technology-agnostic expression of a process model, where a
+                  process model serves as an abstract representation of the process for specific modelling goals
+                  and describes the allowed execution sequences for different process cases. In this study, we
+                  instantiate the guideline in <strong>BPMN</strong> (Business Process Model and Notation) — the
+                  order-to-cash diagram shown at the top of this page. &ldquo;Guideline&rdquo; and
+                  &ldquo;process model&rdquo; therefore refer to the same underlying reference behaviour and are
+                  used interchangeably throughout.
                 </p>
               </section>
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
 
-              {/* ── 4. Guideline Violation */}
+              {/* ── 7. Log Move */}
+              <section>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
+                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>add_circle</span>
+                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
+                    Log Move
+                  </h2>
+                </div>
+                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
+                  When an event in the trace indicates that an activity has been executed even though it should
+                  not have been executed according to the model, the alignment contains a <strong>log move</strong>.
+                  As the counterpart of a model move, a log move represents a deviation in the sense of a
+                  superfluous execution of an activity.
+                </p>
+              </section>
+
+              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+
+              {/* ── 8. Model Move */}
+              <section>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
+                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>remove_circle</span>
+                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
+                    Model Move
+                  </h2>
+                </div>
+                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
+                  When an activity should have been executed according to the model but there is no related event
+                  in the trace, we refer to this situation as a <strong>model move</strong>. The move represents a
+                  deviation between the trace and the execution sequence of the model in the sense that the
+                  execution of an activity has been skipped.
+                </p>
+              </section>
+
+              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+
+              {/* ── 9. Synchronous Move */}
+              <section>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
+                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>check_circle</span>
+                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
+                    Synchronous Move
+                  </h2>
+                </div>
+                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
+                  A <strong>synchronous move</strong> is a step in which the event of the trace and the task in
+                  the execution sequence correspond to each other, i.e., both refer to the same activity.
+                  Synchronous moves denote the expected situation in which the recorded events in the trace are
+                  in line with the tasks of an execution sequence of the process model.
+                </p>
+              </section>
+
+              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+
+              {/* ── 10. Guideline Violation */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>warning</span>
@@ -303,40 +425,14 @@ export default function ConformanceTermsPage() {
                   </h2>
                 </div>
                 <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
-                  A <strong>guideline violation</strong> occurs when the behaviour recorded in a trace does not
-                  match what the guideline prescribes. We detect violations by <strong>aligning</strong> each
-                  trace with the guideline: every step in the alignment is either a match, or a deviation. By
-                  construction, a deviation is always exactly one of two types — never anything else.
+                  A trace has a <strong>guideline violation</strong> if its alignment contains a log move or a
+                  model move — i.e. any move other than a synchronous move.
                 </p>
-                <Collapsible label="The two deviation types">
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
-                    <div style={{
-                      display: "flex", alignItems: "flex-start", gap: "0.875rem",
-                      padding: "0.875rem 1rem", backgroundColor: "#fef2f2",
-                      border: "1px solid #fecaca", borderRadius: "0.5rem",
-                    }}>
-                      <span className="material-symbols-outlined" style={{ color: "#dc2626", fontSize: "1.1rem", flexShrink: 0, marginTop: "0.15rem" }}>add_circle</span>
-                      <p style={{ margin: 0, fontSize: "0.875rem", color: C.onSurface, lineHeight: 1.7 }}>
-                        <strong>Extra activity (Log move):</strong> An activity was executed that the guideline does not permit at that point in the process.
-                      </p>
-                    </div>
-                    <div style={{
-                      display: "flex", alignItems: "flex-start", gap: "0.875rem",
-                      padding: "0.875rem 1rem", backgroundColor: "#fffbeb",
-                      border: "1px solid #fde68a", borderRadius: "0.5rem",
-                    }}>
-                      <span className="material-symbols-outlined" style={{ color: "#d97706", fontSize: "1.1rem", flexShrink: 0, marginTop: "0.15rem" }}>remove_circle</span>
-                      <p style={{ margin: 0, fontSize: "0.875rem", color: C.onSurface, lineHeight: 1.7 }}>
-                        <strong>Missing activity (Model move):</strong> An activity required by the guideline was not executed in the trace.
-                      </p>
-                    </div>
-                  </div>
-                </Collapsible>
               </section>
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
 
-              {/* ── 5. Conformant / Nonconformant Traces */}
+              {/* ── 11. Conformant / Nonconformant Traces */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>route</span>
@@ -345,9 +441,8 @@ export default function ConformanceTermsPage() {
                   </h2>
                 </div>
                 <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
-                  A trace is <strong>conformant</strong> if every activity in it follows a path permitted by the guideline —
-                  no steps are missing and no unexpected steps occur. A trace is <strong>non-conformant</strong> if it
-                  contains at least one activity that violates the guideline's prescribed behaviour.
+                  A <strong>conformant</strong> trace is a trace without guideline violations; a
+                  <strong> non-conformant</strong> trace is a trace with at least one guideline violation.
                 </p>
                 <Collapsible label="See examples">
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
@@ -377,27 +472,7 @@ export default function ConformanceTermsPage() {
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
 
-              {/* ── 6. Conformance Rate */}
-              <section>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
-                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>percent</span>
-                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
-                    Conformance Rate
-                  </h2>
-                </div>
-                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
-                  The <strong>conformance rate</strong> is the percentage of traces in the event log that are
-                  fully conformant with the guideline. A trace is counted as conformant only if it contains
-                  no violations at all — it is a binary measure per trace. For example, a conformance rate of
-                  70% means that 70 out of every 100 traces are fully conformant. Unlike fitness or precision,
-                  &ldquo;conformance rate&rdquo; is not a standardized term in the conformance-checking literature —
-                  it is simply the name this study uses for this specific per-trace measure.
-                </p>
-              </section>
-
-              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
-
-              {/* ── 7. Degree of Conformance / Fitness */}
+              {/* ── 12. Degree of Conformance / Fitness */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>speed</span>
@@ -406,30 +481,15 @@ export default function ConformanceTermsPage() {
                   </h2>
                 </div>
                 <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: "0 0 1rem" }}>
-                  The <strong>degree of conformance</strong> describes how closely the behaviour recorded in an
-                  event log matches a guideline overall. In this study we measure it as <strong>fitness</strong> —
-                  a value between 0 (no match at all) and 1 (perfect match). Fitness is not just a count of how
-                  many traces are conformant: it also weighs <em>how many</em> deviations occur within each trace,
-                  so a trace with only one small deviation scores higher than one with many. Fitness can be
-                  computed in different ways — e.g. token-based <strong>replay fitness</strong> or
-                  <strong> alignment fitness</strong>; this study uses alignment fitness throughout, since
-                  alignments also pinpoint exactly which activities deviated. When shown as a percentage, fitness
-                  values are rounded to one decimal place (e.g. 97.9%).
+                  In general, <strong>fitness</strong> is the fraction of the behaviour of the log that is also
+                  allowed by the model. This study uses alignment-based fitness: trace-level fitness is computed
+                  by dividing the cost of the optimal alignment by the cost of the worst-case scenario and
+                  subtracting the result from 1; log fitness is computed as the average of the trace-variant
+                  fitness values, weighted by their respective frequencies. Fitness is not just a count of how
+                  many traces are conformant — it also weighs <em>how many</em> deviations occur within each
+                  trace, so a trace with only one small deviation scores higher than one with many. When shown
+                  as a percentage, fitness values are rounded to one decimal place (e.g. 97.9%).
                 </p>
-                <div style={{
-                  display: "flex", alignItems: "flex-start", gap: "0.75rem",
-                  padding: "0.75rem 1rem", backgroundColor: "#fffbeb",
-                  border: "1px solid #fde68a", borderLeft: "3px solid #d97706",
-                  borderRadius: "0.5rem", marginBottom: "1rem",
-                }}>
-                  <span className="material-symbols-outlined" style={{ color: "#d97706", fontSize: "1.1rem", flexShrink: 0, marginTop: "0.1rem" }}>warning</span>
-                  <p style={{ margin: 0, fontSize: "0.875rem", color: C.onSurface, lineHeight: 1.7 }}>
-                    <strong>Degree of conformance (fitness) ≠ Conformance rate.</strong> Fitness is a weighted measure
-                    of how much of the recorded behaviour conforms to the guideline. Conformance rate is simply the
-                    percentage of traces that are fully conformant. A log can have high fitness but a low conformance
-                    rate if many traces have only minor violations.
-                  </p>
-                </div>
                 <Collapsible label="Interpreting fitness values">
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                     <div style={{
@@ -464,59 +524,6 @@ export default function ConformanceTermsPage() {
                     </div>
                   </div>
                 </Collapsible>
-              </section>
-
-              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
-
-              {/* ── 8. Attribute */}
-              <section>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
-                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>tune</span>
-                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
-                    Attribute
-                  </h2>
-                </div>
-                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: "0 0 1rem" }}>
-                  An <strong>attribute</strong> is a data property recorded alongside events or traces in the event
-                  log. Attributes can provide context that helps explain why guideline violations occur.
-                </p>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                  {[
-                    ["compare_arrows", "#15803d", "#f0fdf4", "#bbf7d0", "Control-flow attribute", "The activity label itself — which step was performed (e.g. \"Check Credit\" or \"Ship Order\")."],
-                    ["storage",        "#1d4ed8", "#eff6ff", "#bfdbfe", "Data attribute",         "Captures data values associated with an event or case (e.g. amount, category, status)."],
-                    ["person",         "#7c3aed", "#f5f3ff", "#ddd6fe", "Resource attribute",     "Records who or what performed an activity (e.g. a specific employee or system)."],
-                    ["schedule",       "#b45309", "#fffbeb", "#fde68a", "Time attribute",          "Captures when an activity occurred or how long it took (e.g. timestamp, duration)."],
-                  ].map(([icon, color, bg, border, label, desc]) => (
-                    <div key={label} style={{
-                      display: "flex", alignItems: "flex-start", gap: "0.875rem",
-                      padding: "0.875rem 1rem", backgroundColor: bg,
-                      border: `1px solid ${border}`, borderRadius: "0.5rem",
-                    }}>
-                      <span className="material-symbols-outlined" style={{ color, fontSize: "1.1rem", flexShrink: 0, marginTop: "0.15rem" }}>{icon}</span>
-                      <p style={{ margin: 0, fontSize: "0.875rem", color: C.onSurface, lineHeight: 1.7 }}>
-                        <strong>{label}:</strong> {desc}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </section>
-
-              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
-
-              {/* ── 9. Process Goal */}
-              <section>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
-                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>flag</span>
-                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
-                    Process Goal
-                  </h2>
-                </div>
-                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
-                  A <strong>process goal</strong> is a desired outcome or objective that a process execution is
-                  intended to achieve — for example, successfully shipping an order and receiving payment for it.
-                  Guideline violations may affect whether a process goal is reached, and understanding this
-                  relationship helps explain the impact of non-conformant behaviour.
-                </p>
               </section>
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
