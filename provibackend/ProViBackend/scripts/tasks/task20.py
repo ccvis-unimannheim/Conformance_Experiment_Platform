@@ -985,7 +985,7 @@ def task20_matrix(panels, output_dir):
     if not panels:
         render_empty_state_svg(path, _ATTR_SUPTITLE, "No candidate attribute could be bucketed.")
         return
-    panel_colors = [GREY_DARK, GREY_LIGHTER]  # blue #243c6e, yellow #e5cf52 (task03 matrix)
+    panel_colors = [GREY_LIGHTER, GREY_DARK]  # yellow #e5cf52, blue #243c6e (same order as task19 matrix)
     ncols = len(panels)
     max_rows = max(len(labels) for (_m, (labels, _r, _c)) in panels)
     fig_h = max(3.0, 0.5 * max_rows + 1.8)
