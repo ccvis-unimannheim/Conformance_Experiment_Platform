@@ -69,7 +69,7 @@ function ImageLightbox({ children, onClose }) {
       onClick={onClose}
       style={{
         position: "fixed", inset: 0, zIndex: 200,
-        backgroundColor: "rgba(20,24,25,0.85)",
+        backgroundColor: "rgba(20,24,25,1)",
         display: "flex", alignItems: "center", justifyContent: "center",
       }}
     >
@@ -95,10 +95,10 @@ function ImageLightbox({ children, onClose }) {
       </p>
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ width: "90vw", height: "85vh" }}
+        style={{ width: "90vw", height: "85vh", display: "flex", alignItems: "center", justifyContent: "center" }}
       >
         <TransformWrapper initialScale={1} minScale={0.5} maxScale={8} centerOnInit>
-          <TransformComponent wrapperStyle={{ width: "100%", height: "100%" }} contentStyle={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <TransformComponent>
             {children}
           </TransformComponent>
         </TransformWrapper>
@@ -184,7 +184,7 @@ export default function ConformanceTermsPage() {
               <ProcessModelDiagram
                 role="img"
                 aria-label="Order-to-cash process model (BPMN): Receive Order, Check Credit, Confirm Order, Prepare Shipment, Issue Invoice, Ship Order, Receive Payment, Cancel Order"
-                style={{ maxWidth: "100%", maxHeight: "100%", borderRadius: "0.5rem" }}
+                style={{ maxWidth: "85vw", maxHeight: "80vh", borderRadius: "0.5rem" }}
               />
             </ImageLightbox>
           )}
