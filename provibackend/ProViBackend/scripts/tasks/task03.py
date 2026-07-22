@@ -191,7 +191,7 @@ def _task03_throughput_bucket_rows(throughput_buckets):
     shares = _task03_bucket_shares(throughput_buckets)
     rows = []
     for si, lab in enumerate(labels):
-        rows.append([lab] + [f"{shares[g][si]:.1f}%" for g in _GROUPS])
+        rows.append([lab] + [f"{shares[g][si]:.0f}%" for g in _GROUPS])
     return rows
 
 
