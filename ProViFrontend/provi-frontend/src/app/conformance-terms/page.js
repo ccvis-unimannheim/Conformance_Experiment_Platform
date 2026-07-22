@@ -99,7 +99,9 @@ function ImageLightbox({ children, onClose }) {
       >
         <TransformWrapper initialScale={1} minScale={0.5} maxScale={8} centerOnInit>
           <TransformComponent>
-            {children}
+            <div style={{ backgroundColor: C.white, borderRadius: "0.75rem", padding: "1.5rem", display: "flex" }}>
+              {children}
+            </div>
           </TransformComponent>
         </TransformWrapper>
       </div>
