@@ -264,7 +264,7 @@ def task19_effects(log, alignments, outcome_activity="Activate Care", target_pat
         risk_diff = rate_with - rate_without
         rel_risk = (rate_with / rate_without) if rate_without > 0 else None  # guard div-by-zero
         records.append({
-            "pattern": f"{activity} ({move_type})",
+            "pattern": f"{activity} ({_display_move(move_type)})",
             "activity": activity,
             "move_type": move_type,
             "support": n_with,
@@ -283,6 +283,17 @@ def task19_effects(log, alignments, outcome_activity="Activate Care", target_pat
         "outcome_activity": outcome_activity,
         "patterns_per_trace": patterns_per_trace,
     }
+
+
+# Display labels for move types in the visible pattern strings. The internal
+# move_type (from classify_step) stays "Move on Model" / "Move on Log" so it keeps
+# matching the admin's 'activity|Move on Model' selection specs; only the shown text
+# is shortened to "Model Move" / "Log Move".
+_MOVE_DISPLAY = {"Move on Model": "Model Move", "Move on Log": "Log Move"}
+
+
+def _display_move(move_type: str) -> str:
+    return _MOVE_DISPLAY.get(move_type, move_type)
 
 
 def _goal_label(outcome_activity: str) -> str:
