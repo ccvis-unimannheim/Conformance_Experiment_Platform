@@ -12,23 +12,23 @@ const STEPS = [
   },
   {
     num: "02",
-    title: "General Background",
-    desc: "You will be asked a few questions about your general background.",
-  },
-  {
-    num: "03",
     title: "Knowledge Questions",
     desc: "You will be asked a few knowledge questions about conformance checking.",
   },
   {
-    num: "04",
+    num: "03",
     title: "Concepts & Terms",
     desc: "We will provide definitions of essential terms that are necessary to understand for the survey.",
   },
   {
-    num: "05",
+    num: "04",
     title: "Experiment",
     desc: "We will present you with conformance checking tasks. You will be asked to answer questions with the help of the visualizations you will see.",
+  },
+  {
+    num: "05",
+    title: "Feedback Survey",
+    desc: "You will be asked a few short questions about your experience during the experiment, with an option to leave additional feedback.",
   },
 ];
 
@@ -71,9 +71,7 @@ export default function WelcomePage() {
                   Dear participant,
                 </p>
                 <p className="text-on-surface-variant leading-relaxed mt-3">
-                  We are conducting an experiment on{" "}
-                  <span className="text-on-surface font-semibold">conformance checking visualizations</span>{" "}
-                  as part of a research project in process mining. The purpose of this study is to investigate which visualization idioms best support users in performing conformance checking tasks.
+                  We are a team of master&apos;s students conducting this experiment as part of our research project in Process Mining at the University of Mannheim. The purpose of this study is to investigate which visualization idioms best support users in performing conformance checking tasks.
                 </p>
                 <p className="text-on-surface-variant leading-relaxed mt-3">
                   Your participation is greatly appreciated!
