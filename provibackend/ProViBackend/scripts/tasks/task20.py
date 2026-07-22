@@ -125,7 +125,7 @@ from shared import (
     save_svg, make_table, auto_col_widths, draw_decision_tree, draw_value_heatmap,
     draw_parallel_sets, alignment_pairs_to_rows,
     render_empty_state_svg, parse_bpmn_model, render_bpmn_annotated,
-    format_threshold, wrap_text, CIVIDIS_R,
+    format_threshold, wrap_text, CIVIDIS_R, contrasting_text_color,
     GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
@@ -881,8 +881,9 @@ def task20_network_diagram(alignments, output_dir: str, top_n: int = 12):
 # quartile / top-category buckets are exactly those of task13's bar/parallel.
 # ---------------------------------------------------------------------------
 
-# Uniform bar/matrix colour — no coding by violation direction.
-_ATTR_BAR_COLOR = GREY_MED
+# Uniform bar colour — no coding by violation direction. Reuses task03's Conformant
+# blue (GREY_DARK = cividis blue #243c6e) so the bar charts match the platform palette.
+_ATTR_BAR_COLOR = GREY_DARK
 _ATTR_SUPTITLE = "Guideline-Violation Rate by Candidate Attribute"
 
 # Candidate attributes excluded from task20's default set. org:resource is an
@@ -976,23 +977,22 @@ def task20_table(panels, output_dir):
 def task20_matrix(panels, output_dir):
     """Side-by-side per-attribute grids (same layout as Heatmap: one column per
     attribute, rows = buckets), but with a flat, non-value-encoded colour wash per
-    panel — alternating between the Heatmap scale's two extremes (100% dark navy,
-    0% bright yellow) purely to tell the panels apart. Unlike Heatmap's per-cell
-    gradient, the colour here carries no data; the number is the only thing being
-    read (that's Heatmap's job)."""
+    panel — alternating between task03's matrix palette (GREY_DARK = cividis blue
+    #243c6e, GREY_LIGHTER = cividis yellow #e5cf52) purely to tell the panels apart.
+    Unlike Heatmap's per-cell gradient, the colour here carries no data; the number is
+    the only thing being read (that's Heatmap's job)."""
     path = os.path.join(output_dir, "task20_matrix.svg")
     if not panels:
         render_empty_state_svg(path, _ATTR_SUPTITLE, "No candidate attribute could be bucketed.")
         return
-    from matplotlib.colors import to_hex as _to_hex
-    panel_colors = [_to_hex(CIVIDIS_R(1.0)), _to_hex(CIVIDIS_R(0.0))]  # 100%-navy, 0%-yellow
+    panel_colors = [GREY_DARK, GREY_LIGHTER]  # blue #243c6e, yellow #e5cf52 (task03 matrix)
     ncols = len(panels)
     max_rows = max(len(labels) for (_m, (labels, _r, _c)) in panels)
     fig_h = max(3.0, 0.5 * max_rows + 1.8)
     fig, axes = plt.subplots(1, ncols, figsize=(max(5.0, ncols * 3.6), fig_h), squeeze=False)
     for i, (ax, (m, (labels, rates, _counts))) in enumerate(zip(axes[0], panels)):
         face = panel_colors[i % len(panel_colors)]
-        text_color = "white" if i % 2 == 0 else "#222222"
+        text_color = contrasting_text_color(face)
         n = len(labels)
         for ri, rate in enumerate(rates):
             ax.add_patch(plt.Rectangle((0, ri), 1, 1, facecolor=face,

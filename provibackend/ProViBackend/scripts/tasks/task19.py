@@ -140,23 +140,23 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
-from matplotlib.colors import to_hex
 
 from shared import (
     save_svg, make_table, auto_col_widths, draw_parallel_sets, draw_value_heatmap,
     render_empty_state_svg,
-    classify_step,
+    classify_step, contrasting_text_color,
     GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
     infer_outcome_activity,
-    CIVIDIS_R,
 )
 
 
-# Neutral with/without colours for the info-equivalent idioms (table, bar_chart,
-# matrix, parallel_sets). Deliberately NOT signed by positive/negative effect —
-# the participant must derive the effect from the two rates themselves.
-_C_WITH    = GREY_MED    # "With violation" series
-_C_WITHOUT = GREY_LIGHT  # "Without violation" series
+# With/without colours for the grouped bar-chart idioms, reusing the platform's
+# Conformant/Non-conformant palette from task03 (GREY_DARK = cividis blue #243c6e,
+# GREY_LIGHTER = cividis yellow #e5cf52): "Without violation" = blue (conformant-like),
+# "With violation" = yellow (the deviation). Still not a positive/negative signing —
+# the participant derives the effect from the two rates themselves.
+_C_WITH    = GREY_LIGHTER  # "With violation" series    (cividis yellow #e5cf52)
+_C_WITHOUT = GREY_DARK     # "Without violation" series (cividis blue   #243c6e)
 
 _EMPTY_STEMS = [
     ("task19_bar_chart.svg",           "Goal Effect by Violation Pattern"),
@@ -409,9 +409,11 @@ def task19_table(eff, output_dir):
 
 def task19_matrix(eff, output_dir):
     """Side-by-side With / Without panels, rows = violation patterns — same layout
-    as Heatmap, but a flat, non-value-encoded colour wash per panel (100%-navy /
-    0%-yellow, alternating purely to tell the panels apart). The colour here carries
-    no data; the number is the only thing being read (that's Heatmap's job)."""
+    as Heatmap, but a flat, non-value-encoded colour wash per panel. Reuses task03's
+    matrix palette (GREY_LIGHTER = cividis yellow #e5cf52 for "With Violation",
+    GREY_DARK = cividis blue #243c6e for "Without Violation" — matching the bar_chart's
+    With=yellow / Without=blue mapping). The colour here carries no data; the number is
+    the only thing being read (that's Heatmap's job)."""
     path = os.path.join(output_dir, "task19_matrix.svg")
     records = eff["records"]
     if not records:
@@ -420,14 +422,14 @@ def task19_matrix(eff, output_dir):
     labels = [r["pattern"] for r in records]
     cols = [("With Violation", [r["rate_with"] for r in records]),
             ("Without Violation", [r["rate_without"] for r in records])]
-    panel_colors = [to_hex(CIVIDIS_R(1.0)), to_hex(CIVIDIS_R(0.0))]  # 100%-navy, 0%-yellow
+    panel_colors = [GREY_LIGHTER, GREY_DARK]  # With=yellow #e5cf52, Without=blue #243c6e
     n = len(labels)
     fig_h = max(3.0, 0.5 * n + 1.8)
     fig, axes = plt.subplots(1, 2, figsize=(7.5, fig_h), squeeze=False,
                              gridspec_kw={"wspace": 0.0})
     for i, (ax, (col_label, vals)) in enumerate(zip(axes[0], cols)):
         face = panel_colors[i % len(panel_colors)]
-        text_color = "white" if i % 2 == 0 else "#222222"
+        text_color = contrasting_text_color(face)
         for ri, v in enumerate(vals):
             ax.add_patch(plt.Rectangle((0, ri), 1, 1, facecolor=face,
                                        edgecolor="white", linewidth=1.2))
