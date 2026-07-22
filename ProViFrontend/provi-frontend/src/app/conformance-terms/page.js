@@ -429,7 +429,7 @@ export default function ConformanceTermsPage() {
                 <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
                   A trace has a <strong>guideline violation</strong> if its alignment contains a log move or a
                   model move — i.e. any move other than a synchronous move. Log move, model move, and
-                  synchronous move are <strong>types</strong> of guideline violation; naming a guideline violation
+                  synchronous move are <strong>types</strong>{" "}of guideline violation; naming a guideline violation
                   requires naming the activity on which that type of violation occurs — e.g. &ldquo;Model move
                   on Ship Order.&rdquo;
                 </p>
