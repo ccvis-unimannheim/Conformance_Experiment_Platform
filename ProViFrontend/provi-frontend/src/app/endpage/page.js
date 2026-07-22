@@ -61,21 +61,6 @@ const QUESTIONS = [
     label:  "6. How insecure, discouraged, irritated, stressed, and annoyed were you?",
     labels: ["Very low", "Low", "Somewhat low", "Moderate", "Somewhat high", "High", "Very high"],
   },
-  {
-    key:    "umuxCapabilities",
-    label:  "7. The platform's capabilities meet my requirements.",
-    labels: ["Strongly disagree", "Somewhat disagree", "Slightly disagree", "Neutral", "Slightly agree", "Somewhat agree", "Strongly agree"],
-  },
-  {
-    key:    "umuxEaseOfUse",
-    label:  "8. The platform is easy to use.",
-    labels: ["Strongly disagree", "Somewhat disagree", "Slightly disagree", "Neutral", "Slightly agree", "Somewhat agree", "Strongly agree"],
-  },
-  {
-    key:    "tooltipHelpfulness",
-    label:  "9. The tooltips and explanations provided during the tasks were satisfying.",
-    labels: ["Strongly disagree", "Somewhat disagree", "Slightly disagree", "Neutral", "Slightly agree", "Somewhat agree", "Strongly agree"],
-  },
 ];
 
 function LikertQuestion({ question, value, onChange }) {
