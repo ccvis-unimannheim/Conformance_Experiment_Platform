@@ -324,19 +324,13 @@ def task04_flow_chart_basic(selected, output_dir: str, model_path=None):
     save_svg(fig, path)
 
 
-def _task04_bpmn_node_style(rows):
+def _task04_bpmn_node_style(rows, log_move_in_model=frozenset()):
     """node_style_fn colouring model tasks by this trace's alignment: synchronous
-    move -> yellow (conformant), model move -> grey (skipped); everything else
-    white. Log moves (inserted activities) are not model tasks — the table lists
-    them instead. Uses the same colours as the chevron for information equivalence."""
-    conform, skipped = set(), set()
-    for r in rows:
-        if r["moveType"] == "Synchronous Move":
-            lbl = str(r["log_move"]) if str(r["log_move"]) not in ("-", "None", "(skip)", "") \
-                else str(r["model_move"])
-            conform.add(lbl)
-        elif r["moveType"] == "Model Move":
-            skipped.add(str(r["model_move"]))
+    move -> yellow (conformant), model move -> grey (skipped), a log move that maps
+    onto an otherwise-white model task -> navy dashed (deviation executed in place);
+    everything else white. Uses the same colours as the chevron for information
+    equivalence."""
+    conform, skipped = _task04_bpmn_move_sets(rows)
 
     def _style(eid, elem):
         if elem.get("kind") == "task":
@@ -345,11 +339,28 @@ def _task04_bpmn_node_style(rows):
                 return (GREY_MED, "#444444", 3, contrasting_text_color(GREY_MED))
             if name in conform:
                 return (GREY_LIGHTER, "#666666", 2, contrasting_text_color(GREY_LIGHTER))
+            if name in log_move_in_model:
+                # executed, but as a log move (deviation): navy fill like the Log
+                # Move legend, with a dashed border to mark it as out-of-place.
+                return (GREY_DARK, "#8ba0cf", 2, contrasting_text_color(GREY_DARK), "6 4")
         return ("white", "#888888", 2, "#333333")
     return _style
 
 
 _MISSING = ("-", "None", "(skip)", "")
+
+
+def _task04_bpmn_move_sets(rows):
+    """conform (Synchronous) and skipped (Model Move) activity-name sets for one
+    trace — the two sets that decide a model node's colour."""
+    conform, skipped = set(), set()
+    for r in rows:
+        if r["moveType"] == "Synchronous Move":
+            lbl = str(r["log_move"]) if str(r["log_move"]) not in _MISSING else str(r["model_move"])
+            conform.add(lbl)
+        elif r["moveType"] == "Model Move":
+            skipped.add(str(r["model_move"]))
+    return conform, skipped
 
 
 def _task04_log_move_badges(rows):
@@ -380,6 +391,26 @@ def _task04_log_move_badges(rows):
     return [b for b in badges if b["anchor"]]
 
 
+def _task04_resolve_log_moves(rows, model_task_names):
+    """Split a trace's log moves into (in_model, badges).
+
+    A log move whose activity matches a model task this trace otherwise leaves
+    white (neither Synchronous nor Model Move) is painted ON that model node
+    (in_model set), avoiding a duplicate label. The rest keep their external
+    badge. Returns (in_model:set[str], badges:list[dict])."""
+    conform, skipped = _task04_bpmn_move_sets(rows)
+    coloured = conform | skipped
+    model_set = set(model_task_names)
+    in_model, kept = set(), []
+    for b in _task04_log_move_badges(rows):
+        name = b["label"]
+        if name in model_set and name not in coloured and name not in in_model:
+            in_model.add(name)      # reuse the white model node as the log move
+        else:
+            kept.append(b)          # external badge fallback
+    return in_model, kept
+
+
 def task04_flow_chart_elaborate(selected, model_path, output_dir):
     """BPMN idiom, information-equivalent to the chevron: the guideline model is
     drawn once per trace (stacked), each model task coloured by that trace's
@@ -402,12 +433,17 @@ def task04_flow_chart_elaborate(selected, model_path, output_dir):
         render_empty_state_svg(path, title, "No BPMN geometry to render.")
         return
 
-    panels = [{
-        "parsed": parsed,
-        "node_style_fn": _task04_bpmn_node_style(t["rows"]),
-        "subtitle": t["label"],
-        "badges": _task04_log_move_badges(t["rows"]),
-    } for t in selected]
+    model_names = {e.get("name", "") for e in parsed["elements"].values()
+                   if e.get("kind") == "task"}
+    panels = []
+    for t in selected:
+        in_model, badges = _task04_resolve_log_moves(t["rows"], model_names)
+        panels.append({
+            "parsed": parsed,
+            "node_style_fn": _task04_bpmn_node_style(t["rows"], in_model),
+            "subtitle": t["label"],
+            "badges": badges,
+        })
 
     compose_bpmn_panels(
         panels, path,
@@ -415,7 +451,7 @@ def task04_flow_chart_elaborate(selected, model_path, output_dir):
         legend_items=[
             (GREY_LIGHTER, "#666666", 2, "Synchronous Move"),
             (GREY_MED,     "#444444", 3, "Model Move"),
-            (GREY_DARK,    "#333333", 3, "Log Move"),
+            (GREY_DARK,    "#8ba0cf", 3, "Log Move", "6 4"),
         ],
         node_font_size=14,
     )
