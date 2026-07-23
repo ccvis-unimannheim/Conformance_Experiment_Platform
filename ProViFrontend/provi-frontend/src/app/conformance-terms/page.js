@@ -252,7 +252,23 @@ export default function ConformanceTermsPage() {
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
 
-              {/* ── 4. Event Log */}
+              {/* ── 4. Event */}
+              <section>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
+                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>bolt</span>
+                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
+                    Event
+                  </h2>
+                </div>
+                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
+                  An <strong>event</strong> is a single recorded occurrence in the process, indicating (1) at
+                  what point in time, (2) which activity was executed, and (3) for which case.
+                </p>
+              </section>
+
+              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+
+              {/* ── 5. Event Log */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>table_rows</span>
@@ -261,10 +277,9 @@ export default function ConformanceTermsPage() {
                   </h2>
                 </div>
                 <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: "0 0 1rem" }}>
-                  An <strong>event log</strong> is a collection of events, each of which indicates (1) at what
-                  point in time, (2) which activity was executed, and (3) for which case. Events that share the
-                  same case identifier form a <strong>trace</strong>, representing one complete process execution
-                  from start to finish.
+                  An <strong>event log</strong> is a collection of events. Events that share the same case
+                  identifier form a <strong>trace</strong>, representing one complete process execution from
+                  start to finish.
                 </p>
                 <Collapsible label="See an example event log">
                   <div style={{ overflowX: "auto" }}>
@@ -307,7 +322,7 @@ export default function ConformanceTermsPage() {
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
 
-              {/* ── 5. Attribute */}
+              {/* ── 6. Attribute */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>tune</span>
@@ -343,7 +358,7 @@ export default function ConformanceTermsPage() {
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
 
-              {/* ── 6. Guideline */}
+              {/* ── 7. Guideline */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>account_tree</span>
@@ -355,16 +370,38 @@ export default function ConformanceTermsPage() {
                   A <strong>guideline</strong> is the technology-agnostic expression of a process model, where a
                   process model serves as an abstract representation of the process for specific modelling goals
                   and describes the allowed execution sequences for different process cases. In this study, we
-                  instantiate the guideline in <strong>BPMN</strong> (Business Process Model and Notation) — the
-                  order-to-cash diagram shown at the top of this page. &ldquo;Guideline&rdquo; and
-                  &ldquo;process model&rdquo; therefore refer to the same underlying reference behaviour and are
-                  used interchangeably throughout.
+                  represent multiple guidelines collectively in an imperative process model as a
+                  <strong> BPMN</strong> (Business Process Model and Notation) diagram — the order-to-cash
+                  diagram shown at the top of this page. &ldquo;Guideline&rdquo; and &ldquo;process
+                  model&rdquo; therefore refer to the same underlying reference behaviour and are used
+                  interchangeably throughout.
                 </p>
               </section>
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
 
-              {/* ── 7. Log Move */}
+              {/* ── 8. Alignment */}
+              <section>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
+                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>compare_arrows</span>
+                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
+                    Alignment
+                  </h2>
+                </div>
+                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
+                  An <strong>alignment</strong> relates the events recorded in a trace to the activities
+                  expected by the process model. For example, aligning the trace ⟨Receive Order, Check Credit,
+                  Cancel Order⟩ against a guideline requiring ⟨Receive Order, Check Credit, Confirm Order⟩
+                  matches Receive Order and Check Credit, but finds Confirm Order missing. If the trace instead
+                  contained an unexpected activity at that point, such as Escalate Case, this would be recorded
+                  as a different kind of step. These three kinds of steps — log move, model move, and
+                  synchronous move — are defined below.
+                </p>
+              </section>
+
+              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+
+              {/* ── 9. Log Move */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>add_circle</span>
@@ -382,7 +419,7 @@ export default function ConformanceTermsPage() {
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
 
-              {/* ── 8. Model Move */}
+              {/* ── 10. Model Move */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>remove_circle</span>
@@ -400,7 +437,7 @@ export default function ConformanceTermsPage() {
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
 
-              {/* ── 9. Synchronous Move */}
+              {/* ── 11. Synchronous Move */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>check_circle</span>
@@ -418,7 +455,7 @@ export default function ConformanceTermsPage() {
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
 
-              {/* ── 10. Guideline Violation */}
+              {/* ── 12. Guideline Violation */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>warning</span>
@@ -427,17 +464,18 @@ export default function ConformanceTermsPage() {
                   </h2>
                 </div>
                 <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
-                  A trace has a <strong>guideline violation</strong> if its alignment contains a log move or a
-                  model move — i.e. any move other than a synchronous move. Log move, model move, and
-                  synchronous move are <strong>types</strong>{" "}of guideline violation; naming a guideline violation
-                  requires naming the activity on which that type of violation occurs — e.g. &ldquo;Model move
-                  on Ship Order.&rdquo;
+                  Log moves and model moves flag <strong>guideline violations</strong>: a trace has a guideline
+                  violation wherever its alignment contains a log move or a model move — i.e. any move other
+                  than a synchronous move. Note that only these two terms are <strong>types</strong>{" "}of
+                  guideline violations — synchronous moves represent the absence of a violation, not a type of
+                  it — and naming a guideline violation needs the naming of the activity on which a type of
+                  violation occurs (e.g. &ldquo;Model move on Ship Order&rdquo;).
                 </p>
               </section>
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
 
-              {/* ── 11. Conformant / Nonconformant Traces */}
+              {/* ── 13. Conformant / Nonconformant Traces */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>route</span>
@@ -477,7 +515,7 @@ export default function ConformanceTermsPage() {
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
 
-              {/* ── 12. Degree of Conformance / Fitness */}
+              {/* ── 14. Degree of Conformance / Fitness */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>speed</span>
@@ -486,14 +524,10 @@ export default function ConformanceTermsPage() {
                   </h2>
                 </div>
                 <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: "0 0 1rem" }}>
-                  In general, <strong>fitness</strong> is the fraction of the behaviour of the log that is also
-                  allowed by the model. This study uses alignment-based fitness: trace-level fitness is computed
-                  by dividing the cost of the optimal alignment by the cost of the worst-case scenario and
-                  subtracting the result from 1; log fitness is computed as the average of the trace-variant
-                  fitness values, weighted by their respective frequencies. Fitness is not just a count of how
-                  many traces are conformant — it also weighs <em>how many</em> deviations occur within each
-                  trace, so a trace with only one small deviation scores higher than one with many. When shown
-                  as a percentage, fitness values are rounded to one decimal place (e.g. 97.9%).
+                  Based on these individual guideline violations, we can compute the trace <strong>fitness</strong>
+                  — i.e. the trace&apos;s degree of conformance with the rules — and the log fitness, i.e. the
+                  overall degree of conformance of all traces in the log. When shown as a percentage, fitness
+                  values are rounded to one decimal place (e.g. 97.9%).
                 </p>
                 <Collapsible label="Interpreting fitness values">
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
