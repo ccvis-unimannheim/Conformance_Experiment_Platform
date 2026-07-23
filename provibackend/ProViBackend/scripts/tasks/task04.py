@@ -288,9 +288,8 @@ def _task04_model_task_names(model_path):
 def task04_flow_chart_basic(selected, output_dir: str, model_path=None):
     """Chevron flow chart: one horizontal chevron strip per selected trace, stacked
     so the two traces sit side by side (top vs bottom). Each activity chevron is
-    coloured by its alignment move type; model activities the trace never touches
-    are appended as white chevrons, so the strip covers the same activity set as
-    the BPMN idiom (information equivalence)."""
+    coloured by its alignment move type — Synchronous Move, Model Move or Log Move;
+    only the activities that trace actually touches are shown."""
     path = os.path.join(output_dir, "task04_flow_chart_basic.svg")
     if not selected:
         fig, ax = plt.subplots(figsize=(7, 3)); ax.axis("off")
@@ -299,16 +298,7 @@ def task04_flow_chart_basic(selected, output_dir: str, model_path=None):
         save_svg(fig, path)
         return
 
-    model_tasks = _task04_model_task_names(model_path)
-    nodes_per_trace, any_not_involved = [], False
-    for t in selected:
-        nodes = chevron_nodes_from_alignment_rows(t["rows"])
-        involved = _task04_involved_activities(t["rows"])
-        not_involved = [a for a in model_tasks if a not in involved]
-        if not_involved:
-            any_not_involved = True
-            nodes += [{"label": a, "color": "#ffffff"} for a in not_involved]
-        nodes_per_trace.append(nodes)
+    nodes_per_trace = [chevron_nodes_from_alignment_rows(t["rows"]) for t in selected]
 
     fig_w = max((chevron_figure_width(n) for n in nodes_per_trace if n), default=9.0)
     n_rows = len(selected)
@@ -326,11 +316,10 @@ def task04_flow_chart_basic(selected, output_dir: str, model_path=None):
                     transform=ax.transAxes, fontsize=FONT_ANNOT)
         ax.set_title(trace["label"], fontsize=FONT_LABEL, loc="left", pad=6)
 
-    legend = list(_MOVE_LEGEND) + ([("Not in this trace", "#ffffff")] if any_not_involved else [])
     handles = [mpatches.Patch(facecolor=c, edgecolor="#4a4a4a", label=lbl)
-               for lbl, c in legend]
+               for lbl, c in _MOVE_LEGEND]
     fig.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, 0.0),
-               ncol=len(legend), frameon=False, fontsize=FONT_ANNOT - 1)
+               ncol=len(_MOVE_LEGEND), frameon=False, fontsize=FONT_ANNOT - 1)
     fig.tight_layout(rect=[0, 0.08, 1, 1.0])
     save_svg(fig, path)
 
@@ -457,9 +446,10 @@ def task04_bar_chart(tdf: pd.DataFrame, output_dir: str):
 def task04_table(selected, model_path, output_dir):
     """Activity × trace move-type table: one row per activity (model tasks plus
     any inserted ones), one column per compared trace, cell = the alignment move
-    type in that trace (Synchronous Move / Model Move / Log Move / Not in this
-    trace). The tabular twin of the chevron / BPMN / heatmap — same information,
-    read as plain text (only the header row is coloured)."""
+    type in that trace (Synchronous Move / Model Move / Log Move). Only activities
+    at least one trace touches are listed; a "—" marks the rare case an activity
+    appears in one trace but not the other. The tabular twin of the chevron / BPMN
+    / heatmap, read as plain text (only the header row is coloured)."""
     path = os.path.join(output_dir, "task04_table.svg")
     title = "Move Type by Activity Across Traces"
     activities = _task04_model_task_names(model_path)
@@ -480,7 +470,9 @@ def task04_table(selected, model_path, output_dir):
         for a, c in mm.items():
             if c == GREY_DARK and a not in activities and a not in inserted:
                 inserted.append(a)
-    rows = list(activities) + inserted
+    # keep only activities at least one trace actually touches (drop never-touched)
+    present = set().union(*(set(mm) for mm in move_maps)) if move_maps else set()
+    rows = [a for a in (list(activities) + inserted) if a in present]
     labels = [t["label"] for t in selected]
     label_by_color = {c: lbl for lbl, c in _MOVE_LEGEND}
 
@@ -489,7 +481,7 @@ def task04_table(selected, model_path, output_dir):
         text_row = [a]
         for mm in move_maps:
             c = mm.get(a)
-            text_row.append("Not in this trace" if c is None else label_by_color.get(c, ""))
+            text_row.append("—" if c is None else label_by_color.get(c, ""))
         cell_text.append(text_row)
 
     col_labels = ["Activity"] + labels
