@@ -18,3 +18,13 @@ CVE-2026-33671
 # no actionable upgrade path available. Re-evaluate when starlette releases the patch.
 CVE-2026-48818
 CVE-2026-54283
+
+# CVE-2026-14257 — brace-expansion DoS via crafted brace patterns
+# Affected: brace-expansion 1.1.16 (via minimatch@3 in the ESLint toolchain) and
+# 5.0.7 (via @typescript-eslint/typescript-estree). Both are dev-only build-time
+# dependencies, never invoked on user-controlled input at runtime.
+# Why ignored: the 1.x branch has no patched release (latest 1.x is the flagged
+# 1.1.16); patching it would force minimatch@3 onto an incompatible major and
+# cascade an upgrade of the whole legacy ESLint toolchain.
+# Re-evaluate when brace-expansion ships a 1.x fix or the ESLint deps are bumped.
+CVE-2026-14257
