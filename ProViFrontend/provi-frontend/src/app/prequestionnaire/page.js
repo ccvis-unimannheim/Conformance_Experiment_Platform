@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -149,6 +149,9 @@ export default function PrequestionnaireComponent() {
   const router = useRouter();
 
   const [enabledSections, setEnabledSections] = useState(new Set(ALL_SECTION_KEYS));
+  // While the enabled sections are being fetched we render nothing, so a page
+  // with no sections is never shown before the auto-skip kicks in.
+  const [loading, setLoading] = useState(true);
 
   const [gender,       setGender]       = useState("");
   const [age,          setAge]          = useState("");
@@ -166,12 +169,16 @@ export default function PrequestionnaireComponent() {
   const [submitting,  setSubmitting]  = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     fetch("/api/participant/prequestionnaire-sections")
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
+        if (cancelled) return;
         if (data?.sections) setEnabledSections(new Set(data.sections));
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, []);
 
   const toggleTool = (tool) =>
@@ -226,6 +233,52 @@ export default function PrequestionnaireComponent() {
 
   const setRating = (key, val) =>
     setRatings((prev) => ({ ...prev, [key]: val }));
+
+  // If the experiment has no enabled sections, don't show an empty page:
+  // submit the (empty) background once — which still creates the user and
+  // sets the auth cookie — then move straight on to the knowledge questions.
+  const autoSkippedRef = useRef(false);
+  useEffect(() => {
+    if (loading || autoSkippedRef.current) return;
+    if (enabledSections.size === 0) {
+      autoSkippedRef.current = true;
+      handleContinue();
+    }
+  }, [loading, enabledSections]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Render nothing while sections load, or while auto-skipping an empty page,
+  // so the participant never sees a blank form. If the auto-submit fails they
+  // get an error with a retry instead of being stuck.
+  if (loading || enabledSections.size === 0) {
+    return (
+      <div style={{
+        backgroundColor: C.surface, color: C.onVariant, minHeight: "100vh",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        flexDirection: "column", gap: "1rem", padding: "1.5rem",
+        fontFamily: "'Inter', Arial, sans-serif", textAlign: "center",
+      }}>
+        {error ? (
+          <>
+            <p style={{ color: "#dc2626", fontSize: "0.875rem", fontWeight: 500 }}>{error}</p>
+            <button
+              type="button"
+              onClick={handleContinue}
+              disabled={submitting}
+              style={{
+                padding: "0.75rem 2rem", borderRadius: "0.5rem", border: "none",
+                backgroundColor: C.primary, color: C.white, fontWeight: 700,
+                fontSize: "0.875rem", cursor: submitting ? "not-allowed" : "pointer",
+              }}
+            >
+              {submitting ? "Retrying…" : "Retry"}
+            </button>
+          </>
+        ) : (
+          <p style={{ fontSize: "0.875rem" }}>Loading…</p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div style={{ backgroundColor: C.surface, color: C.onSurface, minHeight: "100vh", fontFamily: "'Inter', Arial, sans-serif" }}>
