@@ -241,9 +241,7 @@ export default function DataInformation() {
                 }}>
                   <p>
                     Please contact us to exercise your rights as data subject:{" "}
-                    <a href="mailto:haege@uni-mannheim.de" style={linkStyle}>haege@uni-mannheim.de</a>
-                    {" "}or{" "}
-                    <a href="mailto:jpmac@uni-mannheim.de" style={linkStyle}>jpmac@uni-mannheim.de</a>
+                    <a href="mailto:anyi.zhu@students.uni-mannheim.de" style={linkStyle}>anyi.zhu@students.uni-mannheim.de</a>
                   </p>
                 </div>
               </section>
