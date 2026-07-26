@@ -151,10 +151,15 @@ export default function WelcomePage() {
                 <p className="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2 font-bold">
                   Research Team
                 </p>
-                <p className="text-xs text-on-surface-variant leading-relaxed">
-                  This study is conducted by: Ayni Zhu, Henri Clausnitzer, Shiqi Zhou, Tayyaba Zafar,
-                  Zihan Zhang, Marie-Christin Häge, Dr. Michael Grohs — University of Mannheim
-                </p>
+                <ul className="text-xs text-on-surface-variant leading-relaxed inline-block text-left list-disc pl-4">
+                  <li>Anyi Zhu, University of Mannheim</li>
+                  <li>Henri Clausnitzer, University of Mannheim</li>
+                  <li>Shiqi Zhou, University of Mannheim</li>
+                  <li>Tayyaba Zafar, University of Mannheim</li>
+                  <li>Zihan Zhang, University of Mannheim</li>
+                  <li>Marie-Christin Häge, University of Mannheim</li>
+                  <li>Michael Grohs, University of Mannheim</li>
+                </ul>
               </footer>
 
             </div>
