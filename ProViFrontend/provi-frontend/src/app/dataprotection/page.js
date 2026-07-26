@@ -79,9 +79,6 @@ export default function DataInformation() {
             }}>
               Information on Data Protection<br />according to Art. 13, 14 GDPR
             </h1>
-            <p style={{ fontSize: "0.9375rem", color: C.onVariant, marginTop: "0.75rem" }}>
-              for ProVi survey research project
-            </p>
           </header>
 
           {/* ── Intro paragraph */}
@@ -145,7 +142,7 @@ export default function DataInformation() {
                 <div style={{ fontSize: "0.875rem", lineHeight: 1.7, color: C.onSurface }}>
                   <p style={{ marginBottom: "0.5rem" }}>
                     The personal data will be processed by the University of Mannheim to organize and conduct,
-                    including any directly related follow-up work for the ProVi research project.
+                    including any directly related follow-up work for the ProCon research project.
                   </p>
                   <p style={{ marginBottom: "0.5rem" }}>
                     The participation is not possible without the data.
