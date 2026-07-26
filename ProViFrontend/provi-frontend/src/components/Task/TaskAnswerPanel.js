@@ -226,7 +226,7 @@ function IdiomRatingModal({ submitting, onSubmit }) {
           fontSize: "1.05rem", fontWeight: 700, color: "#00305e",
           margin: "0 0 0.35rem 0", lineHeight: 1.4,
         }}>
-          Your impression of this visualization
+          Your perception of this idiom
         </h2>
         <p style={{ fontSize: "0.8rem", color: "#5a6061", margin: "0 0 1.5rem 0", lineHeight: 1.5 }}>
           Rate each statement from 1 (strongly disagree) to 7 (strongly agree).
