@@ -45,6 +45,7 @@ PARAM_SPEC = [
         "key":      "violated_activity",
         "label":    "Activity to highlight violations for (the worst-fitness trace where this activity is violated will be shown)",
         "hint":     "Worst-fitness trace among all traces that violate",
+        "hide_hint": True,
         "widget":   "select-one",
         "source":   "log.violated_activities_task34",
         "options":  [],
