@@ -341,7 +341,7 @@ export default function TaskExecutionPage() {
           </div>
         </nav>
 
-        <main style={{ flexGrow: 1, paddingTop: "5.5rem", paddingBottom: "2rem", paddingLeft: "1.5rem", paddingRight: "1.5rem", maxWidth: "1800px", margin: "0 auto", width: "100%" }}>
+        <main style={{ flexGrow: 1, paddingTop: "5.5rem", paddingBottom: "2rem", paddingLeft: "1.5rem", paddingRight: "1.5rem", maxWidth: "2400px", margin: "0 auto", width: "100%" }}>
           {showSkeleton ? (
             <LoadingSkeleton />
           ) : (loadError || taskGroups.length === 0) ? (
