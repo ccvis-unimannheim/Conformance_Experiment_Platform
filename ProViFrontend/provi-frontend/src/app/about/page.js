@@ -76,10 +76,10 @@ export default function About() {
               color: C.primary, letterSpacing: "-0.02em",
               marginBottom: "0.5rem", lineHeight: 1.2,
             }}>
-              About ProVi
+              About ProCon
             </h1>
             <p style={{ fontSize: "0.9375rem", color: C.onVariant, marginTop: "0.75rem" }}>
-              Process Visualization for Conformance Checking Research
+              Process Conformance Checking Visualizations Research
             </p>
           </header>
 
@@ -97,9 +97,10 @@ export default function About() {
               <section>
                 <h2 style={sectionHeadingStyle}>About the project</h2>
                 <p style={{ ...paragraphStyle, marginBottom: 0 }}>
-                  ProVi is a research project dedicated to the visualization of directly-follows graphs and
-                  related process mining artifacts. Its purpose is to study how interactive visual tools can
-                  support users in understanding, exploring, and reasoning about complex process behavior.
+                  ProCon is a research platform developed at the University of Mannheim to empirically evaluate
+                  how different visualization idioms support users in performing conformance checking tasks. It
+                  presents participants with conformance checking scenarios and measures how effectively each
+                  visualization supports task completion.
                 </p>
               </section>
 
@@ -109,10 +110,12 @@ export default function About() {
               <section>
                 <h2 style={sectionHeadingStyle}>Goals</h2>
                 <p style={{ ...paragraphStyle, marginBottom: 0 }}>
-                  The project aims to make process mining more accessible and understandable by designing
-                  interactive visualizations that lower the entry barrier for learners and practitioners alike.
-                  Through user studies conducted on this platform, we evaluate how different visual representations
-                  affect comprehension, accuracy, and confidence in conformance checking tasks.
+                  The project aims to identify which visualization idioms are most effective for specific
+                  conformance checking tasks. From quantifying overall conformance to localizing deviations and
+                  diagnosing their causes. Through controlled user studies conducted on this platform, we compare
+                  idioms across objective measures (accuracy and speed) and subjective measures (perceived
+                  usefulness and ease of use) to provide evidence-based guidance for visualization design in
+                  process mining.
                 </p>
               </section>
 

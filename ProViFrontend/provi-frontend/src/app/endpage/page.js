@@ -343,7 +343,7 @@ export default function EndPage() {
               Questions regarding your participation?
             </p>
             <a
-              href="mailto:impressum@uni-mannheim.de"
+              href="mailto:anyi.zhu@students.uni-mannheim.de"
               style={{
                 fontSize: "0.875rem", fontWeight: 600, color: C.primary,
                 textDecoration: "none",
@@ -351,7 +351,7 @@ export default function EndPage() {
               onMouseEnter={(e) => { e.currentTarget.style.textDecoration = "underline"; }}
               onMouseLeave={(e) => { e.currentTarget.style.textDecoration = "none"; }}
             >
-              impressum@uni-mannheim.de
+              anyi.zhu@students.uni-mannheim.de
             </a>
           </div>
 
