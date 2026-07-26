@@ -149,12 +149,63 @@ function TermsStrip({ taskKey, experimentId }) {
   );
 }
 
-// ── ConfidenceModal ─────────────────────────────────────────────────────────
-// Shown after the participant clicks "Submit & Next". They must rate how
-// confident they are (1 = least, 5 = most); selecting a score submits the
-// answer together with the rating and advances to the next task.
-function ConfidenceModal({ submitting, onSelect }) {
+// ── IdiomRatingModal ────────────────────────────────────────────────────────
+// Shown after the participant clicks "Submit & Next". They rate two statements
+// about the visualization idiom on a 1–7 scale (1 = strongly disagree,
+// 7 = strongly agree). Both must be rated before the answer is submitted
+// together with the ratings and the participant advances to the next task.
+const RATING_STATEMENTS = [
+  { key: "capabilities", label: "This idiom's capabilities meet my requirements" },
+  { key: "ease",         label: "This idiom is easy to use" },
+];
+
+function LikertRow({ value, onSelect, disabled }) {
   const [hovered, setHovered] = useState(null);
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "center", gap: "0.4rem", marginBottom: "0.5rem" }}>
+        {[1, 2, 3, 4, 5, 6, 7].map((n) => {
+          const active = value === n || hovered === n;
+          return (
+            <button
+              key={n}
+              type="button"
+              disabled={disabled}
+              onClick={() => onSelect(n)}
+              onMouseEnter={() => setHovered(n)}
+              onMouseLeave={() => setHovered(null)}
+              style={{
+                width: "2.5rem", height: "2.5rem",
+                borderRadius: "0.5rem",
+                border: value === n ? "2px solid #00305e" : active ? "2px solid #4a7ab5" : "2px solid #cbd5e1",
+                backgroundColor: value === n ? "#00305e" : active ? "#eef2f8" : "white",
+                color: value === n ? "white" : "#00305e",
+                fontSize: "1rem", fontWeight: 700,
+                cursor: disabled ? "not-allowed" : "pointer",
+                transition: "background-color 0.12s, border-color 0.12s, color 0.12s",
+              }}
+            >
+              {n}
+            </button>
+          );
+        })}
+      </div>
+      <div style={{
+        display: "flex", justifyContent: "space-between",
+        fontSize: "0.66rem", fontWeight: 600, color: "#9199a0",
+        textTransform: "uppercase", letterSpacing: "0.05em",
+        padding: "0 0.15rem",
+      }}>
+        <span>Strongly disagree</span>
+        <span>Strongly agree</span>
+      </div>
+    </div>
+  );
+}
+
+function IdiomRatingModal({ submitting, onSubmit }) {
+  const [ratings, setRatings] = useState({ capabilities: null, ease: null });
+  const allRated = RATING_STATEMENTS.every(({ key }) => ratings[key] != null);
 
   return (
     <div style={{
@@ -168,62 +219,58 @@ function ConfidenceModal({ submitting, onSelect }) {
         borderRadius: "0.9rem",
         boxShadow: "0 24px 60px rgba(45,52,53,0.35)",
         padding: "2rem 2.25rem",
-        width: "100%", maxWidth: "440px",
+        width: "100%", maxWidth: "480px",
         textAlign: "center",
       }}>
         <h2 style={{
           fontSize: "1.05rem", fontWeight: 700, color: "#00305e",
-          margin: "0 0 0.5rem 0", lineHeight: 1.4,
+          margin: "0 0 0.35rem 0", lineHeight: 1.4,
         }}>
-          How confident are you in your answer?
+          Your impression of this visualization
         </h2>
         <p style={{ fontSize: "0.8rem", color: "#5a6061", margin: "0 0 1.5rem 0", lineHeight: 1.5 }}>
-          Select a score from 1 (least confident) to 5 (most confident).
+          Rate each statement from 1 (strongly disagree) to 7 (strongly agree).
         </p>
 
-        <div style={{ display: "flex", justifyContent: "center", gap: "0.625rem", marginBottom: "0.75rem" }}>
-          {[1, 2, 3, 4, 5].map((n) => {
-            const active = hovered === n;
-            return (
-              <button
-                key={n}
-                type="button"
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+          {RATING_STATEMENTS.map(({ key, label }) => (
+            <div key={key}>
+              <p style={{
+                fontSize: "0.9rem", fontWeight: 600, color: "#2d3435",
+                margin: "0 0 0.75rem 0", lineHeight: 1.4,
+              }}>
+                {label}
+              </p>
+              <LikertRow
+                value={ratings[key]}
+                onSelect={(n) => setRatings((r) => ({ ...r, [key]: n }))}
                 disabled={submitting}
-                onClick={() => onSelect(n)}
-                onMouseEnter={() => setHovered(n)}
-                onMouseLeave={() => setHovered(null)}
-                style={{
-                  width: "3.25rem", height: "3.25rem",
-                  borderRadius: "0.6rem",
-                  border: active ? "2px solid #00305e" : "2px solid #cbd5e1",
-                  backgroundColor: active ? "#00305e" : "white",
-                  color: active ? "white" : "#00305e",
-                  fontSize: "1.15rem", fontWeight: 700,
-                  cursor: submitting ? "not-allowed" : "pointer",
-                  transition: "background-color 0.12s, border-color 0.12s, color 0.12s",
-                }}
-              >
-                {n}
-              </button>
-            );
-          })}
+              />
+            </div>
+          ))}
         </div>
 
-        <div style={{
-          display: "flex", justifyContent: "space-between",
-          fontSize: "0.68rem", fontWeight: 600, color: "#9199a0",
-          textTransform: "uppercase", letterSpacing: "0.06em",
-          padding: "0 0.25rem",
-        }}>
-          <span>Least confident</span>
-          <span>Most confident</span>
-        </div>
-
-        {submitting && (
-          <p style={{ fontSize: "0.8rem", color: "#5a6061", margin: "1.25rem 0 0 0" }}>
-            Saving…
-          </p>
-        )}
+        <button
+          type="button"
+          disabled={!allRated || submitting}
+          onClick={() => onSubmit(ratings)}
+          style={{
+            marginTop: "1.75rem",
+            width: "100%",
+            padding: "0.9rem",
+            backgroundColor: !allRated || submitting ? "#a9bdd4" : "#00305e",
+            color: "white",
+            border: "none",
+            borderRadius: "0.5rem",
+            fontWeight: 700,
+            fontSize: "0.875rem",
+            letterSpacing: "0.05em",
+            cursor: !allRated || submitting ? "not-allowed" : "pointer",
+            transition: "background-color 0.15s ease",
+          }}
+        >
+          {submitting ? "Saving…" : "Submit"}
+        </button>
       </div>
     </div>
   );
@@ -256,7 +303,7 @@ const TaskAnswerPanel = ({
 
   const startTimeRef = useRef(Date.now());
   // Response time is captured the moment the participant clicks "Submit & Next"
-  // (before they pick a confidence score), so rating time doesn't inflate it.
+  // (before they rate the idiom), so rating time doesn't inflate it.
   const pendingResponseTimeRef = useRef(0);
 
   const isLastTask = currentTaskIndex >= totalTasks - 1;
@@ -271,8 +318,8 @@ const TaskAnswerPanel = ({
     startTimeRef.current = Date.now();
   }, [currentTaskIndex, answerType]);
 
-  // Step 1: validate the answer and open the confidence prompt. The answer is
-  // not sent until a confidence score is chosen (see submitWithConfidence).
+  // Step 1: validate the answer and open the idiom-rating prompt. The answer is
+  // not sent until both statements are rated (see submitWithRatings).
   const handleSubmit = (e) => {
     e.preventDefault();
     if (submitting) return;
@@ -284,9 +331,9 @@ const TaskAnswerPanel = ({
     setShowConfidence(true);
   };
 
-  // Step 2: the participant picked a confidence score → submit answer + rating,
+  // Step 2: the participant rated both statements → submit answer + ratings,
   // then advance to the next task (or the end page on the last task).
-  const submitWithConfidence = async (confidence) => {
+  const submitWithRatings = async ({ capabilities, ease }) => {
     if (submitting) return;
     setSubmitting(true);
     const response_time_ms = pendingResponseTimeRef.current;
@@ -301,7 +348,8 @@ const TaskAnswerPanel = ({
       presentation_order: presentationOrder,
       answer: serializeAnswer(answerType, answer),
       response_time_ms: response_time_ms,
-      confidence: confidence,
+      capabilities_meet_requirements: capabilities,
+      easy_to_use: ease,
       insert_datetime: new Date().toISOString(),
     };
 
@@ -313,7 +361,7 @@ const TaskAnswerPanel = ({
         body: JSON.stringify(payload),
       });
       if (!response.ok) console.error(`Submit failed: ${response.status}`);
-      else console.log(`Answer saved for task ${taskId}, response_time_ms: ${response_time_ms}, confidence: ${confidence}`);
+      else console.log(`Answer saved for task ${taskId}, response_time_ms: ${response_time_ms}, capabilities: ${capabilities}, ease: ${ease}`);
     } catch (error) {
       console.warn("Backend unreachable — continuing:", error.message);
     } finally {
@@ -539,7 +587,7 @@ const TaskAnswerPanel = ({
       </div>
 
       {showConfidence && (
-        <ConfidenceModal submitting={submitting} onSelect={submitWithConfidence} />
+        <IdiomRatingModal submitting={submitting} onSubmit={submitWithRatings} />
       )}
     </aside>
   );

@@ -108,7 +108,8 @@ class AnswerFromFrontend(BaseModel):
     presentation_order: int
     answer: str
     response_time_ms: int
-    confidence: Optional[int] = None
+    capabilities_meet_requirements: Optional[int] = None
+    easy_to_use: Optional[int] = None
 
 class AnswerForDatabase(BaseModel):
     user_id: str
@@ -124,7 +125,8 @@ class AnswerForDatabase(BaseModel):
     answer: str
     is_correct: Optional[bool] = None
     response_time_ms: int
-    confidence: Optional[int] = None
+    capabilities_meet_requirements: Optional[int] = None
+    easy_to_use: Optional[int] = None
     insert_datetime: str
 
 class UILogging(BaseModel):

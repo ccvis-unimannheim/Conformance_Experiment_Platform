@@ -438,6 +438,12 @@ async def download_experiment_answers(experiment_id: str):
         if "insert_datetime" in df_answers.columns:
             df_answers = df_answers.rename(columns={"insert_datetime": "completion_time"})
 
+        # Post-task idiom ratings (1–7 Likert; higher = stronger agreement)
+        df_answers = df_answers.rename(columns={
+            "capabilities_meet_requirements": "capabilities_meet_requirements (1-7)",
+            "easy_to_use": "easy_to_use (1-7)",
+        })
+
     # ── Sheet 3: end-page survey ratings ──────────────────────────────────
     RATING_KEYS = [
         ("priorKnowledge", "Prior Knowledge"),
