@@ -134,6 +134,7 @@ const TaskVisualizationPanel = ({ svgUrl, taskNumber = 1, loadingSvg = false }) 
                         alt={`Task ${taskNumber} visualization`}
                         onError={() => setImgError(true)}
                         style={{
+                          width: "100%", height: "100%",
                           maxWidth: "100%", maxHeight: "calc(100vh - 12rem)",
                           objectFit: "contain",
                           cursor: "crosshair",
