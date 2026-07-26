@@ -52,6 +52,7 @@ PARAM_SPEC = [
         "key": "outcome_activity",
         "label": "Process goal activity (present in trace = goal achieved)",
         "hint": "A trace reaches the process goal when it contains this activity",
+        "hide_hint": True,
         "widget": "activity-picker",
         "source": "log.activities",
         "default": "",
@@ -62,6 +63,7 @@ PARAM_SPEC = [
         "label": "Violation pattern(s) to include",
         "hint": "Every idiom renders exactly this set of (activity, violation type) patterns — "
                 "select as many or as few as should be shown",
+        "hide_hint": True,
         "widget": "select-many",
         "source": "log.violations",
         "required": True,

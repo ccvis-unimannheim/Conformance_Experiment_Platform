@@ -38,6 +38,7 @@ PARAM_SPEC = [
         "key": "conformant_threshold",
         "label": "Conformance threshold (traces with fitness ≥ this value are Conformant)",
         "hint": "A trace is counted as 'Conformant' when its fitness is at least this value",
+        "hide_hint": True,
         "widget": "threshold",
         "default": 1.0,
         "required": False,

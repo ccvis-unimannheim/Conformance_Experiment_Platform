@@ -27,41 +27,45 @@ const LIKERT_BG     = "#e8eef5";
 // NASA-TLX also wording: "the task" -> "the tasks", since this is asked once
 // at the end covering the whole multi-task session) are deliberate and should
 // be reported as "adapted from" the source in the methods write-up.
-const QUESTIONS = [
-  {
-    key:    "mentalDemand",
-    label:  "1. How mentally demanding were the tasks?",
-    labels: ["Very low", "Low", "Somewhat low", "Moderate", "Somewhat high", "High", "Very high"],
-  },
-  {
-    key:    "physicalDemand",
-    label:  "2. How physically demanding were the tasks?",
-    labels: ["Very low", "Low", "Somewhat low", "Moderate", "Somewhat high", "High", "Very high"],
-  },
-  {
-    key:    "temporalDemand",
-    label:  "3. How hurried or rushed was the pace of the tasks?",
-    labels: ["Very low", "Low", "Somewhat low", "Moderate", "Somewhat high", "High", "Very high"],
-  },
-  {
-    // NASA-TLX defines Performance in the opposite direction from the other
-    // five subscales (1 = good, not 1 = low) - kept faithful to the source
-    // rather than flipped, since each item shows its own anchor labels.
-    key:    "performance",
-    label:  "4. How successful were you in accomplishing what you were asked to do?",
-    labels: ["Very good", "Good", "Somewhat good", "Moderate", "Somewhat bad", "Bad", "Very bad"],
-  },
-  {
-    key:    "effort",
-    label:  "5. How hard did you have to work to accomplish your level of performance?",
-    labels: ["Very low", "Low", "Somewhat low", "Moderate", "Somewhat high", "High", "Very high"],
-  },
-  {
-    key:    "frustration",
-    label:  "6. How insecure, discouraged, irritated, stressed, and annoyed were you?",
-    labels: ["Very low", "Low", "Somewhat low", "Moderate", "Somewhat high", "High", "Very high"],
-  },
-];
+// NASA-TLX Likert questions (1–6) temporarily removed from the end page.
+// Kept here so they can be restored: move the definitions back into QUESTIONS
+// and un-comment the survey render block in the JSX below.
+// const QUESTIONS = [
+//   {
+//     key:    "mentalDemand",
+//     label:  "1. How mentally demanding were the tasks?",
+//     labels: ["Very low", "Low", "Somewhat low", "Moderate", "Somewhat high", "High", "Very high"],
+//   },
+//   {
+//     key:    "physicalDemand",
+//     label:  "2. How physically demanding were the tasks?",
+//     labels: ["Very low", "Low", "Somewhat low", "Moderate", "Somewhat high", "High", "Very high"],
+//   },
+//   {
+//     key:    "temporalDemand",
+//     label:  "3. How hurried or rushed was the pace of the tasks?",
+//     labels: ["Very low", "Low", "Somewhat low", "Moderate", "Somewhat high", "High", "Very high"],
+//   },
+//   {
+//     // NASA-TLX defines Performance in the opposite direction from the other
+//     // five subscales (1 = good, not 1 = low) - kept faithful to the source
+//     // rather than flipped, since each item shows its own anchor labels.
+//     key:    "performance",
+//     label:  "4. How successful were you in accomplishing what you were asked to do?",
+//     labels: ["Very good", "Good", "Somewhat good", "Moderate", "Somewhat bad", "Bad", "Very bad"],
+//   },
+//   {
+//     key:    "effort",
+//     label:  "5. How hard did you have to work to accomplish your level of performance?",
+//     labels: ["Very low", "Low", "Somewhat low", "Moderate", "Somewhat high", "High", "Very high"],
+//   },
+//   {
+//     key:    "frustration",
+//     label:  "6. How insecure, discouraged, irritated, stressed, and annoyed were you?",
+//     labels: ["Very low", "Low", "Somewhat low", "Moderate", "Somewhat high", "High", "Very high"],
+//   },
+// ];
+const QUESTIONS = [];
 
 function LikertQuestion({ question, value, onChange }) {
   return (
@@ -228,7 +232,9 @@ export default function EndPage() {
             Your participation is now complete. Your responses have been saved and will contribute to our research.
           </p>
 
-          {/* ── Survey section */}
+          {/* ── Survey section (NASA-TLX questions 1–6) temporarily removed.
+               Restore by re-populating QUESTIONS above and un-commenting the
+               block below.
           <div style={{ width: "100%", marginBottom: "0.5rem" }}>
             <p style={{
               fontSize: "0.6875rem", fontWeight: 700, textTransform: "uppercase",
@@ -247,6 +253,7 @@ export default function EndPage() {
               />
             ))}
           </div>
+          */}
 
           {/* Feedback textarea */}
           <div style={{ width: "100%", marginBottom: "2rem", textAlign: "center" }}>
