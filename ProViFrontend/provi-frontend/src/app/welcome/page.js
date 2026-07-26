@@ -151,7 +151,7 @@ export default function WelcomePage() {
                 <p className="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2 font-bold">
                   Research Team
                 </p>
-                <ul className="text-xs text-on-surface-variant leading-relaxed inline-block text-left list-disc pl-4">
+                <ul className="text-xs text-on-surface-variant leading-relaxed list-none p-0">
                   <li>Anyi Zhu, University of Mannheim</li>
                   <li>Henri Clausnitzer, University of Mannheim</li>
                   <li>Shiqi Zhou, University of Mannheim</li>
