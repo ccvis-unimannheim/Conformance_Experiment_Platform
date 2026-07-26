@@ -328,9 +328,11 @@ async def get_answers_from_db():
 
 @router.get("/experiments/{experiment_id}/answers/download", tags=["admin"])
 async def download_experiment_answers(experiment_id: str):
-    """Download experiment data as an Excel file with two sheets:
+    """Download experiment data as an Excel file with four sheets:
     Sheet 1 - Participant background (prequestionnaire + knowledge survey)
     Sheet 2 - Task answers
+    Sheet 3 - End-page survey ratings
+    Sheet 4 - Blind review (_id, task_name, answer only — for blind scoring)
     """
     import pandas as pd
 
@@ -468,12 +470,26 @@ async def download_experiment_answers(experiment_id: str):
         survey_rows.append(row)
     df_survey = pd.DataFrame(survey_rows) if survey_rows else pd.DataFrame()
 
+    # ── Sheet 4: blind review ─────────────────────────────────────────────
+    # Minimal columns only, so answers can be scored without revealing the
+    # participant, idiom, or ground truth. _id keys each row back to the
+    # Task Answers sheet.
+    BLIND_COLS = ["_id", "task_name", "answer"]
+    if not df_answers.empty:
+        df_blind = df_answers.reindex(columns=BLIND_COLS).copy()
+        df_blind["_id"] = df_blind["_id"].astype(str)
+        # Shuffle rows so adjacency can't leak the participant/idiom grouping.
+        df_blind = df_blind.sample(frac=1).reset_index(drop=True)
+    else:
+        df_blind = pd.DataFrame(columns=BLIND_COLS)
+
     # ── Write to Excel ─────────────────────────────────────────────────────
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         df_background.to_excel(writer, sheet_name="Participant Background", index=False)
         df_answers.to_excel(writer, sheet_name="Task Answers", index=False)
         df_survey.to_excel(writer, sheet_name="End Survey", index=False)
+        df_blind.to_excel(writer, sheet_name="Blind Review", index=False)
     output.seek(0)
 
     response = StreamingResponse(
