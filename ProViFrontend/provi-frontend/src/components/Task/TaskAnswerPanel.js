@@ -155,8 +155,8 @@ function TermsStrip({ taskKey, experimentId }) {
 // 7 = strongly agree). Both must be rated before the answer is submitted
 // together with the ratings and the participant advances to the next task.
 const RATING_STATEMENTS = [
-  { key: "capabilities", label: "This idiom's capabilities meet my requirements" },
-  { key: "ease",         label: "This idiom is easy to use" },
+  { key: "capabilities", label: "This visualisation gave me the information I needed to solve the task" },
+  { key: "ease",         label: "This visualisation was easy to use" },
 ];
 
 function LikertRow({ value, onSelect, disabled }) {
@@ -226,7 +226,7 @@ function IdiomRatingModal({ submitting, onSubmit }) {
           fontSize: "1.05rem", fontWeight: 700, color: "#00305e",
           margin: "0 0 0.35rem 0", lineHeight: 1.4,
         }}>
-          Your perception of this idiom
+          Your perception of this visualisation
         </h2>
         <p style={{ fontSize: "0.8rem", color: "#5a6061", margin: "0 0 1.5rem 0", lineHeight: 1.5 }}>
           Rate each statement from 1 (strongly disagree) to 7 (strongly agree).
