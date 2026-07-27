@@ -1447,7 +1447,7 @@ _BPMN_NS = {
 }
 
 
-def parse_bpmn_model(model_path: str) -> dict:
+def parse_bpmn_model(model_path: str, node_scale: float = 1.0) -> dict:
     """Parse a BPMN file into geometry usable by the annotated renderer.
 
     Returns dict with: elements, sequence_flows, shapes, edge_pts, name_to_ids.
@@ -1552,8 +1552,12 @@ def parse_bpmn_model(model_path: str) -> dict:
         if not elem or elem["kind"] != "task":
             continue
         name = elem["name"]
+        # node_scale (>1) raises the task-box HEIGHT floor so a larger node font
+        # fits without cramming. Width is left alone: the DI fixes the horizontal
+        # positions, so widening boxes would make neighbours collide. Default 1.0
+        # leaves every other BPMN idiom as-is.
         mw = min(max(b["width"], 90.0, 28.0 + len(name) * 4.6), 138.0)
-        mh = max(b["height"], 46.0)
+        mh = max(b["height"], 46.0 * node_scale)
         if mw > b["width"]:
             cx, _ = _nc(b); b["x"] = cx - mw / 2.0; b["width"] = mw
         if mh > b["height"]:
