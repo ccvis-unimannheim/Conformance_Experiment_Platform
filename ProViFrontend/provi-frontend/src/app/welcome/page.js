@@ -149,8 +149,8 @@ export default function WelcomePage() {
                   Research Team
                 </p>
                 <p className="text-xs text-on-surface-variant leading-relaxed">
-                  This study is conducted by: Ayni Zhu, Henri Clausnitzer, Shiqi Zhou, Tayyaba Zafar,
-                  Zihan Zhang, Marie-Christin Häge, Dr. Michael Grohs — University of Mannheim
+                  This study is conducted by: Anyi Zhu, Henri Clausnitzer, Shiqi Zhou, Tayyaba Zafar,
+                  Zihan Zhang — University of Mannheim
                 </p>
               </footer>
 

@@ -218,7 +218,23 @@ export default function ConformanceTermsPage() {
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
 
-              {/* ── 2. Case */}
+              {/* ── 2. Event */}
+              <section>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
+                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>bolt</span>
+                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
+                    Event
+                  </h2>
+                </div>
+                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
+                  An <strong>event</strong> is a single recorded occurrence in the process, indicating (1) at
+                  what point in time, (2) which activity was executed, and (3) for which case.
+                </p>
+              </section>
+
+              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+
+              {/* ── 3. Case */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>assignment</span>
@@ -235,7 +251,7 @@ export default function ConformanceTermsPage() {
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
 
-              {/* ── 3. Trace */}
+              {/* ── 4. Trace */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>linear_scale</span>
@@ -247,22 +263,6 @@ export default function ConformanceTermsPage() {
                   A <strong>trace</strong> is a recorded representation of a case of the process — i.e. all events
                   in the event log that share the same case identifier. Each trace can be compared against the
                   guideline to assess whether it was executed correctly.
-                </p>
-              </section>
-
-              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
-
-              {/* ── 4. Event */}
-              <section>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
-                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>bolt</span>
-                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
-                    Event
-                  </h2>
-                </div>
-                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
-                  An <strong>event</strong> is a single recorded occurrence in the process, indicating (1) at
-                  what point in time, (2) which activity was executed, and (3) for which case.
                 </p>
               </section>
 
@@ -370,8 +370,8 @@ export default function ConformanceTermsPage() {
                   A <strong>guideline</strong> is the technology-agnostic expression of a process model, where a
                   process model serves as an abstract representation of the process for specific modelling goals
                   and describes the allowed execution sequences for different process cases. In this study, we
-                  represent multiple guidelines collectively in an imperative process model as a
-                  <strong> BPMN</strong> (Business Process Model and Notation) diagram — the order-to-cash
+                  represent multiple guidelines collectively in an imperative process model as a{" "}
+                  <strong>BPMN</strong>{" "}(Business Process Model and Notation) diagram — the order-to-cash
                   diagram shown at the top of this page. &ldquo;Guideline&rdquo; and &ldquo;process
                   model&rdquo; therefore refer to the same underlying reference behaviour and are used
                   interchangeably throughout.

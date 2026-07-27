@@ -238,7 +238,7 @@ CANONICAL_KNOWLEDGE_QUESTIONS = [
         "text": "1. What is the primary purpose of conformance checking in process mining?",
         "options": [
             "To predict future process behavior based on historical data",
-            "To compare observed process behavior in an event log against a reference process model",
+            "To compare observed process behavior in an event log against a process model",
             "To automatically optimize the execution speed of a business process",
             "To design new process models from scratch based on best practices",
             "I don't know",
@@ -295,7 +295,7 @@ CANONICAL_KNOWLEDGE_QUESTIONS = [
         "text": "4. Which of the following best describes what fitness measures in conformance checking?",
         "options": [
             "The proportion of behavior allowed by the model that actually occurs in the log",
-            "The degree to which the event log behavior can be replayed by the process model",
+            "The degree to which the event log behavior conforms to the process model",
             "The number of distinct violation types found in an event log",
             "The average execution time of all traces compared to the model's expected duration",
             "I don't know",
@@ -324,11 +324,12 @@ CANONICAL_KNOWLEDGE_QUESTIONS = [
     {
         "kq_key": "kq06",
         "section_title": "Domain 2: Conformance Checking Core Concepts",
-        "text": "6. A process log contains 200 traces. 150 traces fully comply with the process model, and 50 contain at least one violation. What is the approximate conformance rate of this log?",
+        "text": "6. When does a trace perfectly conform to a process model?",
         "options": [
-            "25%",
-            "50%",
-            "75%",
+            "When every activity of the trace appears somewhere in the model",
+            "When the trace contains the same number of events as the model has activities",
+            "When the trace can be executed by the model from start to end without any deviation",
+            "When the trace is the most frequent variant in the event log",
             "I don't know",
         ],
         "include_idk": True,
