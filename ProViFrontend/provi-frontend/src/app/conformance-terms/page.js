@@ -201,99 +201,38 @@ export default function ConformanceTermsPage() {
           }}>
             <div style={{ padding: "2.5rem 3rem", display: "flex", flexDirection: "column", gap: "1.75rem" }}>
 
-              {/* ── 1. Process */}
-              <section>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
-                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>hub</span>
-                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
-                    Process
-                  </h2>
-                </div>
-                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
-                  A <strong>process</strong> is a set of activities that are executed in a coordinated manner to
-                  achieve a certain goal — for example, order-to-cash, the process used throughout this study
-                  (shown at the top of this page).
-                </p>
-              </section>
-
-              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
-
-              {/* ── 2. Event */}
-              <section>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
-                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>bolt</span>
-                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
-                    Event
-                  </h2>
-                </div>
-                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
-                  An <strong>event</strong> is a single recorded occurrence in the process, indicating (1) at
-                  what point in time, (2) which activity was executed, and (3) for which case.
-                </p>
-              </section>
-
-              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
-
-              {/* ── 3. Case */}
-              <section>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
-                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>assignment</span>
-                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
-                    Case
-                  </h2>
-                </div>
-                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
-                  A <strong>case</strong> represents an instance of the process, defined by all activity
-                  executions that relate to one specific trigger or input to the system whose behaviour is
-                  described by the process — for example, one customer order.
-                </p>
-              </section>
-
-              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
-
-              {/* ── 4. Trace */}
-              <section>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
-                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>linear_scale</span>
-                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
-                    Trace
-                  </h2>
-                </div>
-                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
-                  A <strong>trace</strong> is a recorded representation of a case of the process — i.e. all events
-                  in the event log that share the same case identifier. Each trace can be compared against the
-                  guideline to assess whether it was executed correctly.
-                </p>
-                <Collapsible label="See an example trace">
-                  <div style={{
-                    fontFamily: "monospace", fontSize: "0.9375rem", color: C.onSurface,
-                    backgroundColor: C.containerLow, borderRadius: "0.375rem",
-                    padding: "0.75rem 1rem",
-                  }}>
-                    ⟨ Receive Order, Check Credit, Confirm Order, Cancel Order ⟩
-                  </div>
-                  <p style={{ fontSize: "0.8125rem", color: C.onVariant, marginTop: "0.75rem", lineHeight: 1.6 }}>
-                    Read from left to right: this is the order in which the activities were executed —
-                    Receive Order happened first, Cancel Order last.
-                  </p>
-                </Collapsible>
-              </section>
-
-              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
-
-              {/* ── 5. Event Log */}
+              {/* ── 1. Process, Case, Event, Trace & Event Log */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>table_rows</span>
                   <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
-                    Event Log
+                    Process, Case, Event, Trace &amp; Event Log
                   </h2>
                 </div>
                 <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: "0 0 1rem" }}>
-                  An <strong>event log</strong> is a collection of events. Events that share the same case
-                  identifier form a <strong>trace</strong>, representing one complete process execution from
-                  start to finish.
+                  Five nested concepts describe how this study&apos;s data is structured, from the overall
+                  process down to individual recorded events:
                 </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                  {[
+                    ["hub",        "#15803d", "#f0fdf4", "#bbf7d0", "Process",    "A set of activities executed in a coordinated manner to achieve a goal — e.g. order-to-cash, shown at the top of this page."],
+                    ["assignment", "#1d4ed8", "#eff6ff", "#bfdbfe", "Case",       "An instance of the process — e.g. one customer order."],
+                    ["bolt",       "#7c3aed", "#f5f3ff", "#ddd6fe", "Event",      "A single recorded occurrence, indicating the time, the activity, and the case it belongs to."],
+                    ["linear_scale","#b45309", "#fffbeb", "#fde68a", "Trace",     "The recorded representation of a case — i.e. all events sharing the same case identifier."],
+                    ["table_rows", "#0f766e", "#f0fdfa", "#99f6e4", "Event Log",  "A collection of events. Events sharing a case identifier form a trace."],
+                  ].map(([icon, color, bg, border, label, desc]) => (
+                    <div key={label} style={{
+                      display: "flex", alignItems: "flex-start", gap: "0.875rem",
+                      padding: "0.875rem 1rem", backgroundColor: bg,
+                      border: `1px solid ${border}`, borderRadius: "0.5rem",
+                    }}>
+                      <span className="material-symbols-outlined" style={{ color, fontSize: "1.1rem", flexShrink: 0, marginTop: "0.15rem" }}>{icon}</span>
+                      <p style={{ margin: 0, fontSize: "0.875rem", color: C.onSurface, lineHeight: 1.7 }}>
+                        <strong>{label}:</strong> {desc}
+                      </p>
+                    </div>
+                  ))}
+                </div>
                 <Collapsible label="See an example event log">
                   <div style={{ overflowX: "auto" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem", color: C.onSurface }}>
@@ -335,7 +274,7 @@ export default function ConformanceTermsPage() {
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
 
-              {/* ── 6. Attribute */}
+              {/* ── 2. Attribute */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>tune</span>
@@ -371,7 +310,7 @@ export default function ConformanceTermsPage() {
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
 
-              {/* ── 7. Guideline */}
+              {/* ── 3. Guideline */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>account_tree</span>
@@ -393,82 +332,97 @@ export default function ConformanceTermsPage() {
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
 
-              {/* ── 8. Alignment */}
+              {/* ── 4. Alignment & Move Types */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>compare_arrows</span>
                   <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
-                    Alignment
+                    Alignment &amp; Move Types
                   </h2>
                 </div>
-                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
+                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: "0 0 1rem" }}>
                   An <strong>alignment</strong> relates the events recorded in a trace to the activities
-                  expected by the process model. For example, aligning the trace ⟨Receive Order, Check Credit,
-                  Cancel Order⟩ against a guideline requiring ⟨Receive Order, Check Credit, Confirm Order⟩
-                  matches Receive Order and Check Credit, but finds Confirm Order missing. If the trace instead
-                  contained an unexpected activity at that point, such as Escalate Case, this would be recorded
-                  as a different kind of step. These three kinds of steps — log move, model move, and
-                  synchronous move — are defined below.
+                  expected by the process model, step by step. Where the trace and the model agree at a step,
+                  that step is a match; where they disagree, the step is recorded as one of two kinds of
+                  deviation. The example below aligns the trace ⟨Receive Order, Check Credit, Escalate
+                  Case⟩ against the guideline, which at this point expects ⟨Receive Order, Check Credit,
+                  Confirm Order⟩:
                 </p>
-              </section>
-
-              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
-
-              {/* ── 9. Log Move */}
-              <section>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
-                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>add_circle</span>
-                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
-                    Log Move
-                  </h2>
+                <div style={{ overflowX: "auto", marginBottom: "1rem" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem", color: C.onSurface }}>
+                    <thead>
+                      <tr style={{ backgroundColor: C.containerLow }}>
+                        <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600, borderBottom: `1px solid ${C.containerHigh}` }}>Step</th>
+                        <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600, borderBottom: `1px solid ${C.containerHigh}` }}>1</th>
+                        <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600, borderBottom: `1px solid ${C.containerHigh}` }}>2</th>
+                        <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600, borderBottom: `1px solid ${C.containerHigh}` }}>3</th>
+                        <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600, borderBottom: `1px solid ${C.containerHigh}` }}>4</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td style={{ padding: "0.5rem 0.75rem", fontWeight: 600, color: C.onVariant }}>Trace</td>
+                        <td style={{ padding: "0.5rem 0.75rem" }}>Receive Order</td>
+                        <td style={{ padding: "0.5rem 0.75rem" }}>Check Credit</td>
+                        <td style={{ padding: "0.5rem 0.75rem", color: C.outlineVar }}>—</td>
+                        <td style={{ padding: "0.5rem 0.75rem" }}>Escalate Case</td>
+                      </tr>
+                      <tr>
+                        <td style={{ padding: "0.5rem 0.75rem", fontWeight: 600, color: C.onVariant }}>Model</td>
+                        <td style={{ padding: "0.5rem 0.75rem" }}>Receive Order</td>
+                        <td style={{ padding: "0.5rem 0.75rem" }}>Check Credit</td>
+                        <td style={{ padding: "0.5rem 0.75rem" }}>Confirm Order</td>
+                        <td style={{ padding: "0.5rem 0.75rem", color: C.outlineVar }}>—</td>
+                      </tr>
+                      <tr>
+                        <td style={{ padding: "0.5rem 0.75rem", fontWeight: 600, color: C.onVariant, borderTop: `1px solid ${C.containerHigh}` }}>Step type</td>
+                        {[
+                          ["Synchronous", "#15803d", "#f0fdf4"],
+                          ["Synchronous", "#15803d", "#f0fdf4"],
+                          ["Model move", "#d97706", "#fffbeb"],
+                          ["Log move",   "#dc2626", "#fef2f2"],
+                        ].map(([label, color, bg], i) => (
+                          <td key={i} style={{ padding: "0.5rem 0.75rem", borderTop: `1px solid ${C.containerHigh}` }}>
+                            <span style={{
+                              display: "inline-block", padding: "0.15rem 0.5rem", borderRadius: "999px",
+                              backgroundColor: bg, color, fontSize: "0.75rem", fontWeight: 700,
+                            }}>
+                              {label}
+                            </span>
+                          </td>
+                        ))}
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
-                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
-                  When an event in the trace indicates that an activity has been executed even though it should
-                  not have been executed according to the model, the alignment contains a <strong>log move</strong>.
-                  As the counterpart of a model move, a log move represents a deviation in the sense of a
-                  superfluous execution of an activity.
+                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: "0 0 1rem" }}>
+                  Steps 1–2 match, so they are synchronous moves. At step 3 the model expects Confirm Order but
+                  the trace has no matching event, so it is a model move (skipped). At step 4 the trace contains
+                  Escalate Case, which the model does not expect at that point, so it is a log move (unexpected).
                 </p>
-              </section>
-
-              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
-
-              {/* ── 10. Model Move */}
-              <section>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
-                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>remove_circle</span>
-                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
-                    Model Move
-                  </h2>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                  {[
+                    ["check_circle",  "#15803d", "#f0fdf4", "#bbf7d0", "Synchronous move", "The trace event and the model activity match — the expected, conformant step."],
+                    ["remove_circle", "#d97706", "#fffbeb", "#fde68a", "Model move",        "The model expected an activity but the trace has no matching event — it was skipped."],
+                    ["add_circle",    "#dc2626", "#fef2f2", "#fecaca", "Log move",          "The trace contains an activity the model did not expect at that point — a superfluous execution."],
+                  ].map(([icon, color, bg, border, label, desc]) => (
+                    <div key={label} style={{
+                      display: "flex", alignItems: "flex-start", gap: "0.875rem",
+                      padding: "0.875rem 1rem", backgroundColor: bg,
+                      border: `1px solid ${border}`, borderRadius: "0.5rem",
+                    }}>
+                      <span className="material-symbols-outlined" style={{ color, fontSize: "1.1rem", flexShrink: 0, marginTop: "0.15rem" }}>{icon}</span>
+                      <p style={{ margin: 0, fontSize: "0.875rem", color: C.onSurface, lineHeight: 1.7 }}>
+                        <strong>{label}:</strong> {desc}
+                      </p>
+                    </div>
+                  ))}
                 </div>
-                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
-                  When an activity should have been executed according to the model but there is no related event
-                  in the trace, we refer to this situation as a <strong>model move</strong>. The move represents a
-                  deviation between the trace and the execution sequence of the model in the sense that the
-                  execution of an activity has been skipped.
-                </p>
               </section>
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
 
-              {/* ── 11. Synchronous Move */}
-              <section>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
-                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>check_circle</span>
-                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
-                    Synchronous Move
-                  </h2>
-                </div>
-                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
-                  A <strong>synchronous move</strong> is a step in which the event of the trace and the task in
-                  the execution sequence correspond to each other, i.e., both refer to the same activity.
-                  Synchronous moves denote the expected situation in which the recorded events in the trace are
-                  in line with the tasks of an execution sequence of the process model.
-                </p>
-              </section>
-
-              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
-
-              {/* ── 12. Guideline Violation */}
+              {/* ── 5. Guideline Violation */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>warning</span>
@@ -488,7 +442,7 @@ export default function ConformanceTermsPage() {
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
 
-              {/* ── 13. Conformant / Nonconformant Traces */}
+              {/* ── 6. Conformant / Nonconformant Traces */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>route</span>
@@ -528,7 +482,7 @@ export default function ConformanceTermsPage() {
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
 
-              {/* ── 14. Degree of Conformance / Fitness */}
+              {/* ── 7. Degree of Conformance / Fitness */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>speed</span>
@@ -627,7 +581,7 @@ export default function ConformanceTermsPage() {
               </button>
               <button
                 type="button"
-                onClick={() => router.push("/taskexecution")}
+                onClick={() => router.push("/taskintro")}
                 style={{
                   padding: "0.75rem 2.5rem", borderRadius: "0.5rem", border: "none",
                   backgroundColor: C.primary, color: C.white,
@@ -640,7 +594,7 @@ export default function ConformanceTermsPage() {
                 onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = C.primaryDim; }}
                 onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = C.primary; }}
               >
-                Begin the Experiment
+                Continue
                 <span className="material-symbols-outlined" style={{ fontSize: "1.1rem" }}>arrow_forward</span>
               </button>
             </div>
