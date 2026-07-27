@@ -203,6 +203,29 @@ def auto_col_widths(col_labels, cell_text, header_weight: float = 1.15,
 SKIP_ALIGNMENT_TOKENS = {">>", None}
 
 
+def trace_activities(trace) -> list:
+    """Ordered activity names as recorded in the event log for one pm4py trace.
+
+    This is the raw recorded sequence (not derived from the alignment), so it's
+    the authoritative "given trace" shown to participants — e.g. Task 34 / Task 4.
+    """
+    return [str(ev["concept:name"]) for ev in trace if ev.get("concept:name")]
+
+
+def write_traces_sidecar(output_dir: str, traces: list):
+    """Write traces.json = {"traces": [{"label", "activities"}, ...]} into output_dir.
+
+    Lets the frontend show the exact recorded trace(s) a task's SVGs were drawn
+    from, alongside the question (ProViFrontend TaskAnswerPanel "Given trace(s)"
+    box). Must be called with the SAME trace(s)/order the SVGs render, since the
+    two are shown together and must not desync.
+    """
+    import json
+    path = os.path.join(output_dir, "traces.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump({"traces": traces}, f, ensure_ascii=False)
+
+
 def _extract_alignment_label(value):
     """Pull activity label from PM4Py alignment tuple side."""
     if isinstance(value, (list, tuple)):

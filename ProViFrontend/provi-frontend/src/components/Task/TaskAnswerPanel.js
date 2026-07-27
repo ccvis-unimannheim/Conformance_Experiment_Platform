@@ -293,6 +293,7 @@ const TaskAnswerPanel = ({
   currentTaskIndex = 0,
   onAnswerSubmit,
   paramHints = [],
+  displayTraces = [],
 }) => {
   const router = useRouter();
   const [answer, setAnswer] = useState(() => initialAnswer(answerType, options));
@@ -477,6 +478,36 @@ const TaskAnswerPanel = ({
                   borderLeft: "3px solid #00305e",
                 }}>
                   {taskDesc}
+                </div>
+              )}
+
+              {/* Given trace(s) — the exact recorded sequence(s) the visualization was
+                  drawn from, shown right under the question so participants can read
+                  the trace(s) as text (e.g. Task 34's representative trace, Task 4's
+                  two compared traces) alongside the chart. */}
+              {displayTraces.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "1rem" }}>
+                  {displayTraces.map((trace, i) => (
+                    <div key={i} style={{
+                      background: "#f8f9fa",
+                      border: "1px solid #eef0f0",
+                      borderRadius: "0.5rem",
+                      padding: "0.625rem 0.75rem",
+                    }}>
+                      <span style={{
+                        fontSize: "0.62rem", fontWeight: 700, textTransform: "uppercase",
+                        letterSpacing: "0.1em", color: "#5a6061",
+                      }}>
+                        {displayTraces.length > 1 ? `Given Trace — ${trace.label}` : "Given Trace"}
+                      </span>
+                      <div style={{
+                        fontFamily: "monospace", fontSize: "0.8rem", color: "#2d3435",
+                        lineHeight: 1.6, marginTop: "0.25rem", wordBreak: "break-word",
+                      }}>
+                        ⟨ {trace.activities.join(", ")} ⟩
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
 

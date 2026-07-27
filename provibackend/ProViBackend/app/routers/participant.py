@@ -1,3 +1,5 @@
+import json
+import logging
 import random
 
 from typing import Annotated
@@ -14,6 +16,8 @@ from ProViBackend.utils.database.assignment import (
     get_assignment,
     parse_trial_token,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/participant")
 
@@ -168,6 +172,34 @@ def _resolve_svg_path(task_id: str, idiom_id: str, dataset_id: str, experiment_i
 
     legacy_path = output_dir / task_key / f"{idiom_key}.svg"
     return legacy_path, None
+
+
+def _resolve_traces_path(task_key: str, dataset_id: str, experiment_id: str | None = None):
+    """Resolve to this task's traces.json (shared by every idiom of the task —
+    written once per generate() call, alongside the SVGs). Mirrors
+    _resolve_svg_path's per-experiment / legacy fallback, minus the idiom_key.
+    """
+    output_dir = config.BASE_DIRECTORY / "data" / dataset_id / "output"
+    if experiment_id:
+        per_experiment_path = output_dir / experiment_id / task_key / "traces.json"
+        if per_experiment_path.exists():
+            return per_experiment_path
+    return output_dir / task_key / "traces.json"
+
+
+def _load_display_traces(task_key: str, dataset_id: str, experiment_id: str | None = None) -> list:
+    """Read the given trace(s) for this task, or [] if this task doesn't have any
+    (most tasks don't — only ones whose question refers to "the given trace(s)",
+    e.g. Task 34 / Task 4)."""
+    path = _resolve_traces_path(task_key, dataset_id, experiment_id)
+    if not path.exists():
+        return []
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f).get("traces", [])
+    except Exception:
+        logger.exception("Failed to read traces.json at %s", path)
+        return []
 
 
 def _get_experiment_knowledge_questions(exp: dict) -> list:
@@ -371,6 +403,7 @@ async def get_assigned_trials(
         ti = task_instances_by_task_id.get(task_id, {})
         parameters = (ti.get("parameters") or {})
         param_hints = _build_param_hints(task["task_key"], parameters)
+        display_traces = _load_display_traces(task["task_key"], dataset_id, experiment_id)
 
         trials.append({
             "trial_index":   idx,
@@ -387,6 +420,7 @@ async def get_assigned_trials(
             "options":       contract["options"],
             "svg_available": svg_available,
             "param_hints":   param_hints,
+            "display_traces": display_traces,
         })
 
     return JSONResponse({

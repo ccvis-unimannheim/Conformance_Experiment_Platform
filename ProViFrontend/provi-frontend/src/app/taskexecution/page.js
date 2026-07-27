@@ -24,6 +24,7 @@ function groupTrialsByTask(trials) {
         answer_format: trial.answer_format,
         options:       trial.options ?? [],
         param_hints:   trial.param_hints ?? [],
+        display_traces: trial.display_traces ?? [],
         idioms: [],
       });
     }
@@ -409,6 +410,7 @@ export default function TaskExecutionPage() {
                 currentTaskIndex={linearTrialPosition}
                 onAnswerSubmit={handleAnswerSubmit}
                 paramHints={currentGroup?.param_hints ?? []}
+                displayTraces={currentGroup?.display_traces ?? []}
               />
             </div>
             </>
