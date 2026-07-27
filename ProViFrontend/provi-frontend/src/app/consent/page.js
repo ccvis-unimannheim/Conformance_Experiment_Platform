@@ -118,7 +118,11 @@ export default function ConsentPage() {
                   </li>
                   <li className="flex gap-3 text-on-surface-variant">
                     <span className="material-symbols-outlined text-sm text-primary pt-1">check_circle</span>
-                    <span><strong>GDPR Compliance:</strong> Data is stored on secure, encrypted servers at the University of Mannheim for academic research only.</span>
+                    <span><strong>GDPR Compliance:</strong> Data is processed for academic research only and is stored on a server within the bwCloud infrastructure, a state cloud service for universities in Baden-Württemberg, hosted at the Mannheim site.</span>
+                  </li>
+                  <li className="flex gap-3 text-on-surface-variant">
+                    <span className="material-symbols-outlined text-sm text-primary pt-1">check_circle</span>
+                    <span><strong>Cookies:</strong> Only a session cookie that is strictly necessary for authentication is used. No third-party, analytics, or tracking cookies are set.</span>
                   </li>
                 </ul>
                 <p className="text-on-surface-variant leading-relaxed mt-4">
