@@ -118,7 +118,7 @@ TITLE = "Trace Conformance Fitness"
 # margin on top of its per-character allowance, so realistic activity names stay
 # inside the arrow at 13pt; the shared auto-shrink still catches any outlier.
 # Bump here to retune.
-_CHEVRON_FONT = 13
+_CHEVRON_FONT = 15
 
 
 # ---------------------------------------------------------------------------
@@ -453,7 +453,7 @@ def task04_flow_chart_elaborate(selected, model_path, output_dir):
             (GREY_MED,     "#444444", 3, "Model Move"),
             (GREY_DARK,    "#8ba0cf", 3, "Log Move", "6 4"),
         ],
-        node_font_size=14,
+        node_font_size=16,
     )
 
 
