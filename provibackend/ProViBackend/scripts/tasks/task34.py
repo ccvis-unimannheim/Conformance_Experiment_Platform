@@ -506,7 +506,7 @@ def task34_flow_chart_table(ctx, output_dir):
     _draw_alignment_table(ax_top, rows,
                           bbox=[0.0, 0.04, 1.0, 0.70], font_size=9.4)
 
-    draw_chevron_strip(ax_bot, nodes, fontsize=11, uniform_width=True)
+    draw_chevron_strip(ax_bot, nodes, fontsize=14, uniform_width=True)
     ax_bot.set_title("Trace Alignment", fontsize=FONT_TITLE, pad=7)
 
     legend_handles = [
@@ -583,6 +583,7 @@ def task34_flow_chart_elaborate_table(ctx, model_path, output_dir):
         table_stretch=True,
         table_header_bg=_HDR_BG,
         h_scale=1.1,
+        node_font_size=16.0,
     )
 
 
@@ -808,7 +809,7 @@ def task34_flow_chart_elaborate(ctx, model_path, output_dir):
         title="BPMN Alignment — Violation Overview",
         legend_items=legend_items,
         h_scale=1.0,
-        node_font_size=15.0,
+        node_font_size=16.0,
         legend_font_size=13.0,
         title_font_size=16.0,
         title_center=True,

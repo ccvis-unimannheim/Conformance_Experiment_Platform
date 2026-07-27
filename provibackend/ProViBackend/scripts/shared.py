@@ -1624,6 +1624,26 @@ def _bpmn_label_lines(label, box_width, font_size=9) -> list:
     return lines[:3]
 
 
+def _bpmn_fit_label(label, box_w, box_h, max_font, min_font=8.5):
+    """Wrap ``label`` and pick the largest font <= max_font whose wrapped text
+    fits inside the box in BOTH dimensions, shrinking toward min_font only when it
+    would otherwise overflow. Returns (lines, font).
+
+    This lets callers request a large node font as an upper bound: short labels
+    get it in full, long ones auto-shrink instead of spilling out of the box. When
+    the requested font already fits (the common case) nothing changes."""
+    f = float(max_font)
+    while f > min_font:
+        lines = _bpmn_label_lines(label, box_w, font_size=f)
+        widest = max((len(ln) for ln in lines), default=1)
+        fits_h = len(lines) * f * 1.17 <= box_h - 4.0
+        fits_w = widest * f * 0.58 <= box_w - 8.0
+        if fits_h and fits_w:
+            return lines, f
+        f -= 0.5
+    return _bpmn_label_lines(label, box_w, font_size=min_font), min_font
+
+
 def _bpmn_esc(v):
     import html
     return html.escape("" if v is None else str(v), quote=True)
@@ -1726,12 +1746,12 @@ def bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn=None, *, ox=0.0, oy=0
                 f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" '
                 f'rx="7" ry="7" fill="{fill}" stroke="{stroke}" stroke-width="{sw}"{dash_attr}/>'
             )
-            lines = _bpmn_label_lines(name, w, font_size=node_font_size)
-            gap = node_font_size * 1.17; sy = y + h / 2.0 - (len(lines) - 1) * gap / 2.0
+            lines, eff_font = _bpmn_fit_label(name, w, h, node_font_size)
+            gap = eff_font * 1.17; sy = y + h / 2.0 - (len(lines) - 1) * gap / 2.0
             for i, line in enumerate(lines):
                 out.append(
                     f'<text x="{x + w / 2.0:.1f}" y="{sy + i * gap:.1f}" text-anchor="middle" '
-                    f'dominant-baseline="middle" font-family="Arial, sans-serif" font-size="{node_font_size:.1f}" '
+                    f'dominant-baseline="middle" font-family="Arial, sans-serif" font-size="{eff_font:.1f}" '
                     f'fill="{tc}">{_bpmn_esc(line)}</text>'
                 )
         elif kind in {"exclusiveGateway", "parallelGateway"}:
