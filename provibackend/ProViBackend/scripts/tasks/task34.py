@@ -794,7 +794,6 @@ def task34_flow_chart_elaborate(ctx, model_path, output_dir):
     # Only list legend entries that actually occur — a static list implied
     # all of them always occur, which isn't true.
     present_status = set(act_status.values())
-    has_not_in_trace = any(name not in act_status for name in task_names)
 
     legend_items = [
         (_T04_ALIGN_COLORS[mt], *_T04_ALIGN_STYLE[mt], _MOVE_DISPLAY[mt])
@@ -803,8 +802,6 @@ def task34_flow_chart_elaborate(ctx, model_path, output_dir):
     ]
     if badges:
         legend_items.append((GREY_DARK, "#8ba0cf", 2.0, _MOVE_DISPLAY["Move on Log"], "6 4"))
-    if has_not_in_trace:
-        legend_items.append(("#FAFAFA", "#CCCCCC", 1.0, "Not in trace"))
     compose_bpmn_panels(
         panels=[{"parsed": parsed, "node_style_fn": node_style_fn, "subtitle": "", "badges": badges}],
         out_path=out_path,
