@@ -264,6 +264,19 @@ export default function ConformanceTermsPage() {
                   in the event log that share the same case identifier. Each trace can be compared against the
                   guideline to assess whether it was executed correctly.
                 </p>
+                <Collapsible label="See an example trace">
+                  <div style={{
+                    fontFamily: "monospace", fontSize: "0.9375rem", color: C.onSurface,
+                    backgroundColor: C.containerLow, borderRadius: "0.375rem",
+                    padding: "0.75rem 1rem",
+                  }}>
+                    ⟨ Receive Order, Check Credit, Confirm Order, Cancel Order ⟩
+                  </div>
+                  <p style={{ fontSize: "0.8125rem", color: C.onVariant, marginTop: "0.75rem", lineHeight: 1.6 }}>
+                    Read from left to right: this is the order in which the activities were executed —
+                    Receive Order happened first, Cancel Order last.
+                  </p>
+                </Collapsible>
               </section>
 
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
