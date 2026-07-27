@@ -424,7 +424,7 @@ def task04_flow_chart_elaborate(selected, model_path, output_dir):
         render_empty_state_svg(path, title, "No traces or model available.")
         return
     try:
-        parsed = parse_bpmn_model(model_path, node_scale=1.35)
+        parsed = parse_bpmn_model(model_path, node_scale=1.6)
     except Exception as e:
         logger.warning(f"      task04: BPMN parse failed: {e}")
         render_empty_state_svg(path, title, "BPMN model could not be parsed.")
@@ -453,7 +453,7 @@ def task04_flow_chart_elaborate(selected, model_path, output_dir):
             (GREY_MED,     "#444444", 3, "Model Move"),
             (GREY_DARK,    "#8ba0cf", 3, "Log Move", "6 4"),
         ],
-        node_font_size=18,
+        node_font_size=20,
     )
 
 
