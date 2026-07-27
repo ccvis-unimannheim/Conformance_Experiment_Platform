@@ -161,12 +161,12 @@ _C_WITH    = GREY_LIGHTER  # "With violation" series    (cividis yellow #e5cf52)
 _C_WITHOUT = GREY_DARK     # "Without violation" series (cividis blue   #243c6e)
 
 _EMPTY_STEMS = [
-    ("task19_bar_chart.svg",           "Goal Effect by Violation Pattern"),
-    ("task19_table.svg",               "Violation Effect on Process Goal"),
-    ("task19_table_and_bar_chart.svg", "Violation Effect on Process Goal"),
-    ("task19_matrix.svg",              "Violation Effect on Process Goal"),
-    ("task19_heatmap.svg",             "Violation Effect on Process Goal"),
-    ("task19_parallel_sets.svg",       "Violation Pattern vs. Goal"),
+    ("task19_bar_chart.svg",           "Violation Effect on Successful Payment"),
+    ("task19_table.svg",               "Violation Effect on Successful Payment"),
+    ("task19_table_and_bar_chart.svg", "Violation Effect on Successful Payment"),
+    ("task19_matrix.svg",              "Violation Effect on Successful Payment"),
+    ("task19_heatmap.svg",             "Violation Effect on Successful Payment"),
+    ("task19_parallel_sets.svg",       "Violation Effect on Successful Payment"),
 ]
 
 
@@ -313,7 +313,7 @@ def task19_bar_chart(eff, output_dir):
     path = os.path.join(output_dir, "task19_bar_chart.svg")
     records = eff["records"]
     if not records:
-        render_empty_state_svg(path, "Violation Effect on Process Goal", "No violation patterns found.")
+        render_empty_state_svg(path, "Violation Effect on Successful Payment", "No violation patterns found.")
         return
     recs = records[::-1]  # highest-|difference| pattern ends up on top
     labels    = [r["pattern"] for r in recs]
@@ -339,7 +339,7 @@ def task19_bar_chart(eff, output_dir):
     # Goal label goes ABOVE as a subtitle (not as an x-axis label) so the bottom is
     # free for the legend — otherwise the two collide. Point offsets keep the
     # title↔subtitle gap constant regardless of figure height.
-    ax.set_title("Violation Effect on Process Goal", fontsize=FONT_TITLE, pad=26)
+    ax.set_title("Violation Effect on Successful Payment", fontsize=FONT_TITLE, pad=26)
     ax.annotate(_goal_label(eff["outcome_activity"]),
                 xy=(0.5, 1.0), xytext=(0, 6), xycoords="axes fraction",
                 textcoords="offset points", ha="center", va="bottom",
@@ -373,7 +373,7 @@ def _fig_title_and_goal(fig, fig_h, eff, content_top):
     how tall the figure is (i.e. how many rows) — this is what avoids the earlier
     overlap, which came from positioning the subtitle by the table's bbox height
     instead of its true top edge."""
-    fig.text(0.5, content_top + 0.44 / fig_h, "Violation Effect on Process Goal",
+    fig.text(0.5, content_top + 0.44 / fig_h, "Violation Effect on Successful Payment",
              ha="center", va="bottom", fontsize=FONT_TITLE)
     fig.text(0.5, content_top + 0.14 / fig_h, _goal_label(eff["outcome_activity"]),
              ha="center", va="bottom", fontsize=FONT_LABEL, color="#555555")
@@ -402,7 +402,7 @@ def task19_table(eff, output_dir):
     path = os.path.join(output_dir, "task19_table.svg")
     records = eff["records"]
     if not records:
-        render_empty_state_svg(path, "Violation Effect on Process Goal", "No violation patterns found.")
+        render_empty_state_svg(path, "Violation Effect on Successful Payment", "No violation patterns found.")
         return
     col_labels, cell_text = _pattern_table_data(records)
     fig_h = max(3.0, 1.5 + len(cell_text) * 0.46)
@@ -430,7 +430,7 @@ def task19_matrix(eff, output_dir):
     path = os.path.join(output_dir, "task19_matrix.svg")
     records = eff["records"]
     if not records:
-        render_empty_state_svg(path, "Violation Effect on Process Goal", "No violation patterns found.")
+        render_empty_state_svg(path, "Violation Effect on Successful Payment", "No violation patterns found.")
         return
     labels = [r["pattern"] for r in records]
     cols = [("With Violation", [r["rate_with"] for r in records]),
@@ -459,7 +459,7 @@ def task19_matrix(eff, output_dir):
         for spine in ax.spines.values():
             spine.set_visible(False)
         ax.set_title(col_label, fontsize=FONT_LABEL)
-    fig.suptitle("Violation Effect on Process Goal", fontsize=FONT_TITLE)
+    fig.suptitle("Violation Effect on Successful Payment", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     fig.subplots_adjust(wspace=0.0)  # tight_layout() re-adds a gap; force it back to 0
     save_svg(fig, path)
@@ -472,7 +472,7 @@ def task19_heatmap(eff, output_dir):
     path = os.path.join(output_dir, "task19_heatmap.svg")
     records = eff["records"]
     if not records:
-        render_empty_state_svg(path, "Violation Effect on Process Goal", "No violation patterns found.")
+        render_empty_state_svg(path, "Violation Effect on Successful Payment", "No violation patterns found.")
         return
     labels = [r["pattern"] for r in records]
     data = np.array([[r["rate_with"], r["rate_without"]] for r in records], dtype=float)
@@ -484,7 +484,7 @@ def task19_heatmap(eff, output_dir):
         cbar_label=_goal_label(eff["outcome_activity"]), cell_fmt="{:.1f}%",
         annotate=False, vmax=100.0,
     )
-    ax.set_title("Violation Effect on Process Goal", fontsize=FONT_TITLE)
+    ax.set_title("Violation Effect on Successful Payment", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
@@ -496,7 +496,7 @@ def task19_table_and_bar_chart(eff, output_dir):
     path = os.path.join(output_dir, "task19_table_and_bar_chart.svg")
     records = eff["records"]
     if not records:
-        render_empty_state_svg(path, "Violation Effect on Process Goal", "No violation patterns found.")
+        render_empty_state_svg(path, "Violation Effect on Successful Payment", "No violation patterns found.")
         return
     col_labels, cell_text = _pattern_table_data(records)
 
@@ -553,7 +553,7 @@ def task19_parallel_sets(eff, output_dir):
     path = os.path.join(output_dir, "task19_parallel_sets.svg")
     records = eff["records"]
     if not records:
-        render_empty_state_svg(path, "Violation Pattern vs. Goal", "No violation patterns found.")
+        render_empty_state_svg(path, "Violation Effect on Successful Payment", "No violation patterns found.")
         return
 
     pattern_keys = [(r["activity"], r["move_type"]) for r in records]
@@ -607,7 +607,7 @@ def task19_parallel_sets(eff, output_dir):
     fig.subplots_adjust(top=top, bottom=0.04, left=0.02, right=0.98)
     header_frac = (1.04 - (-0.03)) / (1.11 - (-0.03))     # header axes-fraction
     header_figy = 0.04 + header_frac * (top - 0.04)
-    fig.text(0.5, header_figy + 0.50 / fig_h, "Violation Effect on Process Goal",
+    fig.text(0.5, header_figy + 0.50 / fig_h, "Violation Effect on Successful Payment",
              ha="center", va="bottom", fontsize=FONT_TITLE)
     fig.text(0.5, header_figy + 0.24 / fig_h, _goal_label(eff["outcome_activity"]),
              ha="center", va="bottom", fontsize=FONT_LABEL, color="#555555")
