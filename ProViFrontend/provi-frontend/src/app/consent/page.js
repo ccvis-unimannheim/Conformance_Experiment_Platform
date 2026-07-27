@@ -83,7 +83,7 @@ export default function ConsentPage() {
                   <h2 className="font-headline text-xl font-bold text-on-surface">Study Purpose</h2>
                 </div>
                 <p className="text-on-surface-variant leading-relaxed">
-                  This research study is conducted by the University of Mannheim as part of a quantitative research initiative. The primary purpose is to evaluate how different interface layouts and data visualization idioms affect user comprehension and task performance. Your participation will help us understand the impact of these design choices on information processing.
+                  This study investigates which visualization idioms best support users in performing conformance checking tasks. Your participation helps us understand how visualization design affects task performance.
                 </p>
               </section>
 
@@ -100,7 +100,7 @@ export default function ConsentPage() {
                   </li>
                   <li className="flex gap-3 text-on-surface-variant">
                     <span className="material-symbols-outlined text-sm text-primary pt-1">check_circle</span>
-                    <span>You will interact with specific visual representations or structural layouts.</span>
+                    <span>You will be presented with conformance checking tasks and asked to answer questions with the help of the visualizations you see.</span>
                   </li>
                 </ul>
               </section>
