@@ -20,7 +20,6 @@ const TERM_DEFS = {
   log_move:             { label: "Log Move",                        def: "The trace contains an activity the model did not expect at that point — a superfluous execution." },
   synchronous_move:     { label: "Synchronous Move",                 def: "The trace event and the model activity match — the expected, conformant step." },
   throughput_time:      { label: "Throughput Time",                 def: "Interchangeable with cycle time, the time it takes to handle one case from start to end." },
-  conformance:          { label: "Conformance",                    def: "How closely a trace's recorded behaviour matches the process model — the reference behaviour it's checked against. Here it's shown per-trace as a fitness value: the higher the value, the fewer/smaller the deviations from the process model." },
   conformance_category: { label: "Conformance Category",           def: "A bin of fitness values (e.g. 80–90%) that a trace falls into based on its own fitness score." },
   guideline_violation_rate: { label: "Guideline-Violation Rate",   def: "The percentage of traces within a group (e.g. of the same value in a certain attribute) containing at least one guideline violation." },
   successful_payment:   { label: "Successful Payment",             def: "A trace has a successful payment outcome if it contains the activity \"Receive Payment\"." },
@@ -29,13 +28,13 @@ const TERM_DEFS = {
 // ── Per-task term mapping ───────────────────────────────────────────────────
 const TASK_TERMS = {
   task03: ["conformant_trace", "non_conformant_trace", "trace", "throughput_time"],
-  task04: ["conformance", "trace", "model_move", "log_move", "synchronous_move"],
+  task04: ["guideline_violation", "trace", "model_move", "log_move", "synchronous_move"],
   task06: ["degree_of_conformance", "event_log", "guideline"],
   task10: ["trace", "conformance_category"],
   task11: ["guideline_violation", "guideline", "model_move", "log_move"],
   task19: ["guideline_violation", "model_move", "log_move", "successful_payment"],
   task20: ["attribute", "guideline_violation", "guideline_violation_rate"],
-  task34: ["trace", "guideline", "model_move", "log_move", "synchronous_move"],
+  task34: ["trace", "guideline", "guideline_violation", "model_move", "log_move", "synchronous_move"],
 };
 
 // ── TermsStrip component ────────────────────────────────────────────────────
