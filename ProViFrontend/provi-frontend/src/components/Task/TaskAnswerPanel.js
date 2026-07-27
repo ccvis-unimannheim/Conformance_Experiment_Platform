@@ -7,21 +7,21 @@ import AnswerInput, { initialAnswer, isAnswered, serializeAnswer } from "./Answe
 
 // ── Term definitions (short, inline versions) ──────────────────────────────
 const TERM_DEFS = {
-  guideline:            { label: "Guideline",                       def: "The technology-agnostic expression of a process model, describing the allowed execution sequences for different process cases. In this study, guidelines are represented collectively in an imperative process model as a BPMN diagram." },
-  trace:                { label: "Trace",                           def: "A recorded representation of a case of the process — i.e. all events in the event log that share the same case identifier. Each trace can be compared against the guideline to check whether it was executed correctly." },
-  event:                { label: "Event",                           def: "A single recorded occurrence in the process, indicating (1) at what point in time, (2) which activity was executed, and (3) for which case." },
+  guideline:            { label: "Guideline",                       def: "The technology-agnostic expression of a process model, describing the allowed execution sequences for different process cases. In this study, guidelines are represented collectively in an imperative process model as a BPMN diagram. \"Guideline\" and \"process model\" are used interchangeably." },
+  trace:                { label: "Trace",                           def: "The recorded representation of a case — i.e. all events sharing the same case identifier." },
+  event:                { label: "Event",                           def: "A single recorded occurrence, indicating the time, the activity, and the case it belongs to." },
   event_log:            { label: "Event Log",                       def: "A collection of events. Events that share the same case identifier form a trace." },
   guideline_violation:  { label: "Guideline Violation",             def: "A trace has a guideline violation wherever its alignment contains a log move or a model move — i.e. any move other than a synchronous move. Only log move and model move are types of guideline violation; a synchronous move represents the absence of a violation. Naming a guideline violation requires naming the activity on which that type of violation occurs — e.g. \"Model move on Ship Order\"." },
   conformant_trace:     { label: "Conformant Trace",                def: "A trace without guideline violations." },
   non_conformant_trace: { label: "Non-conformant Trace",            def: "A trace with at least one guideline violation." },
   degree_of_conformance:{ label: "Degree of Conformance (Fitness)", def: "Based on individual guideline violations, we can compute the trace fitness — i.e. the trace's degree of conformance with the rules — and the log fitness, i.e. the overall degree of conformance of all traces in the log. Shown as a percentage, fitness is rounded to one decimal place (e.g. 97.9%)." },
   attribute:            { label: "Attribute",                       def: "Events may be characterised by various attributes; for example, an event may have a timestamp, correspond to an activity, be executed by a particular person, or have associated costs." },
-  model_move:           { label: "Model Move",                      def: "When an activity should have been executed according to the model but there is no related event in the trace — the execution of that activity has been skipped." },
-  log_move:             { label: "Log Move",                        def: "When an event in the trace indicates an activity was executed even though it should not have been according to the model — a superfluous execution of an activity." },
-  synchronous_move:     { label: "Synchronous Move",                 def: "A step in which the event of the trace and the task in the execution sequence correspond to each other — the expected, conformant situation, not a violation." },
+  model_move:           { label: "Model Move",                      def: "The model expected an activity but the trace has no matching event — it was skipped." },
+  log_move:             { label: "Log Move",                        def: "The trace contains an activity the model did not expect at that point — a superfluous execution." },
+  synchronous_move:     { label: "Synchronous Move",                 def: "The trace event and the model activity match — the expected, conformant step." },
   throughput_time:      { label: "Throughput Time",                 def: "Interchangeable with cycle time, the time it takes to handle one case from start to end." },
   conformance:          { label: "Conformance",                    def: "How closely a trace's recorded behaviour matches the process model — the reference behaviour it's checked against. Here it's shown per-trace as a fitness value: the higher the value, the fewer/smaller the deviations from the process model." },
-  conformance_category: { label: "Conformance Category",           def: "A bucket of fitness scores (e.g., 80–100%) that a trace falls into depending on how conformant it is." },
+  conformance_category: { label: "Conformance Category",           def: "A bin of fitness values (e.g. 80–90%) that a trace falls into based on its own fitness score." },
   guideline_violation_rate: { label: "Guideline-Violation Rate",   def: "The percentage of traces within a group (e.g. of the same value in a certain attribute) containing at least one guideline violation." },
   successful_payment:   { label: "Successful Payment",             def: "A trace has a successful payment outcome if it contains the activity \"Receive Payment\"." },
 };

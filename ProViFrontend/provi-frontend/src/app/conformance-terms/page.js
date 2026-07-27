@@ -201,12 +201,12 @@ export default function ConformanceTermsPage() {
           }}>
             <div style={{ padding: "2.5rem 3rem", display: "flex", flexDirection: "column", gap: "1.75rem" }}>
 
-              {/* ── 1. Process, Case, Event, Trace & Event Log */}
+              {/* ── 1. Process, Event, Case, Trace & Event Log */}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>table_rows</span>
                   <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
-                    Process, Case, Event, Trace &amp; Event Log
+                    Process, Event, Case, Trace &amp; Event Log
                   </h2>
                 </div>
                 <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: "0 0 1rem" }}>
@@ -216,8 +216,8 @@ export default function ConformanceTermsPage() {
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                   {[
                     ["hub",        "#15803d", "#f0fdf4", "#bbf7d0", "Process",    "A set of activities executed in a coordinated manner to achieve a goal — e.g. order-to-cash, shown at the top of this page."],
-                    ["assignment", "#1d4ed8", "#eff6ff", "#bfdbfe", "Case",       "An instance of the process — e.g. one customer order."],
                     ["bolt",       "#7c3aed", "#f5f3ff", "#ddd6fe", "Event",      "A single recorded occurrence, indicating the time, the activity, and the case it belongs to."],
+                    ["assignment", "#1d4ed8", "#eff6ff", "#bfdbfe", "Case",       "An instance of the process — e.g. one customer order."],
                     ["linear_scale","#b45309", "#fffbeb", "#fde68a", "Trace",     "The recorded representation of a case — i.e. all events sharing the same case identifier."],
                     ["table_rows", "#0f766e", "#f0fdfa", "#99f6e4", "Event Log",  "A collection of events. Events sharing a case identifier form a trace."],
                   ].map(([icon, color, bg, border, label, desc]) => (
