@@ -93,6 +93,7 @@ from shared import (
     contrasting_text_color,
     draw_parallel_sets,
     classify_step,
+    trace_activities, write_traces_sidecar,
 )
 
 # ── Palette (cividis — PALETTE_GUIDE.md) ─────────────────────────────────────
@@ -1032,6 +1033,11 @@ def generate(log, alignments, output_dir, model_path=None, violated_activity=Non
         f"      Representative: {worst['trace_label']} "
         f"(fitness={worst['fitness']:.4f}, violations={worst['n_violations']})"
     )
+
+    write_traces_sidecar(output_dir, [{
+        "label":      worst["trace_label"],
+        "activities": trace_activities(log[worst["trace_index"]]),
+    }])
 
     task34_bar_chart(worst,                         output_dir)
     task34_stacked_bar(worst,                       output_dir)

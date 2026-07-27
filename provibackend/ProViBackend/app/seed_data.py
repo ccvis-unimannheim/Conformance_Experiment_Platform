@@ -324,11 +324,12 @@ CANONICAL_KNOWLEDGE_QUESTIONS = [
     {
         "kq_key": "kq06",
         "section_title": "Domain 2: Conformance Checking Core Concepts",
-        "text": "6. A process log contains 200 traces. 150 traces fully comply with the process model, and 50 contain at least one violation. What is the approximate conformance rate of this log?",
+        "text": "6. When does a trace perfectly conform to a process model?",
         "options": [
-            "25%",
-            "50%",
-            "75%",
+            "When every activity of the trace appears somewhere in the model",
+            "When the trace contains the same number of events as the model has activities",
+            "When the trace can be executed by the model from start to end without any deviation",
+            "When the trace is the most frequent variant in the event log",
             "I don't know",
         ],
         "include_idk": True,

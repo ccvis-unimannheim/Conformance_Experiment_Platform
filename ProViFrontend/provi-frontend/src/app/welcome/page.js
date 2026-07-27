@@ -23,13 +23,16 @@ const STEPS = [
   {
     num: "04",
     title: "Experiment",
-    desc: "We will present you with conformance checking tasks. You will be asked to answer questions with the help of the visualizations you will see.",
+    desc: "We will present you with conformance checking tasks. You will be asked to answer questions with the help of the visualizations you will see. Afterwards, you can optionally share additional feedback.",
   },
-  {
-    num: "05",
-    title: "Feedback Survey",
-    desc: "You will be asked a few short questions about your experience during the experiment, with an option to leave additional feedback.",
-  },
+  // Feedback Survey step temporarily removed from the structure list while the
+  // endpage's NASA-TLX questions are hidden (see endpage/page.js). Restore this
+  // alongside those questions when they come back.
+  // {
+  //   num: "05",
+  //   title: "Feedback Survey",
+  //   desc: "You will be asked a few short questions about your experience during the experiment, with an option to leave additional feedback.",
+  // },
 ];
 
 export default function WelcomePage() {
@@ -81,7 +84,7 @@ export default function WelcomePage() {
                 <div className="mt-8 flex gap-3 border-t border-outline-variant pt-6">
                   <div className="flex flex-1 items-center justify-center gap-2 bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 text-sm text-on-surface-variant font-medium">
                     <span className="material-symbols-outlined text-primary" style={{ fontSize: "1.1rem" }}>schedule</span>
-                    <span>Estimated time: <span className="font-bold text-on-surface">25–30 min</span></span>
+                    <span>Estimated time: <span className="font-bold text-on-surface">20–30 min</span></span>
                   </div>
                   <div className="flex flex-1 items-center justify-center gap-2 bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 text-sm text-on-surface-variant font-medium">
                     <span className="material-symbols-outlined text-primary" style={{ fontSize: "1.1rem" }}>laptop_mac</span>
@@ -148,10 +151,13 @@ export default function WelcomePage() {
                 <p className="text-[10px] uppercase tracking-widest text-on-surface-variant mb-2 font-bold">
                   Research Team
                 </p>
-                <p className="text-xs text-on-surface-variant leading-relaxed">
-                  This study is conducted by: Ayni Zhu, Henri Clausnitzer, Shiqi Zhou, Tayyaba Zafar,
-                  Zihan Zhang, Marie-Christin Häge, Dr. Michael Grohs — University of Mannheim
-                </p>
+                <ul className="text-xs text-on-surface-variant leading-relaxed list-none p-0">
+                  <li>Anyi Zhu, University of Mannheim</li>
+                  <li>Henri Clausnitzer, University of Mannheim</li>
+                  <li>Shiqi Zhou, University of Mannheim</li>
+                  <li>Tayyaba Zafar, University of Mannheim</li>
+                  <li>Zihan Zhang, University of Mannheim</li>
+                </ul>
               </footer>
 
             </div>

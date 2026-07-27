@@ -21,7 +21,7 @@ const TERM_DEFS = {
   synchronous_move:     { label: "Synchronous Move",                 def: "A step in which the event of the trace and the task in the execution sequence correspond to each other — the expected, conformant situation, not a violation." },
   throughput_time:      { label: "Throughput Time",                 def: "Interchangeable with cycle time, the time it takes to handle one case from start to end." },
   conformance:          { label: "Conformance",                    def: "How closely a trace's recorded behaviour matches the process model — the reference behaviour it's checked against. Here it's shown per-trace as a fitness value: the higher the value, the fewer/smaller the deviations from the process model." },
-  conformance_category: { label: "Conformance Category",           def: "One of the intervals into which the range of the degree of conformance is divided and into which traces are distributed." },
+  conformance_category: { label: "Conformance Category",           def: "A bucket of fitness scores (e.g., 80–100%) that a trace falls into depending on how conformant it is." },
   guideline_violation_rate: { label: "Guideline-Violation Rate",   def: "The percentage of traces within a group (e.g. of the same value in a certain attribute) containing at least one guideline violation." },
   successful_payment:   { label: "Successful Payment",             def: "A trace has a successful payment outcome if it contains the activity \"Receive Payment\"." },
 };
@@ -155,8 +155,8 @@ function TermsStrip({ taskKey, experimentId }) {
 // 7 = strongly agree). Both must be rated before the answer is submitted
 // together with the ratings and the participant advances to the next task.
 const RATING_STATEMENTS = [
-  { key: "capabilities", label: "This idiom's capabilities meet my requirements" },
-  { key: "ease",         label: "This idiom is easy to use" },
+  { key: "capabilities", label: "This visualisation gave me the information I needed to solve the task" },
+  { key: "ease",         label: "This visualisation was easy to use" },
 ];
 
 function LikertRow({ value, onSelect, disabled }) {
@@ -226,7 +226,7 @@ function IdiomRatingModal({ submitting, onSubmit }) {
           fontSize: "1.05rem", fontWeight: 700, color: "#00305e",
           margin: "0 0 0.35rem 0", lineHeight: 1.4,
         }}>
-          Your perception of this idiom
+          Your perception of this visualisation
         </h2>
         <p style={{ fontSize: "0.8rem", color: "#5a6061", margin: "0 0 1.5rem 0", lineHeight: 1.5 }}>
           Rate each statement from 1 (strongly disagree) to 7 (strongly agree).
@@ -293,6 +293,7 @@ const TaskAnswerPanel = ({
   currentTaskIndex = 0,
   onAnswerSubmit,
   paramHints = [],
+  displayTraces = [],
 }) => {
   const router = useRouter();
   const [answer, setAnswer] = useState(() => initialAnswer(answerType, options));
@@ -477,6 +478,36 @@ const TaskAnswerPanel = ({
                   borderLeft: "3px solid #00305e",
                 }}>
                   {taskDesc}
+                </div>
+              )}
+
+              {/* Given trace(s) — the exact recorded sequence(s) the visualization was
+                  drawn from, shown right under the question so participants can read
+                  the trace(s) as text (e.g. Task 34's representative trace, Task 4's
+                  two compared traces) alongside the chart. */}
+              {displayTraces.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "1rem" }}>
+                  {displayTraces.map((trace, i) => (
+                    <div key={i} style={{
+                      background: "#f8f9fa",
+                      border: "1px solid #eef0f0",
+                      borderRadius: "0.5rem",
+                      padding: "0.625rem 0.75rem",
+                    }}>
+                      <span style={{
+                        fontSize: "0.62rem", fontWeight: 700, textTransform: "uppercase",
+                        letterSpacing: "0.1em", color: "#5a6061",
+                      }}>
+                        {displayTraces.length > 1 ? `Given Trace — ${trace.label}` : "Given Trace"}
+                      </span>
+                      <div style={{
+                        fontFamily: "monospace", fontSize: "0.8rem", color: "#2d3435",
+                        lineHeight: 1.6, marginTop: "0.25rem", wordBreak: "break-word",
+                      }}>
+                        ⟨ {trace.activities.join(", ")} ⟩
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
 

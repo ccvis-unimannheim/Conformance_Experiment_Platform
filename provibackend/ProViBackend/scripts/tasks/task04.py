@@ -103,6 +103,7 @@ from shared import (
     contrasting_text_color,
     GREY_MED, GREY_LIGHTER, GREY_DARK,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    trace_activities, write_traces_sidecar,
 )
 
 # Default number of traces to sample when the admin doesn't pick specific ones.
@@ -702,6 +703,15 @@ def generate(log, fitness_df, output_dir: str, trace_ids=None, alignments=None, 
 
     source = "admin-selected" if trace_ids else "largest violation gap"
     logger.info(f"      -> Comparing {len(tdf)} traces ({source}).")
+
+    case_index = _task04_case_index(log)
+    write_traces_sidecar(output_dir, [
+        {
+            "label":      str(row["label"]),
+            "activities": trace_activities(log[case_index[str(row["case_id"])]]),
+        }
+        for _, row in tdf.iterrows() if str(row["case_id"]) in case_index
+    ])
 
     task04_bar_chart(tdf, output_dir)
     task04_table_bar_chart(tdf, output_dir)

@@ -160,12 +160,24 @@ export default function DataInformation() {
                 <h2 style={sectionHeadingStyle}>Type of data</h2>
                 <p style={{ fontSize: "0.875rem", lineHeight: 1.7, color: C.onSurface }}>
                   Demographic data (e.g., age or gender), subjective evaluations (e.g., perceived level of difficulty),
-                  interaction metrics (e.g., completion time or number of errors), and tracking data (e.g., User Interface tracking).
+                  interaction metrics (e.g., completion time or number of errors), and tracking data (e.g., click behavior,
+                  time spent per task, and navigation patterns within the platform).
                 </p>
               </section>
- 
+
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
- 
+
+              {/* Use of cookies */}
+              <section>
+                <h2 style={sectionHeadingStyle}>Use of cookies</h2>
+                <p style={{ fontSize: "0.875rem", lineHeight: 1.7, color: C.onSurface }}>
+                  This platform uses a session cookie that is strictly necessary for authentication purposes.
+                  No third-party cookies, analytics cookies, or tracking cookies are used.
+                </p>
+              </section>
+
+              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+
               {/* Legal basis */}
               <section>
                 <h2 style={sectionHeadingStyle}>Legal basis</h2>
@@ -184,9 +196,20 @@ export default function DataInformation() {
                   Your personal data will not be transmitted to third parties.
                 </p>
               </section>
- 
+
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
- 
+
+              {/* Location of data storage */}
+              <section>
+                <h2 style={sectionHeadingStyle}>Location of data storage</h2>
+                <p style={{ fontSize: "0.875rem", lineHeight: 1.7, color: C.onSurface }}>
+                  All data is stored on a server within the bwCloud infrastructure, a state cloud service for
+                  universities in Baden-Württemberg, hosted at the Mannheim site.
+                </p>
+              </section>
+
+              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+
               {/* Duration */}
               <section>
                 <h2 style={sectionHeadingStyle}>Duration of storage</h2>
