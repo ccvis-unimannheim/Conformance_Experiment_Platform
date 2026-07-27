@@ -536,7 +536,7 @@ def task34_flow_chart_elaborate_table(ctx, model_path, output_dir):
                                "No process model provided.")
         return
 
-    parsed = parse_bpmn_model(model_path, node_scale=1.35)
+    parsed = parse_bpmn_model(model_path, node_scale=1.6)
     if not parsed.get("elements"):
         render_empty_state_svg(out_path, "BPMN + Alignment Table",
                                "Could not parse BPMN model.")
@@ -584,7 +584,7 @@ def task34_flow_chart_elaborate_table(ctx, model_path, output_dir):
         table_stretch=True,
         table_header_bg=_HDR_BG,
         h_scale=1.1,
-        node_font_size=18.0,
+        node_font_size=20.0,
     )
 
 
@@ -755,7 +755,7 @@ def task34_flow_chart_elaborate(ctx, model_path, output_dir):
         render_empty_state_svg(out_path, "BPMN Violation Overview",
                                "No process model provided.")
         return
-    parsed = parse_bpmn_model(model_path, node_scale=1.35)
+    parsed = parse_bpmn_model(model_path, node_scale=1.6)
     if not parsed.get("elements"):
         render_empty_state_svg(out_path, "BPMN Violation Overview",
                                "Could not parse BPMN model.")
@@ -810,7 +810,7 @@ def task34_flow_chart_elaborate(ctx, model_path, output_dir):
         title="BPMN Alignment — Violation Overview",
         legend_items=legend_items,
         h_scale=1.0,
-        node_font_size=18.0,
+        node_font_size=20.0,
         legend_font_size=13.0,
         title_font_size=16.0,
         title_center=True,

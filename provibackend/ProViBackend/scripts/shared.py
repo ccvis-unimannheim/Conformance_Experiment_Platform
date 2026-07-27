@@ -1570,6 +1570,17 @@ def parse_bpmn_model(model_path: str, node_scale: float = 1.0) -> dict:
         if eid and b is not None:
             shapes[eid] = {k: float(b.attrib[k]) for k in ("x", "y", "width", "height")}
 
+    # Vertical zoom (node_scale>1): stretch the layout vertically so the taller task
+    # boxes (height floor below) don't collide. Each shape's centre-y is scaled about
+    # the diagram top; edge waypoints get the same transform further down. x is left
+    # untouched, so the horizontal layout is unchanged. Default 1.0 = no-op.
+    _vzoom_anchor = None
+    if node_scale != 1.0 and shapes:
+        _vzoom_anchor = min(b["y"] for b in shapes.values())
+        for b in shapes.values():
+            cy = b["y"] + b["height"] / 2.0
+            b["y"] = _vzoom_anchor + (cy - _vzoom_anchor) * node_scale - b["height"] / 2.0
+
     for eid, b in list(shapes.items()):
         elem = elements.get(eid)
         if not elem or elem["kind"] != "task":
@@ -1602,6 +1613,12 @@ def parse_bpmn_model(model_path: str, node_scale: float = 1.0) -> dict:
                for wp in edge.findall("di:waypoint", _BPMN_NS)]
         if fid and pts:
             edge_pts[fid] = pts
+
+    # Apply the same vertical zoom to edge waypoints so connectors track the shapes.
+    if _vzoom_anchor is not None:
+        a = _vzoom_anchor
+        for fid, pts in edge_pts.items():
+            edge_pts[fid] = [(x, a + (y - a) * node_scale) for (x, y) in pts]
 
     for fid, pts in list(edge_pts.items()):
         flow = sequence_flows.get(fid)
