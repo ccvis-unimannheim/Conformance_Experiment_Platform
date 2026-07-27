@@ -422,6 +422,28 @@ export default function TaskIntroPage() {
                 </Collapsible>
               </section>
 
+              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+
+              {/* Citation */}
+              <section>
+                <div style={{
+                  display: "flex", alignItems: "flex-start", gap: "0.75rem",
+                  padding: "0.875rem 1rem",
+                  backgroundColor: C.containerLow,
+                  borderRadius: "0.5rem",
+                  borderLeft: `3px solid ${C.outlineVar}`,
+                }}>
+                  <span className="material-symbols-outlined" style={{ color: C.outlineVar, fontSize: "1.1rem", flexShrink: 0, marginTop: "0.1rem" }}>menu_book</span>
+                  <p style={{ margin: 0, fontSize: "0.8125rem", color: C.onVariant, lineHeight: 1.65 }}>
+                    Definitions adapted from: Carmona, J., van Dongen, B., Solti, A., &amp; Weidlich, M. (2018).{" "}
+                    <em>Conformance Checking: Relating Processes and Models</em>. Springer.{" "}
+                    <span style={{ fontFamily: "monospace", fontSize: "0.75rem" }}>
+                      ISBN 978-3-319-99413-0 · DOI 10.1007/978-3-319-99414-7
+                    </span>
+                  </p>
+                </div>
+              </section>
+
             </div>
 
             {/* CTA area */}
