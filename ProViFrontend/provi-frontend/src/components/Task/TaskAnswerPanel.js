@@ -21,7 +21,7 @@ const TERM_DEFS = {
   synchronous_move:     { label: "Synchronous Move",                 def: "A step in which the event of the trace and the task in the execution sequence correspond to each other — the expected, conformant situation, not a violation." },
   throughput_time:      { label: "Throughput Time",                 def: "Interchangeable with cycle time, the time it takes to handle one case from start to end." },
   conformance:          { label: "Conformance",                    def: "How closely a trace's recorded behaviour matches the process model — the reference behaviour it's checked against. Here it's shown per-trace as a fitness value: the higher the value, the fewer/smaller the deviations from the process model." },
-  conformance_category: { label: "Conformance Category",           def: "One of the intervals into which the range of the degree of conformance is divided and into which traces are distributed." },
+  conformance_category: { label: "Conformance Category",           def: "A bucket of fitness scores (e.g., 80–100%) that a trace falls into depending on how conformant it is." },
   guideline_violation_rate: { label: "Guideline-Violation Rate",   def: "The percentage of traces within a group (e.g. of the same value in a certain attribute) containing at least one guideline violation." },
   successful_payment:   { label: "Successful Payment",             def: "A trace has a successful payment outcome if it contains the activity \"Receive Payment\"." },
 };
