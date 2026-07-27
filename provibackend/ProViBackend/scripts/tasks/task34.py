@@ -507,7 +507,7 @@ def task34_flow_chart_table(ctx, output_dir):
     _draw_alignment_table(ax_top, rows,
                           bbox=[0.0, 0.04, 1.0, 0.70], font_size=9.4)
 
-    draw_chevron_strip(ax_bot, nodes, fontsize=14, uniform_width=True)
+    draw_chevron_strip(ax_bot, nodes, fontsize=16, uniform_width=True)
     ax_bot.set_title("Trace Alignment", fontsize=FONT_TITLE, pad=7)
 
     legend_handles = [
@@ -725,7 +725,7 @@ def task34_flow_chart_basic(ctx, output_dir):
     nodes = _chevron_nodes(rows, colors=_T04_ALIGN_COLORS)
     fig_w = max(14.0, chevron_figure_width(nodes))
     fig, ax = plt.subplots(figsize=(fig_w, 3.2))
-    draw_chevron_strip(ax, nodes, fontsize=15, uniform_width=True)
+    draw_chevron_strip(ax, nodes, fontsize=17, uniform_width=True)
     ax.set_title("Trace Alignment", fontsize=FONT_TITLE, pad=8)
     # Only list the move types actually present in this trace — a static
     # 3-entry legend implied all three always occur, which isn't true.

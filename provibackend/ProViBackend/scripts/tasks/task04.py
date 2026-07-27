@@ -119,7 +119,7 @@ TITLE = "Trace Conformance Fitness"
 # margin on top of its per-character allowance, so realistic activity names stay
 # inside the arrow at 13pt; the shared auto-shrink still catches any outlier.
 # Bump here to retune.
-_CHEVRON_FONT = 15
+_CHEVRON_FONT = 17
 
 
 # ---------------------------------------------------------------------------
