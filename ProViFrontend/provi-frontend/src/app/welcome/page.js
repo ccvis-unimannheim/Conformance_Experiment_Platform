@@ -157,8 +157,6 @@ export default function WelcomePage() {
                   <li>Shiqi Zhou, University of Mannheim</li>
                   <li>Tayyaba Zafar, University of Mannheim</li>
                   <li>Zihan Zhang, University of Mannheim</li>
-                  <li>Marie-Christin Häge, University of Mannheim</li>
-                  <li>Michael Grohs, University of Mannheim</li>
                 </ul>
               </footer>
 
