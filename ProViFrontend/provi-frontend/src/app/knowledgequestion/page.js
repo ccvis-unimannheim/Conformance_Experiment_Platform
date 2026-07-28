@@ -110,6 +110,20 @@ export default function KnowledgeQuestionPage() {
     return acc;
   }, {});
 
+  // Number questions 1..n in display order, independent of any DB/admin ordering.
+  let questionCounter = 0;
+  const questionNumbers = {};
+  Object.values(sections).forEach((qs) => {
+    qs.forEach((q) => {
+      questionCounter += 1;
+      questionNumbers[q._id] = questionCounter;
+    });
+  });
+
+  // Seeded question text may already carry a leading "4. " style number; strip it
+  // so it doesn't clash with the display number computed above.
+  const stripLeadingNumber = (text) => text.replace(/^\s*\d+\s*[.)、]\s*/, "");
+
   return (
     <div style={{ backgroundColor: C.surface, color: C.onSurface, minHeight: "100vh", fontFamily: "'Inter', Arial, sans-serif" }}>
 
@@ -182,8 +196,8 @@ export default function KnowledgeQuestionPage() {
                       <div style={{ display: "flex", flexDirection: "column", gap: "2.5rem" }}>
                         {qs.map((q) => (
                           <div key={q._id}>
-                            <label style={{ display: "block", marginBottom: "0.75rem", fontSize: "0.875rem", fontWeight: 600, color: C.onSurface }}>
-                              {q.text}
+                            <label style={{ display: "block", marginBottom: "0.75rem", fontSize: "0.875rem", fontWeight: 600, color: C.onSurface, whiteSpace: "pre-line" }}>
+                              {questionNumbers[q._id]}. {stripLeadingNumber(q.text)}
                             </label>
                             <div style={{ marginTop: "0.75rem" }}>
                               {q.options.map((opt, optIdx) => (
