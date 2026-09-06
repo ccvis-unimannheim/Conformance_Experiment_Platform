@@ -203,6 +203,29 @@ def auto_col_widths(col_labels, cell_text, header_weight: float = 1.15,
 SKIP_ALIGNMENT_TOKENS = {">>", None}
 
 
+def trace_activities(trace) -> list:
+    """Ordered activity names as recorded in the event log for one pm4py trace.
+
+    This is the raw recorded sequence (not derived from the alignment), so it's
+    the authoritative "given trace" shown to participants — e.g. Task 34 / Task 4.
+    """
+    return [str(ev["concept:name"]) for ev in trace if ev.get("concept:name")]
+
+
+def write_traces_sidecar(output_dir: str, traces: list):
+    """Write traces.json = {"traces": [{"label", "activities"}, ...]} into output_dir.
+
+    Lets the frontend show the exact recorded trace(s) a task's SVGs were drawn
+    from, alongside the question (ProViFrontend TaskAnswerPanel "Given trace(s)"
+    box). Must be called with the SAME trace(s)/order the SVGs render, since the
+    two are shown together and must not desync.
+    """
+    import json
+    path = os.path.join(output_dir, "traces.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump({"traces": traces}, f, ensure_ascii=False)
+
+
 def _extract_alignment_label(value):
     """Pull activity label from PM4Py alignment tuple side."""
     if isinstance(value, (list, tuple)):
@@ -1447,7 +1470,7 @@ _BPMN_NS = {
 }
 
 
-def parse_bpmn_model(model_path: str) -> dict:
+def parse_bpmn_model(model_path: str, node_scale: float = 1.0) -> dict:
     """Parse a BPMN file into geometry usable by the annotated renderer.
 
     Returns dict with: elements, sequence_flows, shapes, edge_pts, name_to_ids.
@@ -1547,13 +1570,28 @@ def parse_bpmn_model(model_path: str) -> dict:
         if eid and b is not None:
             shapes[eid] = {k: float(b.attrib[k]) for k in ("x", "y", "width", "height")}
 
+    # Vertical zoom (node_scale>1): stretch the layout vertically so the taller task
+    # boxes (height floor below) don't collide. Each shape's centre-y is scaled about
+    # the diagram top; edge waypoints get the same transform further down. x is left
+    # untouched, so the horizontal layout is unchanged. Default 1.0 = no-op.
+    _vzoom_anchor = None
+    if node_scale != 1.0 and shapes:
+        _vzoom_anchor = min(b["y"] for b in shapes.values())
+        for b in shapes.values():
+            cy = b["y"] + b["height"] / 2.0
+            b["y"] = _vzoom_anchor + (cy - _vzoom_anchor) * node_scale - b["height"] / 2.0
+
     for eid, b in list(shapes.items()):
         elem = elements.get(eid)
         if not elem or elem["kind"] != "task":
             continue
         name = elem["name"]
+        # node_scale (>1) raises the task-box HEIGHT floor so a larger node font
+        # fits without cramming. Width is left alone: the DI fixes the horizontal
+        # positions, so widening boxes would make neighbours collide. Default 1.0
+        # leaves every other BPMN idiom as-is.
         mw = min(max(b["width"], 90.0, 28.0 + len(name) * 4.6), 138.0)
-        mh = max(b["height"], 46.0)
+        mh = max(b["height"], 46.0 * node_scale)
         if mw > b["width"]:
             cx, _ = _nc(b); b["x"] = cx - mw / 2.0; b["width"] = mw
         if mh > b["height"]:
@@ -1575,6 +1613,12 @@ def parse_bpmn_model(model_path: str) -> dict:
                for wp in edge.findall("di:waypoint", _BPMN_NS)]
         if fid and pts:
             edge_pts[fid] = pts
+
+    # Apply the same vertical zoom to edge waypoints so connectors track the shapes.
+    if _vzoom_anchor is not None:
+        a = _vzoom_anchor
+        for fid, pts in edge_pts.items():
+            edge_pts[fid] = [(x, a + (y - a) * node_scale) for (x, y) in pts]
 
     for fid, pts in list(edge_pts.items()):
         flow = sequence_flows.get(fid)
@@ -1622,6 +1666,26 @@ def _bpmn_label_lines(label, box_width, font_size=9) -> list:
         s = str(label)
         lines = [s[i:i + mc2] for i in range(0, len(s), mc2)]
     return lines[:3]
+
+
+def _bpmn_fit_label(label, box_w, box_h, max_font, min_font=8.5):
+    """Wrap ``label`` and pick the largest font <= max_font whose wrapped text
+    fits inside the box in BOTH dimensions, shrinking toward min_font only when it
+    would otherwise overflow. Returns (lines, font).
+
+    This lets callers request a large node font as an upper bound: short labels
+    get it in full, long ones auto-shrink instead of spilling out of the box. When
+    the requested font already fits (the common case) nothing changes."""
+    f = float(max_font)
+    while f > min_font:
+        lines = _bpmn_label_lines(label, box_w, font_size=f)
+        widest = max((len(ln) for ln in lines), default=1)
+        fits_h = len(lines) * f * 1.17 <= box_h - 4.0
+        fits_w = widest * f * 0.58 <= box_w - 8.0
+        if fits_h and fits_w:
+            return lines, f
+        f -= 0.5
+    return _bpmn_label_lines(label, box_w, font_size=min_font), min_font
 
 
 def _bpmn_esc(v):
@@ -1726,12 +1790,12 @@ def bpmn_diagram_body(parsed, node_style_fn, faded_flow_fn=None, *, ox=0.0, oy=0
                 f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" '
                 f'rx="7" ry="7" fill="{fill}" stroke="{stroke}" stroke-width="{sw}"{dash_attr}/>'
             )
-            lines = _bpmn_label_lines(name, w, font_size=node_font_size)
-            gap = node_font_size * 1.17; sy = y + h / 2.0 - (len(lines) - 1) * gap / 2.0
+            lines, eff_font = _bpmn_fit_label(name, w, h, node_font_size)
+            gap = eff_font * 1.17; sy = y + h / 2.0 - (len(lines) - 1) * gap / 2.0
             for i, line in enumerate(lines):
                 out.append(
                     f'<text x="{x + w / 2.0:.1f}" y="{sy + i * gap:.1f}" text-anchor="middle" '
-                    f'dominant-baseline="middle" font-family="Arial, sans-serif" font-size="{node_font_size:.1f}" '
+                    f'dominant-baseline="middle" font-family="Arial, sans-serif" font-size="{eff_font:.1f}" '
                     f'fill="{tc}">{_bpmn_esc(line)}</text>'
                 )
         elif kind in {"exclusiveGateway", "parallelGateway"}:
