@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../../components/Admin/Toast";
+import { saveWizardStep } from "../../../../utils/wizardSave";
 
 function getId(obj) {
   return obj._id || obj.id;
@@ -585,8 +586,8 @@ function GroundTruthContent() {
   function handleFormatChange(taskId, formatKey) {
     const taskFormats = answerFormatsByTask[taskId] || FALLBACK_ANSWER_FORMATS;
     const rubricInfo = rubricsByTask[taskId] || { rubric: null, gt_tier: "MANUAL" };
-    setTaskInstances((prev) =>
-      prev.map((ti) =>
+    setTaskInstances((prev) => {
+      const next = prev.map((ti) =>
         ti.task_id === taskId
           ? {
               ...ti,
@@ -594,27 +595,30 @@ function GroundTruthContent() {
               ground_truth: pickGroundTruth(ti, formatKey, taskFormats, rubricInfo),
             }
           : ti
-      )
-    );
+      );
+      persist(next).catch((e) => showToast(`Failed to save: ${e.message}`, true));
+      return next;
+    });
   }
 
   function handleGtChange(taskId, gt) {
-    setTaskInstances((prev) => prev.map((ti) => (ti.task_id === taskId ? { ...ti, ground_truth: gt } : ti)));
+    setTaskInstances((prev) => {
+      const next = prev.map((ti) => (ti.task_id === taskId ? { ...ti, ground_truth: gt } : ti));
+      persist(next).catch((e) => showToast(`Failed to save: ${e.message}`, true));
+      return next;
+    });
   }
 
   function handleDecisiveChange(taskId, decisive) {
-    setTaskInstances((prev) =>
-      prev.map((ti) => (ti.task_id === taskId ? { ...ti, ground_truth: { ...(ti.ground_truth || {}), decisive } } : ti))
-    );
+    setTaskInstances((prev) => {
+      const next = prev.map((ti) => (ti.task_id === taskId ? { ...ti, ground_truth: { ...(ti.ground_truth || {}), decisive } } : ti));
+      persist(next).catch((e) => showToast(`Failed to save: ${e.message}`, true));
+      return next;
+    });
   }
 
-  async function persist() {
-    const res = await fetch(`/api/admin/experiments/${experimentId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ task_instances: taskInstances }),
-    });
-    if (!res.ok) throw new Error(await res.text());
+  async function persist(instances = taskInstances) {
+    await saveWizardStep(experimentId, "answer-format-groundtruth", { task_instances: instances });
   }
 
   async function handleSave() {

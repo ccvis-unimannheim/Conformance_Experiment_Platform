@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../../components/Admin/Toast";
+import { saveWizardStep } from "../../../../utils/wizardSave";
 
 function getId(obj) {
   return obj._id || obj.id;
@@ -326,10 +327,16 @@ function SpecifyContent() {
   }
 
   function setParamValue(taskId, key, value) {
-    setParamValues((prev) => ({
-      ...prev,
-      [taskId]: { ...(prev[taskId] || {}), [key]: value },
-    }));
+    setParamValues((prev) => {
+      const next = { ...prev, [taskId]: { ...(prev[taskId] || {}), [key]: value } };
+      const updatedInstances = taskInstances.map((ti) => ({
+        ...ti,
+        parameters: next[ti.task_id] || {},
+      }));
+      saveWizardStep(experimentId, "specify", { task_instances: updatedInstances })
+        .catch((e) => showToast(`Failed to save parameters: ${e.message}`, true));
+      return next;
+    });
   }
 
   function requiredParamsMissing() {
@@ -386,14 +393,9 @@ function SpecifyContent() {
         parameters: paramValues[ti.task_id] || {},
       }));
 
-      let res = await fetch(`/api/admin/experiments/${experimentId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ task_instances: updatedInstances }),
-      });
-      if (!res.ok) throw new Error(await res.text());
+      await saveWizardStep(experimentId, "specify", { task_instances: updatedInstances });
 
-      res = await fetch(`/api/admin/experiments/${experimentId}/generate`, { method: "POST" });
+      let res = await fetch(`/api/admin/experiments/${experimentId}/generate`, { method: "POST" });
       if (!res.ok) {
         // Backend rejects invalid parameters with { detail: { message, errors[] } }.
         let msg = `HTTP ${res.status}`;

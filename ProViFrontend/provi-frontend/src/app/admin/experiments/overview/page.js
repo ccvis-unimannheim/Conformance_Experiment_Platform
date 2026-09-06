@@ -7,6 +7,7 @@ import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupH
 import Toast from "../../../../components/Admin/Toast";
 import EditTaskModal from "../../../../components/Admin/EditTaskModal";
 import { resolveIdiomLabel } from "../../../../utils/idiomLabels";
+import { saveWizardStep } from "../../../../utils/wizardSave";
 
 function IdiomPreviewModal({ experimentId, taskKey, idiomKey, idiomLabel, datasetTitle, paramsSummary, onClose }) {
   const [status, setStatus] = useState("loading");
@@ -205,6 +206,9 @@ function ExperimentOverviewContent() {
       if (!exp) throw new Error("Experiment not found.");
       setExperiment(exp);
       setStatus(exp.status || "draft");
+      if (exp.status === "draft") {
+        saveWizardStep(experimentId, "overview", {}).catch(() => {});
+      }
 
       const tMap = {};
       tasks.forEach((t) => { tMap[getId(t)] = t; });
