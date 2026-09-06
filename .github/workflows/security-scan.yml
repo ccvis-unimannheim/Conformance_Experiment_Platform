@@ -38,18 +38,6 @@ jobs:
       - name: Build image
         run: docker build -t ${{ matrix.target.name }}:scan ${{ matrix.target.context }}
 
-      - name: DEBUG - inspect image directly (temporary)
-        if: matrix.target.name == 'provibackend'
-        run: |
-          echo "--- docker images (looking for provibackend:scan) ---"
-          docker images
-          echo "--- docker inspect provibackend:scan (created/id) ---"
-          docker inspect --format '{{.Id}} created={{.Created}}' provibackend:scan
-          echo "--- pip show inside the freshly built container ---"
-          docker run --rm provibackend:scan pip show msgpack setuptools
-          echo "--- dist-info files found inside the freshly built container ---"
-          docker run --rm provibackend:scan sh -c "find / -iname 'msgpack*.dist-info' -o -iname 'setuptools*.dist-info' 2>/dev/null"
-
       - name: Trivy scan (table, for humans)
         run: |
           trivy image \
