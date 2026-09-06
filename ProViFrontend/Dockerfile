@@ -4,12 +4,7 @@ ARG NO_PROXY
 
 FROM node:22-alpine
 RUN apk update && apk upgrade --no-cache && \
-    npm install -g npm@latest && \
-    # npm's own CLI vendors ip-address/tar internally (proxy handling, tarball
-    # extraction) — these live outside our project's package.json/overrides,
-    # so patch them directly in npm's own install to clear the flagged CVEs.
-    npm install --no-save --prefix "$(npm root -g)/npm" "tar@>=7.5.21" "ip-address@>=10.3.1" && \
-    npm dedupe --prefix "$(npm root -g)/npm"
+    npm install -g npm@latest
 
 WORKDIR /app
 COPY ./provi-frontend/package*.json ./provi-frontend/
