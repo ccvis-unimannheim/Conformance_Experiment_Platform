@@ -55,9 +55,11 @@ class KnowledgeQuestionCreate(BaseModel):
 
 class KnowledgeQuestionIds(BaseModel):
     knowledge_question_ids: List[str]
+    current_step: Optional[str] = None
 
 class PrequestionnaireSections(BaseModel):
     sections: List[str]  # e.g. ["personal_info", "academic_profile", "technical_expertise", "tool_experience"]
+    current_step: Optional[str] = None
 
 class FeedbackAnswersRequest(BaseModel):
     ratings:  dict        # {mentalDemand, physicalDemand, temporalDemand, performance, effort, frustration}
@@ -237,6 +239,7 @@ class Experiment(BaseModel):
     task_instances: List[TaskInstance] = []  # canonical: one entry per task
     knowledge_question_ids: List[str] = []   # empty = use all system questions
     prequestionnaire_sections: List[str] = ["personal_info", "academic_profile", "technical_expertise", "tool_experience"]  # enabled sections
+    current_step: Optional[str] = None  # wizard route slug the admin last reached, e.g. "task", "specify"
     created_by: str             # FK → Administrator
     created_at: str
 
@@ -293,6 +296,12 @@ class ExperimentUpdate(BaseModel):
     task_configs: Optional[List[TaskConfig]] = None
     task_instances: Optional[List[TaskInstance]] = None
     status: Optional[str] = None
+    current_step: Optional[str] = None
+    name: Optional[str] = None
+    design_type: Optional[str] = None
+    between_balance_mode: Optional[str] = None
+    within_sequence_mode: Optional[str] = None
+    dataset_ids: Optional[List[str]] = None
 
 # Aliases for backward compatibility with older router code
 PreEliminaryAnswers = PreliminaryAnswers

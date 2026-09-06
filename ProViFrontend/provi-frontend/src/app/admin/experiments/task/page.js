@@ -6,6 +6,7 @@ import Link from "next/link";
 import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../../components/Admin/Toast";
 import EditTaskModal from "../../../../components/Admin/EditTaskModal";
+import { saveWizardStep } from "../../../../utils/wizardSave";
 
 // ---------------------------------------------------------------------------
 // Static classification characteristics from the task taxonomy.
@@ -90,6 +91,19 @@ export default function TaskSelectionPage() {
     if (!experimentId) router.replace("/admin/experiments/new");
   }, [experimentId, router]);
 
+  // Resume: pre-select tasks already saved on this draft experiment
+  useEffect(() => {
+    if (!experimentId) return;
+    fetch(`/api/admin/experiments/${encodeURIComponent(experimentId)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((exp) => {
+        if (exp?.task_configs?.length) {
+          setSelectedIds(exp.task_configs.map((tc) => tc.task_id));
+        }
+      })
+      .catch(() => {});
+  }, [experimentId]);
+
   const fetchTasks = useCallback(() => {
     return fetch("/api/admin/tasks")
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
@@ -168,10 +182,24 @@ export default function TaskSelectionPage() {
 
   const anyFilter = DIMS.some((d) => filterState[d.id]);
 
+  function buildTaskConfigs(ids) {
+    return ids.map((taskId) => ({
+      task_id: taskId,
+      idiom_id: "",
+      dataset_id: "",
+      question_ids: [],
+    }));
+  }
+
   function toggleTask(id) {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
+    setSelectedIds((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      if (experimentId) {
+        saveWizardStep(experimentId, "task", { task_configs: buildTaskConfigs(next) })
+          .catch((e) => showToast(`Failed to save tasks: ${e.message}`, true));
+      }
+      return next;
+    });
   }
 
   async function goToStep2() {
@@ -183,19 +211,8 @@ export default function TaskSelectionPage() {
       showToast("No experiment found. Please go back and create an experiment first.", true);
       return;
     }
-    const taskConfigs = selectedIds.map((taskId) => ({
-      task_id: taskId,
-      idiom_id: "",
-      dataset_id: "",
-      question_ids: [],
-    }));
     try {
-      const res = await fetch(`/api/admin/experiments/${encodeURIComponent(experimentId)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ task_configs: taskConfigs }),
-      });
-      if (!res.ok) throw new Error(await res.text());
+      await saveWizardStep(experimentId, "task", { task_configs: buildTaskConfigs(selectedIds) });
     } catch (e) {
       showToast(`Failed to save tasks: ${e.message}`, true);
       return;

@@ -6,6 +6,7 @@ import Link from "next/link";
 import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../../components/Admin/Toast";
 import { TASK_IDIOM_LABEL_OVERRIDES } from "../../../../utils/idiomLabels";
+import { saveWizardStep } from "../../../../utils/wizardSave";
 
 function getId(obj) {
   return obj._id || obj.id;
@@ -181,6 +182,7 @@ function IdiomSelectionContent() {
 
   async function init() {
     let taskIds = [];
+    let existingConfigs = [];
     try {
       const res = await fetch(`/api/admin/experiments`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -188,6 +190,7 @@ function IdiomSelectionContent() {
       const draft = exps.find((e) => getId(e) === experimentId);
       if (!draft) throw new Error("Draft experiment not found.");
       taskIds = draft.task_configs.map((tc) => tc.task_id);
+      existingConfigs = draft.task_configs;
       setDatasetIds(draft.dataset_ids || []);
     } catch (e) {
       showToast(`Could not load draft experiment: ${e.message}`, true);
@@ -205,7 +208,12 @@ function IdiomSelectionContent() {
       }
       setSelectedTasks(tasks);
       const map = {};
-      tasks.forEach((t) => { map[getId(t)] = []; });
+      tasks.forEach((t) => {
+        const tid = getId(t);
+        map[tid] = existingConfigs
+          .filter((tc) => tc.task_id === tid && tc.idiom_id)
+          .map((tc) => tc.idiom_id);
+      });
       setTaskIdiomMap(map);
     } catch (e) {
       showToast(`Could not load tasks: ${e.message}`, true);
@@ -241,13 +249,32 @@ function IdiomSelectionContent() {
     );
   }
 
+  function buildTaskConfigs(map) {
+    const taskConfigs = [];
+    for (const task of selectedTasks) {
+      const tid = getId(task);
+      for (const idiomId of map[tid] || []) {
+        taskConfigs.push({ task_id: tid, idiom_id: idiomId, dataset_id: datasetIds[0] || "", question_ids: [] });
+      }
+    }
+    return taskConfigs;
+  }
+
+  function persistMap(map) {
+    if (!experimentId) return;
+    saveWizardStep(experimentId, "idiom", { task_configs: buildTaskConfigs(map) })
+      .catch((e) => showToast(`Failed to save: ${e.message}`, true));
+  }
+
   function toggleIdiom(taskId, idiomId) {
     setTaskIdiomMap((prev) => {
       const arr = prev[taskId] || [];
       const newArr = arr.includes(idiomId)
         ? arr.filter((id) => id !== idiomId)
         : [...arr, idiomId];
-      return { ...prev, [taskId]: newArr };
+      const next = { ...prev, [taskId]: newArr };
+      persistMap(next);
+      return next;
     });
   }
 
@@ -262,13 +289,29 @@ function IdiomSelectionContent() {
       const tid = getId(task);
       newMap[tid] = getIdiomsForTask(task).map((i) => getId(i));
     });
-    setTaskIdiomMap((prev) => ({ ...prev, ...newMap }));
+    setTaskIdiomMap((prev) => {
+      const next = { ...prev, ...newMap };
+      persistMap(next);
+      return next;
+    });
   }
 
   function handleDeselectAll() {
     const newMap = {};
     selectedTasks.forEach((task) => { newMap[getId(task)] = []; });
-    setTaskIdiomMap((prev) => ({ ...prev, ...newMap }));
+    setTaskIdiomMap((prev) => {
+      const next = { ...prev, ...newMap };
+      persistMap(next);
+      return next;
+    });
+  }
+
+  function setTaskIdioms(tid, idiomIds) {
+    setTaskIdiomMap((prev) => {
+      const next = { ...prev, [tid]: idiomIds };
+      persistMap(next);
+      return next;
+    });
   }
 
   async function handleNext() {
@@ -283,21 +326,8 @@ function IdiomSelectionContent() {
       return;
     }
 
-    const taskConfigs = [];
-    for (const task of selectedTasks) {
-      const tid = getId(task);
-      for (const idiomId of taskIdiomMap[tid] || []) {
-        taskConfigs.push({ task_id: tid, idiom_id: idiomId, dataset_id: datasetIds[0] || "", question_ids: [] });
-      }
-    }
-
     try {
-      const res = await fetch(`/api/admin/experiments/${experimentId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ task_configs: taskConfigs }),
-      });
-      if (!res.ok) throw new Error(await res.text());
+      await saveWizardStep(experimentId, "idiom", { task_configs: buildTaskConfigs(taskIdiomMap) });
       router.push(`/admin/experiments/specify?experiment_id=${encodeURIComponent(experimentId)}`);
     } catch (e) {
       showToast(`Failed to save experiment: ${e.message}`, true);
@@ -397,12 +427,7 @@ function IdiomSelectionContent() {
                       {taskIdioms.length > 0 && (
                         <div className="flex items-center gap-1.5">
                           <button
-                            onClick={() =>
-                              setTaskIdiomMap((prev) => ({
-                                ...prev,
-                                [tid]: taskIdioms.map((i) => getId(i)),
-                              }))
-                            }
+                            onClick={() => setTaskIdioms(tid, taskIdioms.map((i) => getId(i)))}
                             className="flex items-center gap-1 text-xs font-medium text-primary border border-primary/30 bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-lg transition-all active:scale-95"
                           >
                             <span className="material-symbols-outlined text-[14px]">select_all</span>
@@ -410,9 +435,7 @@ function IdiomSelectionContent() {
                           </button>
                           {selectedForTask.length > 0 && (
                             <button
-                              onClick={() =>
-                                setTaskIdiomMap((prev) => ({ ...prev, [tid]: [] }))
-                              }
+                              onClick={() => setTaskIdioms(tid, [])}
                               className="flex items-center gap-1 text-xs font-medium text-on-surface-variant border border-outline-variant bg-white hover:bg-surface-container-low px-3 py-1 rounded-lg transition-all active:scale-95"
                             >
                               <span className="material-symbols-outlined text-[14px]">deselect</span>

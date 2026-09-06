@@ -883,6 +883,18 @@ async def update_experiment(experiment_id: str, update_data: ds.ExperimentUpdate
         fields["task_instances"] = task_configs_to_instances(configs)
     if update_data.status is not None:
         fields["status"] = update_data.status
+    if update_data.current_step is not None:
+        fields["current_step"] = update_data.current_step
+    if update_data.name is not None:
+        fields["name"] = update_data.name
+    if update_data.design_type is not None:
+        fields["design_type"] = update_data.design_type
+    if update_data.between_balance_mode is not None:
+        fields["between_balance_mode"] = update_data.between_balance_mode
+    if update_data.within_sequence_mode is not None:
+        fields["within_sequence_mode"] = update_data.within_sequence_mode
+    if update_data.dataset_ids is not None:
+        fields["dataset_ids"] = update_data.dataset_ids
     if not fields:
         raise HTTPException(status_code=400, detail="No fields to update.")
     updated = dbc.update_document("Experiment", query={"_id": experiment_id}, update={"$set": fields})
@@ -1546,10 +1558,13 @@ async def delete_knowledge_question(question_id: str):
 
 @router.patch("/experiments/{experiment_id}/knowledge-questions", tags=["admin"])
 async def update_experiment_knowledge_questions(experiment_id: str, body: ds.KnowledgeQuestionIds):
+    set_fields = {"knowledge_question_ids": body.knowledge_question_ids}
+    if body.current_step is not None:
+        set_fields["current_step"] = body.current_step
     updated = dbc.update_document(
         "Experiment",
         query={"_id": experiment_id},
-        update={"$set": {"knowledge_question_ids": body.knowledge_question_ids}},
+        update={"$set": set_fields},
     )
     if not updated:
         raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
@@ -1558,10 +1573,13 @@ async def update_experiment_knowledge_questions(experiment_id: str, body: ds.Kno
 
 @router.patch("/experiments/{experiment_id}/prequestionnaire-sections", tags=["admin"])
 async def update_experiment_prequestionnaire_sections(experiment_id: str, body: ds.PrequestionnaireSections):
+    set_fields = {"prequestionnaire_sections": body.sections}
+    if body.current_step is not None:
+        set_fields["current_step"] = body.current_step
     updated = dbc.update_document(
         "Experiment",
         query={"_id": experiment_id},
-        update={"$set": {"prequestionnaire_sections": body.sections}},
+        update={"$set": set_fields},
     )
     if not updated:
         raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")

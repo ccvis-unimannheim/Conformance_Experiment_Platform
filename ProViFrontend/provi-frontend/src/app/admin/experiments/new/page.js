@@ -1,13 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import AdminNav from "../../../../components/Admin/AdminNav";
 import ExperimentDetailsForm from "../../../../components/Admin/ExperimentDetailsForm";
 import DatasetSelectTable from "../../../../components/Admin/DatasetSelectTable";
+import { saveWizardStep } from "../../../../utils/wizardSave";
 
 export default function NewExperimentPage() {
   const router = useRouter();
+
+  const [experimentId] = useState(() => crypto.randomUUID());
+  const createdRef = useRef(false);
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -34,15 +38,76 @@ export default function NewExperimentPage() {
       .finally(() => setLoadingPairs(false));
   }, []);
 
+  // Create the draft experiment as soon as it becomes valid (name + ≥1 dataset),
+  // so every subsequent edit on this page can autosave via PATCH instead of
+  // waiting for "Next".
+  useEffect(() => {
+    if (createdRef.current) return;
+    if (!name.trim() || selectedIds.size === 0) return;
+    createdRef.current = true;
+    fetch(`/api/admin/experiments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        _id: experimentId,
+        name: name.trim(),
+        type: "CC",
+        status: "draft",
+        design_type: designType,
+        between_factors: [],
+        within_factors: [],
+        stratification_fields: [],
+        between_balance_mode: "random",
+        within_sequence_mode: randomizeOrder ? "random" : "fixed",
+        dataset_ids: Array.from(selectedIds),
+        task_configs: [],
+        current_step: "prequestionnaire",
+        created_by: "admin",
+        created_at: new Date().toISOString(),
+      }),
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error(`Server error: ${r.status}`);
+      })
+      .catch((e) => {
+        createdRef.current = false;
+        setSubmitError(e.message);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [name, selectedIds]);
+
+  function persistField(fields) {
+    if (!createdRef.current) return;
+    saveWizardStep(experimentId, "prequestionnaire", fields).catch((e) => setSubmitError(e.message));
+  }
+
   function handleFormChange(field, value) {
-    if (field === "name") setName(value);
-    else setDescription(value);
+    if (field === "name") {
+      setName(value);
+      if (createdRef.current) persistField({ name: value.trim() });
+    } else {
+      setDescription(value);
+    }
   }
 
   function handleToggle(datasetId) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       next.has(datasetId) ? next.delete(datasetId) : next.add(datasetId);
+      if (createdRef.current) persistField({ dataset_ids: Array.from(next) });
+      return next;
+    });
+  }
+
+  function handleDesignTypeChange(value) {
+    setDesignType(value);
+    persistField({ design_type: value });
+  }
+
+  function handleRandomizeOrderChange() {
+    setRandomizeOrder((v) => {
+      const next = !v;
+      persistField({ within_sequence_mode: next ? "random" : "fixed" });
       return next;
     });
   }
@@ -60,33 +125,36 @@ export default function NewExperimentPage() {
     setSubmitError(null);
     setIsSubmitting(true);
     try {
-      const experimentId = crypto.randomUUID();
-      const response = await fetch(`/api/admin/experiments`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          _id: experimentId,
-          name: name.trim(),
-          type: "CC",
-          status: "draft",
-          design_type: designType,
-          between_factors: [],
-          within_factors: [],
-          stratification_fields: [],
-          between_balance_mode: "random",
-          within_sequence_mode: randomizeOrder ? "random" : "fixed",
-          dataset_ids: Array.from(selectedIds),
-          task_configs: [],
-          created_by: "admin",
-          created_at: new Date().toISOString(),
-        }),
-      });
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.detail || `Server error: ${response.status}`);
+      if (!createdRef.current) {
+        // Fallback: creation-on-input never fired (e.g. re-cleared then re-filled
+        // in the same tick) — create the draft now.
+        const response = await fetch(`/api/admin/experiments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            _id: experimentId,
+            name: name.trim(),
+            type: "CC",
+            status: "draft",
+            design_type: designType,
+            between_factors: [],
+            within_factors: [],
+            stratification_fields: [],
+            between_balance_mode: "random",
+            within_sequence_mode: randomizeOrder ? "random" : "fixed",
+            dataset_ids: Array.from(selectedIds),
+            task_configs: [],
+            current_step: "prequestionnaire",
+            created_by: "admin",
+            created_at: new Date().toISOString(),
+          }),
+        });
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err.detail || `Server error: ${response.status}`);
+        }
+        createdRef.current = true;
       }
-
       router.push(`/admin/experiments/prequestionnaire?experiment_id=${encodeURIComponent(experimentId)}`);
     } catch (e) {
       setSubmitError(e.message);
@@ -136,7 +204,7 @@ export default function NewExperimentPage() {
                   <button
                     key={value}
                     type="button"
-                    onClick={() => setDesignType(value)}
+                    onClick={() => handleDesignTypeChange(value)}
                     className={`flex-1 text-left px-4 py-3 rounded-lg border transition-all ${
                       designType === value
                         ? "border-primary bg-primary/5"
@@ -165,7 +233,7 @@ export default function NewExperimentPage() {
               <p className="text-label-caps text-on-surface-variant mb-3">TRIAL ORDER</p>
               <div
                 className="flex items-center gap-3 cursor-pointer"
-                onClick={() => setRandomizeOrder((v) => !v)}
+                onClick={handleRandomizeOrderChange}
               >
                 <div className={`w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center transition-all ${
                   randomizeOrder ? "bg-primary border-primary" : "border-outline-variant"
