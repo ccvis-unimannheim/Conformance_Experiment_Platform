@@ -282,6 +282,12 @@ class TaskUpdate(BaseModel):
     description: str | None = None
     answer_type: str | None = None
     rubric: str | None = None
+    # Admin overrides of this task's own PARAM_SPEC entries (see GET
+    # /param-catalog and /tasks/{task_key}/param-spec): {param_key: {enabled,
+    # default, required, min, max, step, options}}. A task can only carry
+    # overrides for parameter keys its own generation code already declares —
+    # this never adds a parameter the task's code doesn't consume.
+    param_overrides: Dict[str, Any] | None = None
 
 class Question(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
