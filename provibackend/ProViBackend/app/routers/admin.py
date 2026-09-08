@@ -724,6 +724,9 @@ async def get_task_idioms():
     return JSONResponse(content=result)
 
 
+_PARAM_OVERRIDE_FIELDS = ("default", "required", "min", "max", "step", "options")
+
+
 @router.get("/tasks/{task_key}/param-spec", tags=["admin"])
 async def get_task_param_spec(task_key: str, dataset_id: str | None = None):
     """Return this task's hyperparameter spec for /specify (col E, see
@@ -734,13 +737,33 @@ async def get_task_param_spec(task_key: str, dataset_id: str | None = None):
     accepted for forward-compatibility: once a task declares PARAM_SPEC entries
     with a `source` (e.g. "log.activities"), candidate values for that dataset
     are populated here (§14, step 6).
+
+    Admin overrides (see PATCH /tasks/{task_id} `param_overrides`, configured
+    from /admin/parameters — GET /param-catalog) are applied on top of each
+    entry; an entry whose override sets `enabled: false` is dropped entirely,
+    so /specify neither shows nor collects a value for it and the task's own
+    code-level default is used at generation time.
     """
     if task_key not in _TASK_MODULES:
         raise HTTPException(status_code=404, detail=f"Unknown task '{task_key}'.")
 
-    # Copy entries so we never mutate the module's PARAM_SPEC, then populate
-    # candidate `options` for entries with a dataset-backed `source`.
-    spec = [dict(entry) for entry in task_registry.get_param_spec(task_key)]
+    task_docs = dbc.get_query_db("Task", query={"task_key": task_key})
+    overrides = (task_docs[0].get("param_overrides") or {}) if task_docs else {}
+
+    # Copy entries so we never mutate the module's PARAM_SPEC, apply any admin
+    # override, then populate candidate `options` for entries with a
+    # dataset-backed `source`.
+    spec = []
+    for raw_entry in task_registry.get_param_spec(task_key):
+        entry = dict(raw_entry)
+        ov = overrides.get(entry["key"], {})
+        if ov.get("enabled") is False:
+            continue
+        for field in _PARAM_OVERRIDE_FIELDS:
+            if ov.get(field) is not None:
+                entry[field] = ov[field]
+        spec.append(entry)
+
     if dataset_id:
         for entry in spec:
             source = entry.get("source")
@@ -760,18 +783,68 @@ async def get_task_param_spec(task_key: str, dataset_id: str | None = None):
     })
 
 
+@router.get("/param-catalog", tags=["admin"])
+async def get_param_catalog():
+    """Group every task's declared PARAM_SPEC entries by key, for the admin
+    Parameter Matching page (/admin/parameters).
+
+    A parameter key is only ever listed under the tasks whose own generation
+    code already declares it — this surfaces existing sharing (e.g.
+    'outcome_activity' used by several tasks) and lets an admin enable/disable
+    or reconfigure (default/required/min/max/step) that parameter per task,
+    but never lets a parameter be attached to a task that doesn't already
+    consume it, since that would silently have no effect on generation.
+    """
+    task_docs = {d["task_key"]: d for d in dbc.get_query_db("Task", query={}) if d.get("task_key")}
+
+    catalog: dict[str, dict] = {}
+    for task_key in _TASK_MODULES:
+        task_doc = task_docs.get(task_key, {})
+        overrides = task_doc.get("param_overrides") or {}
+        for entry in task_registry.get_param_spec(task_key):
+            key = entry["key"]
+            bucket = catalog.setdefault(key, {
+                "key": key,
+                "label": entry.get("label"),
+                "widget": entry.get("widget"),
+                "source": entry.get("source"),
+                "tasks": [],
+            })
+            ov = overrides.get(key, {})
+            bucket["tasks"].append({
+                "task_key": task_key,
+                "task_label": task_doc.get("label", task_key),
+                "enabled": ov.get("enabled", True),
+                "default": ov.get("default", entry.get("default")),
+                "required": ov.get("required", entry.get("required")),
+                "min": ov.get("min", entry.get("min")),
+                "max": ov.get("max", entry.get("max")),
+                "step": ov.get("step", entry.get("step")),
+            })
+
+    return JSONResponse(content={"parameters": list(catalog.values())})
+
+
 @router.get("/tasks/{task_key}/answer-formats", tags=["admin"])
 async def get_task_answer_formats(task_key: str):
-    """Return this task's allowed answer formats for /answer-format-groundtruth
+    """Return the answer-format dropdown for /answer-format-groundtruth
     (col D, see ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4-5, §11).
 
-    Unauthored tasks fall back to a single generic `free-text` format.
+    Every task shares the same dropdown: the full set of formats declared by
+    ANY task, deduped by key. This lets an admin pick any format for any
+    task, but only tasks whose own compute_ground_truth() recognizes that
+    format will compute a correctly-shaped ground truth for it — for the
+    rest, generation falls back to that task's default/free-text handling.
     """
     if task_key not in _TASK_MODULES:
         raise HTTPException(status_code=404, detail=f"Unknown task '{task_key}'.")
+    all_formats: dict[str, dict] = {}
+    for mod_key in _TASK_MODULES:
+        for fmt in task_registry.get_answer_formats(mod_key):
+            all_formats.setdefault(fmt["key"], fmt)
     return JSONResponse(content={
         "task_key": task_key,
-        "answer_formats": task_registry.get_answer_formats(task_key),
+        "answer_formats": list(all_formats.values()),
     })
 
 
