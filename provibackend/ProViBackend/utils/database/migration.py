@@ -27,6 +27,13 @@ def task_instances_to_configs(task_instances: list[dict]) -> list[dict]:
         dataset_id = inst.get("dataset_id", "")
         question_ids = inst.get("question_ids", []) or []
         idiom_ids = inst.get("idiom_ids", []) or []
+        # Carry the frozen Task snapshot (if any) into the legacy mirror too.
+        snapshot = {
+            "task_key": inst.get("task_key"),
+            "label": inst.get("label"),
+            "description": inst.get("description"),
+            "answer_type": inst.get("answer_type"),
+        }
         if idiom_ids:
             for idiom_id in idiom_ids:
                 configs.append({
@@ -34,6 +41,7 @@ def task_instances_to_configs(task_instances: list[dict]) -> list[dict]:
                     "idiom_id": idiom_id,
                     "dataset_id": dataset_id,
                     "question_ids": question_ids,
+                    **snapshot,
                 })
         else:
             configs.append({
@@ -41,6 +49,7 @@ def task_instances_to_configs(task_instances: list[dict]) -> list[dict]:
                 "idiom_id": "",
                 "dataset_id": dataset_id,
                 "question_ids": question_ids,
+                **snapshot,
             })
     return configs
 
@@ -70,6 +79,11 @@ def task_configs_to_instances(task_configs: list[dict]) -> list[dict]:
                 "generation_error": None,
                 "ground_truth": None,
                 "question_ids": tc.get("question_ids", []) or [],
+                # Carry the frozen Task snapshot (if any) over from the legacy mirror.
+                "task_key": tc.get("task_key"),
+                "label": tc.get("label"),
+                "description": tc.get("description"),
+                "answer_type": tc.get("answer_type"),
             }
             order.append(task_id)
         inst = by_task[task_id]

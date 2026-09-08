@@ -572,15 +572,6 @@ function ExperimentOverviewContent() {
                           ) : (
                             <span className="text-xs text-on-surface-variant italic">Not set</span>
                           )}
-                          <span
-                            className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-                              ti?.ground_truth?.decisive
-                                ? "bg-green-100 text-green-800"
-                                : "bg-surface-container text-on-surface-variant"
-                            }`}
-                          >
-                            {ti?.ground_truth?.decisive ? "Decisive" : "Reference"}
-                          </span>
                         </div>
                         <Link
                           href={gtHref}
@@ -591,21 +582,7 @@ function ExperimentOverviewContent() {
                       </div>
                     </div>
 
-                    {/* Ground Truth */}
-                    <div className="p-5">
-                      <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">
-                        Ground Truth
-                      </p>
-                      <div className="border border-border-subtle rounded-lg p-4 flex items-start justify-between gap-4">
-                        <GroundTruthSummary gt={ti?.ground_truth} rubric={rubricsByTask[tid]} />
-                        <Link
-                          href={gtHref}
-                          className="text-xs text-primary border border-primary/30 px-3 py-1.5 rounded hover:bg-blue-50 transition-colors flex-shrink-0"
-                        >
-                          Edit
-                        </Link>
-                      </div>
-                    </div>
+                    {/* Ground Truth summary intentionally not rendered here — see GroundTruthSummary above. */}
                   </div>
                 </div>
               );
