@@ -222,7 +222,7 @@ function ParameterMatchingContent() {
 
       (catalogData.parameters || []).forEach((param) => {
         const otherTaskLabels = param.tasks
-          .filter((row) => !selectedTaskKeys.has(row.task_key))
+          .filter((row) => !selectedTaskKeys.has(row.task_key) && row.enabled)
           .map((row) => row.task_label || row.task_key);
 
         param.tasks.forEach((row) => {
@@ -297,11 +297,11 @@ function ParameterMatchingContent() {
         <div className="flex flex-col gap-1">
           <h1 className="font-h1 text-h1 text-primary mb-2">Parameter Matching</h1>
           <p className="font-body-lg text-body-lg text-secondary max-w-2xl">
-            For each task you selected, choose which of its parameters this experiment should use,
-            and adjust their default value, required flag, or range. A task can only enable a
-            parameter its own generation code already reads — some parameters are shared across
-            several tasks, and changes here apply wherever that parameter is used, not just this
-            experiment.
+            For each task you selected, every parameter declared by any task is available to
+            enable, with its own default value, required flag, and range. Enabling a parameter a
+            task&apos;s own generation code doesn&apos;t read is harmless but has no effect — the
+            value is collected on /specify but ignored at generation time. These settings are
+            shared across every experiment, not just this one.
           </p>
         </div>
 

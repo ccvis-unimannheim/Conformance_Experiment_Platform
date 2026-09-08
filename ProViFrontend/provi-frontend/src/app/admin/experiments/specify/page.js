@@ -443,9 +443,8 @@ function SpecifyContent() {
             <h1 className="font-h1 text-h1 text-primary">Specify &amp; Generate</h1>
           </div>
           <p className="font-body-lg text-body-lg text-secondary max-w-2xl">
-            Set any task-specific hyperparameters, then generate the visualizations and
-            compute ground truth for the selected idioms. Tasks with no parameters are ready
-            to generate immediately.
+            Set any task-specific hyperparameters, then generate the visualizations for the
+            selected idioms. Tasks with no parameters are ready to generate immediately.
           </p>
         </div>
 
@@ -558,7 +557,7 @@ function SpecifyContent() {
               <span className={`material-symbols-outlined text-sm ${generating ? "animate-spin" : ""}`}>
                 {generating ? "autorenew" : "play_arrow"}
               </span>
-              {generating ? "Generating…" : "Generate Visualizations & Ground Truth"}
+              {generating ? "Generating…" : "Generate Visualizations"}
             </button>
             <button
               onClick={handleNext}
