@@ -335,7 +335,7 @@ function IdiomSelectionContent() {
 
     try {
       await saveWizardStep(experimentId, "idiom", { task_configs: buildTaskConfigs(taskIdiomMap) });
-      router.push(`/admin/experiments/specify?experiment_id=${encodeURIComponent(experimentId)}`);
+      router.push(`/admin/experiments/parameters?experiment_id=${encodeURIComponent(experimentId)}`);
     } catch (e) {
       showToast(`Failed to save experiment: ${e.message}`, true);
     }
