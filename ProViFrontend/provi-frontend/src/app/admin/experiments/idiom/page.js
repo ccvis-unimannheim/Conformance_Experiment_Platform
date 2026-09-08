@@ -7,6 +7,7 @@ import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupH
 import Toast from "../../../../components/Admin/Toast";
 import { TASK_IDIOM_LABEL_OVERRIDES } from "../../../../utils/idiomLabels";
 import { saveWizardStep } from "../../../../utils/wizardSave";
+import UploadIdiomModal from "../../../../components/Admin/UploadIdiomModal";
 
 function getId(obj) {
   return obj._id || obj.id;
@@ -15,12 +16,15 @@ function getId(obj) {
 // ---------------------------------------------------------------------------
 // Idiom Preview Modal
 // ---------------------------------------------------------------------------
-function IdiomPreviewModal({ taskKey, idiomKey, idiomLabel, onClose }) {
-  const [status, setStatus] = useState("idle"); // "idle"|"generating"|"ready"|"failed"
+function IdiomPreviewModal({ taskKey, idiomKey, idiomLabel, isCustom, onClose }) {
+  // Custom (admin-uploaded) idioms are fixed assets — no per-task sample
+  // generation is needed, so skip straight to "ready".
+  const [status, setStatus] = useState(isCustom ? "ready" : "idle"); // "idle"|"generating"|"ready"|"failed"
   const [enlarged, setEnlarged] = useState(false);
   const pollRef = useRef(null);
 
   useEffect(() => {
+    if (isCustom) return;
     if (!taskKey || !idiomKey) return;
 
     async function trigger() {
@@ -53,7 +57,7 @@ function IdiomPreviewModal({ taskKey, idiomKey, idiomLabel, onClose }) {
 
     trigger();
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [taskKey, idiomKey]);
+  }, [taskKey, idiomKey, isCustom]);
 
   // Close on Escape key
   useEffect(() => {
@@ -62,7 +66,9 @@ function IdiomPreviewModal({ taskKey, idiomKey, idiomLabel, onClose }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const svgSrc = `/api/admin/idiom-preview/${taskKey}/${idiomKey}`;
+  const svgSrc = isCustom
+    ? `/api/admin/idioms/${idiomKey}/asset`
+    : `/api/admin/idiom-preview/${taskKey}/${idiomKey}`;
 
   return (
     <div
@@ -164,7 +170,8 @@ function IdiomSelectionContent() {
   const [datasetIds, setDatasetIds] = useState([]);
 
   // Preview modal state
-  const [previewModal, setPreviewModal] = useState(null); // { taskKey, idiomKey, idiomLabel }
+  const [previewModal, setPreviewModal] = useState(null); // { taskKey, idiomKey, idiomLabel, isCustom }
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
 
   const [toast, setToast] = useState({ visible: false, message: "", isError: false });
   const showToast = useCallback((message, isError = false) => {
@@ -360,24 +367,33 @@ function IdiomSelectionContent() {
               </span>
             )}
           </h2>
-          {selectedTasks.length > 0 && (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleSelectAll}
-                className="flex items-center gap-1.5 text-sm font-medium text-primary border border-primary/30 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-lg transition-all active:scale-95"
-              >
-                <span className="material-symbols-outlined text-[16px]">select_all</span>
-                Select All Idioms
-              </button>
-              <button
-                onClick={handleDeselectAll}
-                className="flex items-center gap-1.5 text-sm font-medium text-on-surface-variant border border-outline-variant bg-white hover:bg-surface-container-low px-4 py-2 rounded-lg transition-all active:scale-95"
-              >
-                <span className="material-symbols-outlined text-[16px]">deselect</span>
-                Deselect All
-              </button>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setUploadModalOpen(true)}
+              className="flex items-center gap-1.5 text-sm font-medium text-primary border border-primary/30 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-lg transition-all active:scale-95"
+            >
+              <span className="material-symbols-outlined text-[16px]">upload</span>
+              Upload Custom Idiom
+            </button>
+            {selectedTasks.length > 0 && (
+              <>
+                <button
+                  onClick={handleSelectAll}
+                  className="flex items-center gap-1.5 text-sm font-medium text-primary border border-primary/30 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-lg transition-all active:scale-95"
+                >
+                  <span className="material-symbols-outlined text-[16px]">select_all</span>
+                  Select All Idioms
+                </button>
+                <button
+                  onClick={handleDeselectAll}
+                  className="flex items-center gap-1.5 text-sm font-medium text-on-surface-variant border border-outline-variant bg-white hover:bg-surface-container-low px-4 py-2 rounded-lg transition-all active:scale-95"
+                >
+                  <span className="material-symbols-outlined text-[16px]">deselect</span>
+                  Deselect All
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Task cards with idiom allocation */}
@@ -487,6 +503,7 @@ function IdiomSelectionContent() {
                                     taskKey: task.task_key,
                                     idiomKey: idiom.idiom_key,
                                     idiomLabel: idiom.label,
+                                    isCustom: !!idiom.is_custom,
                                   });
                                 }}
                                 title="Preview this idiom with sample data"
@@ -540,7 +557,19 @@ function IdiomSelectionContent() {
           taskKey={previewModal.taskKey}
           idiomKey={previewModal.idiomKey}
           idiomLabel={previewModal.idiomLabel}
+          isCustom={previewModal.isCustom}
           onClose={() => setPreviewModal(null)}
+        />
+      )}
+
+      {uploadModalOpen && (
+        <UploadIdiomModal
+          onClose={() => setUploadModalOpen(false)}
+          onUploaded={async () => {
+            setUploadModalOpen(false);
+            await fetchIdiomsAndMapping();
+            showToast("Custom idiom uploaded.");
+          }}
         />
       )}
 

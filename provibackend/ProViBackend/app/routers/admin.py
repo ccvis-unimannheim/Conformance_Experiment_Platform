@@ -85,6 +85,9 @@ ALLOWED_MODEL_EXTENSIONS = {".bpmn"}
 EVENTLOG_BASENAME = "EventLog"
 GUIDELINE_FILENAME = "Guideline.bpmn"
 
+ALLOWED_IDIOM_IMAGE_EXTENSIONS = {".svg", ".png", ".jpg", ".jpeg"}
+CUSTOM_IDIOM_DIRECTORY = config.CUSTOM_IDIOM_DIRECTORY
+
 # Cache of distinct activity names per dataset, so /specify's param-spec
 # candidate enumeration doesn't reload the event log on every page render
 # (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §5). Keyed by dataset_id.
@@ -602,6 +605,61 @@ async def get_idioms():
     return JSONResponse(content=idioms)
 
 
+@router.post("/idioms/upload", tags=["admin"])
+async def upload_custom_idiom(file: UploadFile, label: str = Form(...)):
+    """Admin-uploaded static image/SVG idiom.
+
+    Unlike code-generated idioms (rendered per task+dataset by a task script's
+    Python function, see /task-idioms), a custom idiom is a single fixed asset
+    stored once and served as-is via GET /idioms/{idiom_key}/asset. It is
+    selectable for every task (see /task-idioms).
+    """
+    ext = _validate_extension(file.filename, ALLOWED_IDIOM_IMAGE_EXTENSIONS, "Idiom image")
+    idiom_key = f"custom-{uuid.uuid4().hex[:12]}"
+
+    try:
+        CUSTOM_IDIOM_DIRECTORY.mkdir(parents=True, exist_ok=True)
+        asset_path = CUSTOM_IDIOM_DIRECTORY / f"{idiom_key}{ext}"
+        asset_path.write_bytes(await file.read())
+
+        idiom = ds.Idiom(
+            _id=str(uuid.uuid4()),
+            idiom_key=idiom_key,
+            label=label,
+            granularity="custom",
+            renderer_type="custom-upload",
+            active=True,
+            is_custom=True,
+            asset_ext=ext,
+        )
+        dbc.create_document("Idiom", idiom.model_dump(by_alias=True))
+        return JSONResponse(
+            content={"message": f"Idiom '{label}' uploaded.", "idiom_id": idiom.id, "idiom_key": idiom_key},
+            status_code=201,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to upload idiom: {str(e)}")
+    finally:
+        await file.close()
+
+
+@router.get("/idioms/{idiom_key}/asset", tags=["admin"])
+async def get_custom_idiom_asset(idiom_key: str):
+    """Serve a custom (admin-uploaded) idiom's fixed image/SVG asset."""
+    docs = dbc.get_query_db("Idiom", query={"idiom_key": idiom_key, "is_custom": True})
+    if not docs:
+        raise HTTPException(status_code=404, detail=f"No custom idiom '{idiom_key}'.")
+    ext = docs[0].get("asset_ext") or ".svg"
+    asset_path = CUSTOM_IDIOM_DIRECTORY / f"{idiom_key}{ext}"
+    if not asset_path.exists():
+        raise HTTPException(status_code=404, detail="Idiom asset file missing.")
+    media_type = "image/svg+xml" if ext == ".svg" else f"image/{ext.lstrip('.')}"
+    from fastapi.responses import FileResponse as _FileResponse
+    return _FileResponse(str(asset_path), media_type=media_type)
+
+
 # ---------------------------------------------------------------------------
 # Task management
 # ---------------------------------------------------------------------------
@@ -643,7 +701,15 @@ async def get_task_idioms():
     Raw idiom names from task scripts use file-stem conventions (e.g. scatter_plot,
     flow_chart_elaborate_bpmn); this endpoint translates them to canonical idiom_keys
     matching the Idiom collection so the admin UI can filter correctly.
+
+    Custom (admin-uploaded, see POST /idioms/upload) idioms are fixed static
+    assets rather than code-generated per task, so they're appended to every
+    task's list here — they're selectable everywhere.
     """
+    custom_idiom_keys = [
+        doc["idiom_key"] for doc in dbc.get_query_db("Idiom", query={"is_custom": True})
+    ]
+
     result = {}
     for task_key, mod in _TASK_MODULES.items():
         skip = _TASK_RENAME_SKIP.get(task_key, set())
@@ -654,7 +720,7 @@ async def get_task_idioms():
                 canonical.append(_FILE_RENAME.get(idiom, idiom))
             else:
                 canonical.append(idiom)
-        result[task_key] = canonical
+        result[task_key] = canonical + custom_idiom_keys
     return JSONResponse(content=result)
 
 
@@ -711,18 +777,20 @@ async def get_task_answer_formats(task_key: str):
 
 @router.get("/tasks/{task_key}/rubric", tags=["admin"])
 async def get_task_rubric(task_key: str):
-    """Return this task's static, task-level grading rubric for read-only display
-    on /answer-format-groundtruth and /overview (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §8, §11).
+    """Return this task's grading rubric for display/editing on
+    /answer-format-groundtruth and /overview (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §8, §11).
 
-    The rubric is a single source of truth per task (the task's RUBRIC constant);
-    it is never copied into or editable on a per-experiment instance. `rubric` is
-    `null` if the task hasn't authored one yet (step 6).
+    The task's RUBRIC constant is the default; an admin edit (PATCH /tasks/{task_id}
+    with a `rubric` field, stored on the Task document) overrides it. `rubric` is
+    `null` if the task hasn't authored one and no admin edit exists yet (step 6).
     """
     if task_key not in _TASK_MODULES:
         raise HTTPException(status_code=404, detail=f"Unknown task '{task_key}'.")
+    task_docs = dbc.get_query_db("Task", query={"task_key": task_key})
+    override = task_docs[0].get("rubric") if task_docs else None
     return JSONResponse(content={
         "task_key": task_key,
-        "rubric": task_registry.get_rubric(task_key),
+        "rubric": override if override is not None else task_registry.get_rubric(task_key),
         "gt_tier": task_registry.get_gt_tier(task_key),
     })
 
@@ -868,19 +936,53 @@ async def update_experiment_status(experiment_id: str, status: str):
     return JSONResponse(content={"message": f"Experiment status updated to '{status}'."})
 
 
+def _freeze_task_snapshots(instances: list[dict], existing_by_task_id: dict) -> list[dict]:
+    """Stamp each task instance with a frozen snapshot of its Task (question bank)
+    label/description/answer_type, taken the first time the task enters this
+    experiment. Once frozen, later edits to the Task in the admin panel no longer
+    change this experiment — only newly-added tasks (or new experiments) pick up
+    the current Task content.
+    """
+    task_cache: dict = {}
+    for inst in instances:
+        task_id = inst.get("task_id", "")
+        if not task_id or (inst.get("label") and inst.get("task_key")):
+            continue
+        existing = existing_by_task_id.get(task_id)
+        if existing and existing.get("label") and existing.get("task_key"):
+            inst["task_key"] = existing["task_key"]
+            inst["label"] = existing["label"]
+            inst["description"] = existing.get("description", "")
+            inst["answer_type"] = existing.get("answer_type", "")
+            continue
+        if task_id not in task_cache:
+            task_cache[task_id] = dbc.get_document("Task", {"_id": task_id}) or {}
+        task = task_cache[task_id]
+        inst["task_key"] = task.get("task_key", "")
+        inst["label"] = task.get("label", "")
+        inst["description"] = task.get("description", "")
+        inst["answer_type"] = task.get("answer_type", "")
+    return instances
+
+
 @router.patch("/experiments/{experiment_id}", tags=["admin"])
 async def update_experiment(experiment_id: str, update_data: ds.ExperimentUpdate):
     # Keep task_instances (canonical) and task_configs (legacy mirror) in sync,
     # regardless of which one the caller sends.
     fields: dict = {}
-    if update_data.task_instances is not None:
-        instances = [ti.model_dump() for ti in update_data.task_instances]
+    if update_data.task_instances is not None or update_data.task_configs is not None:
+        existing_exp = dbc.get_document("Experiment", {"_id": experiment_id}) or {}
+        existing_by_task_id = {
+            ti.get("task_id"): ti for ti in existing_exp.get("task_instances", []) if ti.get("task_id")
+        }
+        if update_data.task_instances is not None:
+            instances = [ti.model_dump() for ti in update_data.task_instances]
+        else:
+            configs = [tc.model_dump() for tc in update_data.task_configs]
+            instances = task_configs_to_instances(configs)
+        instances = _freeze_task_snapshots(instances, existing_by_task_id)
         fields["task_instances"] = instances
         fields["task_configs"] = task_instances_to_configs(instances)
-    elif update_data.task_configs is not None:
-        configs = [tc.model_dump() for tc in update_data.task_configs]
-        fields["task_configs"] = configs
-        fields["task_instances"] = task_configs_to_instances(configs)
     if update_data.status is not None:
         fields["status"] = update_data.status
     if update_data.current_step is not None:
@@ -1329,7 +1431,14 @@ async def get_generated_vis_svg(experiment_id: str, task_key: str, idiom_key: st
 
     Reads from DATA_DIRECTORY/{dataset_id}/output/{experiment_id}/{task_key}/{idiom_key}.svg.
     Returns 404 if generation has not been run yet.
+
+    Custom (admin-uploaded) idioms are fixed assets, not per-dataset generated —
+    they're served straight from CUSTOM_IDIOM_DIRECTORY instead.
     """
+    custom_docs = dbc.get_query_db("Idiom", query={"idiom_key": idiom_key, "is_custom": True})
+    if custom_docs:
+        return await get_custom_idiom_asset(idiom_key)
+
     exp = dbc.get_document("Experiment", {"_id": experiment_id})
     if not exp:
         raise HTTPException(status_code=404, detail="Experiment not found.")
@@ -1484,7 +1593,15 @@ async def get_idiom_preview_status(task_key: str):
 
 @router.get("/idiom-preview/{task_key}/{idiom_key}", tags=["admin"])
 async def get_idiom_preview_svg(task_key: str, idiom_key: str):
-    """Serve a pre-generated sample-data SVG for one task/idiom pair."""
+    """Serve a pre-generated sample-data SVG for one task/idiom pair.
+
+    Custom (admin-uploaded) idioms have no per-task sample render — they're
+    fixed assets, served straight from CUSTOM_IDIOM_DIRECTORY instead.
+    """
+    custom_docs = dbc.get_query_db("Idiom", query={"idiom_key": idiom_key, "is_custom": True})
+    if custom_docs:
+        return await get_custom_idiom_asset(idiom_key)
+
     svg_path = (
         SAMPLE_DATA_DIR / "output" / _IDIOM_PREVIEW_EXP_ID / task_key / f"{idiom_key}.svg"
     )

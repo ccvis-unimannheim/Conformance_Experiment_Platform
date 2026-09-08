@@ -406,6 +406,45 @@ function ReferenceEditor({ gt, rubricInfo }) {
   );
 }
 
+function RubricEditor({ taskId, rubric, onSave }) {
+  const [draft, setDraft] = useState(rubric ?? "");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setDraft(rubric ?? "");
+  }, [taskId, rubric]);
+
+  const dirty = draft !== (rubric ?? "");
+
+  async function save() {
+    setSaving(true);
+    try {
+      await onSave(draft);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 max-w-md">
+      <textarea
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        rows={4}
+        placeholder="Write the grading rubric for this task…"
+        className="w-full text-sm border border-border-subtle rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+      />
+      <button
+        onClick={save}
+        disabled={!dirty || saving}
+        className="self-start text-xs font-semibold text-primary border border-primary/30 px-3 py-1.5 rounded hover:bg-blue-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        {saving ? "Saving…" : "Save rubric"}
+      </button>
+    </div>
+  );
+}
+
 function GroundTruthEditor({ gt, format, answerFormats, rubricInfo, groupName, onChange }) {
   const shape = shapeFor(format, answerFormats);
   switch (shape) {
@@ -425,15 +464,6 @@ function GroundTruthEditor({ gt, format, answerFormats, rubricInfo, groupName, o
 }
 
 function FormatSelector({ formats, value, onChange }) {
-  if (formats.length <= 1) {
-    const fmt = formats[0];
-    return (
-      <span className="inline-flex items-center gap-1 text-xs font-semibold bg-surface-container text-on-surface-variant px-2.5 py-1 rounded-full">
-        <span className="material-symbols-outlined text-sm">lock</span>
-        {fmt?.key || "free-text"}
-      </span>
-    );
-  }
   return (
     <select
       value={value ?? ""}
@@ -621,6 +651,24 @@ function GroundTruthContent() {
     await saveWizardStep(experimentId, "answer-format-groundtruth", { task_instances: instances });
   }
 
+  async function handleRubricSave(taskId, text) {
+    try {
+      const res = await fetch(`/api/admin/tasks/${encodeURIComponent(taskId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rubric: text }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setRubricsByTask((prev) => ({
+        ...prev,
+        [taskId]: { ...(prev[taskId] || { rubric: null, gt_tier: "MANUAL" }), rubric: text },
+      }));
+      showToast("Rubric saved.");
+    } catch (e) {
+      showToast(`Failed to save rubric: ${e.message}`, true);
+    }
+  }
+
   async function handleSave() {
     setSaving(true);
     try {
@@ -719,30 +767,26 @@ function GroundTruthContent() {
                           onChange={(key) => handleFormatChange(ti.task_id, key)}
                         />
                       </div>
-                      <label className="flex items-center gap-2 text-xs font-semibold text-on-surface cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={!!ti.ground_truth?.decisive}
-                          onChange={(e) => handleDecisiveChange(ti.task_id, e.target.checked)}
-                        />
-                        Closed-form answer
-                      </label>
                     </div>
 
-                    {ti.ground_truth ? (
-                      <GroundTruthEditor
-                        gt={ti.ground_truth}
-                        format={ti.answer_format}
-                        answerFormats={formats}
-                        rubricInfo={rubricInfo}
-                        groupName={ti.task_id}
-                        onChange={(gt) => handleGtChange(ti.task_id, gt)}
-                      />
-                    ) : (
-                      <p className="text-xs text-on-surface-variant italic">
-                        Select an answer format to configure ground truth.
+                    {/*
+                      Ground-truth editing UI (decisive checkbox + GroundTruthEditor) is
+                      intentionally not rendered in the admin panel — kept in code below
+                      (handleDecisiveChange, handleGtChange, GroundTruthEditor) in case it's
+                      needed again. Ground truth is still seeded/persisted per instance via
+                      seedInstances/handleFormatChange even though there's no UI to edit it here.
+                    */}
+
+                    <div className="flex flex-col gap-1">
+                      <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
+                        Grading rubric
                       </p>
-                    )}
+                      <RubricEditor
+                        taskId={ti.task_id}
+                        rubric={rubricInfo?.rubric ?? ""}
+                        onSave={(text) => handleRubricSave(ti.task_id, text)}
+                      />
+                    </div>
                   </div>
                 </div>
               );
