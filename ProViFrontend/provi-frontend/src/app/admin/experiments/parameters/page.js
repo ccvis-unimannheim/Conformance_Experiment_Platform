@@ -46,11 +46,11 @@ function ParamRow({ param, onSave }) {
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto_auto_auto] items-center gap-3 py-2.5 border-t border-border-subtle first:border-t-0">
-      <div className="flex items-center gap-2 min-w-0">
-        <span className="text-xs font-bold bg-blue-100 text-primary px-2 py-0.5 rounded flex-shrink-0">
+      <div className="flex items-start gap-2 min-w-0">
+        <span className="text-xs font-bold bg-blue-100 text-primary px-2 py-0.5 rounded flex-shrink-0 mt-0.5">
           {param.key}
         </span>
-        <span className="text-xs text-on-surface-variant truncate">{param.label}</span>
+        <span className="text-xs text-on-surface-variant">{param.label}</span>
       </div>
 
       <label className="flex items-center gap-1.5 text-xs text-on-surface cursor-pointer select-none">
@@ -119,6 +119,10 @@ function ParamRow({ param, onSave }) {
 }
 
 function TaskParamCard({ task, params, sharedWith, onSaveParam }) {
+  const [expanded, setExpanded] = useState(false);
+  const enabledParams = params.filter((p) => p.enabled);
+  const disabledParams = params.filter((p) => !p.enabled);
+
   return (
     <div className="bg-white rounded-lg border border-border-subtle shadow-sm overflow-hidden">
       <div className="border-l-4 border-primary p-5">
@@ -136,16 +140,53 @@ function TaskParamCard({ task, params, sharedWith, onSaveParam }) {
             This task has no configurable parameters.
           </p>
         ) : (
-          params.map((param) => (
-            <div key={param.key}>
-              <ParamRow param={param} onSave={(draft) => onSaveParam(param.key, draft)} />
-              {sharedWith[param.key]?.length > 0 && (
-                <p className="text-[10px] text-on-surface-variant italic pb-2">
-                  Also used by: {sharedWith[param.key].join(", ")}
-                </p>
-              )}
-            </div>
-          ))
+          <>
+            {enabledParams.length === 0 && (
+              <p className="text-xs text-on-surface-variant italic py-3">
+                No parameters enabled for this task.
+              </p>
+            )}
+            {enabledParams.map((param) => (
+              <div key={param.key}>
+                <ParamRow param={param} onSave={(draft) => onSaveParam(param.key, draft)} />
+                {sharedWith[param.key]?.length > 0 && (
+                  <p className="text-[10px] text-on-surface-variant italic pb-2">
+                    Also used by: {sharedWith[param.key].join(", ")}
+                  </p>
+                )}
+              </div>
+            ))}
+
+            {disabledParams.length > 0 && (
+              <div className="border-t border-border-subtle mt-1 pt-2">
+                <button
+                  onClick={() => setExpanded((v) => !v)}
+                  className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                >
+                  <span className="material-symbols-outlined text-sm">
+                    {expanded ? "expand_less" : "add"}
+                  </span>
+                  {expanded
+                    ? "Hide other parameters"
+                    : `Enable another parameter (${disabledParams.length} available)`}
+                </button>
+                {expanded && (
+                  <div className="mt-2">
+                    {disabledParams.map((param) => (
+                      <div key={param.key}>
+                        <ParamRow param={param} onSave={(draft) => onSaveParam(param.key, draft)} />
+                        {sharedWith[param.key]?.length > 0 && (
+                          <p className="text-[10px] text-on-surface-variant italic pb-2">
+                            Also used by: {sharedWith[param.key].join(", ")}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -221,9 +262,9 @@ function ParameterMatchingContent() {
       selectedTaskKeys.forEach((tk) => { byTask[tk] = []; sharedWith[tk] = {}; });
 
       (catalogData.parameters || []).forEach((param) => {
-        const otherTaskLabels = param.tasks
+        const otherTaskKeys = param.tasks
           .filter((row) => !selectedTaskKeys.has(row.task_key) && row.enabled)
-          .map((row) => row.task_label || row.task_key);
+          .map((row) => row.task_key);
 
         param.tasks.forEach((row) => {
           if (!selectedTaskKeys.has(row.task_key)) return;
@@ -239,7 +280,7 @@ function ParameterMatchingContent() {
             max: row.max,
             step: row.step,
           });
-          sharedWith[row.task_key][param.key] = otherTaskLabels;
+          sharedWith[row.task_key][param.key] = otherTaskKeys;
         });
       });
 
