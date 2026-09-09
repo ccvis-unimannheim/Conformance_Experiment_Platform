@@ -7,6 +7,7 @@ from fastapi import APIRouter, Cookie, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
+import ProViBackend.app.answer_formats as afmt
 import ProViBackend.utils.config as config
 import ProViBackend.utils.database.connection as dbc
 from ProViBackend.scripts.tasks import task_registry
@@ -26,85 +27,50 @@ class AssignmentRequest(BaseModel):
     experiment_id: str
 
 
-# PARTICIPANT_TRIAL_CONTRACT.md "answer_format -> answer_type (widget) mapping"
-ANSWER_FORMAT_TO_ANSWER_TYPE = {
-    "mc-single": "single_choice",
-    "yes-no": "single_choice",      # Yes/No rendered as two radio options
-    "mc-multi": "multiple_choice",
-    "pct": "numeric",
-    "count": "numeric",
-    "decimal": "numeric",
-    "pct-set": "numeric_set",
-    "count-set": "numeric_set",
-    "rank": "rank",
-    "matrix": "matrix",
-    "free-text": "free_text",
-}
+# answer_format -> widget, from the global format registry (app/answer_formats.py).
+ANSWER_FORMAT_TO_ANSWER_TYPE = dict(afmt.FORMAT_TO_WIDGET)
 
-# PARTICIPANT_TRIAL_CONTRACT.md "Fallback (task not yet authored - step 6 pending)"
-FALLBACK_ANSWER_FORMAT = "free-text"
-
-# Choice formats: the option `value` is the submittable token (safe to send).
-# matrix options are pair tokens (e.g. "a__b"); their `correct` flag is stripped
-# below, so the candidate set is safe to send the same way as a choice set.
-# yes-no is a two-option choice set (Yes/No) handled exactly like mc-single.
-_CHOICE_FORMATS = {"mc-single", "mc-multi", "matrix", "yes-no"}
-# Labelled-set formats: options are row labels; the `value` column holds the GT
-# number, which must NOT be sent to participants (PARTICIPANT_TRIAL_CONTRACT.md
-# "The frontend must never receive ... any other ground-truth value").
-_LABELLED_SET_FORMATS = {"pct-set", "count-set"}
-# Rank: the GT option ORDER is the answer, so it must be shuffled before sending.
-_RANK_FORMATS = {"rank"}
+FALLBACK_ANSWER_FORMAT = afmt.FALLBACK_ANSWER_FORMAT
 
 
-def _participant_options(answer_format: str, gt_options: list) -> list:
-    """Strip ground-truth from a task's option set per answer_format.
+def _participant_options(answer_format: str, options: list) -> list:
+    """The admin-authored option set for this format, ready to send.
 
-    - choice (mc-single/mc-multi/matrix): send {label, value} (value = submit
-      token). The `correct` flag is dropped, so only the candidate set is exposed.
-    - labelled-set (pct-set/count-set): send {label, value:label} only — the GT
-      number in `value` is withheld so the answer isn't leaked.
-    - rank: send {label, value} but SHUFFLED — the GT lives in option order, so
-      the stored order must never reach the participant.
-    - everything else: no options.
+    Every option is {label, value}, where `value` is the token the frontend
+    submits (falling back to the label). Formats that take free input get [].
+
+    `rank` is shuffled: the stored order is the admin's authoring order and
+    carries no answer, but presenting it unchanged to every participant would
+    still bias responses towards it.
     """
-    if answer_format in _CHOICE_FORMATS:
-        return [
-            {"label": opt.get("label", ""), "value": opt.get("value") or opt.get("label", "")}
-            for opt in gt_options
-        ]
-    if answer_format in _LABELLED_SET_FORMATS:
-        return [{"label": opt.get("label", ""), "value": opt.get("label", "")} for opt in gt_options]
-    if answer_format in _RANK_FORMATS:
-        opts = [
-            {"label": opt.get("label", ""), "value": opt.get("value") or opt.get("label", "")}
-            for opt in gt_options
-        ]
+    if not afmt.needs_options(answer_format):
+        return []
+    opts = [
+        {"label": opt.get("label", ""), "value": opt.get("value") or opt.get("label", "")}
+        for opt in options
+    ]
+    if answer_format in afmt.RANK_FORMATS:
         random.shuffle(opts)
-        return opts
-    return []
+    return opts
 
 
 def _trial_contract_fields(task_instances_by_task_id: dict, task_id: str) -> dict:
     """Derive the stable trial-contract fields for one task.
 
-    Reads `answer_format`/`ground_truth` from the experiment's task_instances
-    (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md step 7). Falls back to free-text/
-    free_text/[]/false when the task hasn't been authored yet
-    (PARTICIPANT_TRIAL_CONTRACT.md "Fallback"). Ground-truth values are stripped
-    from `options` so they never reach the participant.
+    Reads the answer shape the admin configured on /answer-format
+    (`answer_format`, `number_kind`, `answer_options`). Falls back to
+    free-text/free_text/[] when the instance has no format set
+    (PARTICIPANT_TRIAL_CONTRACT.md "Fallback").
     """
     ti = task_instances_by_task_id.get(task_id) or {}
     answer_format = ti.get("answer_format") or FALLBACK_ANSWER_FORMAT
-    answer_type = ANSWER_FORMAT_TO_ANSWER_TYPE.get(answer_format, "free_text")
-
-    ground_truth = ti.get("ground_truth") or {}
-    options = _participant_options(answer_format, ground_truth.get("options", []))
+    answer_type = afmt.widget_for(answer_format)
+    options = _participant_options(answer_format, ti.get("answer_options") or [])
 
     return {
         "answer_format": answer_format,
         "answer_type": answer_type,
-        "decisive": bool(ground_truth.get("decisive", False)),
+        "number_kind": ti.get("number_kind") or afmt.DEFAULT_NUMBER_KIND,
         "options": options,
     }
 
@@ -146,7 +112,7 @@ def _resolve_svg_path(task_id: str, idiom_id: str, dataset_id: str, experiment_i
 
     If `experiment_id` is given and the per-experiment SVG exists at
     data/{dataset_id}/output/{experiment_id}/{task_key}/{idiom_key}.svg
-    (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7), that path is returned. Otherwise
+    (see ADMIN_EXPERIMENT_SETUP.md), that path is returned. Otherwise
     falls back to the legacy shared path data/{dataset_id}/output/{task_key}/{idiom_key}.svg.
 
     Returns (path, error_message). On success error_message is None.
@@ -313,7 +279,7 @@ async def get_active_experiment():
             "idiom_label":   resolve_idiom_label(task_key, idiom["idiom_key"], idiom["label"]),
             "answer_format": contract["answer_format"],
             "answer_type":   contract["answer_type"],
-            "decisive":      contract["decisive"],
+            "number_kind":   contract["number_kind"],
             "options":       contract["options"],
             "svg_available": svg_available,
         })
@@ -440,7 +406,7 @@ async def get_assigned_trials(
             "idiom_label":   resolve_idiom_label(task_key, idiom["idiom_key"], idiom["label"]),
             "answer_format": contract["answer_format"],
             "answer_type":   contract["answer_type"],
-            "decisive":      contract["decisive"],
+            "number_kind":   contract["number_kind"],
             "options":       contract["options"],
             "svg_available": svg_available,
             "param_hints":   param_hints,

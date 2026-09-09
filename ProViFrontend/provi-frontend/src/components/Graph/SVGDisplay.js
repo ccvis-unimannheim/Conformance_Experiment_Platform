@@ -17,7 +17,7 @@ import { UITrackingContext } from "../../utils/usertracking";
 
 const fetcher = async (route) => {
   const response = await fetch(
-    `https://pm-vis.uni-mannheim.de/api/vis/${route}`,
+    `/api/vis/${route}`,
     {
       cache: "no-cache",
       credentials: "include",

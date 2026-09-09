@@ -96,51 +96,34 @@ function StatusBadge({ status }) {
   );
 }
 
-// Generic ground-truth summary — renders whatever the GT block currently
-// holds, regardless of gt_shape (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §8, §11).
-function GroundTruthSummary({ gt, rubric }) {
-  if (!gt) {
-    return <p className="text-xs text-on-surface-variant italic">Ground truth not yet configured.</p>;
-  }
-
-  const hasValue = gt.value !== null && gt.value !== undefined && gt.value !== "";
-  const hasOptions = (gt.options || []).length > 0;
-  // Rubric is task-level (read-only); prefer any computed reference text, else
-  // fall back to the task's static rubric.
-  const refText = (gt.reference && gt.reference.trim()) ? gt.reference : (rubric || "");
-  const hasReference = !!refText.trim();
-
-  if (hasValue) {
+// The configured answer options, if this task's format presents a closed set.
+function AnswerSummary({ ti }) {
+  const options = ti?.answer_options || [];
+  if (options.length === 0) {
     return (
-      <p className="text-xs text-on-surface">
-        Value: <span className="font-semibold">{String(gt.value)}</span>
+      <p className="text-xs text-on-surface-variant italic">
+        Free input — no options to configure.
       </p>
     );
   }
-
-  if (hasOptions) {
-    return (
-      <ul className="flex flex-wrap gap-2">
-        {gt.options.map((opt, i) => (
-          <li
-            key={i}
-            className={`text-xs px-2 py-1 rounded-full border ${
-              opt.correct ? "bg-green-50 border-green-300 text-green-800" : "border-border-subtle text-on-surface-variant"
-            }`}
-          >
-            {opt.label || opt.value}
-            {opt.correct && <span className="material-symbols-outlined text-[10px] ml-1 align-middle">check</span>}
-          </li>
-        ))}
-      </ul>
-    );
-  }
-
-  if (hasReference) {
-    return <p className="text-xs text-on-surface-variant line-clamp-2">{refText}</p>;
-  }
-
-  return <p className="text-xs text-on-surface-variant italic">No rubric written yet.</p>;
+  const shown = options.slice(0, 8);
+  return (
+    <ul className="flex flex-wrap gap-2">
+      {shown.map((opt, i) => (
+        <li
+          key={i}
+          className="text-xs px-2 py-1 rounded-full border border-border-subtle text-on-surface-variant"
+        >
+          {opt.label || opt.value}
+        </li>
+      ))}
+      {options.length > shown.length && (
+        <li className="text-xs px-2 py-1 text-on-surface-variant italic">
+          +{options.length - shown.length} more
+        </li>
+      )}
+    </ul>
+  );
 }
 
 function ExperimentOverviewContent() {
@@ -152,7 +135,8 @@ function ExperimentOverviewContent() {
   const [idiomMap, setIdiomMap] = useState({});
   const [groupedTasks, setGroupedTasks] = useState([]);
   const [taskInstancesByTask, setTaskInstancesByTask] = useState({});
-  const [rubricsByTask, setRubricsByTask] = useState({});
+  // Formats that present a closed option set (from /admin/answer-formats).
+  const [optionFormats, setOptionFormats] = useState(new Set());
   const [datasetTitleById, setDatasetTitleById] = useState({});
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("draft");
@@ -180,11 +164,12 @@ function ExperimentOverviewContent() {
   async function init() {
     setLoading(true);
     try {
-      const [expRes, tasksRes, idiomsRes, datasetsRes] = await Promise.all([
+      const [expRes, tasksRes, idiomsRes, datasetsRes, formatsRes] = await Promise.all([
         fetch(`/api/admin/experiments`),
         fetch(`/api/admin/tasks`),
         fetch(`/api/admin/idioms`),
         fetch(`/api/admin/datasets`),
+        fetch(`/api/admin/answer-formats`),
       ]);
       if (!expRes.ok) throw new Error(`Experiments HTTP ${expRes.status}`);
       if (!tasksRes.ok) throw new Error(`Tasks HTTP ${tasksRes.status}`);
@@ -197,6 +182,13 @@ function ExperimentOverviewContent() {
         idiomsRes.json(),
         datasetsRes.json(),
       ]);
+
+      if (formatsRes.ok) {
+        const fmt = await formatsRes.json();
+        setOptionFormats(
+          new Set((fmt.answer_formats || []).filter((f) => f.needs_options).map((f) => f.key))
+        );
+      }
 
       const dMap = {};
       (datasets || []).forEach((d) => { dMap[d.dataset_id] = d.dataset_title; });
@@ -240,25 +232,6 @@ function ExperimentOverviewContent() {
           idiomIds: idiomsByTask[tid] || [],
         }))
       );
-
-      // Load each task's static, task-level rubric for read-only display.
-      const rubrics = {};
-      await Promise.all(
-        taskOrder.map(async (tid) => {
-          const taskKey = tMap[tid]?.task_key;
-          if (!taskKey) return;
-          try {
-            const res = await fetch(`/api/admin/tasks/${encodeURIComponent(taskKey)}/rubric`);
-            if (res.ok) {
-              const data = await res.json();
-              rubrics[tid] = data.rubric ?? null;
-            }
-          } catch {
-            // leave undefined; summary falls back gracefully
-          }
-        })
-      );
-      setRubricsByTask(rubrics);
     } catch (e) {
       showToast(`Could not load experiment: ${e.message}`, true);
     } finally {
@@ -311,15 +284,20 @@ function ExperimentOverviewContent() {
   }
 
   const taskInstancesList = Object.values(taskInstancesByTask);
+  // A format alone isn't enough: an option-bearing format with no options would
+  // show the participant an empty question.
+  const answerConfigured = (ti) =>
+    !!ti.answer_format &&
+    (!optionFormats.has(ti.answer_format) || (ti.answer_options || []).length > 0);
   const allReadyAndFormatted =
     taskInstancesList.length > 0 &&
-    taskInstancesList.every((ti) => ti.generation_status === "ready" && !!ti.answer_format);
+    taskInstancesList.every((ti) => ti.generation_status === "ready" && answerConfigured(ti));
 
   async function publishExperiment() {
     if (publishing) return;
     if (!allReadyAndFormatted) {
       showToast(
-        "All tasks must finish generating (status: Ready) and have an answer format chosen before publishing.",
+        "All tasks must finish generating (status: Ready) and have an answer format — with options, where the format needs them — before publishing.",
         true
       );
       return;
@@ -455,7 +433,7 @@ function ExperimentOverviewContent() {
             {groupedTasks.map(({ task, idiomIds }) => {
               const tid = getId(task);
               const ti = taskInstancesByTask[tid];
-              const gtHref = `/admin/experiments/answer-format-groundtruth?experiment_id=${encodeURIComponent(experimentId)}`;
+              const formatHref = `/admin/experiments/answer-format?experiment_id=${encodeURIComponent(experimentId)}`;
               return (
                 <div
                   key={tid}
@@ -572,9 +550,20 @@ function ExperimentOverviewContent() {
                           ) : (
                             <span className="text-xs text-on-surface-variant italic">Not set</span>
                           )}
+                          {(ti?.answer_options || []).length > 0 && (
+                            <span className="text-xs font-semibold bg-surface-container text-on-surface-variant px-2.5 py-1 rounded-full">
+                              {ti.answer_options.length} option
+                              {ti.answer_options.length === 1 ? "" : "s"}
+                            </span>
+                          )}
+                          {ti?.number_kind && (
+                            <span className="text-xs font-semibold bg-surface-container text-on-surface-variant px-2.5 py-1 rounded-full">
+                              {ti.number_kind}
+                            </span>
+                          )}
                         </div>
                         <Link
-                          href={gtHref}
+                          href={formatHref}
                           className="text-xs text-primary border border-primary/30 px-3 py-1.5 rounded hover:bg-blue-50 transition-colors flex-shrink-0"
                         >
                           Configure
@@ -582,7 +571,21 @@ function ExperimentOverviewContent() {
                       </div>
                     </div>
 
-                    {/* Ground Truth summary intentionally not rendered here — see GroundTruthSummary above. */}
+                    {/* Answer options */}
+                    <div className="p-5">
+                      <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">
+                        Answer Options
+                      </p>
+                      <div className="border border-border-subtle rounded-lg p-4 flex items-start justify-between gap-4">
+                        <AnswerSummary ti={ti} />
+                        <Link
+                          href={formatHref}
+                          className="text-xs text-primary border border-primary/30 px-3 py-1.5 rounded hover:bg-blue-50 transition-colors flex-shrink-0"
+                        >
+                          Edit
+                        </Link>
+                      </div>
+                    </div>
                   </div>
                 </div>
               );
@@ -634,7 +637,7 @@ function ExperimentOverviewContent() {
                 </button>
                 {!allReadyAndFormatted && (
                   <p className="text-[10px] text-on-surface-variant">
-                    All tasks need status Ready and an answer format chosen.
+                    All tasks need status Ready and a complete answer format.
                   </p>
                 )}
               </div>

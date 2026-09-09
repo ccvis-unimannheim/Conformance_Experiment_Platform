@@ -33,83 +33,9 @@ logger = logging.getLogger(__name__)
 
 IDIOMS = ["tile_metric", "bar_chart", "table", "matrix", "gauge_chart"]
 
-# ---------------------------------------------------------------------------
-# Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8)
-#
-# Task 6 (AUTO): no hyperparameters needed — log fitness is computed directly
-# from the alignment output as mean per-trace fitness × 100, rounded.
-# ---------------------------------------------------------------------------
-GT_TIER = "AUTO"
 
 PARAM_SPEC = []
 
-ANSWER_FORMATS = [
-    {"key": "pct",       "gt_shape": "scalar", "decisive_default": True},
-    {"key": "mc-single", "gt_shape": "mc",     "decisive_default": True},
-]
-
-
-def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
-    """Mean per-trace fitness × 100, as a percentage with one decimal place.
-
-    For pct: returns a scalar string e.g. "87.4%".
-    For mc-single: correct option + 3 distractors spread across low / high / mid
-    zones relative to the true value, snapped to 5-pp multiples, clamped to [0, 100].
-    The correct option carries the exact one-decimal value so it matches the number
-    shown in the visualizations; distractors stay round (e.g. "75.0%").
-    """
-    import random as _rnd
-
-    mean_fit = float(fitness_df["fitness"].mean()) if len(fitness_df) > 0 else 0.0
-    pct  = round(mean_fit * 100)          # integer, used for distractor zone maths
-    pct1 = round(mean_fit * 100, 1)       # one-decimal correct value (matches the viz)
-
-    if answer_format == "pct":
-        return {"value": f"{pct1:.1f}%"}
-
-    if answer_format == "mc-single":
-        # Three distractors from distinct directional zones so they spread across the
-        # scale rather than clustering on one side.
-        # Snap all values to the nearest 5-pp multiple so options look natural.
-        def snap5(v):
-            return max(0, min(100, round(v / 5) * 5))
-
-        # Zone targets: one clearly below, one clearly above, one moderately offset.
-        zone_offsets = [-25, +25, -15 if pct >= 50 else +15]
-        seen = {pct}
-        distractors = []
-        for base_delta in zone_offsets:
-            candidate = snap5(pct + base_delta)
-            # If snapping collides, nudge by ±5 until we find a free slot.
-            step = 5
-            while candidate in seen or candidate == pct:
-                candidate = snap5(candidate + step)
-                step = -(abs(step) + 5) if step > 0 else abs(step) + 5
-                if abs(step) > 50:
-                    break
-            if candidate not in seen and 0 <= candidate <= 100:
-                seen.add(candidate)
-                distractors.append(candidate)
-
-        # Fallback: fill remaining slots with simple ±10 pp offsets.
-        for delta in range(10, 60, 10):
-            if len(distractors) >= 3:
-                break
-            for sign in (+1, -1):
-                c = snap5(pct + sign * delta)
-                if c not in seen and 0 <= c <= 100:
-                    seen.add(c)
-                    distractors.append(c)
-                    break
-
-        options = [{"label": f"{pct1:.1f}%", "value": f"{pct1:.1f}%", "correct": True}] + [
-            {"label": f"{float(d):.1f}%", "value": f"{float(d):.1f}%", "correct": False}
-            for d in distractors[:3]
-        ]
-        _rnd.Random(pct).shuffle(options)
-        return {"options": options}
-
-    return {"options": []}
 
 import os
 import matplotlib.pyplot as plt

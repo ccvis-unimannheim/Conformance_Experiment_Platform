@@ -21,21 +21,9 @@ IDIOMS = [
     "table_bar_chart", "parallel_sets",
 ]
 
-# ---------------------------------------------------------------------------
-# Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8; design doc §2 row 14)
-#
-# Task 14 (SEMI/MANUAL split): the classification half (mc-multi) is auto-
-# computable from the representative trace's alignment moves; the description
-# half (free-text) is graded against the static RUBRIC below.
-# ---------------------------------------------------------------------------
-GT_TIER = "SEMI"
 
 PARAM_SPEC = []
 
-ANSWER_FORMATS = [
-    {"key": "mc-multi",  "gt_shape": "mc",        "decisive_default": True},
-    {"key": "free-text", "gt_shape": "reference",  "decisive_default": False},
-]
 
 RUBRIC = (
     "A strong answer names each violation type present in the shown trace and "
@@ -47,29 +35,6 @@ RUBRIC = (
     "Partial credit for identifying some types or for correct naming without "
     "explanation. No credit for types not present in the trace."
 )
-
-
-def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
-    """For mc-multi: which violation types appear in the representative trace.
-
-    Returns options for both move types (Model Move, Log Move), each flagged
-    correct=True iff that type occurs at least once in the representative
-    (worst-fitness) trace. A mismatch step (both labels present) counts as both a
-    Model and a Log move. Free-text falls through to the static RUBRIC.
-    """
-    if answer_format == "free-text":
-        return {}
-    ctx = _build_context(alignments)
-    if ctx is None:
-        return {"options": [
-            {"label": mt, "value": mt, "correct": False} for mt in _MOVE_TYPES
-        ]}
-    counts = _type_counts(ctx)
-    options = [
-        {"label": mt, "value": mt, "correct": counts.get(mt, 0) > 0}
-        for mt in _MOVE_TYPES
-    ]
-    return {"options": options}
 
 
 import os

@@ -53,9 +53,6 @@ services:
   provifrontend:
     build:
       context: ./ProViFrontend
-      args:
-        NEXT_PUBLIC_API_BASE: https://134.155.106.59/api
-        NEXT_PUBLIC_API_URL: https://134.155.106.59/api
     container_name: provifrontend
     restart: unless-stopped
     ports:

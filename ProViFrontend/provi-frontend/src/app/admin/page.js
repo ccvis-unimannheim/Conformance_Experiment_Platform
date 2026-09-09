@@ -90,7 +90,7 @@ function TasksTooltip({ exp, taskMap, idiomMap }) {
   );
 }
 
-const WIZARD_STEPS = ["new", "prequestionnaire", "knowledge", "task", "idiom", "parameters", "specify", "answer-format-groundtruth", "overview"];
+const WIZARD_STEPS = ["new", "prequestionnaire", "knowledge", "task", "idiom", "parameters", "specify", "answer-format", "overview"];
 
 const STATUS_STYLES = {
   draft:     { border: "border-amber-400", dot: "bg-amber-400", label: "Draft" },

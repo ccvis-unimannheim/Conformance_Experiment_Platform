@@ -27,15 +27,6 @@ logger = logging.getLogger(__name__)
 IDIOMS = ["stacked_bar", "line_graph", "horizon_chart", "boxplot", "heatmap", "calendar",
           "bar_chart", "scatter_plot", "table", "table_bar_chart", "pie_chart"]
 
-# ---------------------------------------------------------------------------
-# Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8; design doc §2 row 10)
-#
-# Task 10 (SEMI): admin picks the conformance interval boundaries; the answer
-# is the resulting percentage per range (pct-set).  Two canonical presets are
-# offered; the admin selects one.  GT is then computed deterministically via
-# _resolve_ranges() with those boundaries — the same function the visualizations use.
-# ---------------------------------------------------------------------------
-GT_TIER = "SEMI"
 
 PARAM_SPEC = [
     {
@@ -63,9 +54,6 @@ PARAM_SPEC = [
     },
 ]
 
-ANSWER_FORMATS = [
-    {"key": "free-text", "gt_shape": "reference", "decisive_default": False},
-]
 
 RUBRIC = (
     "A strong answer states the percentage of traces in each conformance category "
@@ -99,27 +87,6 @@ def validate_params(log, params) -> list:
     if bins[0] < 0.0 or bins[-1] > 1.01:
         return ["conformance_bins values must be between 0.0 and 1.01."]
     return []
-
-
-def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
-    """Conformance distribution: percentage of traces per admin-specified range —
-    kept as the free-text reference value so answers can be checked against it.
-
-    Uses the same adaptive _resolve_ranges() as the visualizations so the GT is
-    always consistent with what participants see.
-    """
-    bins = _parse_bins(params.get("conformance_bins"))
-    labels = _labels_for_bins(bins) if bins else None
-    range_df, _, _ = _resolve_ranges(fitness_df, bins, labels)
-    active = range_df[range_df["count"] > 0]
-    if active.empty:
-        return {}
-
-    return {
-        "reference": ", ".join(
-            f"{row['range']}: {row['percentage']:.1f}%" for _, row in active.iterrows()
-        ),
-    }
 
 
 import os

@@ -24,14 +24,6 @@ logger = logging.getLogger(__name__)
 
 IDIOMS = ["bar_chart", "table", "table_and_bar_chart", "stacked_bar", "matrix"]
 
-# ---------------------------------------------------------------------------
-# Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8)
-#
-# Task 3 (SEMI): split traces into Conformant / Non-conformant at a threshold
-# chosen by the admin, then compare the throughput-time distribution between the
-# groups. The auto GT is a single-choice pick of which group is slower on average.
-# ---------------------------------------------------------------------------
-GT_TIER = "SEMI"
 
 PARAM_SPEC = [
     {
@@ -49,10 +41,6 @@ PARAM_SPEC = [
     },
 ]
 
-ANSWER_FORMATS = [
-    {"key": "mc-single", "gt_shape": "mc",        "decisive_default": True},
-    {"key": "free-text", "gt_shape": "reference",  "decisive_default": False},
-]
 
 RUBRIC = (
     "A complete answer states which group — Conformant or Non-conformant — has the "
@@ -137,19 +125,6 @@ def _task03_build_trace_rows(log, fitness_df: pd.DataFrame,
             "duration_hours": duration_hours,
         })
     return rows
-
-
-def _task03_throughput_stats_df(trace_rows: list) -> pd.DataFrame:
-    """Per-group throughput-time (h) distribution: Group | Mean | Median | Std | Min | Max."""
-    records = []
-    for g in _GROUPS:
-        vals = np.array([r["duration_hours"] for r in trace_rows if r["group"] == g], dtype=float)
-        if vals.size:
-            records.append({"Group": g, "Mean": float(vals.mean()), "Median": float(np.median(vals)),
-                             "Std": float(vals.std(ddof=0)), "Min": float(vals.min()), "Max": float(vals.max())})
-        else:
-            records.append({"Group": g, "Mean": 0.0, "Median": 0.0, "Std": 0.0, "Min": 0.0, "Max": 0.0})
-    return pd.DataFrame(records)
 
 
 def _task03_throughput_buckets(trace_rows: list, n_buckets: int = N_TIME_BUCKETS):
@@ -388,45 +363,6 @@ def task03_matrix(throughput_buckets, output_dir: str):
 # ---------------------------------------------------------------------------
 # Ground truth
 # ---------------------------------------------------------------------------
-
-def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
-    """mc-single: which conformance group has the longer average throughput time.
-
-    Two mirror-image options (Conformant longer / Non-conformant longer); the one
-    matching the group with the larger mean throughput is flagged correct, so the
-    participant must read the direction off the throughput-bucket visualization.
-    When the two means are indistinguishable (≈ equal), no gradable option set is
-    produced (SEMI / manual fallback).
-    """
-    raw = params.get("conformant_threshold", 1.0)
-    threshold = 1.0 if (raw is None or raw == "") else float(raw)
-    trace_rows = _task03_build_trace_rows(log, fitness_df, conformant_threshold=threshold)
-
-    if answer_format != "mc-single":
-        return {"options": []}
-
-    throughput_df = _task03_throughput_stats_df(trace_rows)
-    t_map = {row["Group"]: row["Mean"] for _, row in throughput_df.iterrows()}
-    c_mean  = t_map.get("Conformant",     0.0)
-    nc_mean = t_map.get("Non-conformant", 0.0)
-    if not (c_mean > 0 and nc_mean > 0) or abs(c_mean - nc_mean) <= 0.01:
-        return {"options": []}
-
-    longer = "Conformant" if c_mean > nc_mean else "Non-conformant"
-    return {
-        "options": [
-            {
-                "label":   "Conformant traces have longer average throughput time",
-                "value":   "throughput::Conformant::longer",
-                "correct": longer == "Conformant",
-            },
-            {
-                "label":   "Non-conformant traces have longer average throughput time",
-                "value":   "throughput::Non-conformant::longer",
-                "correct": longer == "Non-conformant",
-            },
-        ]
-    }
 
 
 def generate(log, fitness_df, output_dir: str, conformant_threshold: float = 1.0):

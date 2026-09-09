@@ -1,9 +1,9 @@
 # Participant Trial Data Contract
 
-> What the backend sends the participant frontend for each task trial, so the
-> answer-input widgets can be built independently of per-task authoring
-> (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md, step 7). This is the **stable contract** —
-> it does not change as individual tasks are authored in step 6.
+> What the backend sends the participant frontend for each task trial. This is
+> the **stable contract**: it depends on what the admin configured for the
+> experiment (see `ADMIN_EXPERIMENT_SETUP.md`), never on which task is being
+> shown.
 
 ## Endpoints
 
@@ -15,7 +15,7 @@
   the SVG for a trial.
 - `POST /survey/answer` — submit one answer (see *Answer submission* below).
 
-### SVG resolution (`/vis`, §7)
+### SVG resolution (`/vis`)
 
 `experiment_id` is an **optional** query parameter. SVGs are generated
 per-experiment via `POST /admin/experiments/{id}/generate`, which writes to
@@ -57,10 +57,10 @@ Each element of `trials[]` (and the active-experiment `trials[]`) has:
 | `task_label` | string | question text shown to the participant |
 | `idiom_key` | string | e.g. `bar_chart` |
 | `idiom_label` | string | human-readable idiom name |
-| `answer_format` | string | **canonical** answer format (col-D key, see below) |
-| `answer_type` | string | **derived widget type** for the existing panel (see mapping) |
-| `decisive` | bool | `true` = auto-gradable GT, `false` = reference only |
-| `options` | `Option[]` | present for choice/grid formats; `[]` otherwise |
+| `answer_format` | string | canonical answer format (see catalogue below) |
+| `answer_type` | string | derived widget type for the answer panel (see mapping) |
+| `number_kind` | string | `percentage` \| `integer` \| `decimal`; only meaningful for `number` / `number-set` |
+| `options` | `Option[]` | present for option-bearing formats; `[]` otherwise |
 | `svg_available` | bool | whether the SVG exists on disk |
 
 `Option`:
@@ -70,26 +70,35 @@ Each element of `trials[]` (and the active-experiment `trials[]`) has:
 | `label` | string | shown to participant |
 | `value` | string | submitted value (defaults to `label` if empty) |
 
-> The frontend must **never** receive `correct` flags or any other ground-truth
-> value — only the option `label`/`value` set. Correctness lives server-side.
+> Options carry no correctness marking — there is none to carry. The set the
+> participant sees is the set the admin authored on /answer-format.
 
 ## Answer-format catalogue (canonical `answer_format`)
 
-From the design doc §1.1. This set is fixed; every widget can be built up front.
+Seven global formats, defined in `app/answer_formats.py`. Every task may use
+every format; the admin chooses per experiment.
 
 | `answer_format` | Meaning | Entry rule | `options`? |
 |---|---|---|---|
-| `pct` | scalar percent | integer percent with `%`, e.g. `96%` | no |
-| `count` | scalar integer | non-negative integer, e.g. `42` | no |
-| `decimal` | scalar decimal | two decimals w/ leading zero, e.g. `0.42` | no |
-| `pct-set` | one percent per labelled row | each cell follows `pct`; sum-to-100 for distributions | rows = labels |
-| `count-set` | one count per labelled row | each cell follows `count` | rows = labels |
-| `mc-single` | one correct option | radio; exactly one | yes |
-| `yes-no` | binary yes/no | radio; exactly one (Yes/No) | yes |
-| `mc-multi` | select-all over a closed set | checkboxes; graded as set equality | yes |
+| `number` | single number | per `number_kind` (below) | no |
+| `number-set` | one number per labelled row | each cell per `number_kind` | rows = labels |
+| `mc-single` | one option from a closed set | radio; exactly one | yes |
+| `mc-multi` | select-all over a closed set | checkboxes | yes |
 | `rank` | ordering of given items | drag-to-order | yes (items) |
-| `matrix` | co-occurrence / pairwise grid | toggle grid; set of selected cells | yes (cells) |
-| `free-text` | interpretive answer | open box; not auto-graded (rubric) | no |
+| `matrix` | co-occurrence / pairwise grid | toggle grid; set of selected cells | yes (cells, `a__b`) |
+| `free-text` | interpretive answer | open box; coded by hand against the task rubric | no |
+
+`number_kind` configures both numeric formats:
+
+| `number_kind` | Input |
+|---|---|
+| `percentage` | 0–100, one decimal, rendered with a `%` suffix |
+| `integer` | whole number ≥ 0 |
+| `decimal` | any decimal value |
+
+`rank` options are **shuffled** before they are sent. The stored order is the
+admin's authoring order and carries no answer, but presenting it unchanged to
+every participant would still bias responses toward it.
 
 ## `answer_format` → `answer_type` (widget) mapping
 
@@ -100,40 +109,37 @@ New widgets should switch on `answer_format` directly.
 | `answer_format` | derived `answer_type` |
 |---|---|
 | `mc-single` | `single_choice` |
-| `yes-no` | `single_choice` |
 | `mc-multi` | `multiple_choice` |
-| `pct`, `count`, `decimal` | `numeric` |
-| `pct-set`, `count-set` | `numeric_set` |
+| `number` | `numeric` |
+| `number-set` | `numeric_set` |
 | `rank` | `rank` |
 | `matrix` | `matrix` |
 | `free-text` | `free_text` |
 
-## Fallback (task not yet authored — step 6 pending)
+## Fallback (format not yet chosen)
 
-Until a task declares its contract, the registry default applies:
-`answer_format = "free-text"`, `answer_type = "free_text"`, `options = []`,
-`decisive = false`. So the running app always renders *something* valid; the
-non-free-text widgets are exercised with real data once their task is authored
-(or with mock trial data matching this contract in the meantime).
+If a task instance has no `answer_format`, the participant side falls back to
+`answer_format = "free-text"`, `answer_type = "free_text"`, `options = []`. The
+app therefore always renders something valid — but /overview blocks publishing
+until every task has a format, and options wherever the format needs them.
 
 ## Answer submission (`POST /survey/answer`)
 
 Body fields the frontend sends (`AnswerFromFrontend`): `experiment_id`,
-`question_id`, `task_id`, `idiom_id`, `dataset_id`, `ground_truth_id?`,
-`trial_index`, `presentation_order`, `answer`, `response_time_ms`. The `answer`
-string encoding per format:
+`question_id`, `task_id`, `idiom_id`, `dataset_id`, `trial_index`,
+`presentation_order`, `answer`, `response_time_ms`. The `answer` string encoding
+per format:
 
 | `answer_format` | `answer` encoding |
 |---|---|
-| `pct` / `count` / `decimal` | the scalar as a string, e.g. `"96%"`, `"42"`, `"0.42"` |
-| `pct-set` / `count-set` | JSON object `{label: value}` |
+| `number` | the number as a string, e.g. `"96"`, `"42"`, `"0.42"` |
+| `number-set` | JSON object `{label: value}` |
 | `mc-single` | the chosen option `value` |
-| `yes-no` | the chosen option `value` (`"yes"`/`"no"`) |
 | `mc-multi` | JSON array of chosen option `value`s |
 | `rank` | JSON array of `value`s in chosen order |
-| `matrix` | JSON array of selected cell ids |
+| `matrix` | JSON array of selected cell tokens |
 | `free-text` | the raw text |
 
-> Auto-grading (`is_correct`) against the decisive ground truth is **out of scope
-> for now** — answers are stored as-is. When added, grading happens server-side
-> by comparing `answer` to the instance's `ground_truth`.
+> Answers are **stored as submitted and never scored**. Analysis happens on the
+> exported data; free-text answers are coded by hand against the task's `RUBRIC`
+> (`GET /admin/tasks/{task_key}/rubric`).

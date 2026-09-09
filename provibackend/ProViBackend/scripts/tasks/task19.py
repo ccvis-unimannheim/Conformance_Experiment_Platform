@@ -45,7 +45,6 @@ logger = logging.getLogger(__name__)
 
 IDIOMS = ["bar_chart", "table", "table_bar_chart", "matrix", "heatmap", "parallel_sets"]
 
-GT_TIER = "MANUAL"
 
 PARAM_SPEC = [
     {
@@ -70,10 +69,6 @@ PARAM_SPEC = [
     },
 ]
 
-ANSWER_FORMATS = [
-    {"key": "free-text",  "gt_shape": "reference", "decisive_default": False},
-    {"key": "mc-single",  "gt_shape": "mc",         "decisive_default": True},
-]
 
 RUBRIC = (
     "A strong answer names at least one specific violation pattern (activity + move type) "
@@ -104,36 +99,6 @@ def validate_params(log, params) -> list:
     if not patterns or (isinstance(patterns, list) and len(patterns) == 0):
         errors.append("At least one violation pattern must be selected.")
     return errors
-
-
-def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
-    """For mc-single: top violation patterns ranked by |risk difference| as selectable
-    options. The admin flags which pattern is the correct answer (strongest effect).
-    For free-text: returns empty dict — the static RUBRIC is used as the reference.
-    """
-    if answer_format == "free-text":
-        return {}
-
-    outcome_activity = params.get("outcome_activity", "")
-    if not outcome_activity:
-        outcome_activity = infer_outcome_activity(log)
-    target_patterns = params.get("target_patterns")
-
-    eff = task19_effects(log, alignments, outcome_activity, target_patterns=target_patterns)
-    records = eff["records"]
-    if not records:
-        return {"options": []}
-
-    return {
-        "options": [
-            {
-                "label": f"{r['pattern']} (risk diff: {r['risk_diff']:+.1f} pp)",
-                "value": r["pattern"],
-                "correct": False,
-            }
-            for r in records[:4]
-        ]
-    }
 
 
 import os

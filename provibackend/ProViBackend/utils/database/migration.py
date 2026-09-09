@@ -1,9 +1,9 @@
 """
 Experiment schema bridge: legacy flat ``task_configs`` <-> grouped ``task_instances``.
 
-Background (see ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §3): the canonical shape is now
+Background (see ADMIN_EXPERIMENT_SETUP.md): the canonical shape is now
 ``task_instances`` — one entry per task, holding that task's idiom list plus the
-shared parameters / answer_format / ground_truth. The old ``task_configs`` (one
+shared parameters and answer shape. The old ``task_configs`` (one
 row per task×idiom) is kept *mirrored* during the transition so the participant,
 assignment, sync and stats code paths keep working unchanged. These helpers
 convert between the two shapes and run a one-shot, idempotent backfill on startup.
@@ -58,11 +58,11 @@ def task_configs_to_instances(task_configs: list[dict]) -> list[dict]:
     """Group legacy ``task_configs`` into ``task_instances``.
 
     Rows are grouped by ``task_id`` (preserving first-seen order), collecting
-    distinct ``idiom_id`` values into ``idiom_ids``. Params / answer_format /
-    ground_truth are left at their defaults — they are authored later in the
-    /specify and /answer-format-groundtruth steps. ``answer_format`` is left
-    ``None`` (the legacy per-task ``Task.answer_type`` is not a col-D format key,
-    so we do not guess a mapping here).
+    distinct ``idiom_id`` values into ``idiom_ids``. Parameters and the answer
+    shape are left at their defaults — they are authored later in the /specify
+    and /answer-format steps. ``answer_format`` is left ``None`` (the legacy
+    per-task ``Task.answer_type`` is not an answer-format key, so we do not
+    guess a mapping here).
     """
     order: list[str] = []
     by_task: dict[str, dict] = {}
@@ -75,9 +75,10 @@ def task_configs_to_instances(task_configs: list[dict]) -> list[dict]:
                 "idiom_ids": [],
                 "parameters": {},
                 "answer_format": None,
+                "number_kind": None,
+                "answer_options": [],
                 "generation_status": "pending",
                 "generation_error": None,
-                "ground_truth": None,
                 "question_ids": tc.get("question_ids", []) or [],
                 # Carry the frozen Task snapshot (if any) over from the legacy mirror.
                 "task_key": tc.get("task_key"),

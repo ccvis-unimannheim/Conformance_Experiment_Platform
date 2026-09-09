@@ -28,7 +28,7 @@ function StatusBadge({ status }) {
   );
 }
 
-// Generic param widget — renders per PARAM_SPEC entry (see ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4-5, §10).
+// Generic param widget — renders per PARAM_SPEC entry (see ADMIN_EXPERIMENT_SETUP.md).
 function ParamField({ entry, value, onChange }) {
   const options = entry.options || [];
 
@@ -429,7 +429,7 @@ function SpecifyContent() {
       showToast("All tasks must finish generating (status: Ready) before continuing.", true);
       return;
     }
-    router.push(`/admin/experiments/answer-format-groundtruth?experiment_id=${encodeURIComponent(experimentId)}`);
+    router.push(`/admin/experiments/answer-format?experiment_id=${encodeURIComponent(experimentId)}`);
   }
 
   return (
