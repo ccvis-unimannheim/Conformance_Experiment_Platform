@@ -10,7 +10,7 @@
 Important to not use Excel due to format problems leads to breaking of questionnaire component
 Recommended text editor: normal Text Editor like Notepad++
 
-NOCH ANPASSEN:
+Example format:
 
 const questionsCsv = `Question ID,Question Text,Answer Type,Options
 1,"What activities do you think are redundant?",text,
