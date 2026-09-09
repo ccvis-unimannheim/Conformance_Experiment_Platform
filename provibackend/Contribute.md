@@ -19,8 +19,3 @@ would be as expected. This leads to certain issues:
    - Often the database is empty. A user can then not be authenticated as long as there is not at least one active
    dataset.
    - 
-
-## Styling
-- In order to change the styling of the visualized maps, it is sufficient to change the write_dot_file function in the helper file (ProViBackend/FilterModel/helper.py). Disable the node/edge input (specified below) within the write_dot_file function to active automatic styling according to the frequencies.
-   - Lines 102-104 define the color of the nodes
-   - Lines 109-110 define the width of the edges
