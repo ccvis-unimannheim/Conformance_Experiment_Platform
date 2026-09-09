@@ -16,13 +16,9 @@ logger = logging.getLogger(__name__)
 IDIOMS = ["bar_chart", "stacked_bar", "table", "table_and_bar_chart", "matrix",
           "parallel_sets"]
 
-GT_TIER = "SEMI"
 
 PARAM_SPEC = []
 
-ANSWER_FORMATS = [
-    {"key": "free-text", "gt_shape": "reference", "decisive_default": False},
-]
 
 RUBRIC = (
     "A complete answer names at least the two most frequent violation patterns with their "
@@ -386,92 +382,3 @@ def generate(alignments, output_dir: str, log=None):
 # Ground truth (free-text answer type)
 # ---------------------------------------------------------------------------
 
-def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
-    """Auto-generate a reference narrative + rubric for admin review.
-
-    Returns empty dict when answer_format != 'free-text'.
-    Return keys: reference (str narrative), rubric (dict).
-    Rubric keys: top_patterns (list), dominant_move_type (str),
-                 top3_activities (list[str]), top3_patterns (list[str]).
-    """
-    if answer_format != "free-text":
-        return {}
-
-    pat_df = _task23_build_pattern_df(alignments)
-    if pat_df.empty:
-        return {
-            "reference": "No guideline violations were found in this log.",
-            "rubric": {
-                "top_patterns": [],
-                "dominant_move_type": None,
-                "top3_activities": [],
-                "top3_patterns": [],
-            },
-        }
-
-    top = pat_df.head(TOP_N).copy()
-
-    # --- Rubric fields ---
-    top_patterns_list = [
-        {
-            "pattern":   r["pattern"],
-            "move_type": r["move_type"],
-            "activity":  r["activity"],
-            "count":     int(r["count"]),
-            "n_traces":  int(r["n_traces"]),
-            "pct":       round(float(r["pct"]), 1),
-        }
-        for r in top[["pattern", "move_type", "activity", "count", "n_traces", "pct"]].to_dict("records")
-    ]
-
-    mt_totals = pat_df.groupby("move_type")["count"].sum()
-    dominant_mt = mt_totals.idxmax()
-    dominant_mt_pct = int(round(100 * mt_totals[dominant_mt] / mt_totals.sum(), 0))
-
-    act_totals = pat_df.groupby("activity")["count"].sum().sort_values(ascending=False)
-    top3_acts  = act_totals.head(3).index.tolist()
-    top3_pats  = top["pattern"].head(3).tolist()
-
-    act_pattern_counts   = pat_df.groupby("activity")["pattern"].nunique()
-    most_affected_act    = act_pattern_counts.idxmax()
-    activity_pat_count   = int(act_pattern_counts[most_affected_act])
-
-    max_traces_idx     = top["n_traces"].idxmax()
-    max_traces_pattern = top.loc[max_traces_idx, "pattern"]
-    max_traces         = int(top.loc[max_traces_idx, "n_traces"])
-
-    total_patterns = len(pat_df)
-    t1 = top.iloc[0]
-
-    # --- Narrative sentences ---
-    s1 = (f"The most frequent guideline violation is '{t1['pattern']}' with "
-          f"{int(t1['count'])} occurrences, affecting {int(t1['n_traces'])} traces "
-          f"({t1['pct']:.1f}%).")
-
-    runners_up = [
-        f"'{r['pattern']}' ({int(r['count'])} occurrences, {r['pct']:.1f}%)"
-        for r in (top.iloc[i] for i in (1, 2) if len(top) > i)
-    ]
-    s2 = f"This is followed by {' and '.join(runners_up)}." if runners_up else ""
-
-    s3 = (f"Across all {total_patterns} violation patterns, {dominant_mt} violations are "
-          f"most prevalent, accounting for {dominant_mt_pct}% of total violation occurrences.")
-
-    s4 = (f"The activity '{most_affected_act}' appears in {activity_pat_count} distinct "
-          f"violation pattern{'s' if activity_pat_count != 1 else ''}, suggesting it is the "
-          f"most problematic step in the process.")
-
-    s5 = (f"Violations involving '{max_traces_pattern}' have the widest impact, appearing "
-          f"in {max_traces} distinct traces, indicating a systemic non-conformance.")
-
-    text = " ".join(s for s in [s1, s2, s3, s4, s5] if s)
-
-    return {
-        "reference": text,
-        "rubric": {
-            "top_patterns":       top_patterns_list,
-            "dominant_move_type": dominant_mt,
-            "top3_activities":    top3_acts,
-            "top3_patterns":      top3_pats,
-        },
-    }

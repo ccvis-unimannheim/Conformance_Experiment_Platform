@@ -278,7 +278,7 @@ function IdiomRatingModal({ submitting, onSubmit }) {
 const TaskAnswerPanel = ({
   options = [],
   answerType = "free_text",
-  answerFormat = "free-text",
+  numberKind = "decimal",
   taskLabel = "",
   taskId,
   taskKey = "",
@@ -600,7 +600,7 @@ const TaskAnswerPanel = ({
           <form id="answer-form" onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
             <AnswerInput
               answerType={answerType}
-              answerFormat={answerFormat}
+              numberKind={numberKind}
               options={options}
               value={answer}
               onChange={setAnswer}

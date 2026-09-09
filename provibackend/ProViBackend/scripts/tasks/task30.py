@@ -25,17 +25,6 @@ IDIOMS = ["bar_chart", "table", "table_bar_chart",
           "parallel_sets", "stacked_bar", "matrix",
           "heatmap"]
 
-# ---------------------------------------------------------------------------
-# Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8)
-#
-# Task 30 (SEMI): compare violation patterns and conformance rates across
-# sub-logs defined by a case-level attribute (numeric → median split;
-# categorical → one sub-log per value). Admin specifies which attribute to
-# use. Answer: mc-multi statements about which sub-log is more conformant /
-# which violation pattern is more prevalent, or pct-set of per-sub-log
-# conformance rates.
-# ---------------------------------------------------------------------------
-GT_TIER = "SEMI"
 
 PARAM_SPEC = [
     {
@@ -48,10 +37,6 @@ PARAM_SPEC = [
     },
 ]
 
-ANSWER_FORMATS = [
-    {"key": "mc-multi", "gt_shape": "mc",           "decisive_default": True},
-    {"key": "pct-set",  "gt_shape": "labelled-set",  "decisive_default": True},
-]
 
 RUBRIC = (
     "A complete answer identifies which sub-log has a higher conformance rate and names "
@@ -68,91 +53,6 @@ def validate_params(log, params) -> list:
     if not attr or not str(attr).strip():
         return ["'compare_attribute' must be a non-empty attribute name."]
     return []
-
-
-def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
-    """Ground truth for task 30.
-
-    pct-set  – per-sub-log conformance rate (% of traces that are fit).
-    mc-multi – statements distinguishing sub-logs by conformance rate and
-               top violation patterns (correct / incorrect pairs, shuffled).
-    """
-    import random as _rnd
-
-    attr = str(params.get("compare_attribute", "AMOUNT_REQ")).strip()
-    # split_by_attribute and helpers are defined later in this module;
-    # they are safe to call here because Python resolves names at call time.
-    groups, assignment, meta = split_by_attribute(log, attr)
-    if groups is None or len(groups) < 2:
-        return {"options": []}
-
-    trace_df = _build_trace_df(fitness_df, assignment, meta)
-    stats_df = _group_stats(trace_df, groups)
-    viol_df  = _build_violation_df(alignments, assignment)
-    agg_df   = _aggregate_patterns(viol_df, stats_df, groups)
-
-    # ── pct-set: one labelled entry per sub-log ───────────────────────────
-    if answer_format == "pct-set":
-        return {
-            "value": None,
-            "options": [
-                {
-                    "label":   row["group"],
-                    "value":   f"{round(row['pct_conform'])}%",
-                    "correct": True,
-                }
-                for _, row in stats_df.iterrows()
-            ],
-        }
-
-    if answer_format != "mc-multi":
-        return {"options": []}
-
-    # ── mc-multi ──────────────────────────────────────────────────────────
-    options = []
-    rng = _rnd.Random(42)
-
-    # Dim 1 — overall conformance direction (which sub-log is more conformant)
-    if len(stats_df) >= 2:
-        g0, g1 = stats_df.iloc[0], stats_df.iloc[1]
-        if abs(g0["pct_conform"] - g1["pct_conform"]) > 0.5:
-            higher = g0["group"] if g0["pct_conform"] >= g1["pct_conform"] else g1["group"]
-            lower  = g1["group"] if higher == g0["group"] else g0["group"]
-            options.append({
-                "label":   f"The '{higher}' sub-log has a higher conformance rate",
-                "value":   f"conform_higher::{higher}",
-                "correct": True,
-            })
-            options.append({
-                "label":   f"The '{lower}' sub-log has a higher conformance rate",
-                "value":   f"conform_higher::{lower}",
-                "correct": False,
-            })
-
-    # Dim 2 — top-2 most distinguishing violation patterns
-    if not agg_df.empty and len(groups) >= 2:
-        g0_key, g1_key = groups[0], groups[1]
-        r0_col, r1_col = f"{g0_key}__rate", f"{g1_key}__rate"
-        if r0_col in agg_df.columns and r1_col in agg_df.columns:
-            scored = agg_df.copy()
-            scored["_diff"] = abs(scored[r0_col] - scored[r1_col])
-            for _, row in scored.nlargest(2, "_diff").iterrows():
-                pat      = row["pattern"]
-                dominant = g0_key if row[r0_col] >= row[r1_col] else g1_key
-                other    = g1_key if dominant == g0_key else g0_key
-                options.append({
-                    "label":   f"'{pat}' is more prevalent in the '{dominant}' sub-log",
-                    "value":   f"pattern::{pat}::{dominant}",
-                    "correct": True,
-                })
-                options.append({
-                    "label":   f"'{pat}' is more prevalent in the '{other}' sub-log",
-                    "value":   f"pattern::{pat}::{other}",
-                    "correct": False,
-                })
-
-    rng.shuffle(options)
-    return {"options": options}
 
 
 import os
@@ -397,7 +297,6 @@ def task30_bar_chart(agg_df, groups, attr, output_dir):
     save_svg(fig, os.path.join(output_dir, "task30_bar_chart.svg"))
 
 
-
 def _pattern_table_data(agg_df, groups):
     """(cell_text, col_labels, col_widths) for the violation-pattern section."""
     col_labels = ["Violation Pattern"] + [f"{g}\n(n / rate)" for g in groups] + ["Total"]
@@ -592,7 +491,6 @@ def task30_stacked_bar(agg_df, groups, attr, output_dir):
     save_svg(fig, os.path.join(output_dir, "task30_stacked_bar.svg"))
 
 
-
 def task30_matrix(agg_df, groups, attr, output_dir):
     """Matrix: rows = violation pattern (top-N), columns = sub-log, cell = rate."""
     if agg_df.empty:
@@ -634,7 +532,6 @@ def task30_heatmap(agg_df, groups, attr, output_dir):
     ax.set_title("Violation Rate Heatmap (%)", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task30_heatmap.svg"))
-
 
 
 # ---------------------------------------------------------------------------

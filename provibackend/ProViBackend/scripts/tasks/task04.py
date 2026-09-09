@@ -34,16 +34,6 @@ IDIOMS = ["flow_chart_basic", "flow_chart_elaborate",
           "line_graph", "table_bar_chart",
           "matrix", "heatmap"]
 
-# ---------------------------------------------------------------------------
-# Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8; design doc §2 row 4)
-#
-# Task 4 (MANUAL): compare the trace-level conformance PATTERNS of two traces. By
-# default the two traces with the largest violation-count gap are shown; the admin
-# can override the selection (and pick more than two). The participant answers in
-# free text, comparing where each trace conforms to or deviates from the guideline;
-# grading is against the static RUBRIC.
-# ---------------------------------------------------------------------------
-GT_TIER = "MANUAL"
 
 PARAM_SPEC = [
     {
@@ -63,9 +53,6 @@ PARAM_SPEC = [
     },
 ]
 
-ANSWER_FORMATS = [
-    {"key": "free-text", "gt_shape": "reference", "decisive_default": True},
-]
 
 RUBRIC = (
     "A complete answer compares the two traces' conformance patterns. For each "
@@ -653,7 +640,7 @@ def generate(log, fitness_df, output_dir: str, trace_ids=None, alignments=None, 
     ``trace_ids`` is the admin-configured list of case-id strings (from
     PARAM_SPEC "trace_ids"). When empty/None the first ``SAMPLE_N`` traces in log
     order are shown. Every idiom renders the same traces so the views are
-    directly comparable (and match what the ground truth was computed for).
+    directly comparable.
 
     ``alignments`` (optional) enables the trace-level flow-chart idioms, which
     compare the alignment (conformance) patterns of two traces side by side.

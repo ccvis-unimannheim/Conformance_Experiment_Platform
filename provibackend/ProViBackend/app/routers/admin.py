@@ -1,5 +1,6 @@
 import json
 import uuid
+from itertools import combinations
 import io
 import csv
 import re
@@ -25,6 +26,7 @@ try:
         get_log_trace_ids,
         get_log_candidate_attributes,
         get_log_violated_activities_task34,
+        get_log_time_bins,
         _FILE_RENAME,
         _TASK_RENAME_SKIP,
     )
@@ -42,6 +44,7 @@ except ImportError:
     get_log_trace_ids = None
     get_log_candidate_attributes = None
     get_log_violated_activities_task34 = None
+    get_log_time_bins = None
     _FILE_RENAME = {}
     _TASK_RENAME_SKIP = {}
 
@@ -56,6 +59,7 @@ except ImportError:
     raise
 from ProViBackend.utils import config, utils
 from ProViBackend.app.datamodels import data_schemas as ds
+import ProViBackend.app.answer_formats as afmt
 import pathlib as pl
 
 import ProViBackend.utils.database.connection as dbc
@@ -90,7 +94,7 @@ CUSTOM_IDIOM_DIRECTORY = config.CUSTOM_IDIOM_DIRECTORY
 
 # Cache of distinct activity names per dataset, so /specify's param-spec
 # candidate enumeration doesn't reload the event log on every page render
-# (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §5). Keyed by dataset_id.
+# (see ADMIN_EXPERIMENT_SETUP.md). Keyed by dataset_id.
 _LOG_ACTIVITIES_CACHE: dict[str, list[str]] = {}
 # Cache of dataset-meaningful time-bin granularities (task07), same rationale.
 _LOG_TIME_GRANULARITIES_CACHE: dict[str, list[str]] = {}
@@ -189,6 +193,42 @@ def _dataset_violated_activities_task34(dataset_id: str) -> list[dict]:
     return acts
 
 
+# Time bins are cached per (dataset_id, granularity) — unlike the other
+# enumerators the result depends on a second argument.
+_LOG_TIME_BINS_CACHE: dict[tuple[str, str], list[dict]] = {}
+
+
+def _dataset_time_bins(dataset_id: str, granularity: str) -> list[dict]:
+    """Ordered time-bin labels for this dataset at `granularity` (cached)."""
+    key = (dataset_id, granularity or "")
+    if key in _LOG_TIME_BINS_CACHE:
+        return _LOG_TIME_BINS_CACHE[key]
+    if get_log_time_bins is None:
+        return []
+    bins = get_log_time_bins(str(DATA_DIRECTORY / dataset_id), granularity)
+    _LOG_TIME_BINS_CACHE[key] = bins
+    return bins
+
+
+# Option sources offered on /answer-format. Task-independent by construction:
+# every one enumerates entities from the dataset itself, so any task may import
+# from any of them. `granularity` marks the one source that takes a second
+# argument (the page renders a granularity picker next to it).
+# Matrix axis size: the grid is read cell-by-cell, so a large axis is unusable
+# (n candidates -> n*(n-1)/2 cells). 10 mirrors task08's old _MATRIX_TOP_N.
+_MATRIX_AXIS_DEFAULT = 10
+_MATRIX_AXIS_MAX = 16
+
+OPTION_SOURCES: list[dict] = [
+    {"source": "log.activities",           "label": "Activities"},
+    {"source": "log.violations",           "label": "Violation types (activity · move type)"},
+    {"source": "log.candidate_attributes", "label": "Case-attribute buckets"},
+    {"source": "log.time_bins",            "label": "Time bins", "granularity": True},
+    {"source": "log.trace_ids",            "label": "Traces"},
+    {"source": "log.worst_traces",         "label": "Worst-fitness traces"},
+]
+
+
 # Maps a PARAM_SPEC entry's `source` to the dataset-candidate enumerator.
 def _param_candidates(source: str, dataset_id: str) -> list:
     if source == "log.activities":
@@ -206,6 +246,26 @@ def _param_candidates(source: str, dataset_id: str) -> list:
     if source == "log.violated_activities_task34":
         return _dataset_violated_activities_task34(dataset_id)
     return []
+
+
+def _option_candidates(source: str, dataset_id: str, granularity: str | None) -> list[dict]:
+    """Candidate option rows for one source, normalised to [{label, value}].
+
+    PARAM_SPEC enumerators return either plain strings (log.activities) or
+    {value, label} dicts; the option editor always wants both fields.
+    """
+    if source == "log.time_bins":
+        raw = _dataset_time_bins(dataset_id, granularity or "")
+    else:
+        raw = _param_candidates(source, dataset_id)
+    rows = []
+    for c in raw:
+        if isinstance(c, str):
+            rows.append({"label": c, "value": c})
+        else:
+            label = c.get("label") or c.get("value") or ""
+            rows.append({"label": label, "value": c.get("value") or label})
+    return rows
 
 
 def _validate_extension(filename: str, allowed: set, label: str) -> str:
@@ -227,8 +287,7 @@ async def upload_dataset_pair(
 ):
     """Upload an event log + BPMN guideline.
 
-    Generation no longer runs at upload time (see ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md
-    §7) — it is triggered per-experiment via POST /admin/experiments/{id}/generate,
+    Generation no longer runs at upload time (see ADMIN_EXPERIMENT_SETUP.md) — it is triggered per-experiment via POST /admin/experiments/{id}/generate,
     once the admin has selected idioms (/idiom) and hyperparameters (/specify).
     """
     # Validate file extensions BEFORE creating any directories on disk
@@ -421,20 +480,14 @@ async def download_experiment_answers(experiment_id: str):
         df_answers["idiom_key"] = df_answers["idiom_id"].map(lambda x: idiom_lookup.get(x, {}).get("idiom_key", ""))
         df_answers["idiom_name"] = df_answers["idiom_id"].map(lambda x: idiom_lookup.get(x, {}).get("idiom_name", ""))
 
-        # Add ground truth from experiment task_instances
+        # Add the configured answer format from the experiment's task_instances
         exp_doc = dbc.get_document("Experiment", {"_id": experiment_id})
-        gt_by_task = {}
+        format_by_task = {}
         if exp_doc:
             for ti in exp_doc.get("task_instances", []):
-                gt_by_task[ti.get("task_id")] = {
-                    "ground_truth": ti.get("ground_truth"),
-                    "answer_format": ti.get("answer_format"),
-                }
-        df_answers["ground_truth"] = df_answers["task_id"].map(
-            lambda x: str(gt_by_task.get(x, {}).get("ground_truth", "")) if gt_by_task.get(x, {}).get("ground_truth") is not None else ""
-        )
+                format_by_task[ti.get("task_id")] = ti.get("answer_format") or ""
         df_answers["answer_format"] = df_answers["task_id"].map(
-            lambda x: gt_by_task.get(x, {}).get("answer_format", "")
+            lambda x: format_by_task.get(x, "")
         )
 
         if "response_time_ms" in df_answers.columns:
@@ -475,7 +528,7 @@ async def download_experiment_answers(experiment_id: str):
 
     # ── Sheet 4: blind review ─────────────────────────────────────────────
     # Minimal columns only, so answers can be scored without revealing the
-    # participant, idiom, or ground truth. _id keys each row back to the
+    # participant or idiom. _id keys each row back to the
     # Task Answers sheet.
     BLIND_COLS = ["_id", "task_name", "answer"]
     if not df_answers.empty:
@@ -730,17 +783,18 @@ _PARAM_OVERRIDE_FIELDS = ("default", "required", "min", "max", "step", "options"
 @router.get("/tasks/{task_key}/param-spec", tags=["admin"])
 async def get_task_param_spec(task_key: str, dataset_id: str | None = None):
     """Return this task's hyperparameter spec for /specify (col E, see
-    ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4-5, §9-10).
+    ADMIN_EXPERIMENT_SETUP.md).
 
     Unauthored or param-free tasks return `param_spec: []`, which /specify
     renders as "No parameters required — ready to generate". `dataset_id` is
     accepted for forward-compatibility: once a task declares PARAM_SPEC entries
     with a `source` (e.g. "log.activities"), candidate values for that dataset
-    are populated here (§14, step 6).
+    are populated here.
 
     Every task shares the same parameter catalog — the full set of parameters
-    declared by ANY task, deduped by key (mirrors GET /tasks/{task_key}/
-    answer-formats). An admin can enable any parameter for any task from
+    declared by ANY task, deduped by key (the same way every task shares the
+    one global answer-format registry). An admin can enable any parameter for
+    any task from
     /admin/experiments/parameters (see PATCH /tasks/{task_id}
     `param_overrides`), but only tasks whose own generation code reads that
     key will actually use the submitted value — for the rest it's collected
@@ -795,12 +849,83 @@ async def get_task_param_spec(task_key: str, dataset_id: str | None = None):
     })
 
 
+@router.get("/answer-formats", tags=["admin"])
+async def get_answer_formats():
+    """The global answer-format registry for /answer-format.
+
+    Formats are not task-scoped: every task may use every format. `needs_options`
+    tells the page whether to render the option editor, `numeric` whether to
+    render the number-kind selector.
+    """
+    return JSONResponse(content={
+        "answer_formats": afmt.ANSWER_FORMATS,
+        "number_kinds": afmt.NUMBER_KINDS,
+        "default_number_kind": afmt.DEFAULT_NUMBER_KIND,
+    })
+
+
+@router.get("/datasets/{dataset_id}/option-sources", tags=["admin"])
+async def get_option_sources(dataset_id: str):
+    """Event-log sources an admin can import answer options from on /answer-format.
+
+    Task-independent: each source enumerates entities from the dataset, so any
+    task may import from any of them.
+    """
+    return JSONResponse(content={
+        "dataset_id": dataset_id,
+        "option_sources": OPTION_SOURCES,
+        "matrix_axis_default": _MATRIX_AXIS_DEFAULT,
+    })
+
+
+@router.get("/datasets/{dataset_id}/option-candidates", tags=["admin"])
+async def get_option_candidates(
+    dataset_id: str,
+    source: str,
+    granularity: str | None = None,
+    pairs: bool = False,
+    axis_limit: int = _MATRIX_AXIS_DEFAULT,
+):
+    """Option rows for one source, ready to drop into the option editor.
+
+    `pairs=true` (matrix) turns the candidates into the upper triangle of a
+    symmetric grid: the first `axis_limit` candidates become the shared axis and
+    each cell is one {label: "a × b", value: "a__b"} option, matching the token
+    shape AnswerWidgets.parsePairs expects. `axis_total` reports how many
+    candidates existed so the page can say what it truncated.
+    """
+    known = {s["source"] for s in OPTION_SOURCES}
+    if source not in known:
+        raise HTTPException(status_code=400,
+                            detail=f"Unknown option source '{source}'. Known: {sorted(known)}.")
+    try:
+        rows = _option_candidates(source, dataset_id, granularity)
+    except Exception as e:
+        _logger.exception("Failed to enumerate option candidates (%s / %s)", dataset_id, source)
+        raise HTTPException(status_code=500, detail=f"Could not read the event log: {e}")
+
+    axis_total = len(rows)
+    if not pairs:
+        return JSONResponse(content={"options": rows, "axis_total": axis_total})
+
+    axis = [r for r in rows if "__" not in r["label"]][:max(2, min(axis_limit, _MATRIX_AXIS_MAX))]
+    options = [
+        {"label": f"{a['label']} × {b['label']}", "value": f"{a['label']}__{b['label']}"}
+        for a, b in combinations(axis, 2)
+    ]
+    return JSONResponse(content={
+        "options": options,
+        "axis": [a["label"] for a in axis],
+        "axis_total": axis_total,
+    })
+
+
 @router.get("/param-catalog", tags=["admin"])
 async def get_param_catalog():
     """The full parameter catalog for the admin Parameter Matching page
     (/admin/experiments/parameters): every parameter declared by ANY task,
-    deduped by key, each listed against EVERY task (mirrors GET /tasks/
-    {task_key}/answer-formats sharing the same format dropdown everywhere).
+    deduped by key, each listed against EVERY task — the parameter analogue of
+    the global answer-format registry in app/answer_formats.py.
 
     An admin can enable any parameter for any task, but only tasks whose own
     generation code reads that key will actually use the submitted value —
@@ -848,37 +973,16 @@ async def get_param_catalog():
     return JSONResponse(content={"parameters": catalog})
 
 
-@router.get("/tasks/{task_key}/answer-formats", tags=["admin"])
-async def get_task_answer_formats(task_key: str):
-    """Return the answer-format dropdown for /answer-format-groundtruth
-    (col D, see ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4-5, §11).
-
-    Every task shares the same dropdown: the full set of formats declared by
-    ANY task, deduped by key. This lets an admin pick any format for any
-    task, but only tasks whose own compute_ground_truth() recognizes that
-    format will compute a correctly-shaped ground truth for it — for the
-    rest, generation falls back to that task's default/free-text handling.
-    """
-    if task_key not in _TASK_MODULES:
-        raise HTTPException(status_code=404, detail=f"Unknown task '{task_key}'.")
-    all_formats: dict[str, dict] = {}
-    for mod_key in _TASK_MODULES:
-        for fmt in task_registry.get_answer_formats(mod_key):
-            all_formats.setdefault(fmt["key"], fmt)
-    return JSONResponse(content={
-        "task_key": task_key,
-        "answer_formats": list(all_formats.values()),
-    })
-
 
 @router.get("/tasks/{task_key}/rubric", tags=["admin"])
 async def get_task_rubric(task_key: str):
-    """Return this task's grading rubric for display/editing on
-    /answer-format-groundtruth and /overview (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §8, §11).
+    """Return this task's grading rubric for display/editing on /answer-format
+    and /overview.
 
-    The task's RUBRIC constant is the default; an admin edit (PATCH /tasks/{task_id}
-    with a `rubric` field, stored on the Task document) overrides it. `rubric` is
-    `null` if the task hasn't authored one and no admin edit exists yet (step 6).
+    Reference text for manually coding free-text answers — it feeds no automatic
+    scoring. The task's RUBRIC constant is the default; an admin edit
+    (PATCH /tasks/{task_id} with a `rubric` field, stored on the Task document)
+    overrides it. `rubric` is `null` if neither exists.
     """
     if task_key not in _TASK_MODULES:
         raise HTTPException(status_code=404, detail=f"Unknown task '{task_key}'.")
@@ -887,7 +991,6 @@ async def get_task_rubric(task_key: str):
     return JSONResponse(content={
         "task_key": task_key,
         "rubric": override if override is not None else task_registry.get_rubric(task_key),
-        "gt_tier": task_registry.get_gt_tier(task_key),
     })
 
 
@@ -1109,37 +1212,6 @@ def _task_key_for(task_id: str | None) -> str | None:
     return task.get("task_key") if task else None
 
 
-def _resolve_answer_format(task_key: str, ti: dict) -> str | None:
-    """The answer_format to compute GT for: the one chosen on
-    /answer-format-groundtruth, else the task's sole/first declared format
-    (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7, §11)."""
-    if ti.get("answer_format"):
-        return ti["answer_format"]
-    formats = task_registry.get_answer_formats(task_key)
-    return formats[0]["key"] if formats else None
-
-
-def _build_gt_block(task_key: str, answer_format: str, gt_raw: dict) -> dict:
-    """Assemble a GroundTruthBlock from compute_ground_truth's raw output, filling
-    tier/format/decisive defaults from the task's contract (§3, §8).
-
-    The grading rubric is a static, task-level property (served by
-    /tasks/{task_key}/rubric) and is intentionally NOT copied into the
-    per-instance ground truth — `reference` only ever holds reference text that
-    compute_ground_truth explicitly returns."""
-    formats = task_registry.get_answer_formats(task_key)
-    fmt = next((f for f in formats if f.get("key") == answer_format), None) or (formats[0] if formats else {})
-    return {
-        "tier": task_registry.get_gt_tier(task_key),
-        "format": answer_format,
-        "decisive": bool(gt_raw.get("decisive", fmt.get("decisive_default", False))),
-        "value": gt_raw.get("value"),
-        "options": gt_raw.get("options", []),
-        "reference": gt_raw.get("reference"),
-        "artefact_path": gt_raw.get("artefact_path"),
-    }
-
-
 def _load_dataset_log(dataset_id: str):
     """Load a dataset's event log as a pm4py EventLog (for validate_params hooks)."""
     input_dir = DATA_DIRECTORY / dataset_id / "input"
@@ -1156,7 +1228,7 @@ def _load_dataset_log(dataset_id: str):
 
 def _validate_task_instances(exp: dict) -> list[str]:
     """Hard-validate every task_instance's parameters against its PARAM_SPEC and
-    optional validate_params hook (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §10). Returns
+    optional validate_params hook (see ADMIN_EXPERIMENT_SETUP.md). Returns
     a list of human-readable error messages; empty means all valid."""
     errors: list[str] = []
     log_cache: dict[str, object] = {}
@@ -1217,27 +1289,27 @@ def _validate_task_instances(exp: dict) -> list[str]:
 
 def _run_generation_job(experiment_id: str):
     """Background job: per dataset, render the experiment's task_instances with
-    their chosen parameters and compute ground truth, then mark each instance
-    'ready'/'failed' and store the computed GT (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7)."""
+    their chosen parameters, then mark each instance 'ready'/'failed'.
+
+    Generation only draws — the answer shape (format, options, number kind) is
+    authored by the admin on /answer-format and never computed here."""
     exp = dbc.get_document("Experiment", {"_id": experiment_id})
     if not exp:
         return
     task_instances = exp.get("task_instances", [])
 
-    # Group instances per dataset; remember each ti's resolved task_key + format.
+    # Group instances per dataset; remember each ti's resolved task_key.
     by_dataset: dict[str, list[dict]] = {}
-    meta: dict[str, tuple] = {}  # task_id -> (task_key, answer_format)
+    meta: dict[str, str | None] = {}  # task_id -> task_key
     for ti in task_instances:
         ds = ti.get("dataset_id")
         task_key = _task_key_for(ti.get("task_id"))
-        answer_format = _resolve_answer_format(task_key, ti) if task_key else None
-        meta[ti.get("task_id")] = (task_key, answer_format)
+        meta[ti.get("task_id")] = task_key
         if not ds or not task_key:
             continue
         by_dataset.setdefault(ds, []).append({
             "task_key": task_key,
             "parameters": ti.get("parameters") or {},
-            "answer_format": answer_format,
         })
 
     results: dict[tuple, dict] = {}  # (dataset_id, task_key) -> result entry
@@ -1249,11 +1321,11 @@ def _run_generation_job(experiment_id: str):
         except Exception as e:
             _logger.exception("Generation failed for experiment %s, dataset %s", experiment_id, ds)
             for inst in insts:
-                results[(ds, inst["task_key"])] = {"render_error": str(e), "gt_raw": None, "gt_error": None}
+                results[(ds, inst["task_key"])] = {"render_error": str(e)}
 
     for ti in task_instances:
         ds = ti.get("dataset_id")
-        task_key, answer_format = meta.get(ti.get("task_id"), (None, None))
+        task_key = meta.get(ti.get("task_id"))
         if not ds:
             ti["generation_status"] = "failed"
             ti["generation_error"] = "No dataset assigned to this task."
@@ -1273,19 +1345,6 @@ def _run_generation_job(experiment_id: str):
         else:
             ti["generation_status"] = "ready"
             ti["generation_error"] = None
-        gt_raw_by_format = r.get("gt_raw_by_format") or {}
-        if gt_raw_by_format:
-            gt_block_by_format = {
-                fmt_key: _build_gt_block(task_key, fmt_key, fmt_raw)
-                for fmt_key, fmt_raw in gt_raw_by_format.items()
-            }
-            ti["ground_truth_by_format"] = gt_block_by_format
-            selected = answer_format if (answer_format and answer_format in gt_block_by_format) \
-                else next(iter(gt_block_by_format), None)
-            if selected:
-                ti["ground_truth"] = gt_block_by_format[selected]
-        elif r.get("gt_error"):
-            _logger.warning("compute_ground_truth failed for %s: %s", task_key, r["gt_error"])
 
     dbc.update_document("Experiment", {"_id": experiment_id}, {"$set": {
         "task_instances": task_instances,
@@ -1295,9 +1354,9 @@ def _run_generation_job(experiment_id: str):
 
 @router.post("/experiments/{experiment_id}/generate", tags=["admin"])
 async def generate_experiment_visualizations(experiment_id: str, background_tasks: BackgroundTasks):
-    """Validate parameters, then run generation + ground-truth computation for this
+    """Validate parameters, then run idiom generation for this
     experiment's task_instances in the background, writing SVGs to
-    data/{dataset_id}/output/{experiment_id}/... (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7).
+    data/{dataset_id}/output/{experiment_id}/... (see ADMIN_EXPERIMENT_SETUP.md).
     Invalid parameters are rejected with a 400 before anything runs. Poll
     GET /experiments/{experiment_id} for per-task generation_status."""
     exp = dbc.get_document("Experiment", {"_id": experiment_id})
@@ -1368,7 +1427,6 @@ def _run_preview_job(experiment_id: str, mode: str):
                 insts.append({
                     "task_key": task_key,
                     "parameters": ti.get("parameters") or {},
-                    "answer_format": None,
                 })
         try:
             results = generate_for_task_instances(dataset_dir, preview_exp_id, insts)
@@ -1390,7 +1448,6 @@ def _run_preview_job(experiment_id: str, mode: str):
                 by_dataset.setdefault(ds_id, []).append({
                     "task_key": task_key,
                     "parameters": ti.get("parameters") or {},
-                    "answer_format": None,
                 })
 
         for ds_id, insts in by_dataset.items():
@@ -1592,7 +1649,7 @@ _preload_idiom_preview_status()
 def _run_idiom_preview_task(task_key: str):
     """Generate sample SVGs for one task with default parameters."""
     try:
-        insts = [{"task_key": task_key, "parameters": {}, "answer_format": None}]
+        insts = [{"task_key": task_key, "parameters": {}}]
         results = generate_for_task_instances(
             str(SAMPLE_DATA_DIR), _IDIOM_PREVIEW_EXP_ID, insts
         )
@@ -1797,13 +1854,3 @@ async def update_experiment_prequestionnaire_sections(experiment_id: str, body: 
     if not updated:
         raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
     return JSONResponse(content={"message": "Pre-questionnaire sections updated."})
-
-
-# ---------------------------------------------------------------------------
-# GroundTruth management
-# ---------------------------------------------------------------------------
-
-@router.post("/groundtruth", tags=["admin"])
-async def create_ground_truth(ground_truth: ds.GroundTruth):
-    dbc.create_document("GroundTruth", ground_truth.model_dump(by_alias=True))
-    return JSONResponse(content={"message": "GroundTruth entry created.", "ground_truth_id": ground_truth.id}, status_code=201)

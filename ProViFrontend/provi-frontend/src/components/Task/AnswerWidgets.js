@@ -75,13 +75,14 @@ const focusOn = (e) => { e.target.style.borderColor = COLORS.accent; };
 const focusOff = (e) => { e.target.style.borderColor = COLORS.line; };
 
 // ----------------------------------------------------------- numeric metadata
-function numericMeta(answerFormat) {
-  switch (answerFormat) {
-    case "pct":
-    case "pct-set":
+// Numeric presets, keyed by the task instance's `number_kind`
+// (app/answer_formats.py NUMBER_KINDS). These replace the old separate
+// pct / count / decimal answer formats.
+function numericMeta(numberKind) {
+  switch (numberKind) {
+    case "percentage":
       return { suffix: "%", step: "0.1", min: 0, max: 100, hint: "Enter a number between 0 and 100, including decimals where applicable." };
-    case "count":
-    case "count-set":
+    case "integer":
       return { suffix: "", step: "1", min: 0, max: undefined, hint: "Enter a whole number (≥ 0)." };
     case "decimal":
       return { suffix: "", step: "any", min: undefined, max: undefined, hint: "Enter a decimal value." };
@@ -111,7 +112,7 @@ export function initialAnswer(answerType, options = []) {
 export function isAnswered(answerType, value) {
   switch (answerType) {
     case "matrix":
-      // Empty selection is a valid answer (no violations co-occur above threshold).
+      // Empty selection is a valid answer (the participant may select no cells).
       return Array.isArray(value);
     case "multiple_choice":
       return Array.isArray(value) && value.length > 0;
@@ -195,8 +196,8 @@ function MultipleChoice({ options, value, onChange }) {
   );
 }
 
-function NumericInput({ value, onChange, answerFormat }) {
-  const meta = numericMeta(answerFormat);
+function NumericInput({ value, onChange, numberKind }) {
+  const meta = numericMeta(numberKind);
   return (
     <>
       <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
@@ -223,8 +224,8 @@ function NumericInput({ value, onChange, answerFormat }) {
   );
 }
 
-function NumericSet({ options, value, onChange, answerFormat }) {
-  const meta = numericMeta(answerFormat);
+function NumericSet({ options, value, onChange, numberKind }) {
+  const meta = numericMeta(numberKind);
   const setRow = (label, v) => onChange({ ...value, [label]: v });
   return (
     <>
@@ -260,7 +261,7 @@ function NumericSet({ options, value, onChange, answerFormat }) {
   );
 }
 
-function RankList({ value, onChange, options, answerFormat }) {
+function RankList({ value, onChange, options }) {
   const dragIndex = useRef(null);
   // value is the ordered list of tokens; map token -> display label
   const labelOf = useMemo(() => {
@@ -579,26 +580,18 @@ function FreeText({ value, onChange }) {
 }
 
 // =============================================================== dispatcher
-export default function AnswerInput({ answerType, answerFormat, options = [], value, onChange }) {
+export default function AnswerInput({ answerType, numberKind, options = [], value, onChange }) {
   switch (answerType) {
-    case "single_choice": {
-      // "yes-no" always needs exactly two choices; if the backend stored an
-      // empty options list (manual-GT path), fall back to hardcoded Yes/No so
-      // the participant can still answer.
-      const choiceOpts =
-        answerFormat === "yes-no" && options.length === 0
-          ? [{ label: "Yes", value: "yes" }, { label: "No", value: "no" }]
-          : options;
-      return <SingleChoice options={choiceOpts} value={value} onChange={onChange} />;
-    }
+    case "single_choice":
+      return <SingleChoice options={options} value={value} onChange={onChange} />;
     case "multiple_choice":
       return <MultipleChoice options={options} value={value} onChange={onChange} />;
     case "numeric":
-      return <NumericInput value={value} onChange={onChange} answerFormat={answerFormat} />;
+      return <NumericInput value={value} onChange={onChange} numberKind={numberKind} />;
     case "numeric_set":
-      return <NumericSet options={options} value={value} onChange={onChange} answerFormat={answerFormat} />;
+      return <NumericSet options={options} value={value} onChange={onChange} numberKind={numberKind} />;
     case "rank":
-      return <RankList options={options} value={value} onChange={onChange} answerFormat={answerFormat} />;
+      return <RankList options={options} value={value} onChange={onChange} />;
     case "matrix":
       return <MatrixGrid options={options} value={value} onChange={onChange} />;
     case "free_text":

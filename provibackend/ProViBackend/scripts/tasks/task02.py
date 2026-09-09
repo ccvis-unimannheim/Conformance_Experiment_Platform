@@ -4,9 +4,9 @@ tasks/task02.py – Task ID 2: Confirm / Present / Process conformance.
 Single idiom: Tile Metric — overall (sub-)log fitness as a simple percentage.
 The tile is visually identical to task06's tile; rendering logic lives in shared.py.
 
-The answer format is a single Yes/No question ("yes-no"): does behaviour
-predominantly follow the model? The ground truth is decided against an optional
-predominant threshold (default 0.8).
+The question this task poses is whether behaviour predominantly follows the
+model; `predominant_threshold` draws the reference line the reader judges that
+against. How participants answer is chosen per experiment on /answer-format.
 
 Public API:
     generate(df, output_dir, predominant_threshold=0.8)
@@ -28,15 +28,6 @@ IDIOMS = ["tile_metric", "bar_chart", "table"]
 # following the model. Overridable via generate(predominant_threshold=...).
 DEFAULT_PREDOMINANT_THRESHOLD = 0.8
 
-# ---------------------------------------------------------------------------
-# Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8; design doc §2 row 2)
-#
-# Task 2 (AUTO): a single Yes/No answer format ("yes-no") reading whether
-# behaviour "predominantly" follows the model, decided against an optional
-# predominant threshold (default 0.8). The task runs with zero admin input;
-# the admin may override the threshold.
-# ---------------------------------------------------------------------------
-GT_TIER = "AUTO"
 
 PARAM_SPEC = [
     {
@@ -50,14 +41,10 @@ PARAM_SPEC = [
     },
 ]
 
-ANSWER_FORMATS = [
-    {"key": "yes-no", "gt_shape": "mc", "decisive_default": True},
-]
-
 
 def validate_params(log, params) -> list:
     """Reject an out-of-range predominant threshold. The threshold is optional
-    (defaults to 0.8); only a supplied value is checked (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §10)."""
+    (defaults to 0.8); only a supplied value is checked."""
     raw = params.get("predominant_threshold")
     if raw is None or raw == "":
         return []
@@ -68,43 +55,6 @@ def validate_params(log, params) -> list:
     if not (0.0 <= thr <= 1.0):
         return ["Predominant threshold must be between 0 and 1."]
     return []
-
-
-def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
-    """Yes/No ground truth (design doc §2 row 2).
-
-    Returns the raw GroundTruthBlock fields the backend assembles
-    (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §3, §8) for the sole "yes-no" format:
-    Yes/No options, with the side matching whether the overall mean fitness
-    meets the predominant threshold flagged correct.
-
-    When the threshold is left empty the answer requires manual review, so
-    we return an empty options list (SEMI / manual GT path).
-    """
-    raw = params.get("predominant_threshold")
-    if raw is None or raw == "":
-        # No threshold → participant still answers Yes/No but correctness is
-        # not pre-determined; admin grades manually (no 'correct' key).
-        return {
-            "value": None,
-            "options": [
-                {"label": "Yes", "value": "yes"},
-                {"label": "No",  "value": "no"},
-            ],
-        }
-    overall = (
-        float(fitness_df["fitness"].mean())
-        if fitness_df is not None and len(fitness_df) else 0.0
-    )
-    thr = float(raw)
-    predominant = overall >= thr
-    return {
-        "value": None,
-        "options": [
-            {"label": "Yes", "value": "yes", "correct": predominant},
-            {"label": "No",  "value": "no",  "correct": not predominant},
-        ],
-    }
 
 
 import os

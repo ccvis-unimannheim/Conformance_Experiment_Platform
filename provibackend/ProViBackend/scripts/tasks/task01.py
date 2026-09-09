@@ -19,14 +19,6 @@ logger = logging.getLogger(__name__)
 IDIOMS = ["bar_chart", "table", "table_and_bar_chart", "parallel_sets",
           "stacked_bar", "box_plot", "matrix"]
 
-# ---------------------------------------------------------------------------
-# Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8; design doc §2 row 1)
-#
-# Task 1 (SEMI): compare conformance of two sub-logs split by an outcome
-# condition (an activity present in the trace = Positive group, absent =
-# Negative). The answer is one mean-fitness percentage per group (pct-set).
-# ---------------------------------------------------------------------------
-GT_TIER = "SEMI"
 
 PARAM_SPEC = [
     {
@@ -40,16 +32,11 @@ PARAM_SPEC = [
     },
 ]
 
-ANSWER_FORMATS = [
-    {"key": "pct-set",   "gt_shape": "labelled-set", "decisive_default": True},
-    {"key": "mc-single", "gt_shape": "mc",           "decisive_default": True},
-]
-
 
 def validate_params(log, params) -> list:
     """Reject conditions that cannot split the log into two non-empty groups
     (covers gibberish/typo'd activities — absent from every trace — and
-    activities present in every trace). See ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §10."""
+    activities present in every trace)."""
     act = params.get("outcome_activity")
     if not act:
         return ["An outcome activity is required."]
@@ -60,78 +47,6 @@ def validate_params(log, params) -> list:
     if present == total:
         return [f"Outcome activity '{act}' is present in all {total} traces — it cannot split the log into two groups."]
     return []
-
-
-def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
-    """Per-group mean conformance, shaped for the chosen answer format
-    (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §3, §8).
-
-    - pct-set (default): one labelled row per group, value = the group's mean
-      fitness as an integer percent (e.g. "96%"), flagged correct.
-    - mc-single: one option per (Positive%, Negative%) pair — the correct option
-      is the real pair, plus 3 near-miss distractors (see _task01_mc_single_gt).
-    """
-    df    = _task01_build_df(log, fitness_df, params.get("outcome_activity", "Approve Treatment"))
-    stats = _task01_group_stats(df)
-
-    if answer_format == "mc-single":
-        return _task01_mc_single_gt(stats)
-
-    options = [
-        {"label": row["group"], "value": f"{round(row['mean_fitness'] * 100)}%", "correct": True}
-        for _, row in stats.iterrows()
-    ]
-    return {"value": None, "options": options}
-
-
-def _task01_mc_single_gt(stats: "pd.DataFrame") -> dict:
-    """Single-choice GT whose options are (Positive%, Negative%) pairs.
-
-    The correct option is each group's real mean fitness as an integer percent.
-    Three distractors perturb the Positive and Negative percentages INDEPENDENTLY
-    by a random integer in [-3, +3] pp (never both zero), clamped to [0, 100] and
-    de-duplicated so no distractor coincides with the truth or another distractor.
-    The RNG is seeded from the true pair, so the same dataset reproduces the same
-    four options. Stays within +-3 pp; only widens if that small neighbourhood is
-    too crowded (e.g. both groups near 100%) to yield 3 unique distractors."""
-    import random as _rnd
-
-    by_group = {row["group"]: round(float(row["mean_fitness"]) * 100)
-                for _, row in stats.iterrows()}
-    p = max(0, min(100, by_group.get("Positive", 0)))
-    n = max(0, min(100, by_group.get("Negative", 0)))
-
-    def _fmt(pp, nn):
-        return f"Positive: {pp}%  ·  Negative: {nn}%", f"P={pp}%;N={nn}%"
-
-    correct_label, correct_value = _fmt(p, n)
-    options = [{"label": correct_label, "value": correct_value, "correct": True}]
-
-    rng  = _rnd.Random(p * 101 + n)   # stable, dataset-derived seed
-    seen = {(p, n)}
-
-    def _add_distractor(span: int) -> bool:
-        for _ in range(60):
-            dp, dn = rng.randint(-span, span), rng.randint(-span, span)
-            if dp == 0 and dn == 0:
-                continue
-            cp = max(0, min(100, p + dp))
-            cn = max(0, min(100, n + dn))
-            if (cp, cn) in seen:
-                continue
-            seen.add((cp, cn))
-            lbl, val = _fmt(cp, cn)
-            options.append({"label": lbl, "value": val, "correct": False})
-            return True
-        return False
-
-    span = 3
-    while len(options) < 4 and span <= 8:
-        if not _add_distractor(span):
-            span += 1   # neighbourhood exhausted — widen minimally
-
-    rng.shuffle(options)
-    return {"options": options}
 
 
 import os

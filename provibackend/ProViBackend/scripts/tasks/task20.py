@@ -28,22 +28,6 @@ logger = logging.getLogger(__name__)
 IDIOMS = ["bar_chart", "table", "table_bar_chart", "matrix", "heatmap",
           "tile_metric", "parallel_sets"]
 
-# ---------------------------------------------------------------------------
-# Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8; design doc §2 row 20)
-#
-# Task 20 (MANUAL): "Discover reasons / root causes" — which control-flow, data,
-# resource, or time attributes lead to guideline violations. Like its sibling
-# task13 (the attribute-evidence companion), the answer is irreducibly
-# interpretive: the decision tree / attribute-evidence idioms surface candidate
-# root causes, but naming THE reason is an analyst judgement, so no decisive GT
-# value is auto-computed. Plan §6 classifies #20 under MANUAL; the admin provides
-# a reference answer seeded from the static RUBRIC below.
-#
-# Mirrors task13's contract deliberately (same Reasons family): PARAM_SPEC = []
-# (candidate attributes stay the shared hard-coded CANDIDATE_ATTRIBUTES set used
-# by every idiom, guaranteeing GT-vs-visual consistency), free-text answer format.
-# ---------------------------------------------------------------------------
-GT_TIER = "MANUAL"
 
 PARAM_SPEC = [
     {
@@ -59,10 +43,6 @@ PARAM_SPEC = [
     },
 ]
 
-ANSWER_FORMATS = [
-    {"key": "free-text", "gt_shape": "reference", "decisive_default": False},
-    {"key": "mc-multi",  "gt_shape": "mc",         "decisive_default": True},
-]
 
 RUBRIC = (
     "A strong answer identifies one or more concrete attributes — of the "
@@ -77,38 +57,6 @@ RUBRIC = (
     "for vague claims unsupported by the visualized decision-tree / attribute "
     "evidence."
 )
-
-
-def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
-    """For mc-multi: candidate attributes ranked by correlation with violations as
-    selectable options. The admin flags which attributes are the correct root-cause factors.
-    For free-text: returns empty dict — the static RUBRIC is used as the reference.
-    """
-    if answer_format == "free-text":
-        return {}
-
-    feat = task20_trace_feature_dataframe(log, alignments)
-    if feat.empty:
-        return {"options": []}
-
-    corr_df = task20_attribute_correlation_dataframe(feat)
-    if corr_df.empty:
-        return {"options": []}
-
-    # Options are still the 8 most-correlated candidate attributes, but the label
-    # shows only the attribute name and its (neutral) type — the correlation value
-    # is withheld so the option text doesn't rank the answers for the participant,
-    # who must read the strength of association off the visualization.
-    return {
-        "options": [
-            {
-                "label": f"{row['attribute']} ({row['type']})",
-                "value": row["attribute"],
-                "correct": False,
-            }
-            for _, row in corr_df.head(8).iterrows()
-        ]
-    }
 
 
 import os

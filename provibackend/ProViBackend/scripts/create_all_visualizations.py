@@ -198,7 +198,7 @@ def _resolve_dataset_paths(dataset_dir: str, experiment_id: str | None = None):
 
     When `experiment_id` is given, SVGs are written to a per-experiment
     subdirectory (`output/{experiment_id}/...`, see
-    ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7) so multiple experiments sharing the
+    see ADMIN_EXPERIMENT_SETUP.md) so multiple experiments sharing the
     same dataset can hold independently-generated idioms. Without it (CLI /
     legacy use), the original `output/...` layout is used.
     """
@@ -248,7 +248,7 @@ def _resolve_dataset_paths(dataset_dir: str, experiment_id: str | None = None):
 # PM4Py optimal alignments are NON-DETERMINISTIC: a trace with several optimal
 # alignments may be diagnosed differently across runs, so the same deviation can
 # be classified as a Move-on-Model in one run and a Move-on-Log (or not at all)
-# in another. The /specify violation picker and the generation/ground-truth step
+# in another. The /specify violation picker and the generation step
 # run alignments at different times, so without a shared result they would report
 # inconsistent violation frequencies (e.g. 6.6% on /specify vs 3% in the ground
 # truth). We therefore compute alignments ONCE per dataset and cache them on disk
@@ -279,7 +279,7 @@ def get_or_compute_alignments(dataset_dir: str, log=None, net=None, im=None, fm=
 
     Computing alignments is both expensive and non-deterministic, so the result
     is cached per dataset and reused by the /specify violation enumeration, the
-    visualization render, and the ground-truth computation — guaranteeing they
+    visualization render — guaranteeing they
     all agree. Pass already-loaded `log`/`net`/`im`/`fm` to avoid reloading when
     the caller has them (cache miss only).
     """
@@ -319,8 +319,7 @@ def get_or_compute_alignments(dataset_dir: str, log=None, net=None, im=None, fm=
 # dict (falling back to the pipeline defaults). Centralising the per-task
 # generate() signatures here lets both the full CLI pipeline and the
 # per-experiment backend job (generate_for_task_instances) thread each
-# task_instance's parameters into generation (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md
-# §7, §15 step 3).
+# task_instance's parameters into generation (see ADMIN_EXPERIMENT_SETUP.md).
 # ---------------------------------------------------------------------------
 
 def make_task_generators(log, alignments, fitness_df, model_path, compare_attribute,
@@ -337,13 +336,9 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
     def predominant_threshold():
         raw = p.get("predominant_threshold")
         return None if (raw is None or raw == "") else float(raw)
-    def high_cooccurrence():
-        raw = p.get("high_cooccurrence_threshold")
-        return None if (raw is None or raw == "") else float(raw)
     def cmp_attr():                return p.get("compare_attribute", compare_attribute)
     def time_granularity():        return p.get("time_granularity", "month")
     def conformance_bins():        return p.get("conformance_bins", None)
-    def target_violations():       return p.get("target_violations", None)
     def violated_activity():       return p.get("violated_activity", None)
     def conformant_threshold():
         raw = p.get("conformant_threshold")
@@ -358,10 +353,10 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
         "task05": lambda d: task05.generate(log, alignments, d, outcome_activity=outcome_activity()),
         "task06": lambda d: task06.generate(fitness_df, d, log=log, alignments=alignments, model_path=model_path),
         "task07": lambda d: task07.generate(log, fitness_df, d, time_granularity=time_granularity()),
-        "task08": lambda d: task08.generate(log, alignments, d, high_cooccurrence_threshold=high_cooccurrence()),
+        "task08": lambda d: task08.generate(log, alignments, d),
         "task09": lambda d: task09.generate(log, alignments, d, model_path=model_path),
         "task10": lambda d: task10.generate(fitness_df, d, log=log, conformance_bins=conformance_bins()),
-        "task11": lambda d: task11.generate(log, alignments, d, model_path=model_path, target_violations=target_violations()),
+        "task11": lambda d: task11.generate(log, alignments, d, model_path=model_path),
         "task12": lambda d: task12.generate(log, alignments, d),
         "task13": lambda d: task13.generate(log, alignments, model_path, d),
         "task14": lambda d: task14.generate(alignments, model_path, d),
@@ -422,7 +417,7 @@ def get_log_activities(dataset_dir: str) -> list[str]:
     """Sorted distinct activity names in the dataset's event log.
 
     Powers the /specify "list all options" combobox for activity-picker params
-    (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §5, §14). For CSV logs this reads only the
+    (see ADMIN_EXPERIMENT_SETUP.md). For CSV logs this reads only the
     activity column (fast); XES logs fall back to the full pm4py loader.
     """
     input_dir = os.path.join(dataset_dir, INPUT_SUBDIR)
@@ -472,41 +467,9 @@ def get_log_time_granularities(dataset_dir: str) -> list[str]:
                + [g for g in TIME_GRANULARITY_FREQ if g not in _ORDER])
 
     try:
-        import pandas as pd
-
-        input_dir = os.path.join(dataset_dir, INPUT_SUBDIR)
-        log_path = None
-        if os.path.isdir(input_dir):
-            for fname in os.listdir(input_dir):
-                if os.path.splitext(fname)[1].lower() in LOG_EXTENSIONS:
-                    log_path = os.path.join(input_dir, fname)
-                    break
-        if log_path is None:
-            return ordered
-
-        ext = os.path.splitext(log_path)[1].lower()
-        if ext == ".csv":
-            df = pd.read_csv(log_path)
-            ts_col = next((c for c in ["time:timestamp", "timestamp", "Timestamp",
-                                       "time", "Time", "Complete Timestamp"]
-                           if c in df.columns), None)
-            if ts_col is None:
-                return ordered
-            case_col = next((c for c in ["case:concept:name", "case", "Case ID",
-                                         "case_id", "caseid", "CaseID"]
-                             if c in df.columns), None)
-            df["_ts"] = pd.to_datetime(df[ts_col], errors="coerce", utc=True)
-            df = df.dropna(subset=["_ts"])
-            starts = df.groupby(case_col)["_ts"].min() if case_col else df["_ts"]
-        else:
-            log = load_event_log(log_path)
-            raw = [trace[0].get("time:timestamp")
-                   for trace in log if len(trace) and trace[0].get("time:timestamp") is not None]
-            starts = pd.to_datetime(pd.Series(raw), errors="coerce", utc=True).dropna()
-
+        starts = _trace_start_timestamps(dataset_dir)
         if starts is None or len(starts) == 0:
             return ordered
-
         usable = [g for g in ordered
                   if starts.dt.to_period(TIME_GRANULARITY_FREQ[g]).nunique() >= 2]
         return usable or ordered
@@ -515,12 +478,81 @@ def get_log_time_granularities(dataset_dir: str) -> list[str]:
         return ordered
 
 
+def _trace_start_timestamps(dataset_dir: str):
+    """Per-trace START timestamps as a tz-aware pandas Series, or None.
+
+    Shared by get_log_time_granularities and get_log_time_bins so both bin the
+    same values task07.validate_params / shared.bin_fitness_time_series do.
+    """
+    import pandas as pd
+
+    input_dir = os.path.join(dataset_dir, INPUT_SUBDIR)
+    log_path = None
+    if os.path.isdir(input_dir):
+        for fname in os.listdir(input_dir):
+            if os.path.splitext(fname)[1].lower() in LOG_EXTENSIONS:
+                log_path = os.path.join(input_dir, fname)
+                break
+    if log_path is None:
+        return None
+
+    if os.path.splitext(log_path)[1].lower() == ".csv":
+        df = pd.read_csv(log_path)
+        ts_col = next((c for c in ["time:timestamp", "timestamp", "Timestamp",
+                                   "time", "Time", "Complete Timestamp"]
+                       if c in df.columns), None)
+        if ts_col is None:
+            return None
+        case_col = next((c for c in ["case:concept:name", "case", "Case ID",
+                                     "case_id", "caseid", "CaseID"]
+                         if c in df.columns), None)
+        df["_ts"] = pd.to_datetime(df[ts_col], errors="coerce", utc=True)
+        df = df.dropna(subset=["_ts"])
+        return df.groupby(case_col)["_ts"].min() if case_col else df["_ts"]
+
+    log = load_event_log(log_path)
+    raw = [trace[0].get("time:timestamp")
+           for trace in log if len(trace) and trace[0].get("time:timestamp") is not None]
+    return pd.to_datetime(pd.Series(raw), errors="coerce", utc=True).dropna()
+
+
+# Bin label formats, mirroring task07's _BIN_LABEL_FMT.
+_TIME_BIN_LABEL_FMT = {"day": "%Y-%m-%d", "month": "%Y-%m", "year": "%Y"}
+
+
+def get_log_time_bins(dataset_dir: str, granularity: str = None) -> list[dict]:
+    """Ordered time bins this dataset's traces fall into, as option rows.
+
+    Returns [{"value": "2023-01", "label": "2023-01"}, ...] — the label set an
+    admin imports for a number-set ("read one value per period off the chart").
+    Bins come from trace START timestamps at `granularity`, matching what the
+    over-time idioms render.
+    """
+    from shared import TIME_GRANULARITY_FREQ, DEFAULT_TIME_GRANULARITY
+
+    gran = str(granularity or DEFAULT_TIME_GRANULARITY).lower()
+    if gran not in TIME_GRANULARITY_FREQ:
+        gran = DEFAULT_TIME_GRANULARITY
+
+    try:
+        starts = _trace_start_timestamps(dataset_dir)
+        if starts is None or len(starts) == 0:
+            return []
+        periods = starts.dt.to_period(TIME_GRANULARITY_FREQ[gran])
+        fmt = _TIME_BIN_LABEL_FMT.get(gran, _TIME_BIN_LABEL_FMT["month"])
+        labels = sorted({p.to_timestamp().strftime(fmt) for p in periods.unique()})
+        return [{"value": lbl, "label": lbl} for lbl in labels]
+    except Exception:
+        logger.exception("Failed to enumerate time bins for %s", dataset_dir)
+        return []
+
+
 def get_log_violations(dataset_dir: str) -> list[dict]:
     """Distinct (activity, move_type) pairs that appear in this dataset's alignments.
 
     Returns a list of {"value": "activity|move_type", "label": "activity · Type  (N traces, X%)"}
     dicts, sorted by trace coverage descending.  Powers task11's /specify 'log.violations'
-    source (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §5, §14).
+    source (see ADMIN_EXPERIMENT_SETUP.md).
 
     Alignment computation is expensive; the result is cached in admin.py per dataset_id.
     """
@@ -559,7 +591,7 @@ def get_log_worst_traces(dataset_dir: str) -> list[dict]:
     Returns [{"value": "0", "label": "Rank 1 — fitness 0.234  (8 violations)"}, ...]
     sorted by violation count descending then fitness ascending (same ordering as
     task34._build_contexts).  The value is the zero-based rank index that
-    task34.compute_ground_truth / generate() accept as `trace_rank`.
+    task34.generate() accepts as `trace_rank`.
     Powers task34's /specify 'log.worst_traces' source.
     """
     from tasks.task34 import _parse_alignment, _is_violation
@@ -596,7 +628,7 @@ def get_log_trace_ids(dataset_dir: str) -> list[dict]:
     (concept:name); `variant` is a 0-based index assigned by first appearance of
     the trace's activity sequence (same variant key as task03), letting the admin
     UI auto-select one trace per distinct variant. task04.generate /
-    compute_ground_truth accept these ids in `trace_ids`. Powers the
+    task04.generate() accepts these ids in `trace_ids`. Powers the
     'log.trace_ids' param-spec source.
     """
     log_path, _model_path, _ = _resolve_dataset_paths(dataset_dir, None)
@@ -681,43 +713,30 @@ def get_log_violated_activities_task34(dataset_dir: str) -> list[dict]:
 
 def generate_for_task_instances(dataset_dir: str, experiment_id: str,
                                 instances: list[dict]) -> dict:
-    """Render + compute ground truth for one dataset's task_instances.
+    """Render one dataset's task_instances.
 
-    `instances` items: {"task_key": str, "parameters": dict, "answer_format": str|None}.
+    `instances` items: {"task_key": str, "parameters": dict}.
     Shared artefacts (log, Petri net, alignments, fitness_df) are computed once
-    and reused across this dataset's tasks (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7).
+    and reused across this dataset's tasks.
 
-    Returns {task_key: {"render_error": str|None, "gt_raw": dict|None,
-    "gt_error": str|None}}. GT assembly into a GroundTruthBlock happens in the
-    caller (admin.py), which owns the registry/schema.
+    Returns {task_key: {"render_error": str|None}}. This function only draws —
+    the answer shape is authored by the admin on /answer-format.
     """
     log_path, model_path, output_dir = _resolve_dataset_paths(dataset_dir, experiment_id)
     log         = load_event_log(log_path)
     compare_attribute = _auto_detect_compare_attribute(log, "AMOUNT_REQ")
     net, im, fm = load_model(model_path)
     # Reuse the cached alignments shared with /specify's violation enumeration so
-    # idiom frequencies and ground truth match what the admin saw when selecting
-    # violations (PM4Py alignments are non-deterministic — see get_or_compute_alignments).
+    # idiom frequencies match what the admin saw when selecting violations
+    # (PM4Py alignments are non-deterministic — see get_or_compute_alignments).
     alignments  = get_or_compute_alignments(dataset_dir, log, net, im, fm)
     fitness_df  = fitness_summary_dataframe(alignments)
-
-    _TASK_MODULE = {
-        "task01": task01, "task02": task02, "task03": task03, "task04": task04, "task05": task05,
-        "task06": task06, "task07": task07, "task08": task08, "task09": task09, "task10": task10,
-        "task11": task11, "task12": task12, "task13": task13, "task14": task14, "task15": task15,
-        "task16": task16, "task17": task17, "task18": task18, "task19": task19, "task20": task20,
-        "task21": task21, "task22": task22, "task23": task23, "task24": task24, "task25": task25,
-        "task26": task26, "task27": task27, "task28": task28, "task29": task29, "task30": task30,
-        "task31": task31, "task32": task32, "task33": task33, "task34": task34, "task35": task35,
-        "task36": task36, "task37": task37,
-    }
 
     results: dict = {}
     for inst in instances:
         tk = inst["task_key"]
         params = inst.get("parameters") or {}
-        answer_format = inst.get("answer_format")
-        entry = {"render_error": None, "gt_raw_by_format": {}, "gt_error": None}
+        entry = {"render_error": None}
 
         generators = make_task_generators(log, alignments, fitness_df, model_path,
                                           compare_attribute, params)
@@ -736,25 +755,6 @@ def generate_for_task_instances(dataset_dir: str, experiment_id: str,
             logger.exception("Render failed for %s", tk)
             entry["render_error"] = str(e)
 
-        task_mod = _TASK_MODULE.get(tk)
-        compute = getattr(task_mod, "compute_ground_truth", None)
-        if compute is not None:
-            all_formats = getattr(task_mod, "ANSWER_FORMATS", [])
-            gt_raw_by_format: dict = {}
-            gt_errors: list[str] = []
-            for fmt in all_formats:
-                fmt_key = fmt.get("key", "")
-                try:
-                    gt_raw_by_format[fmt_key] = compute(
-                        log, alignments, fitness_df, model_path, params, fmt_key
-                    )
-                except Exception as e:
-                    logger.exception("compute_ground_truth failed for %s format %s", tk, fmt_key)
-                    gt_errors.append(f"{fmt_key}: {e}")
-            entry["gt_raw_by_format"] = gt_raw_by_format
-            if gt_errors and not gt_raw_by_format:
-                entry["gt_error"] = "; ".join(gt_errors)
-
         results[tk] = entry
 
     return results
@@ -768,10 +768,8 @@ def run_pipeline(dataset_dir: str, experiment_id: str | None = None,
                  outcome_activity: str = "Activate Care",
                  compare_attribute: str = "AMOUNT_REQ",
                  predominant_threshold: float = 0.8,
-                 high_cooccurrence_threshold: float = 0.1,
                  time_granularity: str = "month",
-                 conformance_bins: list | None = None,
-                 target_violation: str | None = None) -> str:
+                 conformance_bins: list | None = None) -> str:
     """Run the full visualization pipeline for one dataset directory.
 
     Parameters
@@ -781,7 +779,7 @@ def run_pipeline(dataset_dir: str, experiment_id: str | None = None,
         and input/Guideline.bpmn).
     experiment_id : str, optional
         When given, SVGs are written to ``<dataset_dir>/output/{experiment_id}/``
-        instead of ``<dataset_dir>/output/`` (see ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7).
+        instead of ``<dataset_dir>/output/`` (see ADMIN_EXPERIMENT_SETUP.md).
     outcome_activity : str
         Activity name that marks a positive process outcome (used by Task 6).
     compare_attribute : str
@@ -790,10 +788,6 @@ def run_pipeline(dataset_dir: str, experiment_id: str | None = None,
     predominant_threshold : float
         Fitness level (0–1) above which Task 2 considers the overall behaviour
         to "predominantly" follow the desired executions in the model.
-    high_cooccurrence_threshold : float
-        Share of traces (0–1) at/above which Task 8 marks a violation pair's
-        co-occurrence as "high" (drawn neutrally as a reference value).
-
     Returns
     -------
     str
@@ -810,10 +804,8 @@ def run_pipeline(dataset_dir: str, experiment_id: str | None = None,
     logger.info(f"Outcome activity  : {outcome_activity}")
     logger.info(f"Compare attribute : {compare_attribute}")
     logger.info(f"Predominant thresh: {predominant_threshold}")
-    logger.info(f"High co-occ thresh: {high_cooccurrence_threshold}")
     logger.info(f"Time granularity  : {time_granularity}")
     logger.info(f"Conformance bins  : {conformance_bins if conformance_bins else 'default (shared.py)'}")
-    logger.info(f"Target violation  : {target_violation if target_violation else 'auto (most frequent)'}")
     log         = load_event_log(log_path)
     compare_attribute = _auto_detect_compare_attribute(log, compare_attribute)
     logger.info(f"Compare attribute (resolved): {compare_attribute}")
@@ -836,11 +828,9 @@ def run_pipeline(dataset_dir: str, experiment_id: str | None = None,
         params={
             "outcome_activity": outcome_activity,
             "predominant_threshold": predominant_threshold,
-            "high_cooccurrence_threshold": high_cooccurrence_threshold,
             "compare_attribute": compare_attribute,
             "time_granularity": time_granularity,
             "conformance_bins": conformance_bins,
-            "target_violation": target_violation,
         },
     )
 
@@ -877,7 +867,7 @@ def parse_args():
         "--experiment-id", default=None,
         help="If given, write SVGs to <dataset-dir>/output/{experiment-id}/ instead of "
              "<dataset-dir>/output/ (per-experiment generation, see "
-             "ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7).",
+             "ADMIN_EXPERIMENT_SETUP.md).",
     )
     parser.add_argument(
         "--outcome-activity", default="Activate Care",
@@ -894,11 +884,6 @@ def parse_args():
              "predominantly following the model. Default: 0.8",
     )
     parser.add_argument(
-        "--high-cooccurrence-threshold", type=float, default=0.1,
-        help="Share of traces (0–1) at/above which Task 8 marks a violation "
-             "pair's co-occurrence as high (neutral reference). Default: 0.1",
-    )
-    parser.add_argument(
         "--time-granularity", choices=["year", "month", "day"], default="month",
         help="Time-axis aggregation for Task 7's line/horizon charts. Default: month",
     )
@@ -906,12 +891,6 @@ def parse_args():
         "--conformance-bins", default=None,
         help="Comma-separated conformance interval boundaries for Task 10 "
              "(e.g. '0.0,0.5,0.9,1.01'). Default: shared.py canonical bins.",
-    )
-    parser.add_argument(
-        "--target-violation", default=None,
-        help="Specific violation Task 11 focuses on, as 'activity|move_type' "
-             "(move_type may be a full name or MoM/MoL/MM). "
-             "Default: most frequent violation in the log.",
     )
     return parser.parse_args()
 
@@ -961,10 +940,8 @@ def main():
                      outcome_activity=args.outcome_activity,
                      compare_attribute=args.compare_attribute,
                      predominant_threshold=args.predominant_threshold,
-                     high_cooccurrence_threshold=args.high_cooccurrence_threshold,
                      time_granularity=args.time_granularity,
-                     conformance_bins=conformance_bins,
-                     target_violation=args.target_violation)
+                     conformance_bins=conformance_bins)
     except (FileNotFoundError, ValueError) as e:
         logger.error(f"ERROR: {e}")
         sys.exit(1)

@@ -21,48 +21,8 @@ IDIOMS = [
     "stacked_bar", "table", "table_bar_chart",
 ]
 
-# ---------------------------------------------------------------------------
-# Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8; design doc §2 row 12)
-#
-# Task 12 (AUTO): no admin parameter needed — GT is fully computable.
-# The answer is the percentage of traces whose alignment fitness < 1 (deviating).
-# ---------------------------------------------------------------------------
-GT_TIER = "AUTO"
 
 PARAM_SPEC = []
-
-ANSWER_FORMATS = [
-    {"key": "pct",       "gt_shape": "scalar", "decisive_default": True},
-    {"key": "mc-single", "gt_shape": "mc",     "decisive_default": True},
-]
-
-
-def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
-    n_total = len(fitness_df)
-    if n_total == 0:
-        return {"value": "0%"}
-    n_deviating = int((fitness_df["fitness"] < 1.0).sum())
-    pct = round(n_deviating / n_total * 100)
-
-    if answer_format == "mc-single":
-        import random as _rnd
-        distractors = []
-        for delta in [2, 4, 6]:
-            for sign in (1, -1):
-                candidate = max(0, min(100, pct + sign * delta))
-                if candidate != pct and candidate not in distractors:
-                    distractors.append(candidate)
-                if len(distractors) == 3:
-                    break
-            if len(distractors) == 3:
-                break
-        options = [{"label": f"{pct}%", "value": f"{pct}%", "correct": True}] + [
-            {"label": f"{d}%", "value": f"{d}%", "correct": False} for d in distractors[:3]
-        ]
-        _rnd.Random(pct).shuffle(options)
-        return {"value": None, "options": options}
-
-    return {"value": f"{pct}%"}
 
 
 import os

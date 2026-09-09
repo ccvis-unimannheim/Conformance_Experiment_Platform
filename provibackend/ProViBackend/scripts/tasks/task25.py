@@ -31,85 +31,8 @@ logger = logging.getLogger(__name__)
 
 IDIOMS = ["tile_metric", "bar_chart", "table"]
 
-# ---------------------------------------------------------------------------
-# Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8)
-#
-# Task 25 (AUTO): no hyperparameters — the analyst discovers the overall
-# conformance degree from the visualisation. GT is the same conformance rate as
-# task06 (mean per-trace fitness × 100, rounded): mc-single buckets the rate,
-# mc-multi poses fitness-distribution statements — both stay in the fitness
-# vocabulary the idioms render (no binary conformant/non-conformant counts).
-# ---------------------------------------------------------------------------
-GT_TIER = "AUTO"
 
 PARAM_SPEC = []
-
-ANSWER_FORMATS = [
-    {"key": "mc-single", "gt_shape": "mc", "decisive_default": True},
-    {"key": "mc-multi",  "gt_shape": "mc", "decisive_default": True},
-]
-
-
-def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
-    """MC options derived from actual per-trace fitness statistics."""
-    import random
-
-    mean_fit = float(fitness_df["fitness"].mean()) if len(fitness_df) > 0 else 0.0
-    pct = round(mean_fit * 100)
-    total = len(fitness_df)
-    # Thresholds derived from the EXACT per-trace fitness (the same values the
-    # idioms render), so every answer option is recoverable from the visualisation
-    # — no binary conformant/non-conformant count, no coarse range that hides where
-    # inside it the traces sit.
-    fit = fitness_df["fitness"].to_numpy(dtype=float)
-    high = int((fit >= 0.8).sum())   # fitness 0.8 or higher
-    low  = int((fit < 0.4).sum())    # fitness below 0.4
-
-    if answer_format == "mc-single":
-        # 4 percentage buckets; exactly one is correct.
-        buckets = [
-            ("Below 25%",    0,  25),
-            ("25% – 50%",   25,  50),
-            ("50% – 75%",   50,  75),
-            ("75% or above", 75, 100),
-        ]
-        options = []
-        for label, lo, hi in buckets:
-            correct = lo <= pct < hi or (hi == 100 and pct == 100)
-            options.append({"label": label, "value": label, "correct": correct})
-        return {"options": options}
-
-    # mc-multi: statements in the fitness vocabulary, each objectively true/false
-    # and each derivable from the per-trace fitness distribution the idioms show.
-    statements = [
-        {
-            "label": "The overall conformance rate (mean fitness) exceeds 75%.",
-            "value": "rate_above_75",
-            "correct": pct > 75,
-        },
-        {
-            "label": "Most traces have a fitness of 0.8 or higher.",
-            "value": "majority_high_fitness",
-            "correct": high > (total - high),
-        },
-        {
-            "label": "Some traces have a fitness below 0.4.",
-            "value": "some_low_fitness",
-            "correct": low > 0,
-        },
-        {
-            "label": "The overall conformance rate (mean fitness) is below 50%.",
-            "value": "rate_below_50",
-            "correct": pct < 50,
-        },
-        {
-            "label": "Every trace has a fitness of 0.8 or higher.",
-            "value": "all_high_fitness",
-            "correct": total > 0 and high == total,
-        },
-    ]
-    random.shuffle(statements)
-    return {"options": statements}
 
 
 import os
