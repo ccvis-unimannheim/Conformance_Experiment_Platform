@@ -52,7 +52,7 @@ const QuestionnaireUploadBox = ({ title }) => {
 
       // API Post Call
       try {
-        const response = await fetch("https://pm-vis.uni-mannheim.de/api/admin/questionnaire", {
+        const response = await fetch("/api/admin/questionnaire", {
           method: "POST",
           body: formData,
           credentials: "include", // Include cookies in the request

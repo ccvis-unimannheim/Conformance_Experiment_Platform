@@ -149,7 +149,7 @@ const QuestionnaireComponent = ({ onQuestionSubmit }) => {
     console.log("Payload", payload);
   
     try {
-      const response = await fetch("https://pm-vis.uni-mannheim.de/api/uitracking/", {
+      const response = await fetch("/api/uitracking/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

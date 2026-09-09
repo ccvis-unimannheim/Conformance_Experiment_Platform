@@ -7,11 +7,11 @@ const DownloadBox = ({ title }) => {
     let apiUrl = "";
     // add the get method from python backend from freddy filter on the title wether ui, questionnaire or user and then use the responding get method
     if (title === "Download Questionnaire Data") {
-      apiUrl = "https://pm-vis.uni-mannheim.de/api/admin/answers";
+      apiUrl = "/api/admin/answers";
     } else if (title === "Download UI Tracking Data") {
-      apiUrl = "https://pm-vis.uni-mannheim.de/api/admin/uitracking";
+      apiUrl = "/api/admin/uitracking";
     } else if (title === "Download User Data") {
-      apiUrl = "https://pm-vis.uni-mannheim.de/api/admin/users";
+      apiUrl = "/api/admin/users";
     } else {
       alert("No matching API endpoint found.");
       return;
