@@ -8,7 +8,7 @@ const CookieTest = () => {
   const getAuthCookie = async () => {
     try {
       const response = await fetch(
-        `https://pm-vis.uni-mannheim.de/api/auth/test_cookie_ssl`,
+        `/api/auth/test_cookie_ssl`,
         {
           method: "GET",
           credentials: "include",
@@ -30,7 +30,7 @@ const CookieTest = () => {
   // Function to handle GET /auth/test
   const testAuthCookie = async () => {
     const response = await fetch(
-      `https://pm-vis.uni-mannheim.de/api/auth/test`,
+      `/api/auth/test`,
       {
         method: "GET",
         credentials: "include",

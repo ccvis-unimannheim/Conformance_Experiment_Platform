@@ -26,7 +26,7 @@ const DatasetUploadBox = ({ title, refreshDatasetList  }) => {
       // API Call POST
       try {
         const response = await fetch(
-          "https://pm-vis.uni-mannheim.de/api/admin/upload",
+          "/api/admin/upload",
           {
             method: "POST",
             body: formData,

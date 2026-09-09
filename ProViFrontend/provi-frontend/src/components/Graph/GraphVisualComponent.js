@@ -6,7 +6,7 @@ import SVGDisplay from "./SVGDisplay";
 import useSWR from "swr";
 import { UITrackingContext } from "../../utils/usertracking";
 
-const MAPPING_URL = "https://pm-vis.uni-mannheim.de/api/vis/mapping";
+const MAPPING_URL = "/api/vis/mapping";
 
 const jsonFetcher = async (url) => {
   const response = await fetch(url, {

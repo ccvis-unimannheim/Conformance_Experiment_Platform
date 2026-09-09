@@ -15,10 +15,9 @@ WORKDIR /app/provi-frontend
 
 EXPOSE 3000
 
-ARG NEXT_PUBLIC_API_BASE
-ARG NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_API_BASE=$NEXT_PUBLIC_API_BASE
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+# The app calls the backend at the relative path /api/..., which next.config.mjs
+# rewrites to BACKEND_INTERNAL_URL at request time. Nothing about the deployment
+# host is baked into the bundle.
 
 RUN npm run build
 CMD ["npm", "run", "start"]
