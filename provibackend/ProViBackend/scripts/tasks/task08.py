@@ -10,19 +10,19 @@ Skipped (require BPMN rendering infrastructure):
     flow_table, flow_plus, flow_plus_table
 
 Public API:
-    generate(log, alignments, output_dir, high_cooccurrence_threshold=0.1)
+    generate(log, alignments, output_dir)
         log        – PM4Py EventLog (for total trace count)
         alignments – list[dict] from pm4py.conformance_diagnostics_alignments
         output_dir – directory where SVGs are written
-        high_cooccurrence_threshold – share of traces (0–1) at/above which a
-                       violation pair's co-occurrence is regarded as "high".
-                       Drawn neutrally as a reference value on the co-occurrence
-                       idioms; no pair is flagged pass/fail, so the analyst
-                       decides which correlations are noteworthy.
+
+Co-occurrence is shown neutrally: no pair is flagged high or low, so the
+analyst decides which correlations are noteworthy.
 """
 
 import logging
 logger = logging.getLogger(__name__)
+
+PARAM_SPEC = []
 
 IDIOMS = [
     "heatmap",
@@ -30,51 +30,6 @@ IDIOMS = [
     "network_diagram",
     "table",
 ]
-
-# ---------------------------------------------------------------------------
-# Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8)
-#
-# Task 8 (SEMI): admin specifies the share-of-traces threshold above which a
-# violation pair counts as "highly co-occurring"; GT = off-diagonal cells of
-# the top-N co-occurrence matrix flagged correct when count ≥ threshold×n_traces.
-# ---------------------------------------------------------------------------
-DEFAULT_HIGH_COOCCURRENCE_THRESHOLD = 0.1
-
-GT_TIER = "SEMI"
-
-PARAM_SPEC = [
-    {
-        "key": "high_cooccurrence_threshold",
-        "label": "High co-occurrence threshold (share of traces 0–1 at/above which a violation pair counts as highly co-occurring)",
-        "hint": "Two violations count as frequently co-occurring when they appear together in at least this share of traces",
-        "widget": "threshold",
-        "default": DEFAULT_HIGH_COOCCURRENCE_THRESHOLD,
-        "required": False,
-        "optional_hint": f"(optional — leave empty to use the default threshold of {DEFAULT_HIGH_COOCCURRENCE_THRESHOLD})",
-        "min": 0.01,
-        "max": 1.0,
-        "step": 0.01,
-    },
-]
-
-ANSWER_FORMATS = [
-    {"key": "matrix", "gt_shape": "matrix", "decisive_default": True},
-]
-
-
-def validate_params(log, params) -> list:
-    """Reject an out-of-range threshold; param is optional (defaults to 0.1)."""
-    raw = params.get("high_cooccurrence_threshold")
-    if raw is None or raw == "":
-        return []
-    try:
-        thr = float(raw)
-    except (TypeError, ValueError):
-        return [f"High co-occurrence threshold '{raw}' is not a number."]
-    if not (0.0 < thr <= 1.0):
-        return ["High co-occurrence threshold must be between 0 and 1."]
-    return []
-
 
 import os
 from collections import Counter
@@ -536,51 +491,13 @@ def task08_table(violation_freq, cooccurrence, n_traces, output_dir,
 # Ground-truth computation (SEMI tier)
 # ---------------------------------------------------------------------------
 
-def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
-    """Violation-pair co-occurrence grid over the symmetric top-N violation axis.
-
-    Both matrix axes are the same ordered set of the top-N most frequent
-    violation types. Each option is one upper-triangle cell (no diagonal, no
-    duplicate (i,j)/(j,i)); `label` and `value` share the same axis order so the
-    admin editor, the participant grid and the submit token stay consistent. A
-    pair is flagged correct when it co-occurs in >= threshold x n_traces traces
-    (design doc §2 row 8, SEMI tier).
-    """
-    if answer_format != "matrix":
-        return {"options": []}
-    raw = params.get("high_cooccurrence_threshold")
-    if raw is None or raw == "":
-        return {"options": []}
-    threshold = float(raw)
-    n_traces  = len(log) if log is not None else 0
-    thr_count = threshold * n_traces
-    _, violation_freq, cooccurrence = _extract_violation_data(alignments)
-    top = _top_violations(violation_freq, _MATRIX_TOP_N)
-    options = []
-    for a, b in combinations(top, 2):           # upper triangle, no diagonal
-        cnt = cooccurrence.get(tuple(sorted((a, b))), 0)
-        la, lb = _viol_label(a), _viol_label(b)
-        options.append({
-            "label":   f"{la} × {lb}",
-            "value":   f"{la}__{lb}",           # same order as label (axis-consistent)
-            "correct": cnt > 0 and cnt >= thr_count,
-        })
-    return {"options": options}
-
 
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def generate(log, alignments, output_dir: str,
-             high_cooccurrence_threshold=DEFAULT_HIGH_COOCCURRENCE_THRESHOLD):
-    """Generate all Task 8 SVGs into output_dir.
-
-    high_cooccurrence_threshold : float or None
-        Share of traces (0–1) at/above which a violation pair's co-occurrence is
-        regarded as "high". When None (left empty by admin), threshold annotations
-        are omitted from all idioms and no cells are outlined in the matrix.
-    """
+def generate(log, alignments, output_dir: str):
+    """Generate all Task 8 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 8 visualizations (Violation co-occurrence patterns) ---")
 
@@ -598,11 +515,10 @@ def generate(log, alignments, output_dir: str,
                         "No guideline violations detected in this log")
         return
 
-    # High co-occurrence hints are intentionally NOT drawn on the visualizations
-    # (passing thr_count/thr_frac = None disables the footer caption, the heatmap
-    # reference line and the matrix cell outlines). They are being moved to the
-    # participant view instead. The high_cooccurrence_threshold still drives the
-    # ground truth via compute_ground_truth (which reads it from params directly).
+    # Threshold annotations are intentionally not drawn: passing thr_count /
+    # thr_frac = None disables the footer caption, the heatmap reference line
+    # and the matrix cell outlines, leaving the co-occurrence counts to speak
+    # for themselves.
     task08_heatmap(violation_freq, cooccurrence, output_dir, None, None)
     task08_matrix(violation_freq, cooccurrence, output_dir, None, None)
     task08_network_diagram(violation_freq, cooccurrence, output_dir, None, None)

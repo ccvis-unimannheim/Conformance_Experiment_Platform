@@ -337,13 +337,9 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
     def predominant_threshold():
         raw = p.get("predominant_threshold")
         return None if (raw is None or raw == "") else float(raw)
-    def high_cooccurrence():
-        raw = p.get("high_cooccurrence_threshold")
-        return None if (raw is None or raw == "") else float(raw)
     def cmp_attr():                return p.get("compare_attribute", compare_attribute)
     def time_granularity():        return p.get("time_granularity", "month")
     def conformance_bins():        return p.get("conformance_bins", None)
-    def target_violations():       return p.get("target_violations", None)
     def violated_activity():       return p.get("violated_activity", None)
     def conformant_threshold():
         raw = p.get("conformant_threshold")
@@ -358,10 +354,10 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
         "task05": lambda d: task05.generate(log, alignments, d, outcome_activity=outcome_activity()),
         "task06": lambda d: task06.generate(fitness_df, d, log=log, alignments=alignments, model_path=model_path),
         "task07": lambda d: task07.generate(log, fitness_df, d, time_granularity=time_granularity()),
-        "task08": lambda d: task08.generate(log, alignments, d, high_cooccurrence_threshold=high_cooccurrence()),
+        "task08": lambda d: task08.generate(log, alignments, d),
         "task09": lambda d: task09.generate(log, alignments, d, model_path=model_path),
         "task10": lambda d: task10.generate(fitness_df, d, log=log, conformance_bins=conformance_bins()),
-        "task11": lambda d: task11.generate(log, alignments, d, model_path=model_path, target_violations=target_violations()),
+        "task11": lambda d: task11.generate(log, alignments, d, model_path=model_path),
         "task12": lambda d: task12.generate(log, alignments, d),
         "task13": lambda d: task13.generate(log, alignments, model_path, d),
         "task14": lambda d: task14.generate(alignments, model_path, d),
@@ -596,7 +592,7 @@ def get_log_worst_traces(dataset_dir: str) -> list[dict]:
     Returns [{"value": "0", "label": "Rank 1 — fitness 0.234  (8 violations)"}, ...]
     sorted by violation count descending then fitness ascending (same ordering as
     task34._build_contexts).  The value is the zero-based rank index that
-    task34.compute_ground_truth / generate() accept as `trace_rank`.
+    task34.generate() accepts as `trace_rank`.
     Powers task34's /specify 'log.worst_traces' source.
     """
     from tasks.task34 import _parse_alignment, _is_violation
@@ -633,7 +629,7 @@ def get_log_trace_ids(dataset_dir: str) -> list[dict]:
     (concept:name); `variant` is a 0-based index assigned by first appearance of
     the trace's activity sequence (same variant key as task03), letting the admin
     UI auto-select one trace per distinct variant. task04.generate /
-    compute_ground_truth accept these ids in `trace_ids`. Powers the
+    task04.generate() accepts these ids in `trace_ids`. Powers the
     'log.trace_ids' param-spec source.
     """
     log_path, _model_path, _ = _resolve_dataset_paths(dataset_dir, None)
@@ -773,10 +769,8 @@ def run_pipeline(dataset_dir: str, experiment_id: str | None = None,
                  outcome_activity: str = "Activate Care",
                  compare_attribute: str = "AMOUNT_REQ",
                  predominant_threshold: float = 0.8,
-                 high_cooccurrence_threshold: float = 0.1,
                  time_granularity: str = "month",
-                 conformance_bins: list | None = None,
-                 target_violation: str | None = None) -> str:
+                 conformance_bins: list | None = None) -> str:
     """Run the full visualization pipeline for one dataset directory.
 
     Parameters
@@ -795,10 +789,6 @@ def run_pipeline(dataset_dir: str, experiment_id: str | None = None,
     predominant_threshold : float
         Fitness level (0–1) above which Task 2 considers the overall behaviour
         to "predominantly" follow the desired executions in the model.
-    high_cooccurrence_threshold : float
-        Share of traces (0–1) at/above which Task 8 marks a violation pair's
-        co-occurrence as "high" (drawn neutrally as a reference value).
-
     Returns
     -------
     str
@@ -815,10 +805,8 @@ def run_pipeline(dataset_dir: str, experiment_id: str | None = None,
     logger.info(f"Outcome activity  : {outcome_activity}")
     logger.info(f"Compare attribute : {compare_attribute}")
     logger.info(f"Predominant thresh: {predominant_threshold}")
-    logger.info(f"High co-occ thresh: {high_cooccurrence_threshold}")
     logger.info(f"Time granularity  : {time_granularity}")
     logger.info(f"Conformance bins  : {conformance_bins if conformance_bins else 'default (shared.py)'}")
-    logger.info(f"Target violation  : {target_violation if target_violation else 'auto (most frequent)'}")
     log         = load_event_log(log_path)
     compare_attribute = _auto_detect_compare_attribute(log, compare_attribute)
     logger.info(f"Compare attribute (resolved): {compare_attribute}")
@@ -841,11 +829,9 @@ def run_pipeline(dataset_dir: str, experiment_id: str | None = None,
         params={
             "outcome_activity": outcome_activity,
             "predominant_threshold": predominant_threshold,
-            "high_cooccurrence_threshold": high_cooccurrence_threshold,
             "compare_attribute": compare_attribute,
             "time_granularity": time_granularity,
             "conformance_bins": conformance_bins,
-            "target_violation": target_violation,
         },
     )
 
@@ -899,11 +885,6 @@ def parse_args():
              "predominantly following the model. Default: 0.8",
     )
     parser.add_argument(
-        "--high-cooccurrence-threshold", type=float, default=0.1,
-        help="Share of traces (0–1) at/above which Task 8 marks a violation "
-             "pair's co-occurrence as high (neutral reference). Default: 0.1",
-    )
-    parser.add_argument(
         "--time-granularity", choices=["year", "month", "day"], default="month",
         help="Time-axis aggregation for Task 7's line/horizon charts. Default: month",
     )
@@ -911,12 +892,6 @@ def parse_args():
         "--conformance-bins", default=None,
         help="Comma-separated conformance interval boundaries for Task 10 "
              "(e.g. '0.0,0.5,0.9,1.01'). Default: shared.py canonical bins.",
-    )
-    parser.add_argument(
-        "--target-violation", default=None,
-        help="Specific violation Task 11 focuses on, as 'activity|move_type' "
-             "(move_type may be a full name or MoM/MoL/MM). "
-             "Default: most frequent violation in the log.",
     )
     return parser.parse_args()
 
@@ -966,10 +941,8 @@ def main():
                      outcome_activity=args.outcome_activity,
                      compare_attribute=args.compare_attribute,
                      predominant_threshold=args.predominant_threshold,
-                     high_cooccurrence_threshold=args.high_cooccurrence_threshold,
                      time_granularity=args.time_granularity,
-                     conformance_bins=conformance_bins,
-                     target_violation=args.target_violation)
+                     conformance_bins=conformance_bins)
     except (FileNotFoundError, ValueError) as e:
         logger.error(f"ERROR: {e}")
         sys.exit(1)

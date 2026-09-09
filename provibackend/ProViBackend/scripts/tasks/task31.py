@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 
 IDIOMS = ["table", "tree", "bar_chart", "stacked_bar", "scatter_plot", "matrix", "heatmap"]
 
-GT_TIER = "MANUAL"
 
 PARAM_SPEC = [
     {
@@ -25,10 +24,6 @@ PARAM_SPEC = [
         "default": "",
         "required": True,
     },
-]
-
-ANSWER_FORMATS = [
-    {"key": "free-text", "gt_shape": "reference", "decisive_default": False},
 ]
 
 

@@ -37,7 +37,7 @@ function formatByKey(formats, key) {
 // an event-log source (task-independent — see admin.OPTION_SOURCES) or typed by
 // hand. They carry no correctness marking; nothing here is graded.
 
-function OptionRows({ options, onChange }) {
+function OptionRows({ options, onChange, wideValue = false }) {
   function updateRow(i, field, val) {
     onChange(options.map((o, idx) => (idx === i ? { ...o, [field]: val } : o)));
   }
@@ -65,7 +65,8 @@ function OptionRows({ options, onChange }) {
             placeholder="Value"
             value={opt.value ?? ""}
             onChange={(e) => updateRow(i, "value", e.target.value)}
-            className="w-40 text-sm border border-border-subtle rounded-lg px-3 py-2 bg-white font-mono text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
+            title={opt.value ?? ""}
+            className={`${wideValue ? "w-72" : "w-40"} text-sm border border-border-subtle rounded-lg px-3 py-2 bg-white font-mono text-xs focus:outline-none focus:ring-2 focus:ring-primary/30`}
           />
           <button
             onClick={() => move(i, -1)}
@@ -227,7 +228,7 @@ function OptionsEditor({ datasetId, format, options, onChange, showToast }) {
         </p>
       ) : null}
 
-      <OptionRows options={options} onChange={onChange} />
+      <OptionRows options={options} onChange={onChange} wideValue={isMatrix} />
 
       {isMatrix && options.length > 0 && (
         <p className="text-[11px] text-on-surface-variant italic">

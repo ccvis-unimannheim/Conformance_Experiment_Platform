@@ -21,23 +21,9 @@ IDIOMS = [
     "flow_chart_elaborate",
 ]
 
-# ---------------------------------------------------------------------------
-# Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8;
-# design doc §2 row 11)
-#
-# Task 11 (SEMI): trace-level frequency of every distinct violation found in
-# the log. No admin parameter selection — all idioms and the ground truth
-# summarize every (activity, move_type) violation present, sorted by trace
-# count (see generate()'s and compute_ground_truth()'s fallback behavior).
-# ---------------------------------------------------------------------------
-GT_TIER = "SEMI"
 
 PARAM_SPEC = []
 
-ANSWER_FORMATS = [
-    {"key": "pct-set",   "gt_shape": "labelled-set", "decisive_default": True},
-    {"key": "free-text", "gt_shape": "reference",     "decisive_default": False},
-]
 
 RUBRIC = (
     "A strong answer states the trace-level frequency of each predefined violation — "
@@ -49,37 +35,6 @@ RUBRIC = (
     "counts rather than trace-level percentages, or for percentages relative to a subset "
     "of traces rather than the full log."
 )
-
-
-def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
-    """Trace-level frequency per violation, shaped for the chosen answer format.
-
-    pct-set: one labelled row per violation, value = % of all traces (rounded), correct=True.
-    No admin parameter selection: defaults to every distinct violation found in
-    the log, sorted by trace count (mirrors generate()'s fallback).
-    free-text: falls through to the static RUBRIC; no value is computed.
-    """
-    if answer_format == "free-text":
-        return {}
-    trace_coverage, n_traces = _extract_trace_coverage(alignments)
-    violations = params.get("target_violations") or []
-    selected = (
-        _resolve_violations(violations, trace_coverage)
-        if violations
-        else [pair for pair, _ in trace_coverage.most_common()]
-    )
-    if not selected:
-        return {"value": None, "options": []}
-    options = []
-    for act, vt in selected:
-        count = trace_coverage.get((act, vt), 0)
-        pct = count / n_traces * 100 if n_traces > 0 else 0
-        options.append({
-            "label": f"{act} · {vt}",
-            "value": f"{round(pct)}%",
-            "correct": True,
-        })
-    return {"value": None, "options": options}
 
 
 import os

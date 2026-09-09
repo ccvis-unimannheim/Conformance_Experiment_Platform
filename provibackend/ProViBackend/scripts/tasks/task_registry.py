@@ -1,20 +1,17 @@
 """
-Per-task contract registry (see ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4).
+Per-task contract registry.
 
-Each ``taskNN`` module may declare its own contract attributes, authored one
-task at a time (§14):
+Each ``taskNN`` module may declare:
 
-    IDIOMS                 list[str]            (already used by /task-idioms)
-    GT_TIER                "AUTO" | "SEMI" | "MANUAL"
-    PARAM_SPEC             list[dict]           computational params for /specify
-    ANSWER_FORMATS         list[dict]           allowed col-D formats + gt_shape
-    RUBRIC                 str | None           static free-text grading rubric
-    compute_ground_truth   callable | None      (log, alignments, fitness_df,
-                                                   model_path, params, answer_format) -> dict
+    IDIOMS          list[str]        the visualizations it renders
+    PARAM_SPEC      list[dict]       computational params for /specify
+    validate_params callable | None  semantic validation of those params
+    RUBRIC          str | None       reference text for manually coding answers
 
-Until a task declares these, the getters below return safe fallbacks so
-/specify and /answer-format-groundtruth still render a working (if generic)
-page for that task.
+The answer shape (format, options, number kind) is NOT a task property — every
+task may use every format, and the admin authors it on /answer-format (see
+app/answer_formats.py). Until a task declares the attributes above, the getters
+return safe fallbacks so /specify still renders a working page for it.
 """
 
 from typing import Any, Callable, Optional
@@ -43,12 +40,8 @@ TASK_MODULES: dict[str, Any] = {
     "task35": task35, "task36": task36, "task37": task37,
 }
 
-# Fallbacks for unauthored tasks (§4, §9, §11).
+# Fallback for tasks that declare no params.
 DEFAULT_PARAM_SPEC: list[dict] = []
-DEFAULT_ANSWER_FORMATS: list[dict] = [
-    {"key": "free-text", "gt_shape": "reference", "decisive_default": False},
-]
-DEFAULT_GT_TIER = "MANUAL"
 
 
 def _module(task_key: str):
@@ -59,35 +52,23 @@ def _module(task_key: str):
 
 
 def get_param_spec(task_key: str) -> list[dict]:
-    """This task's computational params for /specify, or [] if unauthored/none."""
+    """This task's computational params for /specify, or [] if it declares none."""
     return getattr(_module(task_key), "PARAM_SPEC", DEFAULT_PARAM_SPEC)
 
 
-def get_answer_formats(task_key: str) -> list[dict]:
-    """This task's allowed col-D answer formats, or the free-text fallback."""
-    return getattr(_module(task_key), "ANSWER_FORMATS", DEFAULT_ANSWER_FORMATS)
-
-
-def get_gt_tier(task_key: str) -> str:
-    """AUTO | SEMI | MANUAL — defaults to MANUAL until authored (§6)."""
-    return getattr(_module(task_key), "GT_TIER", DEFAULT_GT_TIER)
-
-
 def get_rubric(task_key: str) -> Optional[str]:
-    """Static free-text grading rubric, or None if not authored (§8)."""
+    """Static grading rubric for manually coding this task's answers, or None.
+
+    Reference text only — it feeds no automatic scoring.
+    """
     return getattr(_module(task_key), "RUBRIC", None)
-
-
-def get_compute_ground_truth(task_key: str) -> Optional[Callable]:
-    """Optional `compute_ground_truth(...)` for AUTO/SEMI tasks (§4, §8)."""
-    return getattr(_module(task_key), "compute_ground_truth", None)
 
 
 def get_validate_params(task_key: str) -> Optional[Callable]:
     """Optional `validate_params(log, params) -> list[str]` semantic validator.
 
     Returns task-specific error messages (e.g. a chosen condition that cannot
-    split the log) so /generate can reject illegal input with a hard error
-    (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §10). None if the task declares none.
+    split the log) so /generate can reject illegal input with a hard error.
+    None if the task declares none.
     """
     return getattr(_module(task_key), "validate_params", None)

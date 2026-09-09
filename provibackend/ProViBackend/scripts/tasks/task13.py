@@ -57,20 +57,9 @@ IDIOMS = ["bar_chart", "scatter_plot", "table", "table_bar_chart",
           "parallel_sets"]
           # "flow_chart_table", "flow_chart_elaborate_table"  # commented out
 
-# ---------------------------------------------------------------------------
-# Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6, §8; design doc §2 row 13)
-#
-# Task 13 (MANUAL): answer is irreducibly interpretive — no decisive GT value
-# can be auto-computed. The admin provides a reference answer; the static RUBRIC
-# below is copied into ground_truth.reference as the editable seed.
-# ---------------------------------------------------------------------------
-GT_TIER = "MANUAL"
 
 PARAM_SPEC = []
 
-ANSWER_FORMATS = [
-    {"key": "free-text", "gt_shape": "reference", "decisive_default": False},
-]
 
 RUBRIC = (
     "A strong answer identifies one or more process attributes (e.g. a case-level "

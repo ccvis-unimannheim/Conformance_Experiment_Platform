@@ -31,14 +31,6 @@ IDIOMS = [
     "table_bar_chart",
 ]
 
-# ---------------------------------------------------------------------------
-# Per-task contract (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4, §6)
-#
-# Task 34 (SEMI): admin picks which ranked trace to use as the representative
-# (0 = worst by violation count, 1 = second worst, etc.). GT is then computed
-# for that specific trace; generate() renders the same trace in all detail idioms.
-# ---------------------------------------------------------------------------
-GT_TIER = "SEMI"
 
 PARAM_SPEC = [
     {
@@ -55,10 +47,6 @@ PARAM_SPEC = [
     },
 ]
 
-ANSWER_FORMATS = [
-    {"key": "mc-multi", "gt_shape": "mc", "decisive_default": True},
-    {"key": "free-text", "gt_shape": "reference", "decisive_default": False},
-]
 
 RUBRIC = (
     "A complete answer correctly identifies the activities where violations occur "
@@ -935,69 +923,6 @@ def _pick_ctx(ctxs, params):
 
 
 # ── Ground truth ─────────────────────────────────────────────────────────────
-
-def compute_ground_truth(log, alignments, fitness_df, model_path, params, answer_format) -> dict:
-    """mc-multi: which activities have violations in the admin-selected trace.
-
-    Correct options  = activities with at least one violation in the
-                       representative trace at position `trace_rank` (0 = worst
-                       by violation count, then fitness), labelled with their
-                       dominant violation type.
-    Incorrect options = activities that appear synchronously (no violations)
-                       in the same trace, used as distractors.
-    free-text: falls through to the static RUBRIC; no value is computed.
-    """
-    import random as _rnd
-
-    if answer_format == "free-text":
-        return {}
-    if answer_format != "mc-multi":
-        return {"options": []}
-    if not alignments:
-        return {"options": []}
-
-    ctxs = _build_contexts(alignments, max_traces=30)
-    if not ctxs:
-        return {"options": []}
-
-    rows = _pick_ctx(ctxs, params)["rows"]
-    act_counts = _trace_activity_violations(rows)
-    if not act_counts:
-        return {"options": []}
-
-    conformant_acts = sorted(
-        {r["activity"] for r in rows
-         if not _is_violation(r) and r["activity"] != ">>"}
-        - set(act_counts.keys())
-    )
-
-    options = []
-
-    # Every option is labelled with just the bare activity name so the option
-    # text never reveals whether the activity is violated — the participant must
-    # read that off the visualization. The value mirrors the label (unique per
-    # activity, since violated/conformant activity sets are disjoint); the
-    # `correct` flag drives grading and is stripped before options reach the
-    # participant.
-
-    # Correct: all violated activities, most-violated first (cap at 10)
-    for act in sorted(act_counts, key=lambda a: sum(act_counts[a].values()), reverse=True)[:10]:
-        options.append({
-            "label":   f"'{act}'",
-            "value":   act,
-            "correct": True,
-        })
-
-    # Incorrect: conformant activities from the same trace (cap at 5)
-    for act in conformant_acts[:5]:
-        options.append({
-            "label":   f"'{act}'",
-            "value":   act,
-            "correct": False,
-        })
-
-    _rnd.Random(42).shuffle(options)
-    return {"options": options}
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
