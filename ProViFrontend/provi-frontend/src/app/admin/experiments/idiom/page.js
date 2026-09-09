@@ -156,6 +156,127 @@ function IdiomPreviewModal({ taskKey, idiomKey, idiomLabel, isCustom, onClose })
 }
 
 // ---------------------------------------------------------------------------
+// One selectable idiom row — custom (admin-uploaded) idioms can be renamed
+// inline via a pencil icon.
+// ---------------------------------------------------------------------------
+function IdiomOption({ idiom, iid, selected, onToggle, onPreview, onRenamed, showToast }) {
+  const [renaming, setRenaming] = useState(false);
+  const [draftLabel, setDraftLabel] = useState(idiom.label);
+  const [saving, setSaving] = useState(false);
+
+  function startRename(e) {
+    e.stopPropagation();
+    setDraftLabel(idiom.label);
+    setRenaming(true);
+  }
+
+  function cancelRename(e) {
+    e.stopPropagation();
+    setRenaming(false);
+  }
+
+  async function saveRename(e) {
+    e.stopPropagation();
+    const trimmed = draftLabel.trim();
+    if (!trimmed || trimmed === idiom.label) {
+      setRenaming(false);
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/idioms/${encodeURIComponent(iid)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label: trimmed }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      onRenamed(iid, trimmed);
+      setRenaming(false);
+    } catch (err) {
+      showToast(`Failed to rename: ${err.message}`, true);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div
+      onClick={renaming ? undefined : onToggle}
+      className={`flex items-center gap-2 p-3 rounded-lg border transition-all select-none
+        ${renaming ? "" : "cursor-pointer"}
+        ${selected
+          ? "bg-blue-50 border-primary/30"
+          : "bg-surface-container-low border-transparent hover:border-outline-variant"
+        }`}
+    >
+      <span
+        className={`material-symbols-outlined text-base flex-shrink-0 transition-colors
+          ${selected ? "text-primary icon-filled" : "text-outline-variant"}`}
+      >
+        {selected ? "check_circle" : "radio_button_unchecked"}
+      </span>
+      <div className="min-w-0 flex-1">
+        {renaming ? (
+          <input
+            autoFocus
+            type="text"
+            value={draftLabel}
+            onChange={(e) => setDraftLabel(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") saveRename(e);
+              if (e.key === "Escape") cancelRename(e);
+            }}
+            className="w-full text-xs font-semibold border border-primary/30 rounded px-1.5 py-0.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        ) : (
+          <p className="text-xs font-semibold text-on-surface truncate">{idiom.label}</p>
+        )}
+      </div>
+      {renaming ? (
+        <>
+          <button
+            onClick={saveRename}
+            disabled={saving}
+            title="Save name"
+            className="flex-shrink-0 text-primary hover:text-primary/70 transition-colors p-0.5 rounded disabled:opacity-40"
+          >
+            <span className="material-symbols-outlined text-[16px]">check</span>
+          </button>
+          <button
+            onClick={cancelRename}
+            disabled={saving}
+            title="Cancel"
+            className="flex-shrink-0 text-on-surface-variant hover:text-error transition-colors p-0.5 rounded disabled:opacity-40"
+          >
+            <span className="material-symbols-outlined text-[16px]">close</span>
+          </button>
+        </>
+      ) : (
+        <>
+          {idiom.is_custom && (
+            <button
+              onClick={startRename}
+              title="Rename this idiom"
+              className="flex-shrink-0 text-on-surface-variant hover:text-primary transition-colors p-0.5 rounded"
+            >
+              <span className="material-symbols-outlined text-[16px]">edit</span>
+            </button>
+          )}
+          <button
+            onClick={(e) => { e.stopPropagation(); onPreview(); }}
+            title="Preview this idiom with sample data"
+            className="flex-shrink-0 text-on-surface-variant hover:text-primary transition-colors p-0.5 rounded"
+          >
+            <span className="material-symbols-outlined text-[16px]">visibility</span>
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
 function IdiomSelectionContent() {
@@ -243,6 +364,12 @@ function IdiomSelectionContent() {
     } catch (e) {
       showToast(`Could not load idioms: ${e.message}`, true);
     }
+  }
+
+  function handleIdiomRenamed(idiomId, newLabel) {
+    setAllIdioms((prev) =>
+      prev.map((i) => (getId(i) === idiomId ? { ...i, label: newLabel } : i))
+    );
   }
 
   function getIdiomsForTask(task) {
@@ -475,43 +602,23 @@ function IdiomSelectionContent() {
                           const iid = getId(idiom);
                           const selected = selectedForTask.includes(iid);
                           return (
-                            <div
+                            <IdiomOption
                               key={iid}
-                              onClick={() => toggleIdiom(tid, iid)}
-                              className={`cursor-pointer flex items-center gap-2 p-3 rounded-lg border transition-all select-none
-                                ${selected
-                                  ? "bg-blue-50 border-primary/30"
-                                  : "bg-surface-container-low border-transparent hover:border-outline-variant"
-                                }`}
-                            >
-                              <span
-                                className={`material-symbols-outlined text-base flex-shrink-0 transition-colors
-                                  ${selected ? "text-primary icon-filled" : "text-outline-variant"}`}
-                              >
-                                {selected ? "check_circle" : "radio_button_unchecked"}
-                              </span>
-                              <div className="min-w-0 flex-1">
-                                <p className="text-xs font-semibold text-on-surface truncate">
-                                  {idiom.label}
-                                </p>
-                              </div>
-                              {/* Eye button — preview this idiom */}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setPreviewModal({
-                                    taskKey: task.task_key,
-                                    idiomKey: idiom.idiom_key,
-                                    idiomLabel: idiom.label,
-                                    isCustom: !!idiom.is_custom,
-                                  });
-                                }}
-                                title="Preview this idiom with sample data"
-                                className="flex-shrink-0 text-on-surface-variant hover:text-primary transition-colors p-0.5 rounded"
-                              >
-                                <span className="material-symbols-outlined text-[16px]">visibility</span>
-                              </button>
-                            </div>
+                              idiom={idiom}
+                              iid={iid}
+                              selected={selected}
+                              onToggle={() => toggleIdiom(tid, iid)}
+                              onPreview={() =>
+                                setPreviewModal({
+                                  taskKey: task.task_key,
+                                  idiomKey: idiom.idiom_key,
+                                  idiomLabel: idiom.label,
+                                  isCustom: !!idiom.is_custom,
+                                })
+                              }
+                              onRenamed={handleIdiomRenamed}
+                              showToast={showToast}
+                            />
                           );
                         })}
                       </div>
@@ -564,6 +671,7 @@ function IdiomSelectionContent() {
 
       {uploadModalOpen && (
         <UploadIdiomModal
+          tasks={selectedTasks}
           onClose={() => setUploadModalOpen(false)}
           onUploaded={async () => {
             setUploadModalOpen(false);

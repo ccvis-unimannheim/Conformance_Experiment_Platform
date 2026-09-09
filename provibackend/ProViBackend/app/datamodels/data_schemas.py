@@ -295,10 +295,15 @@ class Idiom(BaseModel):
     renderer_type: str
     active: bool
     # Admin-uploaded static image/SVG idiom (see POST /admin/idioms/upload),
-    # selectable for every task, served as a fixed asset rather than
-    # generated per dataset by a task script.
+    # served as a fixed asset rather than generated per dataset by a task
+    # script. Only selectable for the tasks listed in task_keys.
     is_custom: bool = False
     asset_ext: Optional[str] = None
+    task_keys: Optional[List[str]] = None
+
+class IdiomUpdate(BaseModel):
+    label: Optional[str] = None
+    task_keys: Optional[List[str]] = None
 
 class ExperimentUpdate(BaseModel):
     task_configs: Optional[List[TaskConfig]] = None

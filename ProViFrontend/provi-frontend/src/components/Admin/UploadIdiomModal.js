@@ -10,15 +10,25 @@ function hasAllowedExtension(filename) {
   return ALLOWED_EXTENSIONS.some((ext) => lower.endsWith(ext));
 }
 
-const UploadIdiomModal = ({ onClose, onUploaded }) => {
+const UploadIdiomModal = ({ tasks, onClose, onUploaded }) => {
   const [file, setFile] = useState(null);
   const [label, setLabel] = useState("");
+  const [taskKeys, setTaskKeys] = useState(new Set());
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   function handleBackdropClick() {
     if (isSaving) return;
     onClose?.();
+  }
+
+  function toggleTask(taskKey) {
+    setTaskKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskKey)) next.delete(taskKey);
+      else next.add(taskKey);
+      return next;
+    });
   }
 
   async function handleSave() {
@@ -35,10 +45,15 @@ const UploadIdiomModal = ({ onClose, onUploaded }) => {
       setErrorMessage("Please give this idiom a name.");
       return;
     }
+    if (taskKeys.size === 0) {
+      setErrorMessage("Please select at least one task this idiom applies to.");
+      return;
+    }
 
     const formData = new FormData();
     formData.append("file", file);
     formData.append("label", label.trim());
+    formData.append("task_keys", Array.from(taskKeys).join(","));
 
     setIsSaving(true);
     try {
@@ -64,7 +79,7 @@ const UploadIdiomModal = ({ onClose, onUploaded }) => {
       onClick={handleBackdropClick}
     >
       <div
-        className="bg-white rounded-xl shadow-xl p-8 w-full max-w-lg mx-4 flex flex-col gap-6"
+        className="bg-white rounded-xl shadow-xl p-8 w-full max-w-lg mx-4 flex flex-col gap-6 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -81,9 +96,8 @@ const UploadIdiomModal = ({ onClose, onUploaded }) => {
         </div>
 
         <p className="text-body-sm text-on-surface-variant">
-          Upload a fixed SVG or image visualization of your own. It will be added as a
-          selectable idiom for every task — unlike the built-in idioms, it is not
-          generated per dataset.
+          Upload a fixed SVG or image visualization of your own, and pick which task(s) it should
+          be selectable for. Unlike the built-in idioms, it is not generated per dataset.
         </p>
 
         <div className="flex flex-col gap-2">
@@ -98,6 +112,32 @@ const UploadIdiomModal = ({ onClose, onUploaded }) => {
         </div>
 
         <FileUploadCard label="Upload Image / SVG" icon="image" onFileSelect={setFile} />
+
+        <div className="flex flex-col gap-2">
+          <label className="text-xs font-semibold text-on-surface">Applies to task(s)</label>
+          {(tasks || []).length === 0 ? (
+            <p className="text-xs text-on-surface-variant italic">No tasks available.</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto border border-border-subtle rounded-lg p-2">
+              {tasks.map((task) => {
+                const checked = taskKeys.has(task.task_key);
+                return (
+                  <label
+                    key={task.task_key}
+                    className="flex items-center gap-2 text-xs text-on-surface cursor-pointer select-none px-1.5 py-1 rounded hover:bg-surface-container-low"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleTask(task.task_key)}
+                    />
+                    <span className="font-semibold">{task.task_key}</span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         {errorMessage && <p className="text-body-sm text-error">{errorMessage}</p>}
 
