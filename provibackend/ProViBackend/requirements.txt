@@ -7,3 +7,5 @@ openpyxl==3.1.5
 pm4py==2.7.11.13
 pymongo[srv]==4.10.0
 redis==5.2.1
+msgpack>=1.2.1
+setuptools>=78.1.1

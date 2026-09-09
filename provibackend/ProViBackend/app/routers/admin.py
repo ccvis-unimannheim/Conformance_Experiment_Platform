@@ -85,6 +85,9 @@ ALLOWED_MODEL_EXTENSIONS = {".bpmn"}
 EVENTLOG_BASENAME = "EventLog"
 GUIDELINE_FILENAME = "Guideline.bpmn"
 
+ALLOWED_IDIOM_IMAGE_EXTENSIONS = {".svg", ".png", ".jpg", ".jpeg"}
+CUSTOM_IDIOM_DIRECTORY = config.CUSTOM_IDIOM_DIRECTORY
+
 # Cache of distinct activity names per dataset, so /specify's param-spec
 # candidate enumeration doesn't reload the event log on every page render
 # (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §5). Keyed by dataset_id.
@@ -602,6 +605,61 @@ async def get_idioms():
     return JSONResponse(content=idioms)
 
 
+@router.post("/idioms/upload", tags=["admin"])
+async def upload_custom_idiom(file: UploadFile, label: str = Form(...)):
+    """Admin-uploaded static image/SVG idiom.
+
+    Unlike code-generated idioms (rendered per task+dataset by a task script's
+    Python function, see /task-idioms), a custom idiom is a single fixed asset
+    stored once and served as-is via GET /idioms/{idiom_key}/asset. It is
+    selectable for every task (see /task-idioms).
+    """
+    ext = _validate_extension(file.filename, ALLOWED_IDIOM_IMAGE_EXTENSIONS, "Idiom image")
+    idiom_key = f"custom-{uuid.uuid4().hex[:12]}"
+
+    try:
+        CUSTOM_IDIOM_DIRECTORY.mkdir(parents=True, exist_ok=True)
+        asset_path = CUSTOM_IDIOM_DIRECTORY / f"{idiom_key}{ext}"
+        asset_path.write_bytes(await file.read())
+
+        idiom = ds.Idiom(
+            _id=str(uuid.uuid4()),
+            idiom_key=idiom_key,
+            label=label,
+            granularity="custom",
+            renderer_type="custom-upload",
+            active=True,
+            is_custom=True,
+            asset_ext=ext,
+        )
+        dbc.create_document("Idiom", idiom.model_dump(by_alias=True))
+        return JSONResponse(
+            content={"message": f"Idiom '{label}' uploaded.", "idiom_id": idiom.id, "idiom_key": idiom_key},
+            status_code=201,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to upload idiom: {str(e)}")
+    finally:
+        await file.close()
+
+
+@router.get("/idioms/{idiom_key}/asset", tags=["admin"])
+async def get_custom_idiom_asset(idiom_key: str):
+    """Serve a custom (admin-uploaded) idiom's fixed image/SVG asset."""
+    docs = dbc.get_query_db("Idiom", query={"idiom_key": idiom_key, "is_custom": True})
+    if not docs:
+        raise HTTPException(status_code=404, detail=f"No custom idiom '{idiom_key}'.")
+    ext = docs[0].get("asset_ext") or ".svg"
+    asset_path = CUSTOM_IDIOM_DIRECTORY / f"{idiom_key}{ext}"
+    if not asset_path.exists():
+        raise HTTPException(status_code=404, detail="Idiom asset file missing.")
+    media_type = "image/svg+xml" if ext == ".svg" else f"image/{ext.lstrip('.')}"
+    from fastapi.responses import FileResponse as _FileResponse
+    return _FileResponse(str(asset_path), media_type=media_type)
+
+
 # ---------------------------------------------------------------------------
 # Task management
 # ---------------------------------------------------------------------------
@@ -643,7 +701,15 @@ async def get_task_idioms():
     Raw idiom names from task scripts use file-stem conventions (e.g. scatter_plot,
     flow_chart_elaborate_bpmn); this endpoint translates them to canonical idiom_keys
     matching the Idiom collection so the admin UI can filter correctly.
+
+    Custom (admin-uploaded, see POST /idioms/upload) idioms are fixed static
+    assets rather than code-generated per task, so they're appended to every
+    task's list here — they're selectable everywhere.
     """
+    custom_idiom_keys = [
+        doc["idiom_key"] for doc in dbc.get_query_db("Idiom", query={"is_custom": True})
+    ]
+
     result = {}
     for task_key, mod in _TASK_MODULES.items():
         skip = _TASK_RENAME_SKIP.get(task_key, set())
@@ -654,8 +720,11 @@ async def get_task_idioms():
                 canonical.append(_FILE_RENAME.get(idiom, idiom))
             else:
                 canonical.append(idiom)
-        result[task_key] = canonical
+        result[task_key] = canonical + custom_idiom_keys
     return JSONResponse(content=result)
+
+
+_PARAM_OVERRIDE_FIELDS = ("default", "required", "min", "max", "step", "options")
 
 
 @router.get("/tasks/{task_key}/param-spec", tags=["admin"])
@@ -668,13 +737,45 @@ async def get_task_param_spec(task_key: str, dataset_id: str | None = None):
     accepted for forward-compatibility: once a task declares PARAM_SPEC entries
     with a `source` (e.g. "log.activities"), candidate values for that dataset
     are populated here (§14, step 6).
+
+    Every task shares the same parameter catalog — the full set of parameters
+    declared by ANY task, deduped by key (mirrors GET /tasks/{task_key}/
+    answer-formats). An admin can enable any parameter for any task from
+    /admin/experiments/parameters (see PATCH /tasks/{task_id}
+    `param_overrides`), but only tasks whose own generation code reads that
+    key will actually use the submitted value — for the rest it's collected
+    but ignored. A parameter is included here only if enabled: for a task
+    that natively declares it, that's the default unless overridden off; for
+    every other task it's off unless the admin has explicitly turned it on.
     """
     if task_key not in _TASK_MODULES:
         raise HTTPException(status_code=404, detail=f"Unknown task '{task_key}'.")
 
-    # Copy entries so we never mutate the module's PARAM_SPEC, then populate
-    # candidate `options` for entries with a dataset-backed `source`.
-    spec = [dict(entry) for entry in task_registry.get_param_spec(task_key)]
+    task_docs = dbc.get_query_db("Task", query={"task_key": task_key})
+    overrides = (task_docs[0].get("param_overrides") or {}) if task_docs else {}
+    own_keys = {entry["key"] for entry in task_registry.get_param_spec(task_key)}
+
+    all_param_defs: dict[str, dict] = {}
+    for mod_key in _TASK_MODULES:
+        for entry in task_registry.get_param_spec(mod_key):
+            all_param_defs.setdefault(entry["key"], entry)
+
+    # Copy entries so we never mutate any module's PARAM_SPEC, apply any admin
+    # override, then populate candidate `options` for entries with a
+    # dataset-backed `source`.
+    spec = []
+    for key, raw_entry in all_param_defs.items():
+        entry = dict(raw_entry)
+        entry["key"] = key
+        ov = overrides.get(key, {})
+        enabled = ov.get("enabled", key in own_keys)
+        if not enabled:
+            continue
+        for field in _PARAM_OVERRIDE_FIELDS:
+            if ov.get(field) is not None:
+                entry[field] = ov[field]
+        spec.append(entry)
+
     if dataset_id:
         for entry in spec:
             source = entry.get("source")
@@ -694,35 +795,98 @@ async def get_task_param_spec(task_key: str, dataset_id: str | None = None):
     })
 
 
+@router.get("/param-catalog", tags=["admin"])
+async def get_param_catalog():
+    """The full parameter catalog for the admin Parameter Matching page
+    (/admin/experiments/parameters): every parameter declared by ANY task,
+    deduped by key, each listed against EVERY task (mirrors GET /tasks/
+    {task_key}/answer-formats sharing the same format dropdown everywhere).
+
+    An admin can enable any parameter for any task, but only tasks whose own
+    generation code reads that key will actually use the submitted value —
+    for the rest it's collected but has no effect. `enabled` defaults to True
+    for a task that natively declares the parameter, and False otherwise,
+    so nothing changes for existing experiments until an admin opts a task
+    into a parameter it didn't originally declare.
+    """
+    task_docs = {d["task_key"]: d for d in dbc.get_query_db("Task", query={}) if d.get("task_key")}
+
+    param_defs: dict[str, dict] = {}
+    native_keys_by_task: dict[str, set] = {}
+    for task_key in _TASK_MODULES:
+        own = task_registry.get_param_spec(task_key)
+        native_keys_by_task[task_key] = {entry["key"] for entry in own}
+        for entry in own:
+            param_defs.setdefault(entry["key"], entry)
+
+    catalog = []
+    for key, entry in param_defs.items():
+        bucket = {
+            "key": key,
+            "label": entry.get("label"),
+            "widget": entry.get("widget"),
+            "source": entry.get("source"),
+            "tasks": [],
+        }
+        for task_key in _TASK_MODULES:
+            task_doc = task_docs.get(task_key, {})
+            overrides = task_doc.get("param_overrides") or {}
+            ov = overrides.get(key, {})
+            natively_supported = key in native_keys_by_task[task_key]
+            bucket["tasks"].append({
+                "task_key": task_key,
+                "task_label": task_doc.get("label", task_key),
+                "enabled": ov.get("enabled", natively_supported),
+                "default": ov.get("default", entry.get("default")),
+                "required": ov.get("required", entry.get("required")),
+                "min": ov.get("min", entry.get("min")),
+                "max": ov.get("max", entry.get("max")),
+                "step": ov.get("step", entry.get("step")),
+            })
+        catalog.append(bucket)
+
+    return JSONResponse(content={"parameters": catalog})
+
+
 @router.get("/tasks/{task_key}/answer-formats", tags=["admin"])
 async def get_task_answer_formats(task_key: str):
-    """Return this task's allowed answer formats for /answer-format-groundtruth
+    """Return the answer-format dropdown for /answer-format-groundtruth
     (col D, see ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4-5, §11).
 
-    Unauthored tasks fall back to a single generic `free-text` format.
+    Every task shares the same dropdown: the full set of formats declared by
+    ANY task, deduped by key. This lets an admin pick any format for any
+    task, but only tasks whose own compute_ground_truth() recognizes that
+    format will compute a correctly-shaped ground truth for it — for the
+    rest, generation falls back to that task's default/free-text handling.
     """
     if task_key not in _TASK_MODULES:
         raise HTTPException(status_code=404, detail=f"Unknown task '{task_key}'.")
+    all_formats: dict[str, dict] = {}
+    for mod_key in _TASK_MODULES:
+        for fmt in task_registry.get_answer_formats(mod_key):
+            all_formats.setdefault(fmt["key"], fmt)
     return JSONResponse(content={
         "task_key": task_key,
-        "answer_formats": task_registry.get_answer_formats(task_key),
+        "answer_formats": list(all_formats.values()),
     })
 
 
 @router.get("/tasks/{task_key}/rubric", tags=["admin"])
 async def get_task_rubric(task_key: str):
-    """Return this task's static, task-level grading rubric for read-only display
-    on /answer-format-groundtruth and /overview (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §8, §11).
+    """Return this task's grading rubric for display/editing on
+    /answer-format-groundtruth and /overview (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §8, §11).
 
-    The rubric is a single source of truth per task (the task's RUBRIC constant);
-    it is never copied into or editable on a per-experiment instance. `rubric` is
-    `null` if the task hasn't authored one yet (step 6).
+    The task's RUBRIC constant is the default; an admin edit (PATCH /tasks/{task_id}
+    with a `rubric` field, stored on the Task document) overrides it. `rubric` is
+    `null` if the task hasn't authored one and no admin edit exists yet (step 6).
     """
     if task_key not in _TASK_MODULES:
         raise HTTPException(status_code=404, detail=f"Unknown task '{task_key}'.")
+    task_docs = dbc.get_query_db("Task", query={"task_key": task_key})
+    override = task_docs[0].get("rubric") if task_docs else None
     return JSONResponse(content={
         "task_key": task_key,
-        "rubric": task_registry.get_rubric(task_key),
+        "rubric": override if override is not None else task_registry.get_rubric(task_key),
         "gt_tier": task_registry.get_gt_tier(task_key),
     })
 
@@ -868,21 +1032,67 @@ async def update_experiment_status(experiment_id: str, status: str):
     return JSONResponse(content={"message": f"Experiment status updated to '{status}'."})
 
 
+def _freeze_task_snapshots(instances: list[dict], existing_by_task_id: dict) -> list[dict]:
+    """Stamp each task instance with a frozen snapshot of its Task (question bank)
+    label/description/answer_type, taken the first time the task enters this
+    experiment. Once frozen, later edits to the Task in the admin panel no longer
+    change this experiment — only newly-added tasks (or new experiments) pick up
+    the current Task content.
+    """
+    task_cache: dict = {}
+    for inst in instances:
+        task_id = inst.get("task_id", "")
+        if not task_id or (inst.get("label") and inst.get("task_key")):
+            continue
+        existing = existing_by_task_id.get(task_id)
+        if existing and existing.get("label") and existing.get("task_key"):
+            inst["task_key"] = existing["task_key"]
+            inst["label"] = existing["label"]
+            inst["description"] = existing.get("description", "")
+            inst["answer_type"] = existing.get("answer_type", "")
+            continue
+        if task_id not in task_cache:
+            task_cache[task_id] = dbc.get_document("Task", {"_id": task_id}) or {}
+        task = task_cache[task_id]
+        inst["task_key"] = task.get("task_key", "")
+        inst["label"] = task.get("label", "")
+        inst["description"] = task.get("description", "")
+        inst["answer_type"] = task.get("answer_type", "")
+    return instances
+
+
 @router.patch("/experiments/{experiment_id}", tags=["admin"])
 async def update_experiment(experiment_id: str, update_data: ds.ExperimentUpdate):
     # Keep task_instances (canonical) and task_configs (legacy mirror) in sync,
     # regardless of which one the caller sends.
     fields: dict = {}
-    if update_data.task_instances is not None:
-        instances = [ti.model_dump() for ti in update_data.task_instances]
+    if update_data.task_instances is not None or update_data.task_configs is not None:
+        existing_exp = dbc.get_document("Experiment", {"_id": experiment_id}) or {}
+        existing_by_task_id = {
+            ti.get("task_id"): ti for ti in existing_exp.get("task_instances", []) if ti.get("task_id")
+        }
+        if update_data.task_instances is not None:
+            instances = [ti.model_dump() for ti in update_data.task_instances]
+        else:
+            configs = [tc.model_dump() for tc in update_data.task_configs]
+            instances = task_configs_to_instances(configs)
+        instances = _freeze_task_snapshots(instances, existing_by_task_id)
         fields["task_instances"] = instances
         fields["task_configs"] = task_instances_to_configs(instances)
-    elif update_data.task_configs is not None:
-        configs = [tc.model_dump() for tc in update_data.task_configs]
-        fields["task_configs"] = configs
-        fields["task_instances"] = task_configs_to_instances(configs)
     if update_data.status is not None:
         fields["status"] = update_data.status
+    if update_data.current_step is not None:
+        fields["current_step"] = update_data.current_step
+    if update_data.name is not None:
+        fields["name"] = update_data.name
+    if update_data.design_type is not None:
+        fields["design_type"] = update_data.design_type
+    if update_data.between_balance_mode is not None:
+        fields["between_balance_mode"] = update_data.between_balance_mode
+    if update_data.within_sequence_mode is not None:
+        fields["within_sequence_mode"] = update_data.within_sequence_mode
+    if update_data.dataset_ids is not None:
+        fields["dataset_ids"] = update_data.dataset_ids
     if not fields:
         raise HTTPException(status_code=400, detail="No fields to update.")
     updated = dbc.update_document("Experiment", query={"_id": experiment_id}, update={"$set": fields})
@@ -1317,7 +1527,14 @@ async def get_generated_vis_svg(experiment_id: str, task_key: str, idiom_key: st
 
     Reads from DATA_DIRECTORY/{dataset_id}/output/{experiment_id}/{task_key}/{idiom_key}.svg.
     Returns 404 if generation has not been run yet.
+
+    Custom (admin-uploaded) idioms are fixed assets, not per-dataset generated —
+    they're served straight from CUSTOM_IDIOM_DIRECTORY instead.
     """
+    custom_docs = dbc.get_query_db("Idiom", query={"idiom_key": idiom_key, "is_custom": True})
+    if custom_docs:
+        return await get_custom_idiom_asset(idiom_key)
+
     exp = dbc.get_document("Experiment", {"_id": experiment_id})
     if not exp:
         raise HTTPException(status_code=404, detail="Experiment not found.")
@@ -1472,7 +1689,15 @@ async def get_idiom_preview_status(task_key: str):
 
 @router.get("/idiom-preview/{task_key}/{idiom_key}", tags=["admin"])
 async def get_idiom_preview_svg(task_key: str, idiom_key: str):
-    """Serve a pre-generated sample-data SVG for one task/idiom pair."""
+    """Serve a pre-generated sample-data SVG for one task/idiom pair.
+
+    Custom (admin-uploaded) idioms have no per-task sample render — they're
+    fixed assets, served straight from CUSTOM_IDIOM_DIRECTORY instead.
+    """
+    custom_docs = dbc.get_query_db("Idiom", query={"idiom_key": idiom_key, "is_custom": True})
+    if custom_docs:
+        return await get_custom_idiom_asset(idiom_key)
+
     svg_path = (
         SAMPLE_DATA_DIR / "output" / _IDIOM_PREVIEW_EXP_ID / task_key / f"{idiom_key}.svg"
     )
@@ -1546,10 +1771,13 @@ async def delete_knowledge_question(question_id: str):
 
 @router.patch("/experiments/{experiment_id}/knowledge-questions", tags=["admin"])
 async def update_experiment_knowledge_questions(experiment_id: str, body: ds.KnowledgeQuestionIds):
+    set_fields = {"knowledge_question_ids": body.knowledge_question_ids}
+    if body.current_step is not None:
+        set_fields["current_step"] = body.current_step
     updated = dbc.update_document(
         "Experiment",
         query={"_id": experiment_id},
-        update={"$set": {"knowledge_question_ids": body.knowledge_question_ids}},
+        update={"$set": set_fields},
     )
     if not updated:
         raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
@@ -1558,10 +1786,13 @@ async def update_experiment_knowledge_questions(experiment_id: str, body: ds.Kno
 
 @router.patch("/experiments/{experiment_id}/prequestionnaire-sections", tags=["admin"])
 async def update_experiment_prequestionnaire_sections(experiment_id: str, body: ds.PrequestionnaireSections):
+    set_fields = {"prequestionnaire_sections": body.sections}
+    if body.current_step is not None:
+        set_fields["current_step"] = body.current_step
     updated = dbc.update_document(
         "Experiment",
         query={"_id": experiment_id},
-        update={"$set": {"prequestionnaire_sections": body.sections}},
+        update={"$set": set_fields},
     )
     if not updated:
         raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")

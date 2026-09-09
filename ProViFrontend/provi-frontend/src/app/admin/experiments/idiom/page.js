@@ -6,6 +6,8 @@ import Link from "next/link";
 import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../../components/Admin/Toast";
 import { TASK_IDIOM_LABEL_OVERRIDES } from "../../../../utils/idiomLabels";
+import { saveWizardStep } from "../../../../utils/wizardSave";
+import UploadIdiomModal from "../../../../components/Admin/UploadIdiomModal";
 
 function getId(obj) {
   return obj._id || obj.id;
@@ -14,12 +16,15 @@ function getId(obj) {
 // ---------------------------------------------------------------------------
 // Idiom Preview Modal
 // ---------------------------------------------------------------------------
-function IdiomPreviewModal({ taskKey, idiomKey, idiomLabel, onClose }) {
-  const [status, setStatus] = useState("idle"); // "idle"|"generating"|"ready"|"failed"
+function IdiomPreviewModal({ taskKey, idiomKey, idiomLabel, isCustom, onClose }) {
+  // Custom (admin-uploaded) idioms are fixed assets — no per-task sample
+  // generation is needed, so skip straight to "ready".
+  const [status, setStatus] = useState(isCustom ? "ready" : "idle"); // "idle"|"generating"|"ready"|"failed"
   const [enlarged, setEnlarged] = useState(false);
   const pollRef = useRef(null);
 
   useEffect(() => {
+    if (isCustom) return;
     if (!taskKey || !idiomKey) return;
 
     async function trigger() {
@@ -52,7 +57,7 @@ function IdiomPreviewModal({ taskKey, idiomKey, idiomLabel, onClose }) {
 
     trigger();
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [taskKey, idiomKey]);
+  }, [taskKey, idiomKey, isCustom]);
 
   // Close on Escape key
   useEffect(() => {
@@ -61,7 +66,9 @@ function IdiomPreviewModal({ taskKey, idiomKey, idiomLabel, onClose }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const svgSrc = `/api/admin/idiom-preview/${taskKey}/${idiomKey}`;
+  const svgSrc = isCustom
+    ? `/api/admin/idioms/${idiomKey}/asset`
+    : `/api/admin/idiom-preview/${taskKey}/${idiomKey}`;
 
   return (
     <div
@@ -163,7 +170,8 @@ function IdiomSelectionContent() {
   const [datasetIds, setDatasetIds] = useState([]);
 
   // Preview modal state
-  const [previewModal, setPreviewModal] = useState(null); // { taskKey, idiomKey, idiomLabel }
+  const [previewModal, setPreviewModal] = useState(null); // { taskKey, idiomKey, idiomLabel, isCustom }
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
 
   const [toast, setToast] = useState({ visible: false, message: "", isError: false });
   const showToast = useCallback((message, isError = false) => {
@@ -181,6 +189,7 @@ function IdiomSelectionContent() {
 
   async function init() {
     let taskIds = [];
+    let existingConfigs = [];
     try {
       const res = await fetch(`/api/admin/experiments`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -188,6 +197,7 @@ function IdiomSelectionContent() {
       const draft = exps.find((e) => getId(e) === experimentId);
       if (!draft) throw new Error("Draft experiment not found.");
       taskIds = draft.task_configs.map((tc) => tc.task_id);
+      existingConfigs = draft.task_configs;
       setDatasetIds(draft.dataset_ids || []);
     } catch (e) {
       showToast(`Could not load draft experiment: ${e.message}`, true);
@@ -205,7 +215,12 @@ function IdiomSelectionContent() {
       }
       setSelectedTasks(tasks);
       const map = {};
-      tasks.forEach((t) => { map[getId(t)] = []; });
+      tasks.forEach((t) => {
+        const tid = getId(t);
+        map[tid] = existingConfigs
+          .filter((tc) => tc.task_id === tid && tc.idiom_id)
+          .map((tc) => tc.idiom_id);
+      });
       setTaskIdiomMap(map);
     } catch (e) {
       showToast(`Could not load tasks: ${e.message}`, true);
@@ -241,13 +256,32 @@ function IdiomSelectionContent() {
     );
   }
 
+  function buildTaskConfigs(map) {
+    const taskConfigs = [];
+    for (const task of selectedTasks) {
+      const tid = getId(task);
+      for (const idiomId of map[tid] || []) {
+        taskConfigs.push({ task_id: tid, idiom_id: idiomId, dataset_id: datasetIds[0] || "", question_ids: [] });
+      }
+    }
+    return taskConfigs;
+  }
+
+  function persistMap(map) {
+    if (!experimentId) return;
+    saveWizardStep(experimentId, "idiom", { task_configs: buildTaskConfigs(map) })
+      .catch((e) => showToast(`Failed to save: ${e.message}`, true));
+  }
+
   function toggleIdiom(taskId, idiomId) {
     setTaskIdiomMap((prev) => {
       const arr = prev[taskId] || [];
       const newArr = arr.includes(idiomId)
         ? arr.filter((id) => id !== idiomId)
         : [...arr, idiomId];
-      return { ...prev, [taskId]: newArr };
+      const next = { ...prev, [taskId]: newArr };
+      persistMap(next);
+      return next;
     });
   }
 
@@ -262,13 +296,29 @@ function IdiomSelectionContent() {
       const tid = getId(task);
       newMap[tid] = getIdiomsForTask(task).map((i) => getId(i));
     });
-    setTaskIdiomMap((prev) => ({ ...prev, ...newMap }));
+    setTaskIdiomMap((prev) => {
+      const next = { ...prev, ...newMap };
+      persistMap(next);
+      return next;
+    });
   }
 
   function handleDeselectAll() {
     const newMap = {};
     selectedTasks.forEach((task) => { newMap[getId(task)] = []; });
-    setTaskIdiomMap((prev) => ({ ...prev, ...newMap }));
+    setTaskIdiomMap((prev) => {
+      const next = { ...prev, ...newMap };
+      persistMap(next);
+      return next;
+    });
+  }
+
+  function setTaskIdioms(tid, idiomIds) {
+    setTaskIdiomMap((prev) => {
+      const next = { ...prev, [tid]: idiomIds };
+      persistMap(next);
+      return next;
+    });
   }
 
   async function handleNext() {
@@ -283,22 +333,9 @@ function IdiomSelectionContent() {
       return;
     }
 
-    const taskConfigs = [];
-    for (const task of selectedTasks) {
-      const tid = getId(task);
-      for (const idiomId of taskIdiomMap[tid] || []) {
-        taskConfigs.push({ task_id: tid, idiom_id: idiomId, dataset_id: datasetIds[0] || "", question_ids: [] });
-      }
-    }
-
     try {
-      const res = await fetch(`/api/admin/experiments/${experimentId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ task_configs: taskConfigs }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      router.push(`/admin/experiments/specify?experiment_id=${encodeURIComponent(experimentId)}`);
+      await saveWizardStep(experimentId, "idiom", { task_configs: buildTaskConfigs(taskIdiomMap) });
+      router.push(`/admin/experiments/parameters?experiment_id=${encodeURIComponent(experimentId)}`);
     } catch (e) {
       showToast(`Failed to save experiment: ${e.message}`, true);
     }
@@ -330,24 +367,33 @@ function IdiomSelectionContent() {
               </span>
             )}
           </h2>
-          {selectedTasks.length > 0 && (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleSelectAll}
-                className="flex items-center gap-1.5 text-sm font-medium text-primary border border-primary/30 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-lg transition-all active:scale-95"
-              >
-                <span className="material-symbols-outlined text-[16px]">select_all</span>
-                Select All Idioms
-              </button>
-              <button
-                onClick={handleDeselectAll}
-                className="flex items-center gap-1.5 text-sm font-medium text-on-surface-variant border border-outline-variant bg-white hover:bg-surface-container-low px-4 py-2 rounded-lg transition-all active:scale-95"
-              >
-                <span className="material-symbols-outlined text-[16px]">deselect</span>
-                Deselect All
-              </button>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setUploadModalOpen(true)}
+              className="flex items-center gap-1.5 text-sm font-medium text-primary border border-primary/30 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-lg transition-all active:scale-95"
+            >
+              <span className="material-symbols-outlined text-[16px]">upload</span>
+              Upload Custom Idiom
+            </button>
+            {selectedTasks.length > 0 && (
+              <>
+                <button
+                  onClick={handleSelectAll}
+                  className="flex items-center gap-1.5 text-sm font-medium text-primary border border-primary/30 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-lg transition-all active:scale-95"
+                >
+                  <span className="material-symbols-outlined text-[16px]">select_all</span>
+                  Select All Idioms
+                </button>
+                <button
+                  onClick={handleDeselectAll}
+                  className="flex items-center gap-1.5 text-sm font-medium text-on-surface-variant border border-outline-variant bg-white hover:bg-surface-container-low px-4 py-2 rounded-lg transition-all active:scale-95"
+                >
+                  <span className="material-symbols-outlined text-[16px]">deselect</span>
+                  Deselect All
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Task cards with idiom allocation */}
@@ -397,12 +443,7 @@ function IdiomSelectionContent() {
                       {taskIdioms.length > 0 && (
                         <div className="flex items-center gap-1.5">
                           <button
-                            onClick={() =>
-                              setTaskIdiomMap((prev) => ({
-                                ...prev,
-                                [tid]: taskIdioms.map((i) => getId(i)),
-                              }))
-                            }
+                            onClick={() => setTaskIdioms(tid, taskIdioms.map((i) => getId(i)))}
                             className="flex items-center gap-1 text-xs font-medium text-primary border border-primary/30 bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-lg transition-all active:scale-95"
                           >
                             <span className="material-symbols-outlined text-[14px]">select_all</span>
@@ -410,9 +451,7 @@ function IdiomSelectionContent() {
                           </button>
                           {selectedForTask.length > 0 && (
                             <button
-                              onClick={() =>
-                                setTaskIdiomMap((prev) => ({ ...prev, [tid]: [] }))
-                              }
+                              onClick={() => setTaskIdioms(tid, [])}
                               className="flex items-center gap-1 text-xs font-medium text-on-surface-variant border border-outline-variant bg-white hover:bg-surface-container-low px-3 py-1 rounded-lg transition-all active:scale-95"
                             >
                               <span className="material-symbols-outlined text-[14px]">deselect</span>
@@ -464,6 +503,7 @@ function IdiomSelectionContent() {
                                     taskKey: task.task_key,
                                     idiomKey: idiom.idiom_key,
                                     idiomLabel: idiom.label,
+                                    isCustom: !!idiom.is_custom,
                                   });
                                 }}
                                 title="Preview this idiom with sample data"
@@ -517,7 +557,19 @@ function IdiomSelectionContent() {
           taskKey={previewModal.taskKey}
           idiomKey={previewModal.idiomKey}
           idiomLabel={previewModal.idiomLabel}
+          isCustom={previewModal.isCustom}
           onClose={() => setPreviewModal(null)}
+        />
+      )}
+
+      {uploadModalOpen && (
+        <UploadIdiomModal
+          onClose={() => setUploadModalOpen(false)}
+          onUploaded={async () => {
+            setUploadModalOpen(false);
+            await fetchIdiomsAndMapping();
+            showToast("Custom idiom uploaded.");
+          }}
         />
       )}
 

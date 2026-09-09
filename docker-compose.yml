@@ -42,7 +42,7 @@ services:
       LOCAL_DATABASE_PASSWORD: ${MONGO_PASSWORD:-example}
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     volumes:
-      - ./provibackend/ProViBackend/data:/code/ProViBackend/data
+      - /srv/provi-data:/code/ProViBackend/data
       - ./provibackend/ProViBackend/new_input:/code/ProViBackend/new_input:ro
     depends_on:
       mongo:
@@ -70,8 +70,7 @@ services:
     ports:
       - "443:443"
     volumes:
-      - /etc/ssl/cc-vis:/etc/ssl/cc-vis:ro
-      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /etc/ssl/ccvis-selfsigned:/etc/ssl/ccvis-selfsigned:ro
       - /etc/nginx-secrets/.htpasswd:/etc/nginx/.htpasswd:ro
     depends_on:
       - provibackend

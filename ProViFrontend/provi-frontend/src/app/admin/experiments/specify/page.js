@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../../components/Admin/Toast";
+import { saveWizardStep } from "../../../../utils/wizardSave";
 
 function getId(obj) {
   return obj._id || obj.id;
@@ -326,10 +327,16 @@ function SpecifyContent() {
   }
 
   function setParamValue(taskId, key, value) {
-    setParamValues((prev) => ({
-      ...prev,
-      [taskId]: { ...(prev[taskId] || {}), [key]: value },
-    }));
+    setParamValues((prev) => {
+      const next = { ...prev, [taskId]: { ...(prev[taskId] || {}), [key]: value } };
+      const updatedInstances = taskInstances.map((ti) => ({
+        ...ti,
+        parameters: next[ti.task_id] || {},
+      }));
+      saveWizardStep(experimentId, "specify", { task_instances: updatedInstances })
+        .catch((e) => showToast(`Failed to save parameters: ${e.message}`, true));
+      return next;
+    });
   }
 
   function requiredParamsMissing() {
@@ -386,14 +393,9 @@ function SpecifyContent() {
         parameters: paramValues[ti.task_id] || {},
       }));
 
-      let res = await fetch(`/api/admin/experiments/${experimentId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ task_instances: updatedInstances }),
-      });
-      if (!res.ok) throw new Error(await res.text());
+      await saveWizardStep(experimentId, "specify", { task_instances: updatedInstances });
 
-      res = await fetch(`/api/admin/experiments/${experimentId}/generate`, { method: "POST" });
+      let res = await fetch(`/api/admin/experiments/${experimentId}/generate`, { method: "POST" });
       if (!res.ok) {
         // Backend rejects invalid parameters with { detail: { message, errors[] } }.
         let msg = `HTTP ${res.status}`;
@@ -441,9 +443,8 @@ function SpecifyContent() {
             <h1 className="font-h1 text-h1 text-primary">Specify &amp; Generate</h1>
           </div>
           <p className="font-body-lg text-body-lg text-secondary max-w-2xl">
-            Set any task-specific hyperparameters, then generate the visualizations and
-            compute ground truth for the selected idioms. Tasks with no parameters are ready
-            to generate immediately.
+            Set any task-specific hyperparameters, then generate the visualizations for the
+            selected idioms. Tasks with no parameters are ready to generate immediately.
           </p>
         </div>
 
@@ -542,7 +543,7 @@ function SpecifyContent() {
       <div className="border-t border-border-subtle bg-white sticky bottom-0">
         <div className="max-w-[1140px] mx-auto px-8 py-4 flex justify-between items-center">
           <Link
-            href={`/admin/experiments/idiom${experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""}`}
+            href={`/admin/experiments/parameters${experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""}`}
             className="text-sm text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors"
           >
             <span className="material-symbols-outlined text-sm">arrow_back</span> Previous Step
@@ -556,7 +557,7 @@ function SpecifyContent() {
               <span className={`material-symbols-outlined text-sm ${generating ? "animate-spin" : ""}`}>
                 {generating ? "autorenew" : "play_arrow"}
               </span>
-              {generating ? "Generating…" : "Generate Visualizations & Ground Truth"}
+              {generating ? "Generating…" : "Generate Visualizations"}
             </button>
             <button
               onClick={handleNext}
