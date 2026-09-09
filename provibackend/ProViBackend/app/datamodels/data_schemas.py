@@ -103,7 +103,6 @@ class AnswerFromFrontend(BaseModel):
     task_id: str
     idiom_id: str
     dataset_id: str
-    ground_truth_id: Optional[str] = None
     trial_index: int
     presentation_order: int
     answer: str
@@ -119,11 +118,9 @@ class AnswerForDatabase(BaseModel):
     task_id: str
     idiom_id: str
     dataset_id: str
-    ground_truth_id: Optional[str] = None
     trial_index: int
     presentation_order: int
     answer: str
-    is_correct: Optional[bool] = None
     response_time_ms: int
     capabilities_meet_requirements: Optional[int] = None
     easy_to_use: Optional[int] = None
@@ -193,31 +190,22 @@ class TaskConfig(BaseModel):
     question_ids: List[str]
 
 class OptionItem(BaseModel):
-    """One option in a multiple-choice ground-truth set (correct answer or distractor)."""
+    """One option in the closed set a participant chooses from / fills in."""
     label: str
     value: str = ""
-    correct: bool = False
-
-class GroundTruthBlock(BaseModel):
-    """Format-tagged ground truth for one task instance (see ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §3)."""
-    tier: str = "MANUAL"               # AUTO | SEMI | MANUAL
-    format: Optional[str] = None       # the answer_format this GT is shaped for
-    decisive: bool = False             # derived from format, admin-overridable
-    value: Optional[Any] = None        # scalar / set / rank / matrix per format
-    options: List[OptionItem] = []     # MC: full closed set incl. distractors
-    reference: Optional[str] = None    # optional reference text from compute_ground_truth; the grading rubric is task-level (served by /tasks/{task_key}/rubric), not stored here
-    artefact_path: Optional[str] = None
 
 class TaskInstance(BaseModel):
-    """One task in an experiment, grouping its idioms + shared params/format/GT."""
+    """One task in an experiment, grouping its idioms + shared params/answer shape."""
     task_id: str
     dataset_id: str = ""
     idiom_ids: List[str] = []
     parameters: Dict[str, Any] = {}
+    # Answer shape — any task may use any format (app/answer_formats.py).
     answer_format: Optional[str] = None
+    number_kind: Optional[str] = None    # percentage | integer | decimal (numeric formats)
+    answer_options: List[OptionItem] = []  # option-bearing formats only
     generation_status: str = "pending"   # pending | running | ready | failed
     generation_error: Optional[str] = None
-    ground_truth: Optional[GroundTruthBlock] = None
     question_ids: List[str] = []
 
 class Experiment(BaseModel):
@@ -272,13 +260,6 @@ class Question(BaseModel):
     answer_options: List[str]
     scoring_rule: Dict[str, int]
     metadata: Dict[str, str]
-
-class GroundTruth(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-    id: str = Field(alias="_id")
-    question_id: str
-    dataset_id: str
-    correct_answer: str
 
 class Idiom(BaseModel):
     model_config = ConfigDict(populate_by_name=True)

@@ -683,41 +683,28 @@ def generate_for_task_instances(dataset_dir: str, experiment_id: str,
                                 instances: list[dict]) -> dict:
     """Render + compute ground truth for one dataset's task_instances.
 
-    `instances` items: {"task_key": str, "parameters": dict, "answer_format": str|None}.
+    `instances` items: {"task_key": str, "parameters": dict}.
     Shared artefacts (log, Petri net, alignments, fitness_df) are computed once
-    and reused across this dataset's tasks (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7).
+    and reused across this dataset's tasks.
 
-    Returns {task_key: {"render_error": str|None, "gt_raw": dict|None,
-    "gt_error": str|None}}. GT assembly into a GroundTruthBlock happens in the
-    caller (admin.py), which owns the registry/schema.
+    Returns {task_key: {"render_error": str|None}}. This function only draws —
+    the answer shape is authored by the admin on /answer-format.
     """
     log_path, model_path, output_dir = _resolve_dataset_paths(dataset_dir, experiment_id)
     log         = load_event_log(log_path)
     compare_attribute = _auto_detect_compare_attribute(log, "AMOUNT_REQ")
     net, im, fm = load_model(model_path)
     # Reuse the cached alignments shared with /specify's violation enumeration so
-    # idiom frequencies and ground truth match what the admin saw when selecting
-    # violations (PM4Py alignments are non-deterministic — see get_or_compute_alignments).
+    # idiom frequencies match what the admin saw when selecting violations
+    # (PM4Py alignments are non-deterministic — see get_or_compute_alignments).
     alignments  = get_or_compute_alignments(dataset_dir, log, net, im, fm)
     fitness_df  = fitness_summary_dataframe(alignments)
-
-    _TASK_MODULE = {
-        "task01": task01, "task02": task02, "task03": task03, "task04": task04, "task05": task05,
-        "task06": task06, "task07": task07, "task08": task08, "task09": task09, "task10": task10,
-        "task11": task11, "task12": task12, "task13": task13, "task14": task14, "task15": task15,
-        "task16": task16, "task17": task17, "task18": task18, "task19": task19, "task20": task20,
-        "task21": task21, "task22": task22, "task23": task23, "task24": task24, "task25": task25,
-        "task26": task26, "task27": task27, "task28": task28, "task29": task29, "task30": task30,
-        "task31": task31, "task32": task32, "task33": task33, "task34": task34, "task35": task35,
-        "task36": task36, "task37": task37,
-    }
 
     results: dict = {}
     for inst in instances:
         tk = inst["task_key"]
         params = inst.get("parameters") or {}
-        answer_format = inst.get("answer_format")
-        entry = {"render_error": None, "gt_raw_by_format": {}, "gt_error": None}
+        entry = {"render_error": None}
 
         generators = make_task_generators(log, alignments, fitness_df, model_path,
                                           compare_attribute, params)
@@ -735,25 +722,6 @@ def generate_for_task_instances(dataset_dir: str, experiment_id: str,
         except Exception as e:
             logger.exception("Render failed for %s", tk)
             entry["render_error"] = str(e)
-
-        task_mod = _TASK_MODULE.get(tk)
-        compute = getattr(task_mod, "compute_ground_truth", None)
-        if compute is not None:
-            all_formats = getattr(task_mod, "ANSWER_FORMATS", [])
-            gt_raw_by_format: dict = {}
-            gt_errors: list[str] = []
-            for fmt in all_formats:
-                fmt_key = fmt.get("key", "")
-                try:
-                    gt_raw_by_format[fmt_key] = compute(
-                        log, alignments, fitness_df, model_path, params, fmt_key
-                    )
-                except Exception as e:
-                    logger.exception("compute_ground_truth failed for %s format %s", tk, fmt_key)
-                    gt_errors.append(f"{fmt_key}: {e}")
-            entry["gt_raw_by_format"] = gt_raw_by_format
-            if gt_errors and not gt_raw_by_format:
-                entry["gt_error"] = "; ".join(gt_errors)
 
         results[tk] = entry
 

@@ -56,6 +56,7 @@ except ImportError:
     raise
 from ProViBackend.utils import config, utils
 from ProViBackend.app.datamodels import data_schemas as ds
+import ProViBackend.app.answer_formats as afmt
 import pathlib as pl
 
 import ProViBackend.utils.database.connection as dbc
@@ -418,20 +419,14 @@ async def download_experiment_answers(experiment_id: str):
         df_answers["idiom_key"] = df_answers["idiom_id"].map(lambda x: idiom_lookup.get(x, {}).get("idiom_key", ""))
         df_answers["idiom_name"] = df_answers["idiom_id"].map(lambda x: idiom_lookup.get(x, {}).get("idiom_name", ""))
 
-        # Add ground truth from experiment task_instances
+        # Add the configured answer format from the experiment's task_instances
         exp_doc = dbc.get_document("Experiment", {"_id": experiment_id})
-        gt_by_task = {}
+        format_by_task = {}
         if exp_doc:
             for ti in exp_doc.get("task_instances", []):
-                gt_by_task[ti.get("task_id")] = {
-                    "ground_truth": ti.get("ground_truth"),
-                    "answer_format": ti.get("answer_format"),
-                }
-        df_answers["ground_truth"] = df_answers["task_id"].map(
-            lambda x: str(gt_by_task.get(x, {}).get("ground_truth", "")) if gt_by_task.get(x, {}).get("ground_truth") is not None else ""
-        )
+                format_by_task[ti.get("task_id")] = ti.get("answer_format") or ""
         df_answers["answer_format"] = df_answers["task_id"].map(
-            lambda x: gt_by_task.get(x, {}).get("answer_format", "")
+            lambda x: format_by_task.get(x, "")
         )
 
         if "response_time_ms" in df_answers.columns:
@@ -694,36 +689,36 @@ async def get_task_param_spec(task_key: str, dataset_id: str | None = None):
     })
 
 
-@router.get("/tasks/{task_key}/answer-formats", tags=["admin"])
-async def get_task_answer_formats(task_key: str):
-    """Return this task's allowed answer formats for /answer-format-groundtruth
-    (col D, see ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4-5, §11).
+@router.get("/answer-formats", tags=["admin"])
+async def get_answer_formats():
+    """The global answer-format registry for /answer-format.
 
-    Unauthored tasks fall back to a single generic `free-text` format.
+    Formats are not task-scoped: every task may use every format. `needs_options`
+    tells the page whether to render the option editor, `numeric` whether to
+    render the number-kind selector.
     """
-    if task_key not in _TASK_MODULES:
-        raise HTTPException(status_code=404, detail=f"Unknown task '{task_key}'.")
     return JSONResponse(content={
-        "task_key": task_key,
-        "answer_formats": task_registry.get_answer_formats(task_key),
+        "answer_formats": afmt.ANSWER_FORMATS,
+        "number_kinds": afmt.NUMBER_KINDS,
+        "default_number_kind": afmt.DEFAULT_NUMBER_KIND,
     })
 
 
 @router.get("/tasks/{task_key}/rubric", tags=["admin"])
 async def get_task_rubric(task_key: str):
     """Return this task's static, task-level grading rubric for read-only display
-    on /answer-format-groundtruth and /overview (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §8, §11).
+    on /answer-format and /overview.
 
-    The rubric is a single source of truth per task (the task's RUBRIC constant);
-    it is never copied into or editable on a per-experiment instance. `rubric` is
-    `null` if the task hasn't authored one yet (step 6).
+    The rubric is reference text for manually coding free-text answers — it feeds
+    no automatic scoring. It is a single source of truth per task (the task's
+    RUBRIC constant), never copied into or editable on a per-experiment instance.
+    `rubric` is `null` if the task hasn't authored one.
     """
     if task_key not in _TASK_MODULES:
         raise HTTPException(status_code=404, detail=f"Unknown task '{task_key}'.")
     return JSONResponse(content={
         "task_key": task_key,
         "rubric": task_registry.get_rubric(task_key),
-        "gt_tier": task_registry.get_gt_tier(task_key),
     })
 
 
@@ -899,37 +894,6 @@ def _task_key_for(task_id: str | None) -> str | None:
     return task.get("task_key") if task else None
 
 
-def _resolve_answer_format(task_key: str, ti: dict) -> str | None:
-    """The answer_format to compute GT for: the one chosen on
-    /answer-format-groundtruth, else the task's sole/first declared format
-    (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7, §11)."""
-    if ti.get("answer_format"):
-        return ti["answer_format"]
-    formats = task_registry.get_answer_formats(task_key)
-    return formats[0]["key"] if formats else None
-
-
-def _build_gt_block(task_key: str, answer_format: str, gt_raw: dict) -> dict:
-    """Assemble a GroundTruthBlock from compute_ground_truth's raw output, filling
-    tier/format/decisive defaults from the task's contract (§3, §8).
-
-    The grading rubric is a static, task-level property (served by
-    /tasks/{task_key}/rubric) and is intentionally NOT copied into the
-    per-instance ground truth — `reference` only ever holds reference text that
-    compute_ground_truth explicitly returns."""
-    formats = task_registry.get_answer_formats(task_key)
-    fmt = next((f for f in formats if f.get("key") == answer_format), None) or (formats[0] if formats else {})
-    return {
-        "tier": task_registry.get_gt_tier(task_key),
-        "format": answer_format,
-        "decisive": bool(gt_raw.get("decisive", fmt.get("decisive_default", False))),
-        "value": gt_raw.get("value"),
-        "options": gt_raw.get("options", []),
-        "reference": gt_raw.get("reference"),
-        "artefact_path": gt_raw.get("artefact_path"),
-    }
-
-
 def _load_dataset_log(dataset_id: str):
     """Load a dataset's event log as a pm4py EventLog (for validate_params hooks)."""
     input_dir = DATA_DIRECTORY / dataset_id / "input"
@@ -1007,27 +971,27 @@ def _validate_task_instances(exp: dict) -> list[str]:
 
 def _run_generation_job(experiment_id: str):
     """Background job: per dataset, render the experiment's task_instances with
-    their chosen parameters and compute ground truth, then mark each instance
-    'ready'/'failed' and store the computed GT (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7)."""
+    their chosen parameters, then mark each instance 'ready'/'failed'.
+
+    Generation only draws — the answer shape (format, options, number kind) is
+    authored by the admin on /answer-format and never computed here."""
     exp = dbc.get_document("Experiment", {"_id": experiment_id})
     if not exp:
         return
     task_instances = exp.get("task_instances", [])
 
-    # Group instances per dataset; remember each ti's resolved task_key + format.
+    # Group instances per dataset; remember each ti's resolved task_key.
     by_dataset: dict[str, list[dict]] = {}
-    meta: dict[str, tuple] = {}  # task_id -> (task_key, answer_format)
+    meta: dict[str, str | None] = {}  # task_id -> task_key
     for ti in task_instances:
         ds = ti.get("dataset_id")
         task_key = _task_key_for(ti.get("task_id"))
-        answer_format = _resolve_answer_format(task_key, ti) if task_key else None
-        meta[ti.get("task_id")] = (task_key, answer_format)
+        meta[ti.get("task_id")] = task_key
         if not ds or not task_key:
             continue
         by_dataset.setdefault(ds, []).append({
             "task_key": task_key,
             "parameters": ti.get("parameters") or {},
-            "answer_format": answer_format,
         })
 
     results: dict[tuple, dict] = {}  # (dataset_id, task_key) -> result entry
@@ -1039,11 +1003,11 @@ def _run_generation_job(experiment_id: str):
         except Exception as e:
             _logger.exception("Generation failed for experiment %s, dataset %s", experiment_id, ds)
             for inst in insts:
-                results[(ds, inst["task_key"])] = {"render_error": str(e), "gt_raw": None, "gt_error": None}
+                results[(ds, inst["task_key"])] = {"render_error": str(e)}
 
     for ti in task_instances:
         ds = ti.get("dataset_id")
-        task_key, answer_format = meta.get(ti.get("task_id"), (None, None))
+        task_key = meta.get(ti.get("task_id"))
         if not ds:
             ti["generation_status"] = "failed"
             ti["generation_error"] = "No dataset assigned to this task."
@@ -1063,19 +1027,6 @@ def _run_generation_job(experiment_id: str):
         else:
             ti["generation_status"] = "ready"
             ti["generation_error"] = None
-        gt_raw_by_format = r.get("gt_raw_by_format") or {}
-        if gt_raw_by_format:
-            gt_block_by_format = {
-                fmt_key: _build_gt_block(task_key, fmt_key, fmt_raw)
-                for fmt_key, fmt_raw in gt_raw_by_format.items()
-            }
-            ti["ground_truth_by_format"] = gt_block_by_format
-            selected = answer_format if (answer_format and answer_format in gt_block_by_format) \
-                else next(iter(gt_block_by_format), None)
-            if selected:
-                ti["ground_truth"] = gt_block_by_format[selected]
-        elif r.get("gt_error"):
-            _logger.warning("compute_ground_truth failed for %s: %s", task_key, r["gt_error"])
 
     dbc.update_document("Experiment", {"_id": experiment_id}, {"$set": {
         "task_instances": task_instances,
@@ -1158,7 +1109,6 @@ def _run_preview_job(experiment_id: str, mode: str):
                 insts.append({
                     "task_key": task_key,
                     "parameters": ti.get("parameters") or {},
-                    "answer_format": None,
                 })
         try:
             results = generate_for_task_instances(dataset_dir, preview_exp_id, insts)
@@ -1180,7 +1130,6 @@ def _run_preview_job(experiment_id: str, mode: str):
                 by_dataset.setdefault(ds_id, []).append({
                     "task_key": task_key,
                     "parameters": ti.get("parameters") or {},
-                    "answer_format": None,
                 })
 
         for ds_id, insts in by_dataset.items():
@@ -1375,7 +1324,7 @@ _preload_idiom_preview_status()
 def _run_idiom_preview_task(task_key: str):
     """Generate sample SVGs for one task with default parameters."""
     try:
-        insts = [{"task_key": task_key, "parameters": {}, "answer_format": None}]
+        insts = [{"task_key": task_key, "parameters": {}}]
         results = generate_for_task_instances(
             str(SAMPLE_DATA_DIR), _IDIOM_PREVIEW_EXP_ID, insts
         )
@@ -1566,13 +1515,3 @@ async def update_experiment_prequestionnaire_sections(experiment_id: str, body: 
     if not updated:
         raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
     return JSONResponse(content={"message": "Pre-questionnaire sections updated."})
-
-
-# ---------------------------------------------------------------------------
-# GroundTruth management
-# ---------------------------------------------------------------------------
-
-@router.post("/groundtruth", tags=["admin"])
-async def create_ground_truth(ground_truth: ds.GroundTruth):
-    dbc.create_document("GroundTruth", ground_truth.model_dump(by_alias=True))
-    return JSONResponse(content={"message": "GroundTruth entry created.", "ground_truth_id": ground_truth.id}, status_code=201)
