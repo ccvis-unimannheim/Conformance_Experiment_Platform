@@ -22,6 +22,7 @@ function groupTrialsByTask(trials) {
         task_label:    trial.task_label,
         answer_type:   trial.answer_type,
         answer_format: trial.answer_format,
+        number_kind:   trial.number_kind,
         options:       trial.options ?? [],
         param_hints:   trial.param_hints ?? [],
         display_traces: trial.display_traces ?? [],
@@ -396,7 +397,7 @@ export default function TaskExecutionPage() {
                 key={linearTrialPosition}
                 options={currentGroup?.options ?? []}
                 answerType={currentGroup?.answer_type ?? "free_text"}
-                answerFormat={currentGroup?.answer_format ?? "free-text"}
+                numberKind={currentGroup?.number_kind ?? "decimal"}
                 taskLabel={currentGroup?.task_label ?? ""}
                 experimentId={experimentId}
                 taskId={currentGroup?.task_id ?? currentStep}
