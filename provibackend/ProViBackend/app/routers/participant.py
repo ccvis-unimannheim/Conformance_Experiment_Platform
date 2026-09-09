@@ -129,6 +129,13 @@ def _resolve_svg_path(task_id: str, idiom_id: str, dataset_id: str, experiment_i
 
     task_key  = task["task_key"]    # e.g. "task1"
     idiom_key = idiom["idiom_key"]  # e.g. "bar_chart"
+
+    # Custom (admin-uploaded) idioms are fixed assets, not per-dataset
+    # generated — served straight from CUSTOM_IDIOM_DIRECTORY instead.
+    if idiom.get("is_custom"):
+        ext = idiom.get("asset_ext") or ".svg"
+        return config.CUSTOM_IDIOM_DIRECTORY / f"{idiom_key}{ext}", None
+
     output_dir = config.BASE_DIRECTORY / "data" / dataset_id / "output"
 
     if experiment_id:
@@ -245,10 +252,18 @@ async def get_active_experiment():
         if not task_id or not idiom_id:
             continue
 
+        ti_snapshot = task_instances_by_task_id.get(task_id, {})
         task  = dbc.get_document("Task",  {"_id": task_id})
         idiom = dbc.get_document("Idiom", {"_id": idiom_id})
-        if not task or not idiom:
+        if not (ti_snapshot.get("label") and ti_snapshot.get("task_key")) and not task:
             continue
+        if not idiom:
+            continue
+
+        # Prefer the frozen per-experiment snapshot so edits to the Task question
+        # bank in the admin panel don't retroactively change this experiment.
+        task_key = ti_snapshot.get("task_key") or task["task_key"]
+        task_label = ti_snapshot.get("label") or task["label"]
 
         svg_path, _ = _resolve_svg_path(task_id, idiom_id, dataset_id, experiment_id)
         svg_available = bool(svg_path and svg_path.exists())
@@ -258,10 +273,10 @@ async def get_active_experiment():
             "task_id":       task_id,
             "idiom_id":      idiom_id,
             "dataset_id":    dataset_id,
-            "task_key":      task["task_key"],
-            "task_label":    task["label"],
+            "task_key":      task_key,
+            "task_label":    task_label,
             "idiom_key":     idiom["idiom_key"],
-            "idiom_label":   resolve_idiom_label(task["task_key"], idiom["idiom_key"], idiom["label"]),
+            "idiom_label":   resolve_idiom_label(task_key, idiom["idiom_key"], idiom["label"]),
             "answer_format": contract["answer_format"],
             "answer_type":   contract["answer_type"],
             "number_kind":   contract["number_kind"],
@@ -292,7 +307,9 @@ async def get_visualization(dataset_id: str, task_id: str, idiom_id: str, experi
             status_code=404,
             detail=f"SVG not found on disk: {svg_path.relative_to(config.BASE_DIRECTORY)}",
         )
-    return FileResponse(str(svg_path), media_type="image/svg+xml")
+    ext = svg_path.suffix.lower()
+    media_type = "image/svg+xml" if ext == ".svg" else f"image/{ext.lstrip('.')}"
+    return FileResponse(str(svg_path), media_type=media_type)
 
 
 # ---------------------------------------------------------------------------
@@ -357,29 +374,36 @@ async def get_assigned_trials(
         except ValueError:
             continue
 
+        ti = task_instances_by_task_id.get(task_id, {})
         task  = dbc.get_document("Task",  {"_id": task_id})
         idiom = dbc.get_document("Idiom", {"_id": idiom_id})
-        if not task or not idiom:
+        if not (ti.get("label") and ti.get("task_key")) and not task:
             continue
+        if not idiom:
+            continue
+
+        # Prefer the frozen per-experiment snapshot so edits to the Task question
+        # bank in the admin panel don't retroactively change this experiment.
+        task_key = ti.get("task_key") or task["task_key"]
+        task_label = ti.get("label") or task["label"]
 
         svg_path, _ = _resolve_svg_path(task_id, idiom_id, dataset_id, experiment_id)
         svg_available = bool(svg_path and svg_path.exists())
         contract = _trial_contract_fields(task_instances_by_task_id, task_id)
 
-        ti = task_instances_by_task_id.get(task_id, {})
         parameters = (ti.get("parameters") or {})
-        param_hints = _build_param_hints(task["task_key"], parameters)
-        display_traces = _load_display_traces(task["task_key"], dataset_id, experiment_id)
+        param_hints = _build_param_hints(task_key, parameters)
+        display_traces = _load_display_traces(task_key, dataset_id, experiment_id)
 
         trials.append({
             "trial_index":   idx,
             "task_id":       task_id,
             "idiom_id":      idiom_id,
             "dataset_id":    dataset_id,
-            "task_key":      task["task_key"],
-            "task_label":    task["label"],
+            "task_key":      task_key,
+            "task_label":    task_label,
             "idiom_key":     idiom["idiom_key"],
-            "idiom_label":   resolve_idiom_label(task["task_key"], idiom["idiom_key"], idiom["label"]),
+            "idiom_label":   resolve_idiom_label(task_key, idiom["idiom_key"], idiom["label"]),
             "answer_format": contract["answer_format"],
             "answer_type":   contract["answer_type"],
             "number_kind":   contract["number_kind"],

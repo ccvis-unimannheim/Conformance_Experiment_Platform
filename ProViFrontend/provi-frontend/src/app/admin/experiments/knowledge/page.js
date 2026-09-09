@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AdminNav from "../../../../components/Admin/AdminNav";
+import { saveWizardStep } from "../../../../utils/wizardSave";
 
 // ── Add Question Modal ──────────────────────────────────────────────────────
 
@@ -201,12 +202,31 @@ export default function KnowledgeSetupPage() {
       .finally(() => setLoading(false));
   }, [experimentId]);
 
+  function persistSelection(next) {
+    if (!experimentId) return;
+    saveWizardStep(experimentId, "knowledge", { knowledge_question_ids: Array.from(next) }, { endpoint: "knowledge-questions" })
+      .catch((e) => setSaveError(e.message));
+  }
+
   function toggleQuestion(id) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
+      persistSelection(next);
       return next;
     });
+  }
+
+  function deselectAll() {
+    const next = new Set();
+    setSelectedIds(next);
+    persistSelection(next);
+  }
+
+  function selectAll() {
+    const next = new Set(questions.map((q) => q._id));
+    setSelectedIds(next);
+    persistSelection(next);
   }
 
   async function handleDelete(qid) {
@@ -268,12 +288,32 @@ export default function KnowledgeSetupPage() {
       <AdminNav activeLink="experiment-setup" />
 
       <main className="flex-grow max-w-[900px] mx-auto w-full px-6 py-12 pb-32">
-        <div className="mb-12">
-          <h1 className="text-h1 text-primary mb-2">Knowledge Questions</h1>
-          <p className="text-body-lg text-secondary">
-            Choose which knowledge questions participants will answer before the experiment.
-            System questions cannot be deleted. Uncheck any you want to skip.
-          </p>
+        <div className="mb-12 flex items-start justify-between gap-6">
+          <div>
+            <h1 className="text-h1 text-primary mb-2">Knowledge Questions</h1>
+            <p className="text-body-lg text-secondary">
+              Choose which knowledge questions participants will answer before the experiment.
+              System questions cannot be deleted. Uncheck any you want to skip.
+            </p>
+          </div>
+          {!loading && !error && (
+            <div className="flex gap-3 flex-shrink-0">
+              <button
+                type="button"
+                onClick={deselectAll}
+                className="text-sm font-semibold border border-border-subtle text-on-surface-variant px-4 py-2 rounded-lg hover:bg-surface-container transition-colors whitespace-nowrap"
+              >
+                Deselect All
+              </button>
+              <button
+                type="button"
+                onClick={selectAll}
+                className="text-sm font-semibold border border-border-subtle text-on-surface-variant px-4 py-2 rounded-lg hover:bg-surface-container transition-colors whitespace-nowrap"
+              >
+                Select All
+              </button>
+            </div>
+          )}
         </div>
 
         {loading && <p className="text-body-sm text-secondary">Loading questions…</p>}

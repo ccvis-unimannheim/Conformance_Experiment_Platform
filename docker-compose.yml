@@ -42,7 +42,7 @@ services:
       LOCAL_DATABASE_PASSWORD: ${MONGO_PASSWORD:-example}
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     volumes:
-      - ./provibackend/ProViBackend/data:/code/ProViBackend/data
+      - /srv/provi-data:/code/ProViBackend/data
       - ./provibackend/ProViBackend/new_input:/code/ProViBackend/new_input:ro
     depends_on:
       mongo:
@@ -54,8 +54,8 @@ services:
     build:
       context: ./ProViFrontend
       args:
-        NEXT_PUBLIC_API_BASE: https://0c6d5248-f6a7-4d49-bc79-a6e8c34de13d.ma.bw-cloud-instance.org/api
-        NEXT_PUBLIC_API_URL: https://0c6d5248-f6a7-4d49-bc79-a6e8c34de13d.ma.bw-cloud-instance.org/api
+        NEXT_PUBLIC_API_BASE: https://134.155.106.59/api
+        NEXT_PUBLIC_API_URL: https://134.155.106.59/api
     container_name: provifrontend
     restart: unless-stopped
     ports:
@@ -73,8 +73,7 @@ services:
     ports:
       - "443:443"
     volumes:
-      - /etc/ssl/cc-vis:/etc/ssl/cc-vis:ro
-      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /etc/ssl/ccvis-selfsigned:/etc/ssl/ccvis-selfsigned:ro
       - /etc/nginx-secrets/.htpasswd:/etc/nginx/.htpasswd:ro
     depends_on:
       - provibackend

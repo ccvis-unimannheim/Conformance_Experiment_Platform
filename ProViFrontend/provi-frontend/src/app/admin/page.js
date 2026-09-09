@@ -90,6 +90,8 @@ function TasksTooltip({ exp, taskMap, idiomMap }) {
   );
 }
 
+const WIZARD_STEPS = ["new", "prequestionnaire", "knowledge", "task", "idiom", "parameters", "specify", "answer-format", "overview"];
+
 const STATUS_STYLES = {
   draft:     { border: "border-amber-400", dot: "bg-amber-400", label: "Draft" },
   published: { border: "border-blue-500",  dot: "bg-blue-500",  label: "Published" },
@@ -470,10 +472,10 @@ export default function AdminPage() {
                         {!expManageMode && (
                           <div className="flex items-center gap-2 ml-2 flex-shrink-0">
                             {status === "draft" && (() => {
-                              const hasTasks = exp.task_configs && exp.task_configs.length > 0;
-                              const href = hasTasks
-                                ? `/admin/experiments/idiom?experiment_id=${encodeURIComponent(expId)}`
-                                : `/admin/experiments/knowledge?experiment_id=${encodeURIComponent(expId)}`;
+                              const step = WIZARD_STEPS.includes(exp.current_step)
+                                ? exp.current_step
+                                : (exp.task_configs && exp.task_configs.length > 0 ? "idiom" : "knowledge");
+                              const href = `/admin/experiments/${step}?experiment_id=${encodeURIComponent(expId)}`;
                               return (
                                 <Link href={href}
                                   className="text-xs border border-border-subtle text-on-surface-variant px-3 py-1.5 rounded hover:bg-surface-container transition-colors flex items-center gap-1">

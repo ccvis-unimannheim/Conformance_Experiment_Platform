@@ -254,19 +254,15 @@ def _resolve_ranges(df, bins=None, labels=None):
 def task10_bar_chart(range_df: pd.DataFrame, output_dir: str):
     """Bar chart: percentage of traces per conformance range.
 
-    Each bar is coloured by its percentage value using CIVIDIS_R (yellow = low,
-    dark blue = high) — the same colormap and normalization as task10_heatmap,
-    so colour magnitude is consistent across all three information-equivalent idioms.
+    All bars share a single colour — bar length/height alone encodes the
+    percentage, so a second, redundant colour-magnitude encoding isn't needed
+    for this idiom (unlike the heatmap, where colour is the only encoding).
     """
-    max_pct = range_df["percentage"].max()
-    norm = max_pct if max_pct > 0 else 1.0
-    bar_colors = [to_hex(CIVIDIS_R(float(pct) / norm)) for pct in range_df["percentage"]]
-
     fig, ax = plt.subplots(figsize=(8, 5))
     bars = ax.bar(
         range_df["range"],
         range_df["percentage"],
-        color=bar_colors,
+        color=GREY_DARK,
         edgecolor="white",
         width=0.6,
     )

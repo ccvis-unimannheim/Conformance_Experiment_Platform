@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AdminNav from "../../../../components/Admin/AdminNav";
+import { saveWizardStep } from "../../../../utils/wizardSave";
 
 const ALL_SECTIONS = [
   {
@@ -69,6 +70,10 @@ export default function PrequestionnairePage() {
     setEnabled((prev) => {
       const next = new Set(prev);
       next.has(key) ? next.delete(key) : next.add(key);
+      if (experimentId) {
+        saveWizardStep(experimentId, "prequestionnaire", { sections: Array.from(next) }, { endpoint: "prequestionnaire-sections" })
+          .catch((e) => setSaveError(e.message));
+      }
       return next;
     });
   }

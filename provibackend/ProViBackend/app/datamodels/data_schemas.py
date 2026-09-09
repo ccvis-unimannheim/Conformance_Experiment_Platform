@@ -55,9 +55,11 @@ class KnowledgeQuestionCreate(BaseModel):
 
 class KnowledgeQuestionIds(BaseModel):
     knowledge_question_ids: List[str]
+    current_step: Optional[str] = None
 
 class PrequestionnaireSections(BaseModel):
     sections: List[str]  # e.g. ["personal_info", "academic_profile", "technical_expertise", "tool_experience"]
+    current_step: Optional[str] = None
 
 class FeedbackAnswersRequest(BaseModel):
     ratings:  dict        # {mentalDemand, physicalDemand, temporalDemand, performance, effort, frustration}
@@ -188,6 +190,13 @@ class TaskConfig(BaseModel):
     idiom_id: str
     dataset_id: str
     question_ids: List[str]
+    # Snapshot of the Task question bank entry, frozen when the task was first
+    # added to the experiment. Empty for legacy experiments predating the
+    # snapshot (they keep falling back to a live Task lookup).
+    task_key: Optional[str] = None
+    label: Optional[str] = None
+    description: Optional[str] = None
+    answer_type: Optional[str] = None
 
 class OptionItem(BaseModel):
     """One option in the closed set a participant chooses from / fills in."""
@@ -207,6 +216,14 @@ class TaskInstance(BaseModel):
     generation_status: str = "pending"   # pending | running | ready | failed
     generation_error: Optional[str] = None
     question_ids: List[str] = []
+    # Snapshot of the Task question bank entry, frozen when the task was first
+    # added to the experiment. Later edits to the Task in the admin panel do
+    # not change already-created experiments. Empty for legacy experiments
+    # predating the snapshot (they keep falling back to a live Task lookup).
+    task_key: Optional[str] = None
+    label: Optional[str] = None
+    description: Optional[str] = None
+    answer_type: Optional[str] = None
 
 class Experiment(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -225,6 +242,7 @@ class Experiment(BaseModel):
     task_instances: List[TaskInstance] = []  # canonical: one entry per task
     knowledge_question_ids: List[str] = []   # empty = use all system questions
     prequestionnaire_sections: List[str] = ["personal_info", "academic_profile", "technical_expertise", "tool_experience"]  # enabled sections
+    current_step: Optional[str] = None  # wizard route slug the admin last reached, e.g. "task", "specify"
     created_by: str             # FK → Administrator
     created_at: str
 
@@ -251,6 +269,13 @@ class TaskUpdate(BaseModel):
     label: str | None = None
     description: str | None = None
     answer_type: str | None = None
+    rubric: str | None = None
+    # Admin overrides of this task's own PARAM_SPEC entries (see GET
+    # /param-catalog and /tasks/{task_key}/param-spec): {param_key: {enabled,
+    # default, required, min, max, step, options}}. A task can only carry
+    # overrides for parameter keys its own generation code already declares —
+    # this never adds a parameter the task's code doesn't consume.
+    param_overrides: Dict[str, Any] | None = None
 
 class Question(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -269,11 +294,22 @@ class Idiom(BaseModel):
     granularity: str
     renderer_type: str
     active: bool
+    # Admin-uploaded static image/SVG idiom (see POST /admin/idioms/upload),
+    # selectable for every task, served as a fixed asset rather than
+    # generated per dataset by a task script.
+    is_custom: bool = False
+    asset_ext: Optional[str] = None
 
 class ExperimentUpdate(BaseModel):
     task_configs: Optional[List[TaskConfig]] = None
     task_instances: Optional[List[TaskInstance]] = None
     status: Optional[str] = None
+    current_step: Optional[str] = None
+    name: Optional[str] = None
+    design_type: Optional[str] = None
+    between_balance_mode: Optional[str] = None
+    within_sequence_mode: Optional[str] = None
+    dataset_ids: Optional[List[str]] = None
 
 # Aliases for backward compatibility with older router code
 PreEliminaryAnswers = PreliminaryAnswers

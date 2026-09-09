@@ -28,3 +28,47 @@ CVE-2026-54283
 # cascade an upgrade of the whole legacy ESLint toolchain.
 # Re-evaluate when brace-expansion ships a 1.x fix or the ESLint deps are bumped.
 CVE-2026-14257
+
+# GHSA-6v7p-g79w-8964 — msgpack out-of-bounds read/crash on Unpacker reuse
+# CVE-2025-47273 — setuptools path traversal in PackageIndex
+# Affected (per Trivy): provibackend image, msgpack "1.1.2" / setuptools "70.3.0"
+# Why ignored: false positive. requirements.txt pins msgpack>=1.2.1 and
+# setuptools>=78.1.1, and the Dockerfile additionally force-reinstalls both
+# with --no-deps right after the main install. Verified directly against the
+# built image (not just the build log): `docker run provibackend:scan pip show
+# msgpack setuptools` reports 1.2.2 / 84.0.0, and a full filesystem search
+# (`find / -iname '*.dist-info'`) finds exactly one dist-info for each, at the
+# patched version — no stale metadata anywhere. Trivy nonetheless reports the
+# GHSA's earliest-affected version as "Installed Version" for both findings.
+# Re-evaluate (and drop these two lines) after upgrading Trivy past v0.70.0.
+GHSA-6v7p-g79w-8964
+CVE-2025-47273
+
+# CVE-2026-69152 — brace-expansion DoS bypassing the CVE-2026-14257 mitigation
+# Affected (per Trivy): provifrontend image, brace-expansion "5.0.7" (via
+# @typescript-eslint/typescript-estree's minimatch@10.2.5).
+# Why ignored: false positive, same pattern as the msgpack/setuptools entry
+# above. package.json overrides minimatch@10.2.5's brace-expansion to 5.0.9
+# (and minimatch@3.1.5's to 1.1.18, which is why that copy no longer shows up
+# at all). Verified locally: after a clean reinstall, `npm ls brace-expansion`
+# reports 5.0.9 "overridden" and `npm audit`'s HIGH count drops to 0. Trivy
+# nonetheless reports the pre-override version as "Installed Version".
+# Re-evaluate (and drop this line) after upgrading Trivy past v0.70.0.
+CVE-2026-69152
+
+# CVE-2026-69192 — ip-address inconsistent parsing leading to SSRF
+# CVE-2026-73566 — tar DoS via crafted long-path archive
+# Affected (per Trivy): provifrontend image, ip-address 10.2.0 / tar 7.5.19.
+# Why ignored (for now, genuinely unresolved — not a false positive):
+# neither package appears anywhere in this project's own dependency tree
+# (confirmed via `npm ls` locally on a clean install — no result for either).
+# They are believed to be vendored inside the global npm CLI installed via
+# `npm install -g npm@latest` in the Dockerfile (npm uses tar for package
+# extraction and ip-address for proxy support), which our package.json
+# overrides cannot reach. A prior attempt to patch npm's own node_modules
+# directly in the Dockerfile broke the real build-and-deploy pipeline
+# (npm tried to reconcile npm's internal-only dependencies and failed with a
+# 404) and was reverted. Needs a safer fix — e.g. pinning a specific patched
+# npm version, or not upgrading npm globally at all — before re-attempting.
+CVE-2026-69192
+CVE-2026-73566

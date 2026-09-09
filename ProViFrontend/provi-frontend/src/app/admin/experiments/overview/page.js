@@ -7,6 +7,7 @@ import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupH
 import Toast from "../../../../components/Admin/Toast";
 import EditTaskModal from "../../../../components/Admin/EditTaskModal";
 import { resolveIdiomLabel } from "../../../../utils/idiomLabels";
+import { saveWizardStep } from "../../../../utils/wizardSave";
 
 function IdiomPreviewModal({ experimentId, taskKey, idiomKey, idiomLabel, datasetTitle, paramsSummary, onClose }) {
   const [status, setStatus] = useState("loading");
@@ -125,14 +126,6 @@ function AnswerSummary({ ti }) {
   );
 }
 
-// Task-level grading rubric — reference text for manually coding answers.
-function RubricSummary({ rubric }) {
-  if (!rubric || !rubric.trim()) {
-    return <p className="text-xs text-on-surface-variant italic">No rubric written for this task.</p>;
-  }
-  return <p className="text-xs text-on-surface-variant line-clamp-2">{rubric}</p>;
-}
-
 function ExperimentOverviewContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -142,7 +135,6 @@ function ExperimentOverviewContent() {
   const [idiomMap, setIdiomMap] = useState({});
   const [groupedTasks, setGroupedTasks] = useState([]);
   const [taskInstancesByTask, setTaskInstancesByTask] = useState({});
-  const [rubricsByTask, setRubricsByTask] = useState({});
   // Formats that present a closed option set (from /admin/answer-formats).
   const [optionFormats, setOptionFormats] = useState(new Set());
   const [datasetTitleById, setDatasetTitleById] = useState({});
@@ -206,6 +198,9 @@ function ExperimentOverviewContent() {
       if (!exp) throw new Error("Experiment not found.");
       setExperiment(exp);
       setStatus(exp.status || "draft");
+      if (exp.status === "draft") {
+        saveWizardStep(experimentId, "overview", {}).catch(() => {});
+      }
 
       const tMap = {};
       tasks.forEach((t) => { tMap[getId(t)] = t; });
@@ -237,25 +232,6 @@ function ExperimentOverviewContent() {
           idiomIds: idiomsByTask[tid] || [],
         }))
       );
-
-      // Load each task's static, task-level rubric for read-only display.
-      const rubrics = {};
-      await Promise.all(
-        taskOrder.map(async (tid) => {
-          const taskKey = tMap[tid]?.task_key;
-          if (!taskKey) return;
-          try {
-            const res = await fetch(`/api/admin/tasks/${encodeURIComponent(taskKey)}/rubric`);
-            if (res.ok) {
-              const data = await res.json();
-              rubrics[tid] = data.rubric ?? null;
-            }
-          } catch {
-            // leave undefined; summary falls back gracefully
-          }
-        })
-      );
-      setRubricsByTask(rubrics);
     } catch (e) {
       showToast(`Could not load experiment: ${e.message}`, true);
     } finally {
@@ -595,7 +571,7 @@ function ExperimentOverviewContent() {
                       </div>
                     </div>
 
-                    {/* Answer options + grading rubric */}
+                    {/* Answer options */}
                     <div className="p-5">
                       <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">
                         Answer Options
@@ -608,12 +584,6 @@ function ExperimentOverviewContent() {
                         >
                           Edit
                         </Link>
-                      </div>
-                      <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mt-4 mb-2">
-                        Grading Rubric
-                      </p>
-                      <div className="border border-border-subtle rounded-lg p-4">
-                        <RubricSummary rubric={rubricsByTask[tid]} />
                       </div>
                     </div>
                   </div>

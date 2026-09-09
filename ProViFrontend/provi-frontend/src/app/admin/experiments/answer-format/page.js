@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../../components/Admin/Toast";
+import { saveWizardStep } from "../../../../utils/wizardSave";
 
 function getId(obj) {
   return obj._id || obj.id;
@@ -260,23 +261,49 @@ function NumberKindSelector({ kinds, value, onChange }) {
   );
 }
 
-function RubricPanel({ rubric }) {
+// The task's RUBRIC constant is the default; an admin edit is stored on the
+// Task document and overrides it (PATCH /admin/tasks/{task_id}). Reference text
+// for manually coding answers — it feeds no automatic scoring.
+function RubricEditor({ taskId, rubric, onSave }) {
+  const [draft, setDraft] = useState(rubric ?? "");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setDraft(rubric ?? "");
+  }, [taskId, rubric]);
+
+  const dirty = draft !== (rubric ?? "");
+
+  async function save() {
+    setSaving(true);
+    try {
+      await onSave(draft);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-2">
       <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
         Grading rubric
       </p>
-      {rubric ? (
-        <p className="text-sm text-on-surface whitespace-pre-wrap bg-surface-container-low rounded-lg px-3 py-2">
-          {rubric}
-        </p>
-      ) : (
-        <p className="text-xs text-on-surface-variant italic bg-surface-container-low rounded-lg px-3 py-2">
-          No rubric authored for this task yet — add a RUBRIC constant to the task module to display one here.
-        </p>
-      )}
+      <textarea
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        rows={4}
+        placeholder="Write the grading rubric for this task…"
+        className="w-full max-w-2xl text-sm border border-border-subtle rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+      />
+      <button
+        onClick={save}
+        disabled={!dirty || saving}
+        className="self-start text-xs font-semibold text-primary border border-primary/30 px-3 py-1.5 rounded hover:bg-blue-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        {saving ? "Saving…" : "Save rubric"}
+      </button>
       <p className="text-[11px] text-on-surface-variant italic">
-        Reference text for manually coding answers. Defined per task, shared across experiments, read-only here.
+        Shared across experiments; used when coding answers by hand, never for scoring.
       </p>
     </div>
   );
@@ -416,13 +443,23 @@ function AnswerFormatContent() {
     );
   }
 
-  async function persist() {
-    const res = await fetch(`/api/admin/experiments/${experimentId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ task_instances: taskInstances }),
-    });
-    if (!res.ok) throw new Error(await res.text());
+  async function persist(instances = taskInstances) {
+    await saveWizardStep(experimentId, "answer-format", { task_instances: instances });
+  }
+
+  async function handleRubricSave(taskId, text) {
+    try {
+      const res = await fetch(`/api/admin/tasks/${encodeURIComponent(taskId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rubric: text }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setRubricsByTask((prev) => ({ ...prev, [taskId]: text }));
+      showToast("Rubric saved.");
+    } catch (e) {
+      showToast(`Failed to save rubric: ${e.message}`, true);
+    }
   }
 
   async function handleSave() {
@@ -556,7 +593,11 @@ function AnswerFormatContent() {
                       </>
                     )}
 
-                    <RubricPanel rubric={rubricsByTask[ti.task_id]} />
+                    <RubricEditor
+                      taskId={ti.task_id}
+                      rubric={rubricsByTask[ti.task_id] ?? ""}
+                      onSave={(text) => handleRubricSave(ti.task_id, text)}
+                    />
                   </div>
                 </div>
               );

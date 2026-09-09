@@ -41,6 +41,7 @@ jobs:
       - name: Trivy scan (table, for humans)
         run: |
           trivy image \
+            --image-src docker \
             --severity HIGH,CRITICAL \
             --ignore-unfixed \
             --ignorefile .trivyignore \
@@ -50,6 +51,7 @@ jobs:
       - name: Trivy scan (SARIF for Security tab)
         run: |
           trivy image \
+            --image-src docker \
             --severity HIGH,CRITICAL \
             --ignore-unfixed \
             --ignorefile .trivyignore \
@@ -68,6 +70,7 @@ jobs:
       - name: Fail on HIGH/CRITICAL
         run: |
           trivy image \
+            --image-src docker \
             --severity HIGH,CRITICAL \
             --ignore-unfixed \
             --ignorefile .trivyignore \

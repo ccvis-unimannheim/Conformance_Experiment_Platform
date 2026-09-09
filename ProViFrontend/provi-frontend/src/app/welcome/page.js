@@ -74,7 +74,7 @@ export default function WelcomePage() {
                   Dear participant,
                 </p>
                 <p className="text-on-surface-variant leading-relaxed mt-3">
-                  We are a team of master&apos;s students conducting this experiment as part of our research project in Process Mining at the University of Mannheim. The purpose of this study is to investigate which visualization idioms best support users in performing conformance checking tasks.
+                  We are a team of Master&apos;s students conducting this experiment as part of our research project in Process Mining at the University of Mannheim. The purpose of this study is to investigate which visualization idioms best support users in performing conformance checking tasks.
                 </p>
                 <p className="text-on-surface-variant leading-relaxed mt-3">
                   Your participation is greatly appreciated!
