@@ -472,47 +472,84 @@ def get_log_time_granularities(dataset_dir: str) -> list[str]:
                + [g for g in TIME_GRANULARITY_FREQ if g not in _ORDER])
 
     try:
-        import pandas as pd
-
-        input_dir = os.path.join(dataset_dir, INPUT_SUBDIR)
-        log_path = None
-        if os.path.isdir(input_dir):
-            for fname in os.listdir(input_dir):
-                if os.path.splitext(fname)[1].lower() in LOG_EXTENSIONS:
-                    log_path = os.path.join(input_dir, fname)
-                    break
-        if log_path is None:
-            return ordered
-
-        ext = os.path.splitext(log_path)[1].lower()
-        if ext == ".csv":
-            df = pd.read_csv(log_path)
-            ts_col = next((c for c in ["time:timestamp", "timestamp", "Timestamp",
-                                       "time", "Time", "Complete Timestamp"]
-                           if c in df.columns), None)
-            if ts_col is None:
-                return ordered
-            case_col = next((c for c in ["case:concept:name", "case", "Case ID",
-                                         "case_id", "caseid", "CaseID"]
-                             if c in df.columns), None)
-            df["_ts"] = pd.to_datetime(df[ts_col], errors="coerce", utc=True)
-            df = df.dropna(subset=["_ts"])
-            starts = df.groupby(case_col)["_ts"].min() if case_col else df["_ts"]
-        else:
-            log = load_event_log(log_path)
-            raw = [trace[0].get("time:timestamp")
-                   for trace in log if len(trace) and trace[0].get("time:timestamp") is not None]
-            starts = pd.to_datetime(pd.Series(raw), errors="coerce", utc=True).dropna()
-
+        starts = _trace_start_timestamps(dataset_dir)
         if starts is None or len(starts) == 0:
             return ordered
-
         usable = [g for g in ordered
                   if starts.dt.to_period(TIME_GRANULARITY_FREQ[g]).nunique() >= 2]
         return usable or ordered
     except Exception:
         logger.exception("Failed to enumerate time granularities for %s", dataset_dir)
         return ordered
+
+
+def _trace_start_timestamps(dataset_dir: str):
+    """Per-trace START timestamps as a tz-aware pandas Series, or None.
+
+    Shared by get_log_time_granularities and get_log_time_bins so both bin the
+    same values task07.validate_params / shared.bin_fitness_time_series do.
+    """
+    import pandas as pd
+
+    input_dir = os.path.join(dataset_dir, INPUT_SUBDIR)
+    log_path = None
+    if os.path.isdir(input_dir):
+        for fname in os.listdir(input_dir):
+            if os.path.splitext(fname)[1].lower() in LOG_EXTENSIONS:
+                log_path = os.path.join(input_dir, fname)
+                break
+    if log_path is None:
+        return None
+
+    if os.path.splitext(log_path)[1].lower() == ".csv":
+        df = pd.read_csv(log_path)
+        ts_col = next((c for c in ["time:timestamp", "timestamp", "Timestamp",
+                                   "time", "Time", "Complete Timestamp"]
+                       if c in df.columns), None)
+        if ts_col is None:
+            return None
+        case_col = next((c for c in ["case:concept:name", "case", "Case ID",
+                                     "case_id", "caseid", "CaseID"]
+                         if c in df.columns), None)
+        df["_ts"] = pd.to_datetime(df[ts_col], errors="coerce", utc=True)
+        df = df.dropna(subset=["_ts"])
+        return df.groupby(case_col)["_ts"].min() if case_col else df["_ts"]
+
+    log = load_event_log(log_path)
+    raw = [trace[0].get("time:timestamp")
+           for trace in log if len(trace) and trace[0].get("time:timestamp") is not None]
+    return pd.to_datetime(pd.Series(raw), errors="coerce", utc=True).dropna()
+
+
+# Bin label formats, mirroring task07's _BIN_LABEL_FMT.
+_TIME_BIN_LABEL_FMT = {"day": "%Y-%m-%d", "month": "%Y-%m", "year": "%Y"}
+
+
+def get_log_time_bins(dataset_dir: str, granularity: str = None) -> list[dict]:
+    """Ordered time bins this dataset's traces fall into, as option rows.
+
+    Returns [{"value": "2023-01", "label": "2023-01"}, ...] — the label set an
+    admin imports for a number-set ("read one value per period off the chart").
+    Bins come from trace START timestamps at `granularity`, matching what the
+    over-time idioms render.
+    """
+    from shared import TIME_GRANULARITY_FREQ, DEFAULT_TIME_GRANULARITY
+
+    gran = str(granularity or DEFAULT_TIME_GRANULARITY).lower()
+    if gran not in TIME_GRANULARITY_FREQ:
+        gran = DEFAULT_TIME_GRANULARITY
+
+    try:
+        starts = _trace_start_timestamps(dataset_dir)
+        if starts is None or len(starts) == 0:
+            return []
+        periods = starts.dt.to_period(TIME_GRANULARITY_FREQ[gran])
+        fmt = _TIME_BIN_LABEL_FMT.get(gran, _TIME_BIN_LABEL_FMT["month"])
+        labels = sorted({p.to_timestamp().strftime(fmt) for p in periods.unique()})
+        return [{"value": lbl, "label": lbl} for lbl in labels]
+    except Exception:
+        logger.exception("Failed to enumerate time bins for %s", dataset_dir)
+        return []
 
 
 def get_log_violations(dataset_dir: str) -> list[dict]:

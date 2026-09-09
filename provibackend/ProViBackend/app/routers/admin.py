@@ -1,5 +1,6 @@
 import json
 import uuid
+from itertools import combinations
 import io
 import csv
 import re
@@ -25,6 +26,7 @@ try:
         get_log_trace_ids,
         get_log_candidate_attributes,
         get_log_violated_activities_task34,
+        get_log_time_bins,
         _FILE_RENAME,
         _TASK_RENAME_SKIP,
     )
@@ -42,6 +44,7 @@ except ImportError:
     get_log_trace_ids = None
     get_log_candidate_attributes = None
     get_log_violated_activities_task34 = None
+    get_log_time_bins = None
     _FILE_RENAME = {}
     _TASK_RENAME_SKIP = {}
 
@@ -187,6 +190,42 @@ def _dataset_violated_activities_task34(dataset_id: str) -> list[dict]:
     return acts
 
 
+# Time bins are cached per (dataset_id, granularity) — unlike the other
+# enumerators the result depends on a second argument.
+_LOG_TIME_BINS_CACHE: dict[tuple[str, str], list[dict]] = {}
+
+
+def _dataset_time_bins(dataset_id: str, granularity: str) -> list[dict]:
+    """Ordered time-bin labels for this dataset at `granularity` (cached)."""
+    key = (dataset_id, granularity or "")
+    if key in _LOG_TIME_BINS_CACHE:
+        return _LOG_TIME_BINS_CACHE[key]
+    if get_log_time_bins is None:
+        return []
+    bins = get_log_time_bins(str(DATA_DIRECTORY / dataset_id), granularity)
+    _LOG_TIME_BINS_CACHE[key] = bins
+    return bins
+
+
+# Option sources offered on /answer-format. Task-independent by construction:
+# every one enumerates entities from the dataset itself, so any task may import
+# from any of them. `granularity` marks the one source that takes a second
+# argument (the page renders a granularity picker next to it).
+# Matrix axis size: the grid is read cell-by-cell, so a large axis is unusable
+# (n candidates -> n*(n-1)/2 cells). 10 mirrors task08's old _MATRIX_TOP_N.
+_MATRIX_AXIS_DEFAULT = 10
+_MATRIX_AXIS_MAX = 16
+
+OPTION_SOURCES: list[dict] = [
+    {"source": "log.activities",           "label": "Activities"},
+    {"source": "log.violations",           "label": "Violation types (activity · move type)"},
+    {"source": "log.candidate_attributes", "label": "Case-attribute buckets"},
+    {"source": "log.time_bins",            "label": "Time bins", "granularity": True},
+    {"source": "log.trace_ids",            "label": "Traces"},
+    {"source": "log.worst_traces",         "label": "Worst-fitness traces"},
+]
+
+
 # Maps a PARAM_SPEC entry's `source` to the dataset-candidate enumerator.
 def _param_candidates(source: str, dataset_id: str) -> list:
     if source == "log.activities":
@@ -204,6 +243,26 @@ def _param_candidates(source: str, dataset_id: str) -> list:
     if source == "log.violated_activities_task34":
         return _dataset_violated_activities_task34(dataset_id)
     return []
+
+
+def _option_candidates(source: str, dataset_id: str, granularity: str | None) -> list[dict]:
+    """Candidate option rows for one source, normalised to [{label, value}].
+
+    PARAM_SPEC enumerators return either plain strings (log.activities) or
+    {value, label} dicts; the option editor always wants both fields.
+    """
+    if source == "log.time_bins":
+        raw = _dataset_time_bins(dataset_id, granularity or "")
+    else:
+        raw = _param_candidates(source, dataset_id)
+    rows = []
+    for c in raw:
+        if isinstance(c, str):
+            rows.append({"label": c, "value": c})
+        else:
+            label = c.get("label") or c.get("value") or ""
+            rows.append({"label": label, "value": c.get("value") or label})
+    return rows
 
 
 def _validate_extension(filename: str, allowed: set, label: str) -> str:
@@ -701,6 +760,62 @@ async def get_answer_formats():
         "answer_formats": afmt.ANSWER_FORMATS,
         "number_kinds": afmt.NUMBER_KINDS,
         "default_number_kind": afmt.DEFAULT_NUMBER_KIND,
+    })
+
+
+@router.get("/datasets/{dataset_id}/option-sources", tags=["admin"])
+async def get_option_sources(dataset_id: str):
+    """Event-log sources an admin can import answer options from on /answer-format.
+
+    Task-independent: each source enumerates entities from the dataset, so any
+    task may import from any of them.
+    """
+    return JSONResponse(content={
+        "dataset_id": dataset_id,
+        "option_sources": OPTION_SOURCES,
+        "matrix_axis_default": _MATRIX_AXIS_DEFAULT,
+    })
+
+
+@router.get("/datasets/{dataset_id}/option-candidates", tags=["admin"])
+async def get_option_candidates(
+    dataset_id: str,
+    source: str,
+    granularity: str | None = None,
+    pairs: bool = False,
+    axis_limit: int = _MATRIX_AXIS_DEFAULT,
+):
+    """Option rows for one source, ready to drop into the option editor.
+
+    `pairs=true` (matrix) turns the candidates into the upper triangle of a
+    symmetric grid: the first `axis_limit` candidates become the shared axis and
+    each cell is one {label: "a × b", value: "a__b"} option, matching the token
+    shape AnswerWidgets.parsePairs expects. `axis_total` reports how many
+    candidates existed so the page can say what it truncated.
+    """
+    known = {s["source"] for s in OPTION_SOURCES}
+    if source not in known:
+        raise HTTPException(status_code=400,
+                            detail=f"Unknown option source '{source}'. Known: {sorted(known)}.")
+    try:
+        rows = _option_candidates(source, dataset_id, granularity)
+    except Exception as e:
+        _logger.exception("Failed to enumerate option candidates (%s / %s)", dataset_id, source)
+        raise HTTPException(status_code=500, detail=f"Could not read the event log: {e}")
+
+    axis_total = len(rows)
+    if not pairs:
+        return JSONResponse(content={"options": rows, "axis_total": axis_total})
+
+    axis = [r for r in rows if "__" not in r["label"]][:max(2, min(axis_limit, _MATRIX_AXIS_MAX))]
+    options = [
+        {"label": f"{a['label']} × {b['label']}", "value": f"{a['label']}__{b['label']}"}
+        for a, b in combinations(axis, 2)
+    ]
+    return JSONResponse(content={
+        "options": options,
+        "axis": [a["label"] for a in axis],
+        "axis_total": axis_total,
     })
 
 
