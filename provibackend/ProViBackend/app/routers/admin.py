@@ -606,15 +606,24 @@ async def get_idioms():
 
 
 @router.post("/idioms/upload", tags=["admin"])
-async def upload_custom_idiom(file: UploadFile, label: str = Form(...)):
-    """Admin-uploaded static image/SVG idiom.
+async def upload_custom_idiom(file: UploadFile, label: str = Form(...), task_keys: str = Form(...)):
+    """Admin-uploaded static image/SVG idiom, scoped to specific task(s).
 
     Unlike code-generated idioms (rendered per task+dataset by a task script's
     Python function, see /task-idioms), a custom idiom is a single fixed asset
-    stored once and served as-is via GET /idioms/{idiom_key}/asset. It is
-    selectable for every task (see /task-idioms).
+    stored once and served as-is via GET /idioms/{idiom_key}/asset. `task_keys`
+    is a comma-separated list of task keys (e.g. "task01,task05") — the idiom
+    is only selectable on /admin/experiments/idiom for those tasks (see
+    /task-idioms); at least one is required.
     """
     ext = _validate_extension(file.filename, ALLOWED_IDIOM_IMAGE_EXTENSIONS, "Idiom image")
+    keys = [k.strip() for k in task_keys.split(",") if k.strip()]
+    if not keys:
+        raise HTTPException(status_code=400, detail="At least one task must be selected.")
+    unknown = [k for k in keys if k not in _TASK_MODULES]
+    if unknown:
+        raise HTTPException(status_code=400, detail=f"Unknown task(s): {', '.join(unknown)}")
+
     idiom_key = f"custom-{uuid.uuid4().hex[:12]}"
 
     try:
@@ -631,6 +640,7 @@ async def upload_custom_idiom(file: UploadFile, label: str = Form(...)):
             active=True,
             is_custom=True,
             asset_ext=ext,
+            task_keys=keys,
         )
         dbc.create_document("Idiom", idiom.model_dump(by_alias=True))
         return JSONResponse(
@@ -643,6 +653,34 @@ async def upload_custom_idiom(file: UploadFile, label: str = Form(...)):
         raise HTTPException(status_code=500, detail=f"Failed to upload idiom: {str(e)}")
     finally:
         await file.close()
+
+
+@router.patch("/idioms/{idiom_id}", tags=["admin"])
+async def update_idiom(idiom_id: str, update: ds.IdiomUpdate):
+    """Rename or re-scope a custom (admin-uploaded) idiom.
+
+    Only custom idioms can be edited here — built-in idioms are code-seeded
+    (see seed_data.py CANONICAL_IDIOMS) and are not owned by any one admin
+    upload.
+    """
+    doc = dbc.get_document("Idiom", {"_id": idiom_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Idiom '{idiom_id}' not found.")
+    if not doc.get("is_custom"):
+        raise HTTPException(status_code=400, detail="Only custom (admin-uploaded) idioms can be edited.")
+
+    fields = {k: v for k, v in update.model_dump().items() if v is not None}
+    if not fields:
+        raise HTTPException(status_code=400, detail="No fields to update.")
+    if "task_keys" in fields:
+        if not fields["task_keys"]:
+            raise HTTPException(status_code=400, detail="At least one task must be selected.")
+        unknown = [k for k in fields["task_keys"] if k not in _TASK_MODULES]
+        if unknown:
+            raise HTTPException(status_code=400, detail=f"Unknown task(s): {', '.join(unknown)}")
+
+    dbc.update_document("Idiom", query={"_id": idiom_id}, update={"$set": fields})
+    return JSONResponse(content={"message": "Idiom updated.", "idiom_id": idiom_id})
 
 
 @router.get("/idioms/{idiom_key}/asset", tags=["admin"])
@@ -703,12 +741,11 @@ async def get_task_idioms():
     matching the Idiom collection so the admin UI can filter correctly.
 
     Custom (admin-uploaded, see POST /idioms/upload) idioms are fixed static
-    assets rather than code-generated per task, so they're appended to every
-    task's list here — they're selectable everywhere.
+    assets rather than code-generated per task; each one is scoped to the
+    specific task(s) the admin picked at upload time (its `task_keys` field),
+    so it's only appended to those tasks' lists here — not every task.
     """
-    custom_idiom_keys = [
-        doc["idiom_key"] for doc in dbc.get_query_db("Idiom", query={"is_custom": True})
-    ]
+    custom_idioms = dbc.get_query_db("Idiom", query={"is_custom": True})
 
     result = {}
     for task_key, mod in _TASK_MODULES.items():
@@ -720,7 +757,11 @@ async def get_task_idioms():
                 canonical.append(_FILE_RENAME.get(idiom, idiom))
             else:
                 canonical.append(idiom)
-        result[task_key] = canonical + custom_idiom_keys
+        task_custom_keys = [
+            doc["idiom_key"] for doc in custom_idioms
+            if task_key in (doc.get("task_keys") or [])
+        ]
+        result[task_key] = canonical + task_custom_keys
     return JSONResponse(content=result)
 
 
