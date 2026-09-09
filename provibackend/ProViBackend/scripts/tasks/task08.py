@@ -55,7 +55,7 @@ _CMAP_SEQ = CIVIDIS_R      # sequential: yellow-green → dark navy (high = dark
 # Max violations shown in most idioms (keeps charts readable)
 _TOP_N = 12
 # Number of most-frequent violation types forming the (symmetric) co-occurrence
-# axis shared by the matrix/heatmap SVGs and the matrix ground truth.
+# axis shared by the matrix and heatmap SVGs.
 _MATRIX_TOP_N = 10
 # Min co-occurrence count for network edges / scatter points
 _MIN_COOCCUR = 1

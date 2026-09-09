@@ -2,6 +2,86 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: Answer-Format Refactor — Formats Decoupled from Tasks, Grading Removed (2026-09-09)
+
+### Problem solved
+
+Answer formats were a per-task whitelist (`ANSWER_FORMATS`), and the option set a
+participant chose from was computed by the same code that decided which option was
+correct (`compute_ground_truth`). That coupled three things that should be
+independent: what a task draws, how its question is answered, and whether an answer
+is right. It also meant a task could only use the formats its module happened to
+declare — 17 of 37 tasks declared none at all.
+
+Automatic grading is removed entirely (answers are recorded, analysed later by hand),
+formats are global (any task may use any format), and option sets are authored by the
+admin — imported from the event log or typed in. Grading rubrics are kept unchanged:
+they never fed automatic scoring, they are reference text for manually coding
+free-text answers.
+
+Formats consolidated 11 → 7: `yes-no` folded into `mc-single`; `pct`/`count`/`decimal`
+into `number` with a `number_kind` setting; `pct-set`/`count-set` into `number-set`;
+`rank` — implemented but never used by any task — becomes available for the first time.
+
+### Backend (`provibackend/`)
+
+| File | Change |
+|------|--------|
+| `app/answer_formats.py` | **New file.** The global format registry: 7 formats with widget + `needs_options` + `numeric`, `NUMBER_KINDS`, and the `widget_for` / `needs_options` helpers. Replaces the per-task `ANSWER_FORMATS` whitelist. |
+| `app/scoring.py` | **Deleted** (129 lines). Answers are no longer scored. |
+| `app/datamodels/data_schemas.py` | `OptionItem` loses `correct`. `GroundTruthBlock` and the legacy `GroundTruth` model deleted. `TaskInstance.ground_truth` → `answer_options: List[OptionItem]`, plus `number_kind`. `Answer.is_correct`, `Answer.ground_truth_id` and `PreliminaryAnswers.ground_truth_id` removed. |
+| `app/routers/admin.py` | Added `GET /admin/answer-formats` (global), `GET /admin/datasets/{id}/option-sources` and `GET /admin/datasets/{id}/option-candidates` (with `pairs=true` for matrix upper triangles). Removed `GET /admin/tasks/{key}/answer-formats`, `POST /admin/groundtruth`, `_build_gt_block`, `_resolve_answer_format`, and the ground-truth branch of the generation job. `/tasks/{key}/rubric` kept, minus `gt_tier`. Export drops the `ground_truth` column. |
+| `app/routers/participant.py` | `_participant_options` collapses to pass-through plus the `rank` shuffle (now justified by presentation-order bias, not by hiding an answer). Sends `number_kind`; stops sending `decisive`. |
+| `app/routers/questionnaire.py` | Submit no longer grades: `_lookup_ground_truth` and the `scoring` call removed. |
+| `scripts/create_all_visualizations.py` | Generation only draws — the `compute_ground_truth` loop and the per-task module table are gone. Added `get_log_time_bins` + the shared `_trace_start_timestamps` reader. Removed the `--high-cooccurrence-threshold` and `--target-violation` CLI flags and their (dead) wiring. |
+| `scripts/tasks/*.py` | Across 20 modules: `ANSWER_FORMATS`, `GT_TIER` and the 16 `compute_ground_truth` functions (~950 lines) removed, plus the two helpers only they used. All 11 `RUBRIC` constants kept as-is. task08's `high_cooccurrence_threshold` removed — it only ever flagged matrix cells correct and affected no drawing. |
+| `scripts/tasks/task_registry.py` | Lost `get_answer_formats`, `get_gt_tier`, `get_compute_ground_truth` and their defaults. The task contract is now `IDIOMS` / `PARAM_SPEC` / `validate_params` / `RUBRIC`. |
+| `scripts/drop_ground_truth_data.py` | **New file.** One-off cleanup: unsets the ground-truth fields on experiments and answers, drops the `GroundTruth` collection, and clears `answer_format` (every stored key was retired). `--dry-run` / `--yes`; idempotent. |
+| `utils/database/migration.py` | Task-instance defaults follow the new shape (`answer_options: []`, `number_kind: None`). No conversion — existing data is discarded. |
+
+### Frontend (`ProViFrontend/`)
+
+| File | Change |
+|------|--------|
+| `src/app/admin/experiments/answer-format/page.js` | **New file**, replacing `answer-format-groundtruth/` (802 → ~630 lines). The six ground-truth editors collapse into one `OptionsEditor` serving every option-bearing format: import from an event-log source (with a granularity picker for time bins and an axis size for matrices) or author rows by hand, reorder, delete. Adds `NumberKindSelector`; lifts `RubricPanel` out of the old free-text-only editor so the rubric shows for every format. |
+| `src/app/admin/experiments/overview/page.js` | `GroundTruthSummary` splits into `AnswerSummary` (option preview) and `RubricSummary`. The Decisive/Reference badge becomes option-count and number-kind chips. The publish gate now also requires options wherever the format needs them. |
+| `src/app/admin/experiments/specify/page.js` | Redirects to `/answer-format`. |
+| `src/components/Task/AnswerWidgets.js` | `numericMeta` keys off `number_kind` instead of the retired numeric formats. The `yes-no` special case in the `single_choice` dispatcher is gone. |
+| `src/components/Task/TaskAnswerPanel.js`, `src/app/taskexecution/page.js` | Thread `number_kind` through in place of `answer_format`. |
+
+### Documentation
+
+| File | Change |
+|------|--------|
+| `ADMIN_EXPERIMENT_SETUP.md` | **New file**, replacing `ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md`. Describes the setup workflow as built rather than as planned. |
+| `PARTICIPANT_ANSWER_WIDGETS.md` | **New file**, replacing `PARTICIPANT_ANSWER_WIDGETS_PLAN.md` — the widgets as built. |
+| `TASK_GT_DEVELOPMENT_GUIDE.md` | **Deleted.** Ground-truth authoring no longer exists. |
+| `PARTICIPANT_TRIAL_CONTRACT.md` | Format catalogue 11 → 7; `decisive` replaced by `number_kind`; grading notes removed. |
+| `TASK_CONTRACT_PROMPT.md` | Rewritten as a PARAM_SPEC-only authoring prompt, with an explicit "not in scope" section for the removed attributes. |
+| 17 code comments | `ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §N` references repointed at `ADMIN_EXPERIMENT_SETUP.md`. |
+
+### Verification
+
+- All 37 tasks rendered against `data/test` (BPIC12, 13087 traces) with this code and
+  with the pre-refactor code from a git worktree, over the same dataset directory and
+  alignment cache. Two identical runs first identify 18 nondeterministic SVGs (network
+  diagrams, Petri-net/BPMN layouts, alignment-order-dependent renderers); of the 244
+  deterministic ones, **244/244 are byte-identical** after normalising SVG ids and dates.
+- `/answer-format` driven end to end in a real browser against the live option-candidate
+  endpoints: format selection, import (10 activities from BPIC12), the publish gate
+  blocking on missing options, and the saved payload carrying no legacy field.
+- `drop_ground_truth_data.py` exercised against an in-memory Mongo with legacy documents,
+  including idempotence on a second run.
+
+### Known gaps
+
+- 18 SVGs differ between two identical renders. Pre-existing and unrelated to this
+  change, but it blocks any visual regression testing until fixed.
+- `rank` has never run against real data — no task ever declared it. Worth exercising
+  once before relying on it.
+
+---
+
 ## Session: Knowledge Questions — Full DB Implementation (2026-06-11)
 
 ### Problem solved

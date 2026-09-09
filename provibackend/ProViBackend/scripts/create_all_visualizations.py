@@ -198,7 +198,7 @@ def _resolve_dataset_paths(dataset_dir: str, experiment_id: str | None = None):
 
     When `experiment_id` is given, SVGs are written to a per-experiment
     subdirectory (`output/{experiment_id}/...`, see
-    ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7) so multiple experiments sharing the
+    see ADMIN_EXPERIMENT_SETUP.md) so multiple experiments sharing the
     same dataset can hold independently-generated idioms. Without it (CLI /
     legacy use), the original `output/...` layout is used.
     """
@@ -248,7 +248,7 @@ def _resolve_dataset_paths(dataset_dir: str, experiment_id: str | None = None):
 # PM4Py optimal alignments are NON-DETERMINISTIC: a trace with several optimal
 # alignments may be diagnosed differently across runs, so the same deviation can
 # be classified as a Move-on-Model in one run and a Move-on-Log (or not at all)
-# in another. The /specify violation picker and the generation/ground-truth step
+# in another. The /specify violation picker and the generation step
 # run alignments at different times, so without a shared result they would report
 # inconsistent violation frequencies (e.g. 6.6% on /specify vs 3% in the ground
 # truth). We therefore compute alignments ONCE per dataset and cache them on disk
@@ -279,7 +279,7 @@ def get_or_compute_alignments(dataset_dir: str, log=None, net=None, im=None, fm=
 
     Computing alignments is both expensive and non-deterministic, so the result
     is cached per dataset and reused by the /specify violation enumeration, the
-    visualization render, and the ground-truth computation — guaranteeing they
+    visualization render — guaranteeing they
     all agree. Pass already-loaded `log`/`net`/`im`/`fm` to avoid reloading when
     the caller has them (cache miss only).
     """
@@ -319,8 +319,7 @@ def get_or_compute_alignments(dataset_dir: str, log=None, net=None, im=None, fm=
 # dict (falling back to the pipeline defaults). Centralising the per-task
 # generate() signatures here lets both the full CLI pipeline and the
 # per-experiment backend job (generate_for_task_instances) thread each
-# task_instance's parameters into generation (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md
-# §7, §15 step 3).
+# task_instance's parameters into generation (see ADMIN_EXPERIMENT_SETUP.md).
 # ---------------------------------------------------------------------------
 
 def make_task_generators(log, alignments, fitness_df, model_path, compare_attribute,
@@ -418,7 +417,7 @@ def get_log_activities(dataset_dir: str) -> list[str]:
     """Sorted distinct activity names in the dataset's event log.
 
     Powers the /specify "list all options" combobox for activity-picker params
-    (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §5, §14). For CSV logs this reads only the
+    (see ADMIN_EXPERIMENT_SETUP.md). For CSV logs this reads only the
     activity column (fast); XES logs fall back to the full pm4py loader.
     """
     input_dir = os.path.join(dataset_dir, INPUT_SUBDIR)
@@ -553,7 +552,7 @@ def get_log_violations(dataset_dir: str) -> list[dict]:
 
     Returns a list of {"value": "activity|move_type", "label": "activity · Type  (N traces, X%)"}
     dicts, sorted by trace coverage descending.  Powers task11's /specify 'log.violations'
-    source (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §5, §14).
+    source (see ADMIN_EXPERIMENT_SETUP.md).
 
     Alignment computation is expensive; the result is cached in admin.py per dataset_id.
     """
@@ -714,7 +713,7 @@ def get_log_violated_activities_task34(dataset_dir: str) -> list[dict]:
 
 def generate_for_task_instances(dataset_dir: str, experiment_id: str,
                                 instances: list[dict]) -> dict:
-    """Render + compute ground truth for one dataset's task_instances.
+    """Render one dataset's task_instances.
 
     `instances` items: {"task_key": str, "parameters": dict}.
     Shared artefacts (log, Petri net, alignments, fitness_df) are computed once
@@ -780,7 +779,7 @@ def run_pipeline(dataset_dir: str, experiment_id: str | None = None,
         and input/Guideline.bpmn).
     experiment_id : str, optional
         When given, SVGs are written to ``<dataset_dir>/output/{experiment_id}/``
-        instead of ``<dataset_dir>/output/`` (see ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7).
+        instead of ``<dataset_dir>/output/`` (see ADMIN_EXPERIMENT_SETUP.md).
     outcome_activity : str
         Activity name that marks a positive process outcome (used by Task 6).
     compare_attribute : str
@@ -868,7 +867,7 @@ def parse_args():
         "--experiment-id", default=None,
         help="If given, write SVGs to <dataset-dir>/output/{experiment-id}/ instead of "
              "<dataset-dir>/output/ (per-experiment generation, see "
-             "ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7).",
+             "ADMIN_EXPERIMENT_SETUP.md).",
     )
     parser.add_argument(
         "--outcome-activity", default="Activate Care",

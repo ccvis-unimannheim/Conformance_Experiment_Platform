@@ -4,9 +4,9 @@ tasks/task02.py – Task ID 2: Confirm / Present / Process conformance.
 Single idiom: Tile Metric — overall (sub-)log fitness as a simple percentage.
 The tile is visually identical to task06's tile; rendering logic lives in shared.py.
 
-The answer format is a single Yes/No question ("yes-no"): does behaviour
-predominantly follow the model? The ground truth is decided against an optional
-predominant threshold (default 0.8).
+The question this task poses is whether behaviour predominantly follows the
+model; `predominant_threshold` draws the reference line the reader judges that
+against. How participants answer is chosen per experiment on /answer-format.
 
 Public API:
     generate(df, output_dir, predominant_threshold=0.8)
@@ -44,7 +44,7 @@ PARAM_SPEC = [
 
 def validate_params(log, params) -> list:
     """Reject an out-of-range predominant threshold. The threshold is optional
-    (defaults to 0.8); only a supplied value is checked (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §10)."""
+    (defaults to 0.8); only a supplied value is checked."""
     raw = params.get("predominant_threshold")
     if raw is None or raw == "":
         return []

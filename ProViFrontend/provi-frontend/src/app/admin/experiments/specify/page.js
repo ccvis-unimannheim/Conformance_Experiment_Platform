@@ -27,7 +27,7 @@ function StatusBadge({ status }) {
   );
 }
 
-// Generic param widget — renders per PARAM_SPEC entry (see ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §4-5, §10).
+// Generic param widget — renders per PARAM_SPEC entry (see ADMIN_EXPERIMENT_SETUP.md).
 function ParamField({ entry, value, onChange }) {
   const options = entry.options || [];
 
@@ -442,7 +442,7 @@ function SpecifyContent() {
           </div>
           <p className="font-body-lg text-body-lg text-secondary max-w-2xl">
             Set any task-specific hyperparameters, then generate the visualizations and
-            compute ground truth for the selected idioms. Tasks with no parameters are ready
+            render the selected idioms. Tasks with no parameters are ready
             to generate immediately.
           </p>
         </div>
@@ -556,7 +556,7 @@ function SpecifyContent() {
               <span className={`material-symbols-outlined text-sm ${generating ? "animate-spin" : ""}`}>
                 {generating ? "autorenew" : "play_arrow"}
               </span>
-              {generating ? "Generating…" : "Generate Visualizations & Ground Truth"}
+              {generating ? "Generating…" : "Generate Visualizations"}
             </button>
             <button
               onClick={handleNext}

@@ -40,7 +40,7 @@ TOP_N = 12
 # ===========================================================================
 # SEVERITY CONFIGURATION — single source of truth for this task.
 #
-# The experiment's ground truth depends on this mapping; redefine it HERE only.
+# Every idiom in this task depends on this mapping; redefine it HERE only.
 # Resolution order per violation pattern (activity, move_type):
 #   1. SEVERITY_OVERRIDES[(activity, move_type)]   (exact pattern override)
 #   2. DEFAULT_SEVERITY[move_type]                  (rule by move type)

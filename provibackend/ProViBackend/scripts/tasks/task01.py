@@ -36,7 +36,7 @@ PARAM_SPEC = [
 def validate_params(log, params) -> list:
     """Reject conditions that cannot split the log into two non-empty groups
     (covers gibberish/typo'd activities — absent from every trace — and
-    activities present in every trace). See ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §10."""
+    activities present in every trace)."""
     act = params.get("outcome_activity")
     if not act:
         return ["An outcome activity is required."]

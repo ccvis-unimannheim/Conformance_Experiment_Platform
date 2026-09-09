@@ -55,7 +55,7 @@ _BIN_LABEL_FMT = {"day": "%Y-%m-%d", "month": "%Y-%m", "year": "%Y"}
 def validate_params(log, params) -> list:
     """Reject configs that cannot yield a meaningful over-time series: no usable
     start timestamps, or fewer than two bins at the chosen granularity (mirrors
-    the renderers' own <2-bin guard). See ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §10."""
+    the renderers' own <2-bin guard)."""
     granularity = str(params.get("time_granularity", DEFAULT_TIME_GRANULARITY)).lower()
     if granularity not in TIME_GRANULARITY_FREQ:
         return [f"Unknown time granularity '{granularity}' — choose one of {sorted(TIME_GRANULARITY_FREQ)}."]

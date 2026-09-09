@@ -112,7 +112,7 @@ def _resolve_svg_path(task_id: str, idiom_id: str, dataset_id: str, experiment_i
 
     If `experiment_id` is given and the per-experiment SVG exists at
     data/{dataset_id}/output/{experiment_id}/{task_key}/{idiom_key}.svg
-    (ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §7), that path is returned. Otherwise
+    (see ADMIN_EXPERIMENT_SETUP.md), that path is returned. Otherwise
     falls back to the legacy shared path data/{dataset_id}/output/{task_key}/{idiom_key}.svg.
 
     Returns (path, error_message). On success error_message is None.

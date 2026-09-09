@@ -666,7 +666,7 @@ def generate(log, fitness_df, output_dir: str, trace_ids=None, alignments=None, 
     ``trace_ids`` is the admin-configured list of case-id strings (from
     PARAM_SPEC "trace_ids"). When empty/None the first ``SAMPLE_N`` traces in log
     order are shown. Every idiom renders the same traces so the views are
-    directly comparable (and match what the ground truth was computed for).
+    directly comparable.
 
     ``alignments`` (optional) enables the trace-level flow-chart idioms, which
     compare the alignment (conformance) patterns of two traces side by side.
