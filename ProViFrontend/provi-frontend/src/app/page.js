@@ -141,7 +141,7 @@ export default function LandingPage() {
                     Participate in the study on Directly-Follows-graph visualizations
                   </p>
                 </div>
-                <Link href="/home" style={{
+                <a href="https://pm-vis.uni-mannheim.de/admin" target="_blank" rel="noopener noreferrer" style={{
                   backgroundColor: "white",
                   color: "#00305e",
                   padding: "0.75rem 1.5rem",
@@ -154,7 +154,7 @@ export default function LandingPage() {
                 }}>
                   <span>Start Experiment</span>
                   <span className="material-symbols-outlined" style={{ fontSize: "1rem" }}>play_arrow</span>
-                </Link>
+                </a>
               </div>
 
             </div>
