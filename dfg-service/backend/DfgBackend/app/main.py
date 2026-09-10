@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from .routers import questionnaire
 from .routers import vis
 from .routers import ui_tracking
+from .routers import auth
+from .routers import admin
 
 # nginx strips the /dfg/api prefix before proxying here (see provibackend/nginx/nginx.conf),
 # so routes below are mounted at the bare paths (/vis/..., /survey/..., /uitracking/...),
@@ -36,6 +38,8 @@ app.add_middleware(
 app.include_router(questionnaire.router)
 app.include_router(vis.router)
 app.include_router(ui_tracking.router)
+app.include_router(auth.router)
+app.include_router(admin.router)
 
 
 @app.get("/")
