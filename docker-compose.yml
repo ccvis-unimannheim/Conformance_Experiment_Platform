@@ -62,6 +62,33 @@ services:
     depends_on:
       - provibackend
 
+  dfgbackend:
+    build:
+      context: ./dfg-service/backend
+    container_name: dfgbackend
+    restart: unless-stopped
+    environment:
+      LOCAL_DATABASE_USERNAME: ${MONGO_USERNAME:-root}
+      LOCAL_DATABASE_PASSWORD: ${MONGO_PASSWORD:-example}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - /srv/provi-data:/code/DfgBackend/data
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  dfgfrontend:
+    build:
+      context: ./dfg-service/frontend
+    container_name: dfgfrontend
+    restart: unless-stopped
+    environment:
+      BACKEND_INTERNAL_URL: http://dfgbackend:80
+    depends_on:
+      - dfgbackend
+
   nginx:
     build:
       context: ./provibackend/nginx
@@ -75,6 +102,8 @@ services:
     depends_on:
       - provibackend
       - provifrontend
+      - dfgbackend
+      - dfgfrontend
 
 volumes:
   mongo_data:
