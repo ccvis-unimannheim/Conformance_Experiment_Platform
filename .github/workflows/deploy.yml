@@ -21,7 +21,7 @@ jobs:
         run: echo "$SECRET_ENV" > .env
 
       - name: Remove any pre-compose containers
-        run: docker rm -f redis mongo provibackend provifrontend nginx 2>/dev/null || true
+        run: docker rm -f redis mongo provibackend provifrontend nginx dfgbackend dfgfrontend 2>/dev/null || true
 
       - name: Deploy
         run: docker compose up -d --build
