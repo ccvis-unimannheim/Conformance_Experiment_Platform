@@ -141,7 +141,7 @@ export default function LandingPage() {
                     Participate in the study on Directly-Follows-graph visualizations
                   </p>
                 </div>
-                <a href="https://pm-vis.uni-mannheim.de/admin" target="_blank" rel="noopener noreferrer" style={{
+                <a href="/dfg/admin" style={{
                   backgroundColor: "white",
                   color: "#00305e",
                   padding: "0.75rem 1.5rem",
