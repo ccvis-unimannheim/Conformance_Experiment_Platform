@@ -1,7 +1,8 @@
 "use client";
 
-import Link from "next/link";
-
+// Plain <a> tags, not next/link — these point at pages on the MAIN app, and
+// next.config.mjs's basePath: "/dfg" would otherwise prefix a next/link href
+// with /dfg, sending the browser to a page that doesn't exist in this app.
 const Footer = () => {
   return (
     <footer style={{
@@ -29,13 +30,13 @@ const Footer = () => {
             { label: "About",                      href: "/about" },
             { label: "Data Protection Declaration", href: "/dataprotection" },
           ].map(({ label, href }) => (
-            <Link key={label} href={href} style={{
+            <a key={label} href={href} style={{
               fontSize: "10px", color: "#5a6061",
               textTransform: "uppercase", letterSpacing: "0.15em", fontWeight: 500,
               textDecoration: "none",
             }}>
               {label}
-            </Link>
+            </a>
           ))}
         </div>
       </div>
