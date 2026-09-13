@@ -32,6 +32,18 @@ def create_user(user: ds.User):
     print("User created successfully in database")
 
 
+def user_exists(user_id: str) -> bool:
+    """True if this user_id was issued by this app (i.e. POST /auth/ created a User for it).
+
+    Participant endpoints read the user id straight out of the session cookie.
+    Other apps are served from this same origin (see provibackend/nginx/nginx.conf),
+    so without this check a cookie minted elsewhere is accepted as a participant
+    and its rows land in this study's collections joined to nobody.
+    """
+    db = connect_to_database()
+    return db["User"].count_documents({"user_id": user_id}, limit=1) > 0
+
+
 def create_dataset(dataset: ds.Dataset):
     db = connect_to_database()
     dataset_collection = db["Dataset"]

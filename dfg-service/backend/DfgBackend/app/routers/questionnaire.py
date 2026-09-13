@@ -19,11 +19,11 @@ async def get_questionnaire():
 
 
 @router.post("/answer", tags=["questionnaire"])
-async def post_answer(answer_from_frontend: ds.AnswerFromFrontend, provi_user_id: Annotated[str | None, Cookie()] = None):
-    if provi_user_id is None:
+async def post_answer(answer_from_frontend: ds.AnswerFromFrontend, dfg_user_id: Annotated[str | None, Cookie()] = None):
+    if dfg_user_id is None:
         return JSONResponse(content={"message": "Authentication cookie is missing."}, status_code=401)
 
-    user_id = provi_user_id
+    user_id = dfg_user_id
 
     answer = ds.AnswerForDatabase(
         user_id=user_id,

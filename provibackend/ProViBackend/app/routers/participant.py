@@ -333,6 +333,8 @@ async def create_or_get_assignment(
     """
     if provi_user_id is None:
         raise HTTPException(status_code=401, detail="No user cookie found. Call POST /auth/ first.")
+    if not dbc.user_exists(provi_user_id):
+        raise HTTPException(status_code=401, detail="Unknown user cookie. Call POST /auth/ first.")
     try:
         assignment = assign_participant_to_experiment(provi_user_id, body.experiment_id)
     except ValueError as exc:

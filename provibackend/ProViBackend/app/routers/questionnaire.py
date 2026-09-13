@@ -22,7 +22,9 @@ async def get_questionnaire():
 async def post_answer(answer_from_frontend: ds.AnswerFromFrontend, provi_user_id: Annotated[str | None, Cookie()] = None):
     if provi_user_id is None:
         return JSONResponse(content={"message": "Authentication cookie is missing."}, status_code=401)
-    
+    if not dbc.user_exists(provi_user_id):
+        return JSONResponse(content={"message": "Unknown user cookie."}, status_code=401)
+
     user_id = provi_user_id
 
     answer = ds.AnswerForDatabase(
