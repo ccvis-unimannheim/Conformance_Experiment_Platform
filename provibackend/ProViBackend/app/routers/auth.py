@@ -83,6 +83,8 @@ async def check_for_cookie(provi_user_id: Annotated[str | None, Cookie()] = None
 async def knowledge_answers(body: ds.KnowledgeAnswersRequest, provi_user_id: Annotated[str | None, Cookie()] = None):
     if provi_user_id is None:
         return JSONResponse(content={"message": "No cookie detected! Please call GET /auth to receive a cookie"}, status_code=401)
+    if not dbc.user_exists(provi_user_id):
+        return JSONResponse(content={"message": "Unknown user cookie."}, status_code=401)
 
     # Load questions to compute score server-side
     db = dbc.connect_to_database()
@@ -115,6 +117,8 @@ async def knowledge_answers(body: ds.KnowledgeAnswersRequest, provi_user_id: Ann
 async def feedback_answers(body: ds.FeedbackAnswersRequest, provi_user_id: Annotated[str | None, Cookie()] = None):
     if provi_user_id is None:
         return JSONResponse(content={"message": "No cookie detected!"}, status_code=401)
+    if not dbc.user_exists(provi_user_id):
+        return JSONResponse(content={"message": "Unknown user cookie."}, status_code=401)
     feedback_id = str(uuid.uuid4())
     doc = {"_id": feedback_id, **body.model_dump(), "insert_datetime": utils.get_current_datetime()}
     dbc.create_document("FeedbackAnswers", doc)

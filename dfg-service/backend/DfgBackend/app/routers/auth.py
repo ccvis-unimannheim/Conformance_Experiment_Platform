@@ -17,6 +17,11 @@ router = APIRouter(
 # Uses its own DfgUser/DfgDataset collections (not the main app's User/Dataset)
 # so DFG test data never mixes with CC's collections, which now use different
 # field shapes for those same collection names.
+#
+# The session cookie is `dfg_user_id`, not the main app's `provi_user_id`:
+# nginx serves both studies from one origin at path `/`, so a shared cookie
+# name means whichever study a participant opened last silently owns the
+# identity — and the main app trusts that value as its user_id.
 
 
 class StartSessionRequest(BaseModel):
@@ -52,12 +57,12 @@ async def start_session(_: StartSessionRequest | None = None):
     redis_handler.write_key_to_redis(user_id, dataset_id)
 
     response = JSONResponse(content={"message": "Session started.", "dataset_id": dataset_id})
-    response.set_cookie(key="provi_user_id", value=user_id, expires=get_expiry(), secure=True, samesite="none")
+    response.set_cookie(key="dfg_user_id", value=user_id, expires=get_expiry(), secure=True, samesite="none")
     return response
 
 
 @router.get("/test", tags=["auth"])
-async def check_for_cookie(provi_user_id: Annotated[str | None, Cookie()] = None):
-    if provi_user_id is None:
+async def check_for_cookie(dfg_user_id: Annotated[str | None, Cookie()] = None):
+    if dfg_user_id is None:
         return JSONResponse(content={"message": "No cookie detected! Please call POST /auth/ to receive a cookie"})
-    return JSONResponse(content={"message": "Cookie detected.", "user_id": provi_user_id})
+    return JSONResponse(content={"message": "Cookie detected.", "user_id": dfg_user_id})
