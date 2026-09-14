@@ -53,8 +53,7 @@ def get_query_db(collection: str, query=None, projection=None) -> list:
 def save_ui_logging_data(ui_log_database: ds.UILogDataDatabase):
     db = connect_to_database()
     ui_log_collection = db["DfgUILogging"]
-    for log_entry in ui_log_database.ui_log_data.ui_logs:
-        ui_log_collection.insert_one(log_entry.model_dump())
+    ui_log_collection.insert_one(ui_log_database.model_dump())
     print("UI logging data saved successfully in database")
 
 
