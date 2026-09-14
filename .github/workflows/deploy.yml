@@ -23,5 +23,14 @@ jobs:
       - name: Remove any pre-compose containers
         run: docker rm -f redis mongo provibackend provifrontend nginx dfgbackend dfgfrontend 2>/dev/null || true
 
+      # Build services one at a time. provibackend and dfgbackend share an
+      # identical layer chain, and exporting both in parallel races on the
+      # shared snapshots ("parent snapshot ... does not exist: not found").
+      - name: Build images
+        run: |
+          for service in $(docker compose config --services); do
+            docker compose build "$service"
+          done
+
       - name: Deploy
-        run: docker compose up -d --build
+        run: docker compose up -d

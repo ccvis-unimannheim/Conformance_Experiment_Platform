@@ -99,45 +99,20 @@ class DatasetFromFrontend(BaseModel):
 class ListDatasetsFromFrontend(BaseModel):
     datasets: List[DatasetFromFrontend]
 
+# Answer and UI-log shapes are the previous team's originals (initial commit
+# 9967cb4), matching what this service's QuestionnaireComponent sends. The
+# extraction had copied ProCon's trial-based versions here, which require
+# task/idiom/trial fields the DFG frontend never sends, so every submit 422'd.
 class AnswerFromFrontend(BaseModel):
-    experiment_id: Optional[str] = None
     question_id: str
-    task_id: str
-    idiom_id: str
-    dataset_id: str
-    trial_index: int
-    presentation_order: int
     answer: str
-    response_time_ms: int
-    capabilities_meet_requirements: Optional[int] = None
-    easy_to_use: Optional[int] = None
 
 class AnswerForDatabase(BaseModel):
     user_id: str
-    group_id: Optional[str] = None
-    experiment_id: Optional[str] = None
-    question_id: str
-    task_id: str
-    idiom_id: str
-    dataset_id: str
-    trial_index: int
-    presentation_order: int
-    answer: str
-    response_time_ms: int
-    capabilities_meet_requirements: Optional[int] = None
-    easy_to_use: Optional[int] = None
+    answer: AnswerFromFrontend
     insert_datetime: str
 
 class UILogging(BaseModel):
-    user_id: str
-    group_id: str
-    experiment_id: str
-    question_id: str
-    task_id: str
-    idiom_id: str
-    dataset_id: str
-    trial_index: int
-    presentation_order: int
     activity: str
     uiElement: str
     uiGroup: str
@@ -145,13 +120,11 @@ class UILogging(BaseModel):
     insert_datetime: str
 
 class UILogDataFrontend(BaseModel):
-    ui_logs: List[UILogging]
-
-class UILogBatch(BaseModel):
-    """Frontend sends a batch of UI logs"""
+    question_id: str
     ui_logs: List[UILogging]
 
 class UILogDataDatabase(BaseModel):
+    user_id: str
     ui_log_data: UILogDataFrontend
 
 
