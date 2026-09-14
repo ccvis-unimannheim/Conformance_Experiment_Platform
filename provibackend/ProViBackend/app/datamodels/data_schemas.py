@@ -243,6 +243,11 @@ class Experiment(BaseModel):
     knowledge_question_ids: List[str] = []   # empty = use all system questions
     prequestionnaire_sections: List[str] = ["personal_info", "academic_profile", "technical_expertise", "tool_experience"]  # enabled sections
     current_step: Optional[str] = None  # wizard route slug the admin last reached, e.g. "task", "specify"
+    # Tasks an admin added for this experiment only (see POST
+    # /admin/experiments/{id}/custom-tasks). Same shape as a Task document, but
+    # never written to the shared Task question bank, so other experiments don't
+    # see them; they are deleted together with the experiment.
+    custom_tasks: List[Dict[str, Any]] = []
     created_by: str             # FK → Administrator
     created_at: str
 
@@ -264,6 +269,11 @@ class Task(BaseModel):
     label: str
     description: str
     answer_type: str
+
+class CustomTaskCreate(BaseModel):
+    """An experiment-scoped task added from /admin/experiments/task."""
+    label: str
+    description: str = ""
 
 class TaskUpdate(BaseModel):
     label: str | None = None

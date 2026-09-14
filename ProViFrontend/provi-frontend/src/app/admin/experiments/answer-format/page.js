@@ -358,7 +358,7 @@ function AnswerFormatContent() {
     try {
       const [expRes, tasksRes, idiomsRes, formatsRes] = await Promise.all([
         fetch(`/api/admin/experiments/${experimentId}`),
-        fetch(`/api/admin/tasks`),
+        fetch(`/api/admin/tasks?experiment_id=${encodeURIComponent(experimentId)}`),
         fetch(`/api/admin/idioms`),
         fetch(`/api/admin/answer-formats`),
       ]);

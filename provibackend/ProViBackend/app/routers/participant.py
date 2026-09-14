@@ -117,7 +117,7 @@ def _resolve_svg_path(task_id: str, idiom_id: str, dataset_id: str, experiment_i
 
     Returns (path, error_message). On success error_message is None.
     """
-    task  = dbc.get_document("Task",  {"_id": task_id})
+    task  = dbc.get_task(task_id)
     idiom = dbc.get_document("Idiom", {"_id": idiom_id})
 
     if not task:
@@ -253,7 +253,7 @@ async def get_active_experiment():
             continue
 
         ti_snapshot = task_instances_by_task_id.get(task_id, {})
-        task  = dbc.get_document("Task",  {"_id": task_id})
+        task  = dbc.get_task(task_id)
         idiom = dbc.get_document("Idiom", {"_id": idiom_id})
         if not (ti_snapshot.get("label") and ti_snapshot.get("task_key")) and not task:
             continue
@@ -377,7 +377,7 @@ async def get_assigned_trials(
             continue
 
         ti = task_instances_by_task_id.get(task_id, {})
-        task  = dbc.get_document("Task",  {"_id": task_id})
+        task  = dbc.get_task(task_id)
         idiom = dbc.get_document("Idiom", {"_id": idiom_id})
         if not (ti.get("label") and ti.get("task_key")) and not task:
             continue
