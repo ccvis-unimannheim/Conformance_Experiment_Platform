@@ -123,6 +123,35 @@ def get_document(collection_name: str, query: dict) -> dict | None:
     return collection.find_one(query)
 
 
+def _find_custom_task(field: str, value: str) -> dict | None:
+    """Look up an experiment-scoped custom task (Experiment.custom_tasks) by one field."""
+    db = connect_to_database()
+    exp = db["Experiment"].find_one(
+        {f"custom_tasks.{field}": value},
+        {"custom_tasks": {"$elemMatch": {field: value}}},
+    )
+    tasks = (exp or {}).get("custom_tasks") or []
+    return tasks[0] if tasks else None
+
+
+def get_task(task_id: str) -> dict | None:
+    """Resolve a task_id to its Task document.
+
+    Checks the shared Task question bank first, then the custom tasks an admin
+    added to a single experiment (stored on that Experiment, never in Task).
+    """
+    if not task_id:
+        return None
+    return get_document("Task", {"_id": task_id}) or _find_custom_task("_id", task_id)
+
+
+def get_custom_task_by_key(task_key: str) -> dict | None:
+    """Return the experiment-scoped custom task with this task_key, or None."""
+    if not task_key:
+        return None
+    return _find_custom_task("task_key", task_key)
+
+
 def get_user_assignment(user_id: str, experiment_id: str) -> dict | None:
     """Returns the UserAssignment for a given user and experiment, or None if not found."""
     return get_document("UserAssignment", {"user_id": user_id, "experiment_id": experiment_id})

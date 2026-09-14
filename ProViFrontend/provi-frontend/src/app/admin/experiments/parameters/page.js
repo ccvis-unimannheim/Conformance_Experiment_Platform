@@ -237,7 +237,7 @@ function ParameterMatchingContent() {
 
     try {
       const [tasksRes, catalogRes] = await Promise.all([
-        fetch("/api/admin/tasks"),
+        fetch(`/api/admin/tasks?experiment_id=${encodeURIComponent(experimentId)}`),
         fetch("/api/admin/param-catalog"),
       ]);
       if (!tasksRes.ok) throw new Error(`tasks HTTP ${tasksRes.status}`);

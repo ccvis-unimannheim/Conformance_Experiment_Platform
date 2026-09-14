@@ -6,6 +6,7 @@ import Link from "next/link";
 import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../../components/Admin/Toast";
 import EditTaskModal from "../../../../components/Admin/EditTaskModal";
+import AddCustomTaskModal from "../../../../components/Admin/AddCustomTaskModal";
 import { saveWizardStep } from "../../../../utils/wizardSave";
 
 // ---------------------------------------------------------------------------
@@ -86,6 +87,7 @@ export default function TaskSelectionPage() {
 
   // Edit Task modal state
   const [editingTask, setEditingTask] = useState(null);
+  const [addModalOpen, setAddModalOpen] = useState(false);
 
   useEffect(() => {
     if (!experimentId) router.replace("/admin/experiments/new");
@@ -104,12 +106,14 @@ export default function TaskSelectionPage() {
       .catch(() => {});
   }, [experimentId]);
 
+  // Shared task list plus this experiment's own custom tasks.
   const fetchTasks = useCallback(() => {
-    return fetch("/api/admin/tasks")
+    if (!experimentId) return Promise.resolve();
+    return fetch(`/api/admin/tasks?experiment_id=${encodeURIComponent(experimentId)}`)
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(setAllTasks)
       .catch((e) => setLoadError(e.message));
-  }, []);
+  }, [experimentId]);
 
   useEffect(() => {
     fetchTasks();
@@ -125,6 +129,34 @@ export default function TaskSelectionPage() {
     if (!res.ok) throw new Error(await res.text());
     showToast("Task updated successfully!");
     await fetchTasks();
+  }
+
+  async function handleCustomTaskCreated(task) {
+    setAddModalOpen(false);
+    await fetchTasks();
+    toggleTask(getTaskId(task));
+    showToast("Task added to this experiment.");
+  }
+
+  async function deleteCustomTask(task) {
+    if (!window.confirm(`Delete custom task "${task.label}" from this experiment?`)) return;
+    const taskId = getTaskId(task);
+    try {
+      const res = await fetch(
+        `/api/admin/experiments/${encodeURIComponent(experimentId)}/custom-tasks/${encodeURIComponent(taskId)}`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || `HTTP ${res.status}`);
+      }
+      // The backend already removed it from the experiment's task selection.
+      setSelectedIds((prev) => prev.filter((x) => x !== taskId));
+      showToast("Custom task deleted.");
+      await fetchTasks();
+    } catch (e) {
+      showToast(`Failed to delete task: ${e.message}`, true);
+    }
   }
 
   // Close dropdown on outside click
@@ -231,8 +263,8 @@ export default function TaskSelectionPage() {
         <div>
           <h1 className="font-h1 text-h1 text-primary mb-2">Create New Experiment</h1>
           <p className="font-body-lg text-body-lg text-secondary max-w-2xl">
-            Select the conformance checking tasks you want to include. You can also add new tasks
-            directly to the database.
+            Select the conformance checking tasks you want to include. You can also add your own
+            tasks, which are only used in this experiment.
           </p>
         </div>
 
@@ -351,6 +383,13 @@ export default function TaskSelectionPage() {
                   </span>
                 )}
               </h2>
+              <button
+                type="button"
+                onClick={() => setAddModalOpen(true)}
+                className="text-xs bg-primary text-white px-4 py-1.5 rounded font-semibold hover:bg-primary-container transition-colors flex items-center gap-1"
+              >
+                <span className="material-symbols-outlined text-sm">add</span> Add Task
+              </button>
             </div>
 
             {/* ── Task cards ───────────────────────────────── */}
@@ -407,6 +446,11 @@ export default function TaskSelectionPage() {
                             <span className="text-xs font-bold uppercase tracking-wider bg-blue-100 text-primary px-1.5 py-0.5 rounded">
                               {task.task_key}
                             </span>
+                            {task.is_custom && (
+                              <span className="text-xs font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                                Custom · this experiment only
+                              </span>
+                            )}
                           </div>
                           <p className="text-sm font-semibold text-on-surface leading-snug mb-2">
                             {task.label}
@@ -436,6 +480,15 @@ export default function TaskSelectionPage() {
                         >
                           <span className="material-symbols-outlined text-sm">edit</span>
                         </button>
+                        {task.is_custom && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); deleteCustomTask(task); }}
+                            title="Delete this custom task"
+                            className="text-on-surface-variant hover:text-error flex-shrink-0 transition-colors p-1 rounded"
+                          >
+                            <span className="material-symbols-outlined text-sm">delete</span>
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -510,6 +563,14 @@ export default function TaskSelectionPage() {
           task={editingTask}
           onClose={() => setEditingTask(null)}
           onSave={saveEditedTask}
+        />
+      )}
+
+      {addModalOpen && (
+        <AddCustomTaskModal
+          experimentId={experimentId}
+          onClose={() => setAddModalOpen(false)}
+          onCreated={handleCustomTaskCreated}
         />
       )}
 

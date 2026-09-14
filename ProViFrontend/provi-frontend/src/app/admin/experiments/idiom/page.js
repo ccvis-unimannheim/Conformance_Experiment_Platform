@@ -326,7 +326,7 @@ function IdiomSelectionContent() {
     }
 
     try {
-      const res = await fetch(`/api/admin/tasks`);
+      const res = await fetch(`/api/admin/tasks?experiment_id=${encodeURIComponent(experimentId)}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const allTasks = await res.json();
       const tasks = allTasks.filter((t) => taskIds.includes(getId(t)));
@@ -355,7 +355,7 @@ function IdiomSelectionContent() {
     try {
       const [idiomsRes, mappingRes] = await Promise.all([
         fetch("/api/admin/idioms"),
-        fetch("/api/admin/task-idioms"),
+        fetch(`/api/admin/task-idioms?experiment_id=${encodeURIComponent(experimentId)}`),
       ]);
       if (!idiomsRes.ok) throw new Error(`idioms: HTTP ${idiomsRes.status}`);
       if (!mappingRes.ok) throw new Error(`task-idioms: HTTP ${mappingRes.status}`);
@@ -591,6 +591,11 @@ function IdiomSelectionContent() {
                     {allIdioms.length === 0 ? (
                       <p className="text-xs text-on-surface-variant italic">
                         No idioms in database yet. Click <strong>Seed Idioms</strong> above.
+                      </p>
+                    ) : taskIdioms.length === 0 && task.is_custom ? (
+                      <p className="text-xs text-on-surface-variant italic">
+                        This custom task has no idioms yet. Click <strong>Upload Custom Idiom</strong> above
+                        and select <strong>{task.task_key}</strong>.
                       </p>
                     ) : taskIdioms.length === 0 ? (
                       <p className="text-xs text-on-surface-variant italic">

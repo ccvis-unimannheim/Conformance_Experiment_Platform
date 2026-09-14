@@ -248,7 +248,7 @@ function SpecifyContent() {
     try {
       const [expRes, tasksRes, idiomsRes] = await Promise.all([
         fetch(`/api/admin/experiments/${experimentId}`),
-        fetch(`/api/admin/tasks`),
+        fetch(`/api/admin/tasks?experiment_id=${encodeURIComponent(experimentId)}`),
         fetch(`/api/admin/idioms`),
       ]);
       if (!expRes.ok) throw new Error(`Experiment HTTP ${expRes.status}`);

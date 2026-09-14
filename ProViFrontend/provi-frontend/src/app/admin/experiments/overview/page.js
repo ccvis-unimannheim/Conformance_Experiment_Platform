@@ -166,7 +166,7 @@ function ExperimentOverviewContent() {
     try {
       const [expRes, tasksRes, idiomsRes, datasetsRes, formatsRes] = await Promise.all([
         fetch(`/api/admin/experiments`),
-        fetch(`/api/admin/tasks`),
+        fetch(`/api/admin/tasks?experiment_id=${encodeURIComponent(experimentId)}`),
         fetch(`/api/admin/idioms`),
         fetch(`/api/admin/datasets`),
         fetch(`/api/admin/answer-formats`),
