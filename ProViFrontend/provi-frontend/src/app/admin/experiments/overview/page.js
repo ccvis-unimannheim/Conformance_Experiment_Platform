@@ -155,7 +155,7 @@ function ExperimentOverviewContent() {
 
   useEffect(() => {
     if (!experimentId) {
-      router.replace("/admin/task-selection");
+      router.replace("/admin/experiments/task");
       return;
     }
     init();
