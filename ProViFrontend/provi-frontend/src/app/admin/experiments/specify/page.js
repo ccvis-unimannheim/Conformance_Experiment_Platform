@@ -28,7 +28,7 @@ function StatusBadge({ status }) {
   );
 }
 
-// Generic param widget — renders per PARAM_SPEC entry (see ADMIN_EXPERIMENT_SETUP.md).
+// Generic param widget — renders per PARAM_SPEC entry (see docs/ADMIN_EXPERIMENT_SETUP.md).
 function ParamField({ entry, value, onChange }) {
   const options = entry.options || [];
 

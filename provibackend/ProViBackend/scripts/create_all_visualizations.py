@@ -198,7 +198,7 @@ def _resolve_dataset_paths(dataset_dir: str, experiment_id: str | None = None):
 
     When `experiment_id` is given, SVGs are written to a per-experiment
     subdirectory (`output/{experiment_id}/...`, see
-    see ADMIN_EXPERIMENT_SETUP.md) so multiple experiments sharing the
+    see docs/ADMIN_EXPERIMENT_SETUP.md) so multiple experiments sharing the
     same dataset can hold independently-generated idioms. Without it (CLI /
     legacy use), the original `output/...` layout is used.
     """
@@ -319,7 +319,7 @@ def get_or_compute_alignments(dataset_dir: str, log=None, net=None, im=None, fm=
 # dict (falling back to the pipeline defaults). Centralising the per-task
 # generate() signatures here lets both the full CLI pipeline and the
 # per-experiment backend job (generate_for_task_instances) thread each
-# task_instance's parameters into generation (see ADMIN_EXPERIMENT_SETUP.md).
+# task_instance's parameters into generation (see docs/ADMIN_EXPERIMENT_SETUP.md).
 # ---------------------------------------------------------------------------
 
 def make_task_generators(log, alignments, fitness_df, model_path, compare_attribute,
@@ -417,7 +417,7 @@ def get_log_activities(dataset_dir: str) -> list[str]:
     """Sorted distinct activity names in the dataset's event log.
 
     Powers the /specify "list all options" combobox for activity-picker params
-    (see ADMIN_EXPERIMENT_SETUP.md). For CSV logs this reads only the
+    (see docs/ADMIN_EXPERIMENT_SETUP.md). For CSV logs this reads only the
     activity column (fast); XES logs fall back to the full pm4py loader.
     """
     input_dir = os.path.join(dataset_dir, INPUT_SUBDIR)
@@ -552,7 +552,7 @@ def get_log_violations(dataset_dir: str) -> list[dict]:
 
     Returns a list of {"value": "activity|move_type", "label": "activity · Type  (N traces, X%)"}
     dicts, sorted by trace coverage descending.  Powers task11's /specify 'log.violations'
-    source (see ADMIN_EXPERIMENT_SETUP.md).
+    source (see docs/ADMIN_EXPERIMENT_SETUP.md).
 
     Alignment computation is expensive; the result is cached in admin.py per dataset_id.
     """
@@ -779,7 +779,7 @@ def run_pipeline(dataset_dir: str, experiment_id: str | None = None,
         and input/Guideline.bpmn).
     experiment_id : str, optional
         When given, SVGs are written to ``<dataset_dir>/output/{experiment_id}/``
-        instead of ``<dataset_dir>/output/`` (see ADMIN_EXPERIMENT_SETUP.md).
+        instead of ``<dataset_dir>/output/`` (see docs/ADMIN_EXPERIMENT_SETUP.md).
     outcome_activity : str
         Activity name that marks a positive process outcome (used by Task 6).
     compare_attribute : str
@@ -867,7 +867,7 @@ def parse_args():
         "--experiment-id", default=None,
         help="If given, write SVGs to <dataset-dir>/output/{experiment-id}/ instead of "
              "<dataset-dir>/output/ (per-experiment generation, see "
-             "ADMIN_EXPERIMENT_SETUP.md).",
+             "docs/ADMIN_EXPERIMENT_SETUP.md).",
     )
     parser.add_argument(
         "--outcome-activity", default="Activate Care",

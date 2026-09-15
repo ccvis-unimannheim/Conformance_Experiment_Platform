@@ -60,7 +60,7 @@ def _trial_contract_fields(task_instances_by_task_id: dict, task_id: str) -> dic
     Reads the answer shape the admin configured on /answer-format
     (`answer_format`, `number_kind`, `answer_options`). Falls back to
     free-text/free_text/[] when the instance has no format set
-    (PARTICIPANT_TRIAL_CONTRACT.md "Fallback").
+    (docs/PARTICIPANT_TRIAL_CONTRACT.md "Fallback").
     """
     ti = task_instances_by_task_id.get(task_id) or {}
     answer_format = ti.get("answer_format") or FALLBACK_ANSWER_FORMAT
@@ -112,7 +112,7 @@ def _resolve_svg_path(task_id: str, idiom_id: str, dataset_id: str, experiment_i
 
     If `experiment_id` is given and the per-experiment SVG exists at
     data/{dataset_id}/output/{experiment_id}/{task_key}/{idiom_key}.svg
-    (see ADMIN_EXPERIMENT_SETUP.md), that path is returned. Otherwise
+    (see docs/ADMIN_EXPERIMENT_SETUP.md), that path is returned. Otherwise
     falls back to the legacy shared path data/{dataset_id}/output/{task_key}/{idiom_key}.svg.
 
     Returns (path, error_message). On success error_message is None.
