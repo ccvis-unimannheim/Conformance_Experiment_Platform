@@ -1,23 +1,29 @@
-support.ipynb
-DEVELOPMENT_GUIDE.md
-*.xlsx
+# Local-only scratch files
 .codegraph/
 .cursor/
-docs/**
-/2604/
-.env
-docker-compose.override.yml
-data/
-
-provibackend/ProVibackend/new_input/
-provibackend/ProVibackend/new_output/
-provibackend/ProVibackend/output/
-provibackend/ProVibackend/data/
-provibackend/ProViBackend/scripts/generate_all_local.py
-provibackend/ProViBackend/scripts/sample_data/input/EventLog.csv
-provibackend/ProViBackend/scripts/sample_data/cache/
 check_idioms.py
 PALETTE_GUIDE.md
+/2604/
+
+# Secrets and per-machine setup
+.env
+docker-compose.override.yml
+.htpasswd
+
+# Runtime data: uploaded datasets and everything generated from them.
+# Note the capital B in ProViBackend — a wrong case matches on Windows but
+# not on Linux, where the server and CI run.
+data/
+provibackend/ProViBackend/data/
+provibackend/ProViBackend/output/
+provibackend/ProViBackend/new_output/
+# Copied from new_input/ at startup by scripts/generate_sample_data.py.
+provibackend/ProViBackend/scripts/sample_data/input/EventLog.csv
+provibackend/ProViBackend/scripts/sample_data/cache/
+
+# Source spreadsheets, except the one the backend ships with.
+*.xlsx
+!provibackend/ProViBackend/app/static/*.xlsx
 
 # OS
 .DS_Store
@@ -36,4 +42,3 @@ venv/
 .next/
 node_modules/
 npm-debug.log*
-.htpasswd

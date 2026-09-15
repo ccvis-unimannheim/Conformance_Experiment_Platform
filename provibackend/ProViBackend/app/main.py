@@ -11,7 +11,6 @@ from .seed_data import CANONICAL_TASKS, CANONICAL_IDIOMS, CANONICAL_KNOWLEDGE_QU
 
 logger = logging.getLogger(__name__)
 from .routers import questionnaire
-from .routers import vis
 from .routers import admin
 from .routers import auth
 from .routers import ui_tracking
@@ -97,7 +96,6 @@ app.add_middleware(
 )
 
 app.include_router(questionnaire.router)
-app.include_router(vis.router)
 app.include_router(admin.router)
 app.include_router(auth.router)
 app.include_router(ui_tracking.router)

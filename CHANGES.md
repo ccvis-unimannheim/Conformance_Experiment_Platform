@@ -181,12 +181,12 @@ into `number` with a `number_kind` setting; `pct-set`/`count-set` into `number-s
 
 | File | Change |
 |------|--------|
-| `ADMIN_EXPERIMENT_SETUP.md` | **New file**, replacing `ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md`. Describes the setup workflow as built rather than as planned. |
-| `PARTICIPANT_ANSWER_WIDGETS.md` | **New file**, replacing `PARTICIPANT_ANSWER_WIDGETS_PLAN.md` — the widgets as built. |
+| `docs/ADMIN_EXPERIMENT_SETUP.md` | **New file**, replacing `ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md`. Describes the setup workflow as built rather than as planned. |
+| `docs/PARTICIPANT_ANSWER_WIDGETS.md` | **New file**, replacing `PARTICIPANT_ANSWER_WIDGETS_PLAN.md` — the widgets as built. |
 | `TASK_GT_DEVELOPMENT_GUIDE.md` | **Deleted.** Ground-truth authoring no longer exists. |
-| `PARTICIPANT_TRIAL_CONTRACT.md` | Format catalogue 11 → 7; `decisive` replaced by `number_kind`; grading notes removed. |
-| `TASK_CONTRACT_PROMPT.md` | Rewritten as a PARAM_SPEC-only authoring prompt, with an explicit "not in scope" section for the removed attributes. |
-| 17 code comments | `ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §N` references repointed at `ADMIN_EXPERIMENT_SETUP.md`. |
+| `docs/PARTICIPANT_TRIAL_CONTRACT.md` | Format catalogue 11 → 7; `decisive` replaced by `number_kind`; grading notes removed. |
+| `docs/TASK_CONTRACT_PROMPT.md` | Rewritten as a PARAM_SPEC-only authoring prompt, with an explicit "not in scope" section for the removed attributes. |
+| 17 code comments | `ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §N` references repointed at `docs/ADMIN_EXPERIMENT_SETUP.md`. |
 
 ### Verification
 

@@ -2,10 +2,9 @@
 
 import { useState } from "react";
 
-// Reusable "Edit Task" modal used by the task-selection and experiment
-// overview admin pages. The caller owns the actual PATCH request (via
-// onSave) since the two pages talk to the backend through different base
-// URLs (direct BASE_URL vs. the /api/admin proxy).
+// Reusable "Edit Task" modal used by the task-selection and overview steps of
+// the experiment setup wizard. The caller owns the actual PATCH request (via
+// onSave), so each page can refresh its own state afterwards.
 export default function EditTaskModal({ task, onClose, onSave }) {
   const [label, setLabel] = useState(task.label || "");
   const [description, setDescription] = useState(task.description || "");
