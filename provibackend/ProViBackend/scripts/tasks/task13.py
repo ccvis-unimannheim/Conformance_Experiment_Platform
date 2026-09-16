@@ -55,10 +55,29 @@ logger = logging.getLogger(__name__)
 
 IDIOMS = ["bar_chart", "scatter_plot", "table", "table_bar_chart",
           "parallel_sets"]
+
+# What this task measures per group, and how it cuts the log — task
+# properties rather than admin choices (see TRACE_FEATURE_REGISTRY.md).
+RESPONSE_MEASURE = "violation_rate"
+SPLIT_STRATEGY = None  # admin chooses
+
+import trace_features
+
+PARAM_SPEC = [
+    {
+        "key": "attribute_set",
+        "slot": "split",
+        "label": "Attributes to analyse (empty = the discovered default set)",
+        "widget": "select-many",
+        "source": "log.candidate_attributes",
+        "default": [],
+        "required": False,
+    },
+    *trace_features.split_params_for(),
+]
           # "flow_chart_table", "flow_chart_elaborate_table"  # commented out
 
 
-PARAM_SPEC = []
 
 
 RUBRIC = (
@@ -114,7 +133,6 @@ THROUGHPUT_KEY = "__throughput_hours__"
 # candidate reasons from whatever attributes the log actually carries; these BPIC12
 # names are no longer used as a fallback (that would probe non-existent keys and
 # emit spurious "not found" warnings on other datasets).
-CANDIDATE_ATTRIBUTES = ["AMOUNT_REQ", "org:resource", THROUGHPUT_KEY]
 
 NUMERIC_BUCKETS = 4   # quantile buckets for a numeric attribute's bar/parallel dim
 MAX_CATEGORIES  = 5   # top categories kept for a categorical attribute (rest -> "Other")
@@ -202,18 +220,21 @@ def _build_evidence_frame(log, feat: pd.DataFrame, candidate_attributes: list):
         "violation": feat["violation_count"].to_numpy() > 0,
     })
 
+    import trace_features
+
     attr_meta = []
     for key in candidate_attributes:
-        if key == THROUGHPUT_KEY:
-            values, kind, label = feat["duration_hours"].to_numpy(dtype=float), "numeric", "Throughput time (h)"
+        label = trace_features.label_for(key)
+        if key == THROUGHPUT_KEY and "duration_hours" in feat:
+            # Already in task20's frame; reuse rather than walking every trace's
+            # timestamps a second time for the same number.
+            values, kind = feat["duration_hours"].to_numpy(dtype=float), "numeric"
         else:
-            values, kind = _collect_attribute_column(log, key)
-            label = key
-            if kind == "missing":
-                logger.warning(
-                    f"      task13: candidate attribute '{key}' not found in log — skipping. "
-                    f"Available attributes: {_available_attributes(log)}"
-                )
+            try:
+                values, value_type = trace_features.extract(log, key)
+                values, kind = trace_features.as_bucketable(values, value_type)
+            except (KeyError, ValueError) as e:
+                logger.warning(f"      task13: skipping attribute '{key}' — {e}")
                 continue
             values = (list(values) + [None] * n)[:n]   # guard length
 
@@ -235,41 +256,25 @@ def _bucket_categories(values, max_categories: int):
     return [v if v in top else "Other" for v in s]
 
 
-def _bucket_assign(values, kind: str):
+def _bucket_assign(values, kind: str, strategy: str = None, cap: int = None):
     """Assign each trace to a bucket label.
 
-    numeric     → NUMERIC_BUCKETS quantile ranges (returns None if no variance).
-    categorical → top categories + 'Other'.
+    Thin wrapper over the shared splitter (trace_features.split), which unified
+    this with task30's median split — the two were the same operation under
+    different numeric strategies. Defaults here keep this call site's original
+    behaviour: quantile ranges for numeric, top categories + 'Other' otherwise.
 
-    Returns (label_per_trace, ordered_labels) or None if the attribute cannot be
+    Returns (label_per_trace, ordered_labels) or None when the values cannot be
     bucketed. label_per_trace entries are None for missing values.
     """
-    if kind == "numeric":
-        v = pd.to_numeric(pd.Series(values), errors="coerce")
-        if v.notna().sum() < 2 or v.dropna().nunique() < 2:
-            return None
-        edges = np.unique(np.quantile(v.dropna(), np.linspace(0, 1, NUMERIC_BUCKETS + 1)))
-        if len(edges) < 2:
-            return None
-        labels = [f"{format_threshold(edges[i])}–{format_threshold(edges[i + 1])}"
-                  for i in range(len(edges) - 1)]
-        out = []
-        for x in v:
-            if pd.isna(x):
-                out.append(None)
-            else:
-                b = int(np.clip(np.digitize([x], edges[1:-1])[0], 0, len(labels) - 1))
-                out.append(labels[b])
-        return out, labels
+    import trace_features
 
-    s = pd.Series([None if x is None else str(x) for x in values])
-    present = s.dropna()
-    if present.empty:
+    if cap is None:
+        cap = NUMERIC_BUCKETS if kind == "numeric" else MAX_CATEGORIES - 1
+    result = trace_features.split(values, kind, strategy=strategy, cap=cap)
+    if not result:
         return None
-    top = present.value_counts().head(MAX_CATEGORIES - 1).index.tolist()
-    labels = top + (["Other"] if present.nunique() > len(top) else [])
-    out = [None if x is None else (x if x in top else "Other") for x in s]
-    return out, labels
+    return result.assignment, result.labels
 
 
 # Structural / format-level keys that are never candidate reasons. The check is
@@ -278,7 +283,7 @@ def _bucket_assign(values, kind: str):
 # but not an interpretable violation driver).
 _NON_CANDIDATE_KEYS = {
     "concept:name", "time:timestamp", "lifecycle:transition",
-    "case:concept:name", "REG_DATE",
+    "case:concept:name",
 }
 
 
@@ -303,6 +308,7 @@ def discover_candidate_attributes(log, feat=None) -> list:
     keys. ``feat`` is task20's trace-feature frame (for the throughput column); pass
     it when already computed to avoid recomputation.
     """
+    n_traces = len(log)
     keys = []
     for key in _available_attributes(log):
         if _is_structural_key(key):
@@ -312,6 +318,20 @@ def discover_candidate_attributes(log, feat=None) -> list:
             continue
         if _bucket_assign(list(values), kind) is None:
             continue
+        if kind == "categorical" and n_traces:
+            # Identifier-like column: nearly one distinct value per trace, so
+            # bucketing yields a few singletons and one enormous "Other". This
+            # replaces a hard-coded "REG_DATE" exclusion, which only recognised
+            # the identifier BPIC12 happens to carry. Numeric columns are exempt
+            # — quantile bucketing copes with any number of distinct values.
+            distinct = len({str(v) for v in values if v is not None})
+            if distinct > max(MAX_CATEGORIES, n_traces * 0.5):
+                logger.info(
+                    f"      task13: '{key}' looks like an identifier "
+                    f"({distinct} distinct values over {n_traces} traces) — "
+                    f"not offered as a default attribute."
+                )
+                continue
         keys.append(key)
     if feat is not None and not feat.empty and "duration_hours" in feat:
         if _bucket_assign(feat["duration_hours"].tolist(), "numeric") is not None:

@@ -56,6 +56,26 @@ def get_param_spec(task_key: str) -> list[dict]:
     return getattr(_module(task_key), "PARAM_SPEC", DEFAULT_PARAM_SPEC)
 
 
+def get_response_measure(task_key: str) -> Optional[str]:
+    """What this task measures per group: fitness, violation_rate or patterns.
+
+    A task property, not an admin choice — the wording of the task fixes it, so
+    it is declared in the module like IDIOMS rather than offered in PARAM_SPEC.
+    None for tasks outside the Attribute → Violation class.
+    """
+    return getattr(_module(task_key), "RESPONSE_MEASURE", None)
+
+
+def get_split_strategy(task_key: str) -> Optional[str]:
+    """This task's fixed split strategy, or None when the admin chooses it.
+
+    task01 is binary by definition (a condition holds or it does not) and task07
+    is ordered bins (a timeline); elsewhere the strategy follows the chosen
+    attribute's type unless the admin overrides it.
+    """
+    return getattr(_module(task_key), "SPLIT_STRATEGY", None)
+
+
 def get_rubric(task_key: str) -> Optional[str]:
     """Static grading rubric for manually coding this task's answers, or None.
 

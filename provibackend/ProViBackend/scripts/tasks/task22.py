@@ -30,6 +30,26 @@ IDIOMS = ["bar_chart", "stacked_bar", "scatter_plot",
           "flow_chart_elaborate_table", "table", "table_bar_chart",
           "parallel_sets"]
 
+
+# What this task measures per group, and how it cuts the log — task
+# properties rather than admin choices (see TRACE_FEATURE_REGISTRY.md).
+RESPONSE_MEASURE = "fitness"
+SPLIT_STRATEGY = None  # admin chooses
+
+import trace_features
+
+PARAM_SPEC = [
+    {
+        "key": "compare_attribute",
+        "slot": "split",
+        "label": "Case attribute whose sub-logs explain conformance",
+        "widget": "select-one",
+        "source": "log.candidate_attributes",
+        "default": "",
+        "required": False,
+    },
+    *trace_features.split_params_for(),
+]
 import os
 import numpy as np
 import pandas as pd
@@ -62,9 +82,6 @@ _FITNESS_BANDS = [
     ("0.75–1.00", 0.75, 1.01, "#D9D9D9", "#333333"),
 ]
 
-_FIT_THRESHOLD = 0.8
-
-
 def _group_colors(groups: list) -> list:
     return [_GROUP_PALETTE[i % len(_GROUP_PALETTE)] for i in range(len(groups))]
 
@@ -83,21 +100,20 @@ def _build_trace_df(fitness_df: pd.DataFrame, assignment: list, meta: dict) -> p
 
 
 def _group_stats(trace_df: pd.DataFrame, groups: list, overall_mean: float) -> pd.DataFrame:
-    rows = []
-    for g in groups:
-        sub = trace_df[trace_df["group"] == g]["fitness"]
-        n = len(sub)
-        mean = float(sub.mean()) if n else 0.0
-        rows.append({
-            "group":       g,
-            "n":           n,
-            "pct_conform": float((sub >= _FIT_THRESHOLD).sum() / n * 100) if n else 0.0,
-            "mean":        mean,
-            "median":      float(sub.median()) if n else 0.0,
-            "std":         float(sub.std())    if n else 0.0,
-            "delta":       mean - overall_mean,   # explanatory deviation
-        })
-    return pd.DataFrame(rows)
+    """Per sub-log fitness summary plus this task's explanatory deviation."""
+    import trace_response
+
+    stats = trace_response.fitness_stats(
+        trace_df["fitness"], trace_df["group"], groups,
+    )
+    return pd.DataFrame({
+        "group":       stats["group"],
+        "n":           stats["n"],
+        "mean":        stats["mean"],
+        "median":      stats["median"],
+        "std":         stats["std"],
+        "delta":       stats["mean"] - overall_mean,   # explanatory deviation
+    })
 
 
 def _band_rates(trace_df: pd.DataFrame, groups: list) -> np.ndarray:
@@ -289,7 +305,6 @@ def task22_table(stats_df, attr, output_dir):
         [
             row["group"],
             str(int(row["n"])),
-            f"{row['pct_conform']:.1f}%",
             f"{row['mean']:.4f}",
             f"{row['median']:.4f}",
             f"{row['std']:.4f}",
@@ -303,10 +318,10 @@ def task22_table(stats_df, attr, output_dir):
     make_table(
         ax,
         cell_text=cell_text,
-        col_labels=["Sub-log (reason)", "N", "% Conform.", "Mean",
+        col_labels=["Sub-log (reason)", "N", "Mean",
                     "Median", "Std Dev", "Δ vs overall"],
         bbox=[0.02, 0.08, 0.96, 0.82],
-        col_widths=[0.34, 0.08, 0.12, 0.11, 0.11, 0.11, 0.13],
+        col_widths=[0.38, 0.09, 0.13, 0.13, 0.13, 0.14],
         font_size=10,
         scale_xy=(1, 1.4),
     )
@@ -331,7 +346,7 @@ def task22_table_bar_chart(stats_df, groups, attr, output_dir):
     ax_tbl.axis("off")
     cell_text = [
         [row["group"], str(int(row["n"])),
-         f"{row['mean']:.4f}", f"{row['delta']:+.4f}", f"{row['pct_conform']:.1f}%"]
+         f"{row['mean']:.4f}", f"{row['delta']:+.4f}"]
         for _, row in stats_df.iterrows()
     ]
     # Size the table to its row count (≈0.55"/row) and anchor it to the top so
@@ -343,9 +358,9 @@ def task22_table_bar_chart(stats_df, groups, attr, output_dir):
     make_table(
         ax_tbl,
         cell_text=cell_text,
-        col_labels=["Sub-log (reason)", "N", "Mean Fitness", "Δ vs overall", "% Conform."],
+        col_labels=["Sub-log (reason)", "N", "Mean Fitness", "Δ vs overall"],
         bbox=[0.02, tbl_y0, 0.96, tbl_frac],
-        col_widths=[0.34, 0.12, 0.20, 0.18, 0.16],
+        col_widths=[0.40, 0.15, 0.23, 0.22],
         font_size=10,
         scale_xy=(1, 1.4),
     )
@@ -464,10 +479,10 @@ def task22_flow_chart_elaborate_table(stats_df, act_viol, model_path, attr, outp
         ("#444444", "#777777", 1.0, "Most violations"),
     ]
 
-    table_cols = ["Sub-log (reason)", "N", "Mean Fitness", "Δ vs overall", "% Conform."]
+    table_cols = ["Sub-log (reason)", "N", "Mean Fitness", "Δ vs overall"]
     table_rows = [
         [str(row["group"]), str(int(row["n"])), f"{row['mean']:.4f}",
-         f"{row['delta']:+.4f}", f"{row['pct_conform']:.1f}%"]
+         f"{row['delta']:+.4f}"]
         for _, row in stats_df.iterrows()
     ]
 
@@ -535,8 +550,7 @@ def generate(log, fitness_df, alignments, output_dir: str,
     for _, row in stats_df.iterrows():
         g_ascii = str(row["group"]).replace("≤", "<=")
         logger.info(f"         {g_ascii:<30} n={int(row['n']):>6}  "
-                    f"mean={row['mean']:.4f}  Δ={row['delta']:+.4f}  "
-                    f"conform={row['pct_conform']:.1f}%")
+                    f"mean={row['mean']:.4f}  Δ={row['delta']:+.4f}")
 
     act_viol = _activity_violations(alignments)
 

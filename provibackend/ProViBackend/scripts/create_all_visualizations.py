@@ -137,14 +137,18 @@ _TASK_RENAME_SKIP: dict[str, set[str]] = {
 }
 
 
-def _auto_detect_compare_attribute(log, preferred: str) -> str:
-    """Pick the best case attribute for sub-log splitting.
+def _auto_detect_compare_attribute(log, preferred: str | None = None) -> str | None:
+    """Pick the best case attribute for sub-log splitting, or None.
 
     Priority:
       1. preferred — if it exists in the log, use it.
       2. Numeric case attribute with highest std (median split).
       3. Categorical case attribute with 2–10 distinct values.
-      4. preferred as fallback (split_by_attribute will emit an empty-state SVG).
+
+    Returns None when nothing suitable is found. It used to fall back to
+    `preferred` — a BPIC12 column name — so a different dataset was split on a
+    column it does not have, silently producing an empty panel that looked like
+    a finding. A missing attribute is now the caller's problem to report.
     """
     import numpy as np
 
@@ -160,7 +164,7 @@ def _auto_detect_compare_attribute(log, preferred: str) -> str:
 
     if not attr_values:
         return preferred
-    if preferred in attr_values:
+    if preferred and preferred in attr_values:
         return preferred
 
     # Numeric candidates — need 80 %+ parseable values and non-zero std
@@ -190,7 +194,9 @@ def _auto_detect_compare_attribute(log, preferred: str) -> str:
         categorical_candidates.sort(key=lambda x: x[1])
         return categorical_candidates[0][0]
 
-    return preferred
+    logger.warning("No case attribute suitable for sub-log splitting was found "
+                   "in this log; tasks that need one will render their empty state.")
+    return None
 
 
 def _resolve_dataset_paths(dataset_dir: str, experiment_id: str | None = None):
@@ -358,17 +364,27 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
         "task10": lambda d: task10.generate(fitness_df, d, log=log, conformance_bins=conformance_bins()),
         "task11": lambda d: task11.generate(log, alignments, d, model_path=model_path),
         "task12": lambda d: task12.generate(log, alignments, d),
-        "task13": lambda d: task13.generate(log, alignments, model_path, d),
+        "task13": lambda d: task13.generate(log, alignments, model_path, d,
+                                            candidate_attributes=(p.get("attribute_set") or None)),
         "task14": lambda d: task14.generate(alignments, model_path, d),
-        "task15": lambda d: task15.generate(log, fitness_df, alignments, d, model_path=model_path),
-        "task16": lambda d: task16.generate(log, fitness_df, alignments, d, model_path=model_path),
+        "task15": lambda d: task15.generate(log, fitness_df, alignments, d, model_path=model_path,
+                                            attribute_set=(p.get("attribute_set") or None),
+                                            split_strategy=(p.get("split_strategy") or None),
+                                            group_cap=(int(p["group_cap"]) if p.get("group_cap") else None),
+                                            missing_policy=p.get("missing_policy") or "drop"),
+        "task16": lambda d: task16.generate(log, fitness_df, alignments, d, model_path=model_path,
+                                            attribute_set=(p.get("attribute_set") or None),
+                                            split_strategy=(p.get("split_strategy") or None),
+                                            group_cap=(int(p["group_cap"]) if p.get("group_cap") else None),
+                                            missing_policy=p.get("missing_policy") or "drop"),
         "task17": lambda d: task17.generate(log, alignments, d, model_path=model_path),
         "task18": lambda d: task18.generate(log, alignments, model_path, d),
         "task19": lambda d: task19.generate(log, alignments, model_path, d, outcome_activity=outcome_activity(),
                                             target_patterns=target_patterns_task19()),
         "task20": lambda d: task20.generate(log, alignments, d, model_path=model_path,
                                             attribute_set=(p.get("attribute_set") or None)),
-        "task21": lambda d: task21.generate(log, alignments, model_path, d),
+        "task21": lambda d: task21.generate(log, alignments, model_path, d,
+                                            candidate_attributes=(p.get("attribute_set") or None)),
         "task22": lambda d: task22.generate(log, fitness_df, alignments, d, model_path=model_path, compare_attribute=cmp_attr()),
         "task23": lambda d: task23.generate(alignments, d, log=log),
         "task24": lambda d: task24.generate(log, model_path, d),
@@ -653,31 +669,36 @@ def get_log_trace_ids(dataset_dir: str) -> list[dict]:
 
 
 def get_log_candidate_attributes(dataset_dir: str) -> list[dict]:
-    """Bucketable candidate attributes for task20's `attribute_set` picker.
+    """Trace-level features the admin can split this log by.
 
-    Returns [{"value": key, "label": friendly}, ...] for every case/event attribute
-    that task20's attribute-evidence idioms can bucket meaningfully, plus the
-    derived throughput time. Internal/structural columns (@@*, Unnamed,
-    concept:name, time:timestamp, lifecycle:transition, case:concept:name) and
-    non-bucketable identifiers (e.g. org:resource, whose numeric ids collapse to a
-    constant) are excluded — so what the admin can pick is exactly what renders.
-    Powers the 'log.candidate_attributes' param-spec source.
+    Returns [{"value", "label", "perspective", "value_type", "cardinality",
+    "coverage"}, ...] from the trace-feature registry; _param_candidates and the
+    option editor read value/label and ignore the rest. Powers the
+    'log.candidate_attributes' param-spec source.
+
+    Supersedes key-scanning (task13.discover_candidate_attributes), which listed
+    raw log keys plus one hard-coded derived feature. Three consequences:
+
+      * Control-flow and resource features become selectable at all. Activity
+        presence was computed inside task20 all along, but `concept:name` is a
+        structural key, so key-scanning could never offer it.
+      * Cardinality no longer gates the list — a 61-value `org:resource` is
+        offered with its cardinality reported, for the split strategy to handle,
+        instead of being dropped.
+      * No alignments are computed. The old implementation ran them only to
+        reach the throughput column, which the registry derives from the log.
+
+    Feature keys are stable: a case-level data attribute keeps its own name and
+    throughput keeps `__throughput_hours__`, so `attribute_set` values saved by
+    existing experiments keep resolving.
     """
-    import tasks.task13 as task13
-    import tasks.task20 as task20
+    import trace_features
 
     log_path, _model_path, _ = _resolve_dataset_paths(dataset_dir, None)
     log = load_event_log(log_path)
-    alignments = get_or_compute_alignments(dataset_dir, log)
-    feat = task20.task20_trace_feature_dataframe(log, alignments)
-
-    # Single source of truth: the same discovery the task13/18/20/21 defaults use,
-    # so what the admin can pick is exactly what renders by default.
-    options = []
-    for key in task13.discover_candidate_attributes(log, feat):
-        label = "Throughput time (h)" if key == task13.THROUGHPUT_KEY else key
-        options.append({"value": key, "label": label})
-    return options
+    return [feature.as_option()
+            for feature in trace_features.discover_features(log)
+            if feature.value_type in trace_features.BUCKETABLE_TYPES]
 
 
 def get_log_violated_activities_task34(dataset_dir: str) -> list[dict]:
@@ -724,7 +745,7 @@ def generate_for_task_instances(dataset_dir: str, experiment_id: str,
     """
     log_path, model_path, output_dir = _resolve_dataset_paths(dataset_dir, experiment_id)
     log         = load_event_log(log_path)
-    compare_attribute = _auto_detect_compare_attribute(log, "AMOUNT_REQ")
+    compare_attribute = _auto_detect_compare_attribute(log)
     net, im, fm = load_model(model_path)
     # Reuse the cached alignments shared with /specify's violation enumeration so
     # idiom frequencies match what the admin saw when selecting violations

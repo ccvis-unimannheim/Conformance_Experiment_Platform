@@ -25,6 +25,26 @@ IDIOMS = [
     "heatmap",
 ]
 
+
+# What this task measures per group, and how it cuts the log — task
+# properties rather than admin choices (see TRACE_FEATURE_REGISTRY.md).
+RESPONSE_MEASURE = "fitness"
+SPLIT_STRATEGY = None  # admin chooses
+
+import trace_features
+
+PARAM_SPEC = [
+    {
+        "key": "compare_attribute",
+        "slot": "split",
+        "label": "Case attribute used to split traces into sub-logs",
+        "widget": "select-one",
+        "source": "log.candidate_attributes",
+        "default": "",
+        "required": False,
+    },
+    *trace_features.split_params_for(),
+]
 import os
 import numpy as np
 import pandas as pd
@@ -74,21 +94,21 @@ def _build_trace_df(fitness_df: pd.DataFrame, assignment: list, meta: dict) -> p
 
 
 def _group_stats(trace_df: pd.DataFrame, groups: list) -> pd.DataFrame:
-    rows = []
-    for g in groups:
-        sub = trace_df[trace_df["group"] == g]["fitness"]
-        n = len(sub)
-        rows.append({
-            "group":       g,
-            "n":           n,
-            "pct_conform": float((sub >= _FIT_THRESHOLD).sum() / n * 100) if n else 0.0,
-            "mean":        float(sub.mean())   if n else 0.0,
-            "median":      float(sub.median()) if n else 0.0,
-            "std":         float(sub.std())    if n else 0.0,
-            "min":         float(sub.min())    if n else 0.0,
-            "max":         float(sub.max())    if n else 0.0,
-        })
-    return pd.DataFrame(rows)
+    """Per sub-log fitness summary."""
+    import trace_response
+
+    stats = trace_response.fitness_stats(
+        trace_df["fitness"], trace_df["group"], groups,
+    )
+    return pd.DataFrame({
+        "group":       stats["group"],
+        "n":           stats["n"],
+        "mean":        stats["mean"],
+        "median":      stats["median"],
+        "std":         stats["std"],
+        "min":         stats["min"],
+        "max":         stats["max"],
+    })
 
 
 def _group_colors(groups: list) -> list:
@@ -293,7 +313,6 @@ def task33_table(stats_df, attr, output_dir):
         [
             row["group"],
             str(int(row["n"])),
-            f"{row['pct_conform']:.1f}%",
             f"{row['mean']:.4f}",
             f"{row['median']:.4f}",
             f"{row['std']:.4f}",
@@ -308,9 +327,9 @@ def task33_table(stats_df, attr, output_dir):
     make_table(
         ax,
         cell_text=cell_text,
-        col_labels=["Sub-log", "N", "% Conform.", "Mean", "Median", "Std Dev", "Min", "Max"],
+        col_labels=["Sub-log", "N", "Mean", "Median", "Std Dev", "Min", "Max"],
         bbox=[0.02, 0.08, 0.96, 0.82],
-        col_widths=[0.30, 0.07, 0.10, 0.09, 0.09, 0.09, 0.09, 0.09],
+        col_widths=[0.32, 0.08, 0.12, 0.12, 0.12, 0.12, 0.12],
         font_size=10,
         scale_xy=(1, 1.4),
     )
@@ -335,15 +354,15 @@ def task33_table_bar_chart(trace_df, stats_df, groups, attr, output_dir):
     ax_tbl.axis("off")
     cell_text = [
         [row["group"], str(int(row["n"])),
-         f"{row['mean']:.4f}", f"{row['std']:.4f}", f"{row['pct_conform']:.1f}%"]
+         f"{row['mean']:.4f}", f"{row['std']:.4f}"]
         for _, row in stats_df.iterrows()
     ]
     make_table(
         ax_tbl,
         cell_text=cell_text,
-        col_labels=["Sub-log", "N", "Mean Fitness", "Std Dev", "% Conform."],
+        col_labels=["Sub-log", "N", "Mean Fitness", "Std Dev"],
         bbox=[0.02, 0.06, 0.96, 0.84],
-        col_widths=[0.36, 0.12, 0.18, 0.16, 0.18],
+        col_widths=[0.42, 0.15, 0.22, 0.21],
         font_size=10,
         scale_xy=(1, 1.4),
     )
@@ -462,8 +481,7 @@ def generate(log, fitness_df, output_dir, compare_attribute="AMOUNT_REQ"):
     for _, row in stats_df.iterrows():
         g_ascii = str(row["group"]).replace("≤", "<=")
         logger.info(f"         {g_ascii:<30} n={int(row['n']):>6}  "
-                    f"mean={row['mean']:.4f}  median={row['median']:.4f}  "
-                    f"conform={row['pct_conform']:.1f}%")
+                    f"mean={row['mean']:.4f}  median={row['median']:.4f}")
 
     task33_bar_chart(trace_df, stats_df, groups, compare_attribute, output_dir)
     task33_stacked_bar(trace_df, groups, compare_attribute, output_dir)
