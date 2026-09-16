@@ -32,6 +32,18 @@ def create_user(user: ds.User):
     print("User created successfully in database")
 
 
+def user_exists(user_id: str) -> bool:
+    """True if this user_id was issued by this app (i.e. POST /auth/ created a User for it).
+
+    Participant endpoints read the user id straight out of the session cookie.
+    Other apps are served from this same origin (see provibackend/nginx/nginx.conf),
+    so without this check a cookie minted elsewhere is accepted as a participant
+    and its rows land in this study's collections joined to nobody.
+    """
+    db = connect_to_database()
+    return db["User"].count_documents({"user_id": user_id}, limit=1) > 0
+
+
 def create_dataset(dataset: ds.Dataset):
     db = connect_to_database()
     dataset_collection = db["Dataset"]
@@ -109,6 +121,35 @@ def get_document(collection_name: str, query: dict) -> dict | None:
     db = connect_to_database()
     collection = db[collection_name]
     return collection.find_one(query)
+
+
+def _find_custom_task(field: str, value: str) -> dict | None:
+    """Look up an experiment-scoped custom task (Experiment.custom_tasks) by one field."""
+    db = connect_to_database()
+    exp = db["Experiment"].find_one(
+        {f"custom_tasks.{field}": value},
+        {"custom_tasks": {"$elemMatch": {field: value}}},
+    )
+    tasks = (exp or {}).get("custom_tasks") or []
+    return tasks[0] if tasks else None
+
+
+def get_task(task_id: str) -> dict | None:
+    """Resolve a task_id to its Task document.
+
+    Checks the shared Task question bank first, then the custom tasks an admin
+    added to a single experiment (stored on that Experiment, never in Task).
+    """
+    if not task_id:
+        return None
+    return get_document("Task", {"_id": task_id}) or _find_custom_task("_id", task_id)
+
+
+def get_custom_task_by_key(task_key: str) -> dict | None:
+    """Return the experiment-scoped custom task with this task_key, or None."""
+    if not task_key:
+        return None
+    return _find_custom_task("task_key", task_key)
 
 
 def get_user_assignment(user_id: str, experiment_id: str) -> dict | None:

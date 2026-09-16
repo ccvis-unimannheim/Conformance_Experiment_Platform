@@ -202,7 +202,7 @@ function LikertRow({ value, onSelect, disabled }) {
   );
 }
 
-function IdiomRatingModal({ submitting, onSubmit }) {
+function IdiomRatingModal({ submitting, error, onSubmit }) {
   const [ratings, setRatings] = useState({ capabilities: null, ease: null });
   const allRated = RATING_STATEMENTS.every(({ key }) => ratings[key] != null);
 
@@ -249,12 +249,28 @@ function IdiomRatingModal({ submitting, onSubmit }) {
           ))}
         </div>
 
+        {error && (
+          <p style={{
+            margin: "1.5rem 0 0 0",
+            padding: "0.75rem 0.9rem",
+            backgroundColor: "#fdeceb",
+            border: "1px solid #f3b9b5",
+            borderRadius: "0.5rem",
+            fontSize: "0.8rem",
+            color: "#8f2018",
+            lineHeight: 1.5,
+            textAlign: "left",
+          }}>
+            {error}
+          </p>
+        )}
+
         <button
           type="button"
           disabled={!allRated || submitting}
           onClick={() => onSubmit(ratings)}
           style={{
-            marginTop: "1.75rem",
+            marginTop: error ? "0.9rem" : "1.75rem",
             width: "100%",
             padding: "0.9rem",
             backgroundColor: !allRated || submitting ? "#a9bdd4" : "#00305e",
@@ -268,7 +284,7 @@ function IdiomRatingModal({ submitting, onSubmit }) {
             transition: "background-color 0.15s ease",
           }}
         >
-          {submitting ? "Saving…" : "Submit"}
+          {submitting ? "Saving…" : error ? "Try again" : "Submit"}
         </button>
       </div>
     </div>
@@ -300,6 +316,7 @@ const TaskAnswerPanel = ({
   const [idiomExpanded, setIdiomExpanded] = useState(false);
   const [showTaskTooltip, setShowTaskTooltip] = useState(false);
   const [showConfidence, setShowConfidence] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
 
   const startTimeRef = useRef(Date.now());
   // Response time is captured the moment the participant clicks "Submit & Next"
@@ -315,6 +332,7 @@ const TaskAnswerPanel = ({
     setAnswer(initialAnswer(answerType, options));
     setIdiomExpanded(false);
     setShowConfidence(false);
+    setSubmitError(null);
     startTimeRef.current = Date.now();
   }, [currentTaskIndex, answerType]);
 
@@ -336,6 +354,7 @@ const TaskAnswerPanel = ({
   const submitWithRatings = async ({ capabilities, ease }) => {
     if (submitting) return;
     setSubmitting(true);
+    setSubmitError(null);
     const response_time_ms = pendingResponseTimeRef.current;
 
     const payload = {
@@ -353,6 +372,10 @@ const TaskAnswerPanel = ({
       insert_datetime: new Date().toISOString(),
     };
 
+    // Advance only once the answer is stored. The rating modal stays open on
+    // failure, holding both the answer and the ratings so the same submit can
+    // be retried — response_time_ms is already captured, so retrying does not
+    // inflate it.
     try {
       const response = await fetch("/api/survey/answer", {
         method: "POST",
@@ -360,17 +383,22 @@ const TaskAnswerPanel = ({
         credentials: "include",
         body: JSON.stringify(payload),
       });
-      if (!response.ok) console.error(`Submit failed: ${response.status}`);
-      else console.log(`Answer saved for task ${taskId}, response_time_ms: ${response_time_ms}, capabilities: ${capabilities}, ease: ${ease}`);
+      if (!response.ok) {
+        setSubmitError(`Your answer could not be saved (error ${response.status}). Please try again — if this keeps happening, tell the experimenter before continuing.`);
+        setSubmitting(false);
+        return;
+      }
     } catch (error) {
-      console.warn("Backend unreachable — continuing:", error.message);
-    } finally {
+      setSubmitError("Could not reach the server. Check your connection and try again.");
       setSubmitting(false);
-      setShowConfidence(false);
-      setAnswer(initialAnswer(answerType, options));
-      if (isLastTask) router.push("/endpage");
-      else onAnswerSubmit?.();
+      return;
     }
+
+    setSubmitting(false);
+    setShowConfidence(false);
+    setAnswer(initialAnswer(answerType, options));
+    if (isLastTask) router.push("/endpage");
+    else onAnswerSubmit?.();
   };
 
   const cardStyle = {
@@ -617,7 +645,7 @@ const TaskAnswerPanel = ({
       </div>
 
       {showConfidence && (
-        <IdiomRatingModal submitting={submitting} onSubmit={submitWithRatings} />
+        <IdiomRatingModal submitting={submitting} error={submitError} onSubmit={submitWithRatings} />
       )}
     </aside>
   );

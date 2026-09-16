@@ -94,7 +94,7 @@ CUSTOM_IDIOM_DIRECTORY = config.CUSTOM_IDIOM_DIRECTORY
 
 # Cache of distinct activity names per dataset, so /specify's param-spec
 # candidate enumeration doesn't reload the event log on every page render
-# (see ADMIN_EXPERIMENT_SETUP.md). Keyed by dataset_id.
+# (see docs/ADMIN_EXPERIMENT_SETUP.md). Keyed by dataset_id.
 _LOG_ACTIVITIES_CACHE: dict[str, list[str]] = {}
 # Cache of dataset-meaningful time-bin granularities (task07), same rationale.
 _LOG_TIME_GRANULARITIES_CACHE: dict[str, list[str]] = {}
@@ -287,7 +287,7 @@ async def upload_dataset_pair(
 ):
     """Upload an event log + BPMN guideline.
 
-    Generation no longer runs at upload time (see ADMIN_EXPERIMENT_SETUP.md) — it is triggered per-experiment via POST /admin/experiments/{id}/generate,
+    Generation no longer runs at upload time (see docs/ADMIN_EXPERIMENT_SETUP.md) — it is triggered per-experiment via POST /admin/experiments/{id}/generate,
     once the admin has selected idioms (/idiom) and hyperparameters (/specify).
     """
     # Validate file extensions BEFORE creating any directories on disk
@@ -464,7 +464,7 @@ async def download_experiment_answers(experiment_id: str):
         unique_task_ids = df_answers["task_id"].dropna().unique().tolist()
         task_lookup = {}
         for tid in unique_task_ids:
-            doc = dbc.get_document("Task", {"_id": tid})
+            doc = dbc.get_task(tid)
             if doc:
                 task_lookup[tid] = {"task_key": doc.get("task_key", ""), "task_name": doc.get("label", "")}
         df_answers["task_key"] = df_answers["task_id"].map(lambda x: task_lookup.get(x, {}).get("task_key", ""))
@@ -673,7 +673,7 @@ async def upload_custom_idiom(file: UploadFile, label: str = Form(...), task_key
     keys = [k.strip() for k in task_keys.split(",") if k.strip()]
     if not keys:
         raise HTTPException(status_code=400, detail="At least one task must be selected.")
-    unknown = [k for k in keys if k not in _TASK_MODULES]
+    unknown = [k for k in keys if not _is_known_task_key(k)]
     if unknown:
         raise HTTPException(status_code=400, detail=f"Unknown task(s): {', '.join(unknown)}")
 
@@ -728,7 +728,7 @@ async def update_idiom(idiom_id: str, update: ds.IdiomUpdate):
     if "task_keys" in fields:
         if not fields["task_keys"]:
             raise HTTPException(status_code=400, detail="At least one task must be selected.")
-        unknown = [k for k in fields["task_keys"] if k not in _TASK_MODULES]
+        unknown = [k for k in fields["task_keys"] if not _is_known_task_key(k)]
         if unknown:
             raise HTTPException(status_code=400, detail=f"Unknown task(s): {', '.join(unknown)}")
 
@@ -761,13 +761,52 @@ async def create_task(task: ds.Task):
     return JSONResponse(content={"message": f"Task '{task.label}' created.", "task_id": task.id}, status_code=201)
 
 
+def _task_sort_key(task: dict):
+    """Built-in tasks by number (task01, task02, ...); keys without a number last."""
+    task_key = task.get("task_key", "")
+    match = re.search(r"\d+", task_key)
+    return (0, int(match.group()), task_key) if match else (1, 0, task_key)
+
+
+def _is_known_task_key(task_key: str) -> bool:
+    """A built-in task (has a generator module) or an experiment-scoped custom task."""
+    return task_key in _TASK_MODULES or dbc.get_custom_task_by_key(task_key) is not None
+
+
+def _is_custom_task_key(task_key: str | None) -> bool:
+    """Custom tasks have no generator module: their idioms are static uploaded assets."""
+    return bool(task_key) and task_key not in _TASK_MODULES
+
+
+def _remove_custom_task_idioms(task_keys: list[str]):
+    """Unscope custom idioms from deleted custom tasks.
+
+    An idiom still scoped to another task keeps existing; one left with no
+    task at all is deleted together with its asset file.
+    """
+    if not task_keys:
+        return
+    for idiom in dbc.get_query_db("Idiom", query={"is_custom": True, "task_keys": {"$in": task_keys}}):
+        remaining = [k for k in (idiom.get("task_keys") or []) if k not in task_keys]
+        if remaining:
+            dbc.update_document("Idiom", {"_id": idiom["_id"]}, {"$set": {"task_keys": remaining}})
+            continue
+        dbc.delete_document("Idiom", {"_id": idiom["_id"]})
+        asset_path = CUSTOM_IDIOM_DIRECTORY / f"{idiom['idiom_key']}{idiom.get('asset_ext') or '.svg'}"
+        asset_path.unlink(missing_ok=True)
+
+
 @router.get("/tasks", tags=["admin"])
-async def get_tasks():
+async def get_tasks(experiment_id: str | None = None):
+    """The shared Task question bank, plus `experiment_id`'s own custom tasks if given."""
     tasks = dbc.get_query_db("Task", query={})
     for doc in tasks:
         if "_id" in doc and not isinstance(doc["_id"], str):
             doc["_id"] = str(doc["_id"])
-    tasks.sort(key=lambda t: int(re.search(r'\d+', t.get("task_key", "0")).group()))
+    tasks.sort(key=_task_sort_key)
+    if experiment_id:
+        exp = dbc.get_document("Experiment", {"_id": experiment_id}) or {}
+        tasks.extend(exp.get("custom_tasks") or [])
     return JSONResponse(content=tasks)
 
 
@@ -776,6 +815,16 @@ async def update_task(task_id: str, update_data: ds.TaskUpdate):
     fields = {k: v for k, v in update_data.model_dump().items() if v is not None}
     if not fields:
         raise HTTPException(status_code=400, detail="No fields to update.")
+    if dbc.get_document("Task", {"_id": task_id}) is None:
+        # Experiment-scoped custom task: edit it in place on its experiment.
+        updated = dbc.update_document(
+            "Experiment",
+            query={"custom_tasks._id": task_id},
+            update={"$set": {f"custom_tasks.$.{k}": v for k, v in fields.items()}},
+        )
+        if not updated:
+            raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found.")
+        return JSONResponse(content={"message": "Task updated.", "task_id": task_id})
     # Marks this document as admin-customized so the startup seed (main.py
     # _seed_collection) stops overwriting it with seed_data.py's hardcoded values.
     fields["_admin_edited"] = True
@@ -785,8 +834,61 @@ async def update_task(task_id: str, update_data: ds.TaskUpdate):
     return JSONResponse(content={"message": "Task updated.", "task_id": task_id})
 
 
+@router.post("/experiments/{experiment_id}/custom-tasks", tags=["admin"])
+async def create_custom_task(experiment_id: str, body: ds.CustomTaskCreate):
+    """Add a task that exists only in this experiment.
+
+    It is stored on the Experiment (custom_tasks), not in the shared Task
+    question bank, so other experiments never list it. A custom task has no
+    generator code — its visualizations are custom idioms uploaded on /idiom.
+    """
+    label = body.label.strip()
+    if not label:
+        raise HTTPException(status_code=400, detail="The task question is required.")
+    exp = dbc.get_document("Experiment", {"_id": experiment_id})
+    if not exp:
+        raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
+
+    task = {
+        "_id": str(uuid.uuid4()),
+        # Globally unique, since custom idioms are scoped to tasks by task_key.
+        "task_key": f"custom-{uuid.uuid4().hex[:6]}",
+        "label": label,
+        "description": body.description.strip(),
+        "answer_type": "text",
+        "is_custom": True,
+    }
+    dbc.update_document("Experiment", {"_id": experiment_id}, {"$push": {"custom_tasks": task}})
+    return JSONResponse(content=task, status_code=201)
+
+
+@router.delete("/experiments/{experiment_id}/custom-tasks/{task_id}", tags=["admin"])
+async def delete_custom_task(experiment_id: str, task_id: str):
+    """Remove a custom task from its (draft) experiment, together with its
+    task_instances and any custom idioms that were only scoped to it."""
+    exp = dbc.get_document("Experiment", {"_id": experiment_id})
+    if not exp:
+        raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
+    task = next((t for t in exp.get("custom_tasks") or [] if t.get("_id") == task_id), None)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"Custom task '{task_id}' not found.")
+    if exp.get("status", "draft") != "draft":
+        raise HTTPException(status_code=409, detail="Custom tasks can only be deleted from a draft experiment.")
+
+    instances = [ti for ti in exp.get("task_instances", []) if ti.get("task_id") != task_id]
+    dbc.update_document("Experiment", {"_id": experiment_id}, {
+        "$pull": {"custom_tasks": {"_id": task_id}},
+        "$set": {
+            "task_instances": instances,
+            "task_configs": task_instances_to_configs(instances),
+        },
+    })
+    _remove_custom_task_idioms([task["task_key"]])
+    return JSONResponse(content={"message": "Custom task deleted.", "task_id": task_id})
+
+
 @router.get("/task-idioms", tags=["admin"])
-async def get_task_idioms():
+async def get_task_idioms(experiment_id: str | None = None):
     """Returns {task_key: [canonical_idiom_key, ...]} from each task script's IDIOMS list.
 
     Raw idiom names from task scripts use file-stem conventions (e.g. scatter_plot,
@@ -797,10 +899,20 @@ async def get_task_idioms():
     assets rather than code-generated per task; each one is scoped to the
     specific task(s) the admin picked at upload time (its `task_keys` field),
     so it's only appended to those tasks' lists here — not every task.
+
+    With `experiment_id`, that experiment's custom tasks are included too; they
+    have no code-generated idioms, only the custom idioms scoped to them.
     """
     custom_idioms = dbc.get_query_db("Idiom", query={"is_custom": True})
 
     result = {}
+    if experiment_id:
+        exp = dbc.get_document("Experiment", {"_id": experiment_id}) or {}
+        for task in exp.get("custom_tasks") or []:
+            result[task["task_key"]] = [
+                doc["idiom_key"] for doc in custom_idioms
+                if task["task_key"] in (doc.get("task_keys") or [])
+            ]
     for task_key, mod in _TASK_MODULES.items():
         skip = _TASK_RENAME_SKIP.get(task_key, set())
         raw_idioms = list(getattr(mod, "IDIOMS", []))
@@ -824,7 +936,7 @@ _PARAM_OVERRIDE_FIELDS = ("default", "required", "min", "max", "step", "options"
 @router.get("/tasks/{task_key}/param-spec", tags=["admin"])
 async def get_task_param_spec(task_key: str, dataset_id: str | None = None):
     """Return this task's hyperparameter spec for /specify (col E, see
-    ADMIN_EXPERIMENT_SETUP.md).
+    docs/ADMIN_EXPERIMENT_SETUP.md).
 
     Unauthored or param-free tasks return `param_spec: []`, which /specify
     renders as "No parameters required — ready to generate". `dataset_id` is
@@ -844,6 +956,9 @@ async def get_task_param_spec(task_key: str, dataset_id: str | None = None):
     every other task it's off unless the admin has explicitly turned it on.
     """
     if task_key not in _TASK_MODULES:
+        if dbc.get_custom_task_by_key(task_key):
+            # Custom tasks have no generation code, so no parameter consumes anything.
+            return JSONResponse(content={"task_key": task_key, "param_spec": []})
         raise HTTPException(status_code=404, detail=f"Unknown task '{task_key}'.")
 
     task_docs = dbc.get_query_db("Task", query={"task_key": task_key})
@@ -1026,7 +1141,10 @@ async def get_task_rubric(task_key: str):
     overrides it. `rubric` is `null` if neither exists.
     """
     if task_key not in _TASK_MODULES:
-        raise HTTPException(status_code=404, detail=f"Unknown task '{task_key}'.")
+        custom = dbc.get_custom_task_by_key(task_key)
+        if not custom:
+            raise HTTPException(status_code=404, detail=f"Unknown task '{task_key}'.")
+        return JSONResponse(content={"task_key": task_key, "rubric": custom.get("rubric")})
     task_docs = dbc.get_query_db("Task", query={"task_key": task_key})
     override = task_docs[0].get("rubric") if task_docs else None
     return JSONResponse(content={
@@ -1139,6 +1257,9 @@ async def delete_experiment(experiment_id: str, force: bool = False):
     db["Answer"].delete_many({"experiment_id": experiment_id})
     db["UILogging"].delete_many({"experiment_id": experiment_id})
     db["Experiment"].delete_one({"_id": experiment_id})
+    # Its custom tasks go with the experiment document; drop the custom idioms
+    # that were only scoped to them.
+    _remove_custom_task_idioms([t["task_key"] for t in exp.get("custom_tasks") or []])
 
     # Remove the generated idiom SVGs for this experiment so they don't pile up as
     # orphaned files on disk (mirrors dataset deletion's shutil.rmtree cleanup).
@@ -1196,7 +1317,7 @@ def _freeze_task_snapshots(instances: list[dict], existing_by_task_id: dict) -> 
             inst["answer_type"] = existing.get("answer_type", "")
             continue
         if task_id not in task_cache:
-            task_cache[task_id] = dbc.get_document("Task", {"_id": task_id}) or {}
+            task_cache[task_id] = dbc.get_task(task_id) or {}
         task = task_cache[task_id]
         inst["task_key"] = task.get("task_key", "")
         inst["label"] = task.get("label", "")
@@ -1249,7 +1370,7 @@ def _task_key_for(task_id: str | None) -> str | None:
     """Resolve a task_instance's task_id to its canonical task_key (e.g. 'task01')."""
     if not task_id:
         return None
-    task = dbc.get_document("Task", {"_id": task_id})
+    task = dbc.get_task(task_id)
     return task.get("task_key") if task else None
 
 
@@ -1269,7 +1390,7 @@ def _load_dataset_log(dataset_id: str):
 
 def _validate_task_instances(exp: dict) -> list[str]:
     """Hard-validate every task_instance's parameters against its PARAM_SPEC and
-    optional validate_params hook (see ADMIN_EXPERIMENT_SETUP.md). Returns
+    optional validate_params hook (see docs/ADMIN_EXPERIMENT_SETUP.md). Returns
     a list of human-readable error messages; empty means all valid."""
     errors: list[str] = []
     log_cache: dict[str, object] = {}
@@ -1346,7 +1467,7 @@ def _run_generation_job(experiment_id: str):
         ds = ti.get("dataset_id")
         task_key = _task_key_for(ti.get("task_id"))
         meta[ti.get("task_id")] = task_key
-        if not ds or not task_key:
+        if not ds or not task_key or _is_custom_task_key(task_key):
             continue
         by_dataset.setdefault(ds, []).append({
             "task_key": task_key,
@@ -1367,6 +1488,11 @@ def _run_generation_job(experiment_id: str):
     for ti in task_instances:
         ds = ti.get("dataset_id")
         task_key = meta.get(ti.get("task_id"))
+        if _is_custom_task_key(task_key):
+            # Only static uploaded idioms — nothing to render.
+            ti["generation_status"] = "ready"
+            ti["generation_error"] = None
+            continue
         if not ds:
             ti["generation_status"] = "failed"
             ti["generation_error"] = "No dataset assigned to this task."
@@ -1397,7 +1523,7 @@ def _run_generation_job(experiment_id: str):
 async def generate_experiment_visualizations(experiment_id: str, background_tasks: BackgroundTasks):
     """Validate parameters, then run idiom generation for this
     experiment's task_instances in the background, writing SVGs to
-    data/{dataset_id}/output/{experiment_id}/... (see ADMIN_EXPERIMENT_SETUP.md).
+    data/{dataset_id}/output/{experiment_id}/... (see docs/ADMIN_EXPERIMENT_SETUP.md).
     Invalid parameters are rejected with a 400 before anything runs. Poll
     GET /experiments/{experiment_id} for per-task generation_status."""
     exp = dbc.get_document("Experiment", {"_id": experiment_id})
@@ -1464,7 +1590,7 @@ def _run_preview_job(experiment_id: str, mode: str):
         insts = []
         for ti in task_instances:
             task_key = _task_key_for(ti.get("task_id"))
-            if task_key:
+            if task_key and not _is_custom_task_key(task_key):
                 insts.append({
                     "task_key": task_key,
                     "parameters": ti.get("parameters") or {},
@@ -1485,7 +1611,7 @@ def _run_preview_job(experiment_id: str, mode: str):
         for ti in task_instances:
             ds_id    = ti.get("dataset_id")
             task_key = _task_key_for(ti.get("task_id"))
-            if ds_id and task_key:
+            if ds_id and task_key and not _is_custom_task_key(task_key):
                 by_dataset.setdefault(ds_id, []).append({
                     "task_key": task_key,
                     "parameters": ti.get("parameters") or {},
@@ -1551,7 +1677,8 @@ async def start_preview(
     for ti in exp.get("task_instances", []):
         tk = _task_key_for(ti.get("task_id"))
         if tk:
-            task_statuses[tk] = "running"
+            # Custom tasks only have static idioms, so their preview is ready at once.
+            task_statuses[tk] = "ready" if _is_custom_task_key(tk) else "running"
 
     _preview_status.setdefault(experiment_id, {})[mode] = task_statuses
     background_tasks.add_task(_run_preview_job, experiment_id, mode)
@@ -1587,6 +1714,10 @@ async def get_preview_svg(
     """
     if mode not in ("sample", "real"):
         raise HTTPException(status_code=400, detail="mode must be 'sample' or 'real'.")
+
+    custom_docs = dbc.get_query_db("Idiom", query={"idiom_key": idiom_key, "is_custom": True})
+    if custom_docs:
+        return await get_custom_idiom_asset(idiom_key)
 
     preview_exp_id = f"__prev_{experiment_id}_{mode}"
 
@@ -1713,6 +1844,10 @@ async def generate_idiom_preview(task_key: str, background_tasks: BackgroundTask
     current = _idiom_preview_status.get(task_key, "idle")
     if current in ("generating", "ready"):
         return JSONResponse({"status": current})
+
+    # Custom tasks have no generator; their idioms are served as static assets.
+    if _is_custom_task_key(task_key):
+        return JSONResponse({"status": "ready"})
 
     # If SVGs were committed to the repo and baked into the image, use them directly.
     if _idiom_svgs_exist(task_key):

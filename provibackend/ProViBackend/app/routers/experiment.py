@@ -10,7 +10,7 @@ def _resolve_task_configs(task_configs: list) -> list:
     """Replace task_id/idiom_id UUIDs with their semantic task_key/idiom_key."""
     resolved = []
     for tc in task_configs:
-        task_doc = dbc.get_document("Task", {"_id": tc.get("task_id")})
+        task_doc = dbc.get_task(tc.get("task_id"))
         idiom_doc = dbc.get_document("Idiom", {"_id": tc.get("idiom_id")})
         resolved.append({
             **tc,

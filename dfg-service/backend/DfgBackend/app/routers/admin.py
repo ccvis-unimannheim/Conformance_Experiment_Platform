@@ -108,12 +108,12 @@ async def get_users_data_from_db():
 
 @router.get("/answers", tags=["admin"])
 async def get_answers_from_db():
-    return _csv_download("Answer", "answer_collection_data.csv")
+    return _csv_download("DfgAnswer", "answer_collection_data.csv")
 
 
 @router.get("/uitracking", tags=["admin"])
 async def get_ui_tracking_from_db():
-    return _csv_download("UILogging", "ui_logging_collection_data.csv")
+    return _csv_download("DfgUILogging", "ui_logging_collection_data.csv")
 
 
 @router.get("/usagedataset", tags=["admin"])

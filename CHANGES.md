@@ -2,6 +2,134 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: DFG / Main-App Data Isolation (2026-09-14)
+
+### Problem solved
+
+`dfg-service` and the main app share one Mongo database (`TeamProject`) and one
+nginx origin, so nothing but naming kept the two studies' data apart — and two
+names still overlapped:
+
+- DFG wrote participant answers and UI logs into `Answer` / `UILogging`, the
+  same collections the idiom study uses. The main app's bulk exports
+  (`generate_csv_for_download`, called with `query={}`) dump those collections
+  whole, with no field identifying which study a row came from, so "download
+  Answers" returned a CSV mixing both studies — with columns that shift
+  depending on which rows are present, since the two answer schemas diverged in
+  the 2026-09-09 refactor.
+- Both apps set a session cookie named `provi_user_id`, neither with a `path`,
+  on one origin — so whichever study a participant opened last owned the
+  identity for the whole site. The main app's write endpoints take that cookie
+  as `user_id` verbatim, so a participant who opened the DFG card on the landing
+  page mid-study and came back had their next answer stored under a DFG user id:
+  a row joinable to no `User` / `PreliminaryAnswers` / `KnowledgeAnswers`
+  record, with no error raised.
+
+Both leaks ran one-directionally into the idiom study's data, and both were
+silent. Two rules now keep them closed: every DFG collection is prefixed `Dfg`,
+and the two studies never share a cookie name.
+
+### DFG service (`dfg-service/`)
+
+| File | Change |
+|------|--------|
+| `backend/DfgBackend/utils/database/connection.py` | `create_answer` → `DfgAnswer`, `save_ui_logging_data` → `DfgUILogging`, completing the `DfgUser`/`DfgDataset` prefixing this service already applied elsewhere. **Deleted nine helpers** that wrote to the main app's collections — `create_user`, `create_dataset`, `update_dataset_is_active_status` (`User`/`Dataset`), `save_knowledge_answers` (`KnowledgeAnswers`+`User`), `create_experiment`, `get_experiment`, `update_experiment`, `get_user_assignment`, `update_trial_index` (`Experiment`/`UserAssignment`): all uncalled by any DFG router, but one stray call away from writing into the other study. Header comment records the prefix rule. |
+| `backend/DfgBackend/app/routers/admin.py` | Its two CSV exports read `DfgAnswer` / `DfgUILogging` to match the renamed writes. |
+| `backend/DfgBackend/app/routers/auth.py` | Session cookie issued as `dfg_user_id` instead of `provi_user_id`; `GET /auth/test` reads the new name. Comment records why a shared cookie name is unsafe here. |
+| `backend/DfgBackend/app/routers/vis.py`, `questionnaire.py`, `ui_tracking.py` | Read `dfg_user_id`. No frontend change was needed — `dfg-service/frontend` never names the cookie, relying on `credentials: "include"`. |
+
+### Backend (`provibackend/`)
+
+| File | Change |
+|------|--------|
+| `ProViBackend/utils/database/connection.py` | **New `user_exists(user_id)`** — true only when this app issued the id (a `User` document exists for it). |
+| `ProViBackend/app/routers/questionnaire.py`, `app/routers/auth.py`, `app/routers/participant.py` | The four endpoints that write cookie-keyed data — `POST /survey/answer`, `POST /auth/knowledge`, `POST /auth/feedback`, `POST /participant/assignment` — now return 401 on a cookie this app did not issue. Belt-and-braces after the rename; what it actually catches is a pre-rename `provi_user_id` cookie still sitting in a participant's browser (they live one day). `POST /participant/complete` needed nothing: it already 404s when no assignment exists. |
+| `nginx/nginx.conf` | Comment on the `/dfg/` blocks rewritten — it previously documented the shared `provi_user_id` cookie as intended behaviour, which is exactly what this session removed. |
+
+### Frontend (`ProViFrontend/`)
+
+| File | Change |
+|------|--------|
+| `src/components/Task/TaskAnswerPanel.js` | `submitWithRatings` advanced the trial from a `finally` block, so a failed `POST /api/survey/answer` — a 500, a dropped connection, or the 401 added above — discarded the participant's answer, cleared the form and moved on, recording the loss only as a `console.error`. Now the trial advances only after a 2xx; a failure leaves the rating modal open with the answer and both ratings intact, shows what went wrong, and turns the button into "Try again". `response_time_ms` is still the value captured on first click, so retrying does not inflate it. Needed for the 401 above to be visible rather than silent. |
+
+### Verification
+
+- `py_compile` over all ten changed Python files — clean.
+- `eslint` on `TaskAnswerPanel.js` — clean apart from one pre-existing
+  `react-hooks/exhaustive-deps` warning about `options`, untouched by this change.
+- Re-grepped `dfg-service/backend` for `provi_user_id`, `"Answer"` and
+  `"UILogging"` after the edits: only the explanatory comment in `auth.py` is
+  left.
+- Confirmed each of the nine deleted helpers was uncalled anywhere in
+  `dfg-service/backend`, and that `dfg-service/frontend` never references the
+  cookie by name.
+- **Not verified end to end:** nothing was run against a live Mongo or a
+  browser. Neither study's participant flow was exercised after the change.
+
+### Known gaps
+
+- Rows written *before* the rename are still in `Answer` / `UILogging` and will
+  still appear in the main app's bulk exports. They are identifiable — a row is
+  DFG's if its `user_id` is present in `DfgUser` — but were left untouched,
+  since moving or deleting them is a call on live data. Needs a one-off script
+  in the style of `scripts/drop_ground_truth_data.py` (`--dry-run` / `--yes`).
+- The retry path in `TaskAnswerPanel.js` was reasoned through but not exercised
+  in a browser — no failing-backend scenario was actually played out against the
+  running app.
+- The cookie rename invalidates any in-flight DFG session on deploy, and the
+  `test_cookie_ssl` / `_strict` / `_lax` dev routes in `provibackend`'s
+  `auth.py` now hand out cookies that the four guarded endpoints reject.
+
+---
+
+## Session: DFG Study Extracted Into a Standalone Service (2026-09-10)
+
+### Problem solved
+
+The previous team's DFG (Directly-Follows-Graph) tool had lived inside
+`provibackend` / `ProViFrontend` since the repo's initial commit (`9967cb4`,
+2026-03-09), sharing their dependencies, routers and build. The idiom study has
+since grown its own task / idiom / answer-format model around those same files,
+so neither study could be changed or deployed without touching the other. The
+DFG study is still needed, so it was moved out intact rather than deleted.
+
+Done copy-first: the code was duplicated into `dfg-service/` and made to work
+there (Phase 1) before being removed from the main project (Phase 2), so the
+main app was never left broken by a half-finished move.
+
+### New service (`dfg-service/`)
+
+| Commit | Change |
+|--------|--------|
+| `055ebc1` | **Phase 1 — copy.** `dfg-service/backend/DfgBackend` (FastAPI plus `FilterModel/`, `MentalMapModel/`) and `dfg-service/frontend` (Next.js: graph view, sliders, questionnaire) created as copies — 59 files. `docker-compose.yml` gains `dfgbackend` / `dfgfrontend`; `provibackend/nginx/nginx.conf` gains the `/dfg/`, `/dfg/api/` and `/dfg/api/admin/` blocks. |
+| `ced5edc`, `d0d586d` | Deps missing from the copied `package.json`, each surfacing at build time: `react-zoom-pan-pinch`, `@mui/icons-material`, `@coreui/react`, then `autoprefixer`. |
+| `dfbede8` | The dataset upload/activation pipeline had been dropped in the copy; restored. |
+| `b150a39` | The copied admin page had been replaced by a placeholder test page; the previous team's real one restored. |
+| `dcc23d5` | Static assets 404'd. Fixed by `basePath: "/dfg"` in `next.config.mjs` plus nginx's `/dfg/` block **not** stripping the prefix — unlike the `/dfg/api/` blocks, which must strip it. |
+| `7c574fb`, `ca4492f` | Previous team's original ProVi logo and favicon restored. |
+
+### Removed from the main project
+
+| Commit | Change |
+|--------|--------|
+| `18618a4` | **Phase 2 — delete**, once the standalone service worked: 22 files, 2440 lines. From `provibackend`: `ProViBackend/FilterModel/` (7 files), `ProViBackend/MentalMapModel/` (3 files), `app/routers/vis.py`, `app/routers/ui_tracking.py`. From `ProViFrontend`: `app/home/page.js`, `components/Graph/*` (4 files), `components/Questionnaire/*` (2 files), `components/General/Navigation.js`, part of `ExpNavigation.js`, and the deps they were the only users of in `package.json`. |
+
+### Known gaps
+
+- `dfgbackend`'s volume mount maps the host's `/srv/provi-data` to
+  `/code/DfgBackend/data`, but the service writes uploads and generated SVGs to
+  `/code/DfgBackend/output` — an unmounted path. The mount therefore does
+  nothing, and because `.github/workflows/deploy.yml` force-removes the
+  `dfgbackend` container on every deploy, DFG's datasets and SVGs are wiped each
+  time and have to be re-uploaded and re-activated.
+- `dfg-service`'s copies of the shared data models are frozen at extraction
+  time and will drift from `provibackend`'s as it evolves; the same model name
+  in the two services no longer implies the same shape.
+- Data isolation between the two studies was not addressed here — the two apps
+  still shared collections and a cookie name. See the 2026-09-14 entry.
+
+---
+
 ## Session: Answer-Format Refactor — Formats Decoupled from Tasks, Grading Removed (2026-09-09)
 
 ### Problem solved
@@ -53,12 +181,12 @@ into `number` with a `number_kind` setting; `pct-set`/`count-set` into `number-s
 
 | File | Change |
 |------|--------|
-| `ADMIN_EXPERIMENT_SETUP.md` | **New file**, replacing `ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md`. Describes the setup workflow as built rather than as planned. |
-| `PARTICIPANT_ANSWER_WIDGETS.md` | **New file**, replacing `PARTICIPANT_ANSWER_WIDGETS_PLAN.md` — the widgets as built. |
+| `docs/ADMIN_EXPERIMENT_SETUP.md` | **New file**, replacing `ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md`. Describes the setup workflow as built rather than as planned. |
+| `docs/PARTICIPANT_ANSWER_WIDGETS.md` | **New file**, replacing `PARTICIPANT_ANSWER_WIDGETS_PLAN.md` — the widgets as built. |
 | `TASK_GT_DEVELOPMENT_GUIDE.md` | **Deleted.** Ground-truth authoring no longer exists. |
-| `PARTICIPANT_TRIAL_CONTRACT.md` | Format catalogue 11 → 7; `decisive` replaced by `number_kind`; grading notes removed. |
-| `TASK_CONTRACT_PROMPT.md` | Rewritten as a PARAM_SPEC-only authoring prompt, with an explicit "not in scope" section for the removed attributes. |
-| 17 code comments | `ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §N` references repointed at `ADMIN_EXPERIMENT_SETUP.md`. |
+| `docs/PARTICIPANT_TRIAL_CONTRACT.md` | Format catalogue 11 → 7; `decisive` replaced by `number_kind`; grading notes removed. |
+| `docs/TASK_CONTRACT_PROMPT.md` | Rewritten as a PARAM_SPEC-only authoring prompt, with an explicit "not in scope" section for the removed attributes. |
+| 17 code comments | `ADMIN_SPECIFY_GROUNDTRUTH_PLAN.md §N` references repointed at `docs/ADMIN_EXPERIMENT_SETUP.md`. |
 
 ### Verification
 
