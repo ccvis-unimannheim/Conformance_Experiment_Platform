@@ -119,9 +119,11 @@ function ParamRow({ param, onSave }) {
 }
 
 function TaskParamCard({ task, params, sharedWith, onSaveParam }) {
-  const [expanded, setExpanded] = useState(false);
+  // Only the parameters this task declares. Enabling one it does not read used
+  // to be offered here; it collected a value on /specify that generation then
+  // ignored, and it let two parameters competing for the same decision (two
+  // split attributes, say) be switched on together.
   const enabledParams = params.filter((p) => p.enabled);
-  const disabledParams = params.filter((p) => !p.enabled);
 
   return (
     <div className="bg-white rounded-lg border border-border-subtle shadow-sm overflow-hidden">
@@ -157,35 +159,6 @@ function TaskParamCard({ task, params, sharedWith, onSaveParam }) {
               </div>
             ))}
 
-            {disabledParams.length > 0 && (
-              <div className="border-t border-border-subtle mt-1 pt-2">
-                <button
-                  onClick={() => setExpanded((v) => !v)}
-                  className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
-                >
-                  <span className="material-symbols-outlined text-sm">
-                    {expanded ? "expand_less" : "add"}
-                  </span>
-                  {expanded
-                    ? "Hide other parameters"
-                    : `Enable another parameter (${disabledParams.length} available)`}
-                </button>
-                {expanded && (
-                  <div className="mt-2">
-                    {disabledParams.map((param) => (
-                      <div key={param.key}>
-                        <ParamRow param={param} onSave={(draft) => onSaveParam(param.key, draft)} />
-                        {sharedWith[param.key]?.length > 0 && (
-                          <p className="text-[10px] text-on-surface-variant italic pb-2">
-                            Also used by: {sharedWith[param.key].join(", ")}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
           </>
         )}
       </div>
@@ -338,11 +311,10 @@ function ParameterMatchingContent() {
         <div className="flex flex-col gap-1">
           <h1 className="font-h1 text-h1 text-primary mb-2">Parameter Matching</h1>
           <p className="font-body-lg text-body-lg text-secondary max-w-2xl">
-            For each task you selected, every parameter declared by any task is available to
-            enable, with its own default value, required flag, and range. Enabling a parameter a
-            task&apos;s own generation code doesn&apos;t read is harmless but has no effect — the
-            value is collected on /specify but ignored at generation time. These settings are
-            shared across every experiment, not just this one.
+            For each task you selected, the parameters that task declares — each with its own
+            default value, required flag, and range. A task only offers parameters its generation
+            code reads, and at most one per decision, so two settings can never contradict each
+            other. These settings are shared across every experiment, not just this one.
           </p>
         </div>
 

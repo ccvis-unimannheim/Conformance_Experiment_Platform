@@ -57,9 +57,14 @@ function ParamField({ entry, value, onChange }) {
     const selected = Array.isArray(value) ? value : [];
     if (options.length === 0) {
       return (
-        <p className="text-sm text-on-surface/60 italic">
-          No candidates available for this dataset yet.
-        </p>
+        <div className="flex flex-col gap-1">
+          <p className="text-sm text-on-surface/60 italic">
+            No candidates available for this dataset yet.
+          </p>
+          {entry.options_error && (
+            <p className="text-xs text-red-700 font-mono break-all">{entry.options_error}</p>
+          )}
+        </div>
       );
     }
     function toggle(optValue) {

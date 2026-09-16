@@ -989,16 +989,26 @@ async def get_task_param_spec(task_key: str, dataset_id: str | None = None):
     if dataset_id:
         for entry in spec:
             source = entry.get("source")
-            if source:
-                try:
-                    candidates = _param_candidates(source, dataset_id)
-                    if candidates:
-                        entry["options"] = candidates
-                except Exception:
-                    _logger.exception(
-                        "Failed to enumerate candidates for %s param '%s' (source=%s)",
-                        task_key, entry.get("key"), source,
-                    )
+            if not source:
+                continue
+            try:
+                candidates = _param_candidates(source, dataset_id)
+            except Exception as e:
+                # An empty picker used to be indistinguishable from a broken
+                # one: the admin saw "no candidates" either way while the reason
+                # sat in the container log. Send the reason along so /specify can
+                # say which it is.
+                _logger.exception(
+                    "Failed to enumerate candidates for %s param '%s' (source=%s)",
+                    task_key, entry.get("key"), source,
+                )
+                entry["options_error"] = f"{type(e).__name__}: {e}"
+                continue
+            entry["options"] = candidates or []
+            if not candidates:
+                entry["options_error"] = (
+                    f"'{source}' returned nothing for this dataset."
+                )
     return JSONResponse(content={
         "task_key": task_key,
         "param_spec": spec,
