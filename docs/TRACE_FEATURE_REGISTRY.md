@@ -169,6 +169,12 @@ renderers, differing in wording and in the idioms each keeps. Their model and
 per-trace idioms stay log-level: a BPMN annotated with overall violations has no
 per-bucket form.
 
+`attribute_set` is multi-select everywhere except task30, which keeps a single
+`compare_attribute`. Not an oversight: its response is `patterns`, whose panel is
+a pattern-by-group matrix rather than one value per bucket, so it needs a panel
+shape the shared renderers do not have. Every other task in the class analyses
+as many attributes as the admin selects, one panel each.
+
 The consequence is deliberate but worth restating for experiment design: task16
 and task20 now draw the same thing, as do task15, task22 and task33. A class is
 the sampling unit — drawing two members into one study shows a participant the
@@ -265,3 +271,80 @@ must have `attribute_set` set **explicitly**. With a non-empty
 `attribute_set`, `_default_attributes` never runs and `_EXCLUDE_ATTRIBUTES` is
 irrelevant; left empty, lifting the exclusion could add a third panel and change
 all three images. Freezing the current value explicitly closes this regardless.
+
+---
+
+## Open issue: empty attribute picker, empty panels
+
+Observed on the live platform after the first deploy of this work, on a dataset
+carrying `customer_segment` and `region`. Two symptoms, almost certainly one
+cause:
+
+1. `/specify` shows no dropdown for `attribute_set` — the picker renders
+   "No candidates available for this dataset yet."
+2. Some idioms render the empty state **"No candidate attribute could be
+   bucketed."**
+
+### Why they are the same failure
+
+```
+picker empty            →  the admin cannot select anything
+                        →  attribute_set stays []
+                        →  generate() falls back to _default_attributes(log, feat)
+                        →  that also returns nothing
+                        →  attribute_panels() returns []
+                        →  every panel idiom renders the empty state
+```
+
+Both ends read the same features. The picker goes through
+`get_log_candidate_attributes` → `trace_features.discover_features`; the
+fallback goes through `task20._default_attributes` →
+`task13.discover_candidate_attributes`. **These are still two different paths**
+— unifying them is the remaining half of defect 7 — so a dataset that defeats
+one may or may not defeat the other, and confirming both are empty is itself
+diagnostic.
+
+### What has been ruled out
+
+Tested against BPIC12-A, which behaves correctly:
+
+| | |
+|---|---|
+| the function itself | returns 29 rows through the admin import path, JSON-serialisable |
+| speed | `discover_features` takes 0.1 s over 13,087 traces / 60,849 events |
+| deployment | `trace_features.py` and `trace_response.py` are on `origin/develop`; `COPY ./ProViBackend` takes the whole tree and neither file is ignored |
+| the pipeline | CI/CD completed successfully |
+| the front end | it handles `select-many`, and reaches the empty-state branch only when `options.length === 0` |
+
+So the cause is specific to that dataset, or to the request rather than the code.
+
+### How to tell which
+
+A later commit made the failure self-reporting: the param-spec endpoint returns
+`options_error`, and `/specify` prints it under the empty-state line.
+
+| What the picker shows | Meaning |
+|---|---|
+| an exception, e.g. `FileNotFoundError: …` | enumeration raised; the message names the cause |
+| `'log.candidate_attributes' returned nothing for this dataset.` | enumeration ran and the dataset genuinely yields no feature |
+| the empty-state line with no red text | `dataset_id` reached the endpoint empty — the task instance has no dataset bound, so candidates were never enumerated |
+
+The third case is worth checking first: `/specify` sends
+`dataset_id=${ti.dataset_id || ""}`, and the endpoint skips enumeration
+entirely for an empty value.
+
+### If the dataset is the cause
+
+The likely candidates, in the order worth testing:
+
+* **Timestamps that are not datetimes.** `_time_features` subtracts them; a log
+  whose `time:timestamp` survived as text would raise, and the exception would
+  take the whole feature list with it, not just the two time features.
+* **An empty log.** `discover_features` returns `[]` for a log of no traces, and
+  `_resolve_dataset_paths` would have raised earlier only if the files were
+  missing, not if the log parsed to nothing.
+* **Attributes present only as case attributes with no events carrying them.**
+  Handled, but worth confirming against the real file.
+
+The fastest way to settle it is to put that dataset's `EventLog.csv` beside the
+BPIC12 copies and run `discover_features` over it directly.
