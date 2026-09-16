@@ -271,6 +271,15 @@ def attribute_panels(log, features, response_measure, *, alignments=None,
             stats = fitness_stats(per_trace, result.assignment, result.labels)
             measured = [float(v) for v in stats["mean"]]
         counts = [int(v) for v in stats["n"]]
+        # Traces with no value for this feature leave every group and every
+        # denominator. That used to be a silent drop configurable by an admin
+        # who had no way to know it mattered; say how many instead.
+        excluded = len(per_trace) - sum(counts)
+        if excluded:
+            logger.warning(
+                f"      attribute_panels: '{key}' has no value for {excluded} of "
+                f"{len(per_trace)} traces — they are excluded from its panel."
+            )
 
         meta = {
             "key": key,

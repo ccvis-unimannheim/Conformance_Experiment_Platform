@@ -542,16 +542,6 @@ SPLIT_PARAMS = [
         "default": DEFAULT_GROUP_CAP,
         "required": False,
     },
-    {
-        "key": "missing_policy",
-        "slot": "split",
-        "label": "Traces whose attribute has no value",
-        "hint": "Drop them, or keep them as their own “Missing” group",
-        "widget": "select-one",
-        "options": ["drop", "own_group"],
-        "default": "drop",
-        "required": False,
-    },
 ]
 
 
@@ -559,15 +549,14 @@ def split_params_for(strategy: Optional[str] = None) -> list:
     """The split-slot parameters that still make sense for a fixed strategy.
 
     A task whose strategy is settled in code does not offer it to the admin, and
-    the cap is meaningless for a two-way cut — so `binary` exposes only the
-    missing-value policy, while a free strategy exposes all three.
+    the cap is meaningless for a two-way cut — so `binary` exposes nothing here,
+    while a free strategy exposes both.
     """
     if strategy is None:
         return [dict(p) for p in SPLIT_PARAMS]
-    keep = {"missing_policy"}
     if strategy in ("nominal_n", "ordered_bins"):
-        keep.add("group_cap")
-    return [dict(p) for p in SPLIT_PARAMS if p["key"] in keep]
+        return [dict(p) for p in SPLIT_PARAMS if p["key"] == "group_cap"]
+    return []
 
 
 @dataclass(frozen=True)

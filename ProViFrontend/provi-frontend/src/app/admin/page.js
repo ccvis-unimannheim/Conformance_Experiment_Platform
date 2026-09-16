@@ -90,7 +90,11 @@ function TasksTooltip({ exp, taskMap, idiomMap }) {
   );
 }
 
-const WIZARD_STEPS = ["new", "prequestionnaire", "knowledge", "task", "idiom", "parameters", "specify", "answer-format", "overview"];
+const WIZARD_STEPS = ["new", "prequestionnaire", "knowledge", "task", "idiom", "specify", "answer-format", "overview"];
+
+// Drafts saved while the removed parameter-matching step existed still carry
+// it as their current step; resume them where that step used to lead.
+const LEGACY_STEPS = { parameters: "specify" };
 
 const STATUS_STYLES = {
   draft:     { border: "border-amber-400", dot: "bg-amber-400", label: "Draft" },
@@ -472,8 +476,9 @@ export default function AdminPage() {
                         {!expManageMode && (
                           <div className="flex items-center gap-2 ml-2 flex-shrink-0">
                             {status === "draft" && (() => {
-                              const step = WIZARD_STEPS.includes(exp.current_step)
-                                ? exp.current_step
+                              const current = LEGACY_STEPS[exp.current_step] ?? exp.current_step;
+                              const step = WIZARD_STEPS.includes(current)
+                                ? current
                                 : (exp.task_configs && exp.task_configs.length > 0 ? "idiom" : "knowledge");
                               const href = `/admin/experiments/${step}?experiment_id=${encodeURIComponent(expId)}`;
                               return (

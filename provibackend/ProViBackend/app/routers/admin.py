@@ -930,9 +930,6 @@ async def get_task_idioms(experiment_id: str | None = None):
     return JSONResponse(content=result)
 
 
-_PARAM_OVERRIDE_FIELDS = ("default", "required", "min", "max", "step", "options")
-
-
 @router.get("/tasks/{task_key}/param-spec", tags=["admin"])
 async def get_task_param_spec(task_key: str, dataset_id: str | None = None):
     """Return this task's hyperparameter spec for /specify (col E, see
@@ -944,16 +941,13 @@ async def get_task_param_spec(task_key: str, dataset_id: str | None = None):
     with a `source` (e.g. "log.activities"), candidate values for that dataset
     are populated here.
 
-    Every task shares the same parameter catalog — the full set of parameters
-    declared by ANY task, deduped by key (the same way every task shares the
-    one global answer-format registry). An admin can enable any parameter for
-    any task from
-    /admin/experiments/parameters (see PATCH /tasks/{task_id}
-    `param_overrides`), but only tasks whose own generation code reads that
-    key will actually use the submitted value — for the rest it's collected
-    but ignored. A parameter is included here only if enabled: for a task
-    that natively declares it, that's the default unless overridden off; for
-    every other task it's off unless the admin has explicitly turned it on.
+    A task offers exactly the parameters its own PARAM_SPEC declares. There used
+    to be a global catalog here — every parameter any task declared, switchable
+    on per task from /admin/experiments/parameters — but a parameter a task's
+    generation code does not read was collected and then ignored, and nothing
+    stopped two parameters competing for the same decision from being enabled
+    together. Each entry carries a `slot`, and a task declares at most one entry
+    per slot.
     """
     if task_key not in _TASK_MODULES:
         if dbc.get_custom_task_by_key(task_key):
@@ -961,30 +955,9 @@ async def get_task_param_spec(task_key: str, dataset_id: str | None = None):
             return JSONResponse(content={"task_key": task_key, "param_spec": []})
         raise HTTPException(status_code=404, detail=f"Unknown task '{task_key}'.")
 
-    task_docs = dbc.get_query_db("Task", query={"task_key": task_key})
-    overrides = (task_docs[0].get("param_overrides") or {}) if task_docs else {}
-    own_keys = {entry["key"] for entry in task_registry.get_param_spec(task_key)}
-
-    all_param_defs: dict[str, dict] = {}
-    for mod_key in _TASK_MODULES:
-        for entry in task_registry.get_param_spec(mod_key):
-            all_param_defs.setdefault(entry["key"], entry)
-
-    # Copy entries so we never mutate any module's PARAM_SPEC, apply any admin
-    # override, then populate candidate `options` for entries with a
-    # dataset-backed `source`.
-    spec = []
-    for key, raw_entry in all_param_defs.items():
-        entry = dict(raw_entry)
-        entry["key"] = key
-        ov = overrides.get(key, {})
-        enabled = ov.get("enabled", key in own_keys)
-        if not enabled:
-            continue
-        for field in _PARAM_OVERRIDE_FIELDS:
-            if ov.get(field) is not None:
-                entry[field] = ov[field]
-        spec.append(entry)
+    # Copied so a request never mutates the module's PARAM_SPEC, then given
+    # candidate `options` where the entry names a dataset-backed `source`.
+    spec = [dict(entry) for entry in task_registry.get_param_spec(task_key)]
 
     if dataset_id:
         for entry in spec:
@@ -1084,59 +1057,6 @@ async def get_option_candidates(
         "axis": [a["label"] for a in axis],
         "axis_total": axis_total,
     })
-
-
-@router.get("/param-catalog", tags=["admin"])
-async def get_param_catalog():
-    """The full parameter catalog for the admin Parameter Matching page
-    (/admin/experiments/parameters): every parameter declared by ANY task,
-    deduped by key, each listed against EVERY task — the parameter analogue of
-    the global answer-format registry in app/answer_formats.py.
-
-    An admin can enable any parameter for any task, but only tasks whose own
-    generation code reads that key will actually use the submitted value —
-    for the rest it's collected but has no effect. `enabled` defaults to True
-    for a task that natively declares the parameter, and False otherwise,
-    so nothing changes for existing experiments until an admin opts a task
-    into a parameter it didn't originally declare.
-    """
-    task_docs = {d["task_key"]: d for d in dbc.get_query_db("Task", query={}) if d.get("task_key")}
-
-    param_defs: dict[str, dict] = {}
-    native_keys_by_task: dict[str, set] = {}
-    for task_key in _TASK_MODULES:
-        own = task_registry.get_param_spec(task_key)
-        native_keys_by_task[task_key] = {entry["key"] for entry in own}
-        for entry in own:
-            param_defs.setdefault(entry["key"], entry)
-
-    catalog = []
-    for key, entry in param_defs.items():
-        bucket = {
-            "key": key,
-            "label": entry.get("label"),
-            "widget": entry.get("widget"),
-            "source": entry.get("source"),
-            "tasks": [],
-        }
-        for task_key in _TASK_MODULES:
-            task_doc = task_docs.get(task_key, {})
-            overrides = task_doc.get("param_overrides") or {}
-            ov = overrides.get(key, {})
-            natively_supported = key in native_keys_by_task[task_key]
-            bucket["tasks"].append({
-                "task_key": task_key,
-                "task_label": task_doc.get("label", task_key),
-                "enabled": ov.get("enabled", natively_supported),
-                "default": ov.get("default", entry.get("default")),
-                "required": ov.get("required", entry.get("required")),
-                "min": ov.get("min", entry.get("min")),
-                "max": ov.get("max", entry.get("max")),
-                "step": ov.get("step", entry.get("step")),
-            })
-        catalog.append(bucket)
-
-    return JSONResponse(content={"parameters": catalog})
 
 
 
