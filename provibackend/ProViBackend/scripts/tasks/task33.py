@@ -31,16 +31,18 @@ IDIOMS = [
 RESPONSE_MEASURE = "fitness"
 SPLIT_STRATEGY = None  # admin chooses
 
+_SPLIT_SUPTITLE = "Process Conformance by Candidate Attribute"
+
 import trace_features
 
 PARAM_SPEC = [
     {
-        "key": "compare_attribute",
+        "key": "attribute_set",
         "slot": "split",
-        "label": "Case attribute used to split traces into sub-logs",
-        "widget": "select-one",
+        "label": "Attributes to analyse (empty = the discovered default set)",
+        "widget": "select-many",
         "source": "log.candidate_attributes",
-        "default": "",
+        "default": [],
         "required": False,
     },
     *trace_features.split_params_for(),
@@ -60,7 +62,7 @@ from shared import (
     FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
-from tasks.task30 import split_by_attribute
+from tasks.task30 import split_by_attribute, MAX_CATEGORICAL_GROUPS
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -145,39 +147,6 @@ def _fine_bin_rates(trace_df: pd.DataFrame, groups: list) -> np.ndarray:
 # ---------------------------------------------------------------------------
 # Idiom 1: bar_chart — mean fitness per sub-log with std error bars
 # ---------------------------------------------------------------------------
-
-def task33_bar_chart(trace_df, stats_df, groups, attr, output_dir):
-    colors = _group_colors(groups)
-    fig, ax = plt.subplots(figsize=(max(5, len(groups) * 2.0), 5.5))
-
-    for i, (g, color) in enumerate(zip(groups, colors)):
-        sub = trace_df[trace_df["group"] == g]["fitness"]
-        mean = float(sub.mean()) if len(sub) else 0.0
-        std  = float(sub.std())  if len(sub) else 0.0
-        n    = len(sub)
-        ax.bar(i, mean, color=color, edgecolor="white", linewidth=0.6, width=0.6)
-        # Clip error bars so they stay within [0, 1]
-        yerr_lo = min(std, mean)
-        yerr_hi = min(std, 1.0 - mean)
-        ax.errorbar(i, mean, yerr=[[yerr_lo], [yerr_hi]],
-                    color="#555555", capsize=5, linewidth=1.2)
-        # Place n= inside bar bottom to avoid overlap with rotated x-tick labels
-        txt_y = max(mean / 2, 0.03)
-        txt_c = "white" if mean > 0.12 else "#444444"
-        ax.text(i, txt_y, f"n={n}", ha="center", va="center",
-                fontsize=FONT_ANNOT - 1, color=txt_c)
-
-    ax.set_xticks(range(len(groups)))
-    ax.set_xticklabels(groups, rotation=0, ha="center", fontsize=FONT_ANNOT)
-    ax.set_ylabel("Mean Fitness (± 1 std)", fontsize=FONT_LABEL)
-    ax.set_ylim(0, 1.15)
-    ax.set_title(f"Mean Fitness per Sub-log ({attr})", fontsize=FONT_TITLE)
-    ax.spines[["top", "right", "left"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
-    ax.set_axisbelow(True)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task33_bar_chart.svg"))
-
 
 # ---------------------------------------------------------------------------
 # Idiom 2: stacked_bar — fitness band composition per sub-log
@@ -308,133 +277,17 @@ def task33_boxplot(trace_df, groups, attr, output_dir):
 # Idiom 5: table — full stats per sub-log
 # ---------------------------------------------------------------------------
 
-def task33_table(stats_df, attr, output_dir):
-    cell_text = [
-        [
-            row["group"],
-            str(int(row["n"])),
-            f"{row['mean']:.4f}",
-            f"{row['median']:.4f}",
-            f"{row['std']:.4f}",
-            f"{row['min']:.4f}",
-            f"{row['max']:.4f}",
-        ]
-        for _, row in stats_df.iterrows()
-    ]
-    fig_h = max(2.6, 1.2 + len(stats_df) * 0.55)
-    fig, ax = plt.subplots(figsize=(15, fig_h))
-    ax.axis("off")
-    make_table(
-        ax,
-        cell_text=cell_text,
-        col_labels=["Sub-log", "N", "Mean", "Median", "Std Dev", "Min", "Max"],
-        bbox=[0.02, 0.08, 0.96, 0.82],
-        col_widths=[0.32, 0.08, 0.12, 0.12, 0.12, 0.12, 0.12],
-        font_size=10,
-        scale_xy=(1, 1.4),
-    )
-    ax.set_title(f"Fitness Statistics per Sub-log ({attr})", fontsize=FONT_TITLE, pad=10)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task33_table.svg"))
-
-
 # ---------------------------------------------------------------------------
 # Idiom 6: table_bar_chart — stats table (left) + mean fitness bars (right)
 # ---------------------------------------------------------------------------
-
-def task33_table_bar_chart(trace_df, stats_df, groups, attr, output_dir):
-    colors = _group_colors(groups)
-    fig = plt.figure(figsize=(16, max(4.5, len(groups) * 0.9 + 2.5)),
-                     layout="constrained")
-    gs = gridspec.GridSpec(1, 2, width_ratios=[1.4, 1.0], figure=fig)
-    ax_tbl = fig.add_subplot(gs[0])
-    ax_bar = fig.add_subplot(gs[1])
-
-    # Left: summary table
-    ax_tbl.axis("off")
-    cell_text = [
-        [row["group"], str(int(row["n"])),
-         f"{row['mean']:.4f}", f"{row['std']:.4f}"]
-        for _, row in stats_df.iterrows()
-    ]
-    make_table(
-        ax_tbl,
-        cell_text=cell_text,
-        col_labels=["Sub-log", "N", "Mean Fitness", "Std Dev"],
-        bbox=[0.02, 0.06, 0.96, 0.84],
-        col_widths=[0.42, 0.15, 0.22, 0.21],
-        font_size=10,
-        scale_xy=(1, 1.4),
-    )
-    ax_tbl.set_title(f"Sub-log Summary ({attr})", fontsize=FONT_TITLE, pad=10)
-
-    # Right: horizontal bar chart
-    means = [float(stats_df.loc[stats_df["group"] == g, "mean"].iloc[0])
-             if (stats_df["group"] == g).any() else 0.0 for g in groups]
-    stds  = [float(stats_df.loc[stats_df["group"] == g, "std"].iloc[0])
-             if (stats_df["group"] == g).any() else 0.0 for g in groups]
-    y = np.arange(len(groups))
-    bars = ax_bar.barh(y, means, color=colors, edgecolor="white",
-                       linewidth=0.6, height=0.5)
-    ax_bar.errorbar(means, y, xerr=stds, fmt="none",
-                    color="#555555", capsize=4, linewidth=1.0)
-    for bar, val, std in zip(bars, means, stds):
-        # Place label after the error bar cap so it never overlaps
-        label_x = min(val + std + 0.025, 1.08)
-        ax_bar.text(label_x, bar.get_y() + bar.get_height() / 2,
-                    f"{val:.3f}", va="center", fontsize=FONT_ANNOT - 1, color="#444444")
-    ax_bar.axvline(_FIT_THRESHOLD, color="#BBBBBB", linestyle="--", linewidth=0.9)
-    ax_bar.set_yticks(y)
-    ax_bar.set_yticklabels(groups, fontsize=FONT_ANNOT)
-    ax_bar.invert_yaxis()
-    ax_bar.set_xlabel("Mean Fitness (± 1 std)", fontsize=FONT_LABEL)
-    ax_bar.set_xlim(0, 1.15)
-    ax_bar.set_title("Mean Fitness Comparison", fontsize=FONT_TITLE, pad=10)
-    ax_bar.spines[["top", "right"]].set_visible(False)
-    ax_bar.xaxis.grid(True, linestyle="--", alpha=0.4)
-    ax_bar.set_axisbelow(True)
-    pad = max(0.8, 0.6)
-    ax_bar.set_ylim(len(groups) - 1 + pad, -pad)
-
-    save_svg(fig, os.path.join(output_dir, "task33_table_bar_chart.svg"))
-
 
 # ---------------------------------------------------------------------------
 # Idiom 7: matrix — 4 fitness bands × groups (annotated %)
 # ---------------------------------------------------------------------------
 
-def task33_matrix(trace_df, groups, attr, output_dir):
-    band_names = [b[0] for b in _FITNESS_BANDS]
-    data = _band_rates(trace_df, groups)  # (4 × n_groups)
-
-    fig_h = max(3.0, len(_FITNESS_BANDS) * 0.7 + 1.2)
-    fig, ax = plt.subplots(figsize=(max(5, len(groups) * 2.2), fig_h))
-    draw_rate_matrix(fig, ax, data, band_names, groups,
-                     xlabel=f"Sub-log ({attr})", cbar_label="% of sub-log traces")
-    ax.set_title("Fitness Band Distribution Matrix (%)", fontsize=FONT_TITLE)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task33_matrix.svg"))
-
-
 # ---------------------------------------------------------------------------
 # Idiom 8: heatmap — 10 fine bins × groups (continuous color scale)
 # ---------------------------------------------------------------------------
-
-def task33_heatmap(trace_df, groups, attr, output_dir):
-    data = _fine_bin_rates(trace_df, groups)   # (10 × n_groups), low→high
-    bin_labels = [f"{i/10:.1f}–{(i+1)/10:.1f}" for i in range(9, -1, -1)]
-    data_flipped = data[::-1]                  # display high fitness at top
-
-    fig_h = max(4.0, 10 * 0.42 + 1.2)
-    fig, ax = plt.subplots(figsize=(max(5, len(groups) * 2.2), fig_h))
-    draw_value_heatmap(fig, ax, data_flipped, bin_labels, groups,
-                       xlabel=f"Sub-log ({attr})",
-                       cbar_label="% of sub-log traces",
-                       annotate=False, rotate_xticks=0)
-    ax.set_title("Fitness Distribution Heatmap (fine bins)", fontsize=FONT_TITLE)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task33_heatmap.svg"))
-
 
 # ---------------------------------------------------------------------------
 # Public entry point
@@ -452,12 +305,43 @@ _ALL_FNAMES_TITLES = [
 ]
 
 
-def generate(log, fitness_df, output_dir, compare_attribute="AMOUNT_REQ"):
-    """Generate all Task ID 33 SVGs into output_dir."""
+def generate(log, fitness_df, output_dir, alignments=None,
+             attribute_set=None, split_strategy=None, group_cap=None):
+    """Render Task ID 33 into output_dir.
+
+    The panel idioms draw mean fitness per bucket of every chosen attribute,
+    through the renderers task20 also uses. The distribution idioms need a
+    single grouping, so they use the first attribute selected and name it in
+    their own titles.
+    """
+    import trace_response
+    import tasks.task20 as task20
+
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 33 visualizations ---")
 
-    groups, assignment, meta = split_by_attribute(log, compare_attribute)
+    # Alignments are used only to discover the default attribute set; every
+    # number this task reports comes from fitness.
+    feat = task20.task20_trace_feature_dataframe(log, alignments) if alignments is not None else None
+    attrs = list(attribute_set) if attribute_set else task20._default_attributes(log, feat)
+    panels = trace_response.attribute_panels(
+        log, attrs, "fitness", fitness_per_trace=fitness_df["fitness"],
+        strategy=split_strategy, cap=group_cap,
+    )
+    logger.info(f"      -> attributes: {attrs}  ({len(panels)} panel(s))")
+
+    fmt = dict(suptitle=_SPLIT_SUPTITLE, value_label="Mean fitness",
+               value_fmt="{:.3f}", value_max=1.0)
+    task20.task20_bar_chart(panels, output_dir, filename="task33_bar_chart.svg", **fmt)
+    task20.task20_table(panels, output_dir, filename="task33_table.svg", **fmt)
+    task20.task20_table_bar_chart(panels, output_dir,
+                                  filename="task33_table_bar_chart.svg", **fmt)
+    task20.task20_matrix(panels, output_dir, filename="task33_matrix.svg", **fmt)
+    task20.task20_heatmap(panels, output_dir, filename="task33_heatmap.svg", **fmt)
+
+    compare_attribute = attrs[0] if attrs else ""
+    groups, assignment, meta = split_by_attribute(
+        log, compare_attribute, max_groups=group_cap or MAX_CATEGORICAL_GROUPS)
     if groups is None:
         logger.error(f"      task33: attribute '{compare_attribute}' not found.")
         for fname, title in _ALL_FNAMES_TITLES:
@@ -483,11 +367,7 @@ def generate(log, fitness_df, output_dir, compare_attribute="AMOUNT_REQ"):
         logger.info(f"         {g_ascii:<30} n={int(row['n']):>6}  "
                     f"mean={row['mean']:.4f}  median={row['median']:.4f}")
 
-    task33_bar_chart(trace_df, stats_df, groups, compare_attribute, output_dir)
+    # One grouping only: these read a distribution, not a per-bucket summary.
     task33_stacked_bar(trace_df, groups, compare_attribute, output_dir)
     task33_scatter_plot(trace_df, groups, meta, compare_attribute, output_dir)
     task33_boxplot(trace_df, groups, compare_attribute, output_dir)
-    task33_table(stats_df, compare_attribute, output_dir)
-    task33_table_bar_chart(trace_df, stats_df, groups, compare_attribute, output_dir)
-    task33_matrix(trace_df, groups, compare_attribute, output_dir)
-    task33_heatmap(trace_df, groups, compare_attribute, output_dir)

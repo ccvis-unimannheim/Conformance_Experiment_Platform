@@ -36,16 +36,18 @@ IDIOMS = ["bar_chart", "stacked_bar", "scatter_plot",
 RESPONSE_MEASURE = "fitness"
 SPLIT_STRATEGY = None  # admin chooses
 
+_SPLIT_SUPTITLE = "Conformance Explained by Candidate Attribute"
+
 import trace_features
 
 PARAM_SPEC = [
     {
-        "key": "compare_attribute",
+        "key": "attribute_set",
         "slot": "split",
-        "label": "Case attribute whose sub-logs explain conformance",
-        "widget": "select-one",
+        "label": "Attributes to analyse (empty = the discovered default set)",
+        "widget": "select-many",
         "source": "log.candidate_attributes",
-        "default": "",
+        "default": [],
         "required": False,
     },
     *trace_features.split_params_for(),
@@ -66,7 +68,8 @@ from shared import (
 )
 
 # Reuse the proven sub-log split + attribute helpers from task30.
-from tasks.task30 import split_by_attribute, _available_case_attributes
+from tasks.task30 import (split_by_attribute, _available_case_attributes,
+                          MAX_CATEGORICAL_GROUPS)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -157,44 +160,6 @@ def _activity_violations(alignments) -> dict:
 # ---------------------------------------------------------------------------
 # Idiom 1: bar_chart — mean fitness per reason group
 # ---------------------------------------------------------------------------
-
-def task22_bar_chart(trace_df, groups, attr, output_dir):
-    colors = _group_colors(groups)
-    fig, ax = plt.subplots(figsize=(max(6, len(groups) * 2.2), 5.5))
-
-    means = []
-    for i, (g, color) in enumerate(zip(groups, colors)):
-        sub = trace_df[trace_df["group"] == g]["fitness"]
-        mean = float(sub.mean()) if len(sub) else 0.0
-        std  = float(sub.std())  if len(sub) else 0.0
-        means.append(mean)
-        ax.bar(i, mean, color=color, edgecolor="white", linewidth=0.6, width=0.6)
-        yerr_lo, yerr_hi = min(std, mean), min(std, 1.0 - mean)
-        ax.errorbar(i, mean, yerr=[[yerr_lo], [yerr_hi]],
-                    color="#555555", capsize=5, linewidth=1.2)
-        txt_y = max(mean / 2, 0.03)
-        txt_c = "white" if mean > 0.12 else "#444444"
-        ax.text(i, txt_y, f"n={len(sub)}", ha="center", va="center",
-                fontsize=FONT_ANNOT - 1, color=txt_c)
-
-    # Explanatory signal: how much of the conformance spread this reason accounts for
-    if means:
-        spread = max(means) - min(means)
-        ax.text(0.99, 0.98, f"mean spread = {spread:.3f}",
-                transform=ax.transAxes, ha="right", va="top",
-                fontsize=FONT_ANNOT - 1, color="#777777")
-
-    ax.set_xticks(range(len(groups)))
-    ax.set_xticklabels(groups, rotation=0, ha="center", fontsize=FONT_ANNOT)
-    ax.set_ylabel("Mean Fitness (± 1 std)", fontsize=FONT_LABEL)
-    ax.set_ylim(0, 1.15)
-    ax.set_title(f"Conformance Explained by {attr}", fontsize=FONT_TITLE)
-    ax.spines[["top", "right", "left"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
-    ax.set_axisbelow(True)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task22_bar_chart.svg"))
-
 
 # ---------------------------------------------------------------------------
 # Idiom 2: stacked_bar — fitness-band composition per reason group
@@ -300,138 +265,13 @@ def task22_scatter_plot(trace_df, groups, meta, attr, output_dir):
 # Idiom 4: table — per-group conformance summary with deviation column
 # ---------------------------------------------------------------------------
 
-def task22_table(stats_df, attr, output_dir):
-    cell_text = [
-        [
-            row["group"],
-            str(int(row["n"])),
-            f"{row['mean']:.4f}",
-            f"{row['median']:.4f}",
-            f"{row['std']:.4f}",
-            f"{row['delta']:+.4f}",
-        ]
-        for _, row in stats_df.iterrows()
-    ]
-    fig_h = max(2.6, 1.2 + len(stats_df) * 0.55)
-    fig, ax = plt.subplots(figsize=(14, fig_h))
-    ax.axis("off")
-    make_table(
-        ax,
-        cell_text=cell_text,
-        col_labels=["Sub-log (reason)", "N", "Mean",
-                    "Median", "Std Dev", "Δ vs overall"],
-        bbox=[0.02, 0.08, 0.96, 0.82],
-        col_widths=[0.38, 0.09, 0.13, 0.13, 0.13, 0.14],
-        font_size=10,
-        scale_xy=(1, 1.4),
-    )
-    ax.set_title(f"Conformance Summary by {attr} (Δ explains the spread)",
-                 fontsize=FONT_TITLE, pad=10)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task22_table.svg"))
-
-
 # ---------------------------------------------------------------------------
 # Idiom 5: table_bar_chart — summary table (left) + mean-fitness bars (right)
 # ---------------------------------------------------------------------------
 
-def task22_table_bar_chart(stats_df, groups, attr, output_dir):
-    colors = _group_colors(groups)
-    fig_h = max(4.5, len(groups) * 0.9 + 2.5)
-    fig = plt.figure(figsize=(16, fig_h), layout="constrained")
-    gs = gridspec.GridSpec(1, 2, width_ratios=[1.4, 1.0], figure=fig)
-    ax_tbl = fig.add_subplot(gs[0])
-    ax_bar = fig.add_subplot(gs[1])
-
-    ax_tbl.axis("off")
-    cell_text = [
-        [row["group"], str(int(row["n"])),
-         f"{row['mean']:.4f}", f"{row['delta']:+.4f}"]
-        for _, row in stats_df.iterrows()
-    ]
-    # Size the table to its row count (≈0.55"/row) and anchor it to the top so
-    # rows stay the same height as standalone tables instead of stretching to
-    # fill the tall combined figure.
-    n_rows = len(cell_text) + 1
-    tbl_frac = min(0.84, 0.55 * n_rows / fig_h)
-    tbl_y0 = max(0.04, 0.86 - tbl_frac)
-    make_table(
-        ax_tbl,
-        cell_text=cell_text,
-        col_labels=["Sub-log (reason)", "N", "Mean Fitness", "Δ vs overall"],
-        bbox=[0.02, tbl_y0, 0.96, tbl_frac],
-        col_widths=[0.40, 0.15, 0.23, 0.22],
-        font_size=10,
-        scale_xy=(1, 1.4),
-    )
-    ax_tbl.set_title(f"Reason Summary ({attr})", fontsize=FONT_TITLE, pad=10)
-
-    means = [float(stats_df.loc[stats_df["group"] == g, "mean"].iloc[0])
-             if (stats_df["group"] == g).any() else 0.0 for g in groups]
-    stds  = [float(stats_df.loc[stats_df["group"] == g, "std"].iloc[0])
-             if (stats_df["group"] == g).any() else 0.0 for g in groups]
-    y = np.arange(len(groups))
-    bars = ax_bar.barh(y, means, color=colors, edgecolor="white",
-                       linewidth=0.6, height=0.5)
-    ax_bar.errorbar(means, y, xerr=stds, fmt="none",
-                    color="#555555", capsize=4, linewidth=1.0)
-    for bar, val, std in zip(bars, means, stds):
-        label_x = min(val + std + 0.025, 1.08)
-        ax_bar.text(label_x, bar.get_y() + bar.get_height() / 2,
-                    f"{val:.3f}", va="center", fontsize=FONT_ANNOT - 1, color="#444444")
-    ax_bar.set_yticks(y)
-    ax_bar.set_yticklabels(groups, fontsize=FONT_ANNOT)
-    ax_bar.invert_yaxis()
-    ax_bar.set_xlabel("Mean Fitness (± 1 std)", fontsize=FONT_LABEL)
-    ax_bar.set_xlim(0, 1.15)
-    ax_bar.set_title("Mean Fitness by Reason", fontsize=FONT_TITLE, pad=10)
-    ax_bar.spines[["top", "right"]].set_visible(False)
-    ax_bar.xaxis.grid(True, linestyle="--", alpha=0.4)
-    ax_bar.set_axisbelow(True)
-    ax_bar.set_ylim(len(groups) - 1 + 0.8, -0.8)
-
-    save_svg(fig, os.path.join(output_dir, "task22_table_bar_chart.svg"))
-
-
 # ---------------------------------------------------------------------------
 # Idiom 6: parallel_sets — reason value → fitness band (ribbon = trace count)
 # ---------------------------------------------------------------------------
-
-def task22_parallel_sets(trace_df, groups, attr, output_dir):
-    counts = _band_counts(trace_df, groups)            # (n_groups × n_bands)
-    band_names = [b[0] for b in _FITNESS_BANDS]
-    # Keep only bands that occur in at least one group (avoid empty columns)
-    keep = [bi for bi in range(len(band_names)) if counts[:, bi].sum() > 0]
-    if not keep:
-        render_empty_state_svg(os.path.join(output_dir, "task22_parallel_sets.svg"),
-                               "Reason vs. Fitness Band", "No traces to display.")
-        return
-    matrix = counts[:, keep]
-    right_labels = [band_names[bi] for bi in keep]
-    right_colors = [_FITNESS_BANDS[bi][3] for bi in keep]
-
-    group_n = {g: int((trace_df["group"] == g).sum()) for g in groups}
-    left_labels = [f"{g}\n(n={group_n.get(g, 0)})" for g in groups]
-
-    fig, ax = plt.subplots(figsize=(11, 5.5))
-    ax.axis("off")
-    ax.set_xlim(-0.05, 1.05)
-    ax.set_ylim(-0.05, 1.15)
-    ax.set_title(f"Parallel Sets: {attr} (reason) vs. Fitness Band",
-                 fontsize=FONT_TITLE, pad=12)
-    draw_parallel_sets(
-        ax,
-        left_labels=left_labels,
-        right_labels=right_labels,
-        matrix=matrix,
-        left_colors=_group_colors(groups),
-        right_colors=right_colors,
-        left_title="Sub-log (reason)",
-        right_title="Fitness band",
-    )
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task22_parallel_sets.svg"))
-
 
 # ---------------------------------------------------------------------------
 # Idiom 7: flow_chart_elaborate_table — violations on the BPMN model + reason table
@@ -515,13 +355,41 @@ _ALL_FNAMES_TITLES = [
 ]
 
 
-def generate(log, fitness_df, alignments, output_dir: str,
-             model_path: str = None, compare_attribute: str = "AMOUNT_REQ"):
-    """Generate all Task ID 22 SVGs into output_dir."""
+def generate(log, fitness_df, alignments, output_dir: str, model_path: str = None,
+             attribute_set=None, split_strategy=None, group_cap=None):
+    """Render Task ID 22 into output_dir.
+
+    The panel idioms draw mean fitness per bucket of every chosen attribute,
+    through the renderers task20 also uses. The distribution idioms need a
+    single grouping, so they use the first attribute selected and name it in
+    their own titles.
+    """
+    import trace_response
+    import tasks.task20 as task20
+
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 22 visualizations ---")
 
-    groups, assignment, meta = split_by_attribute(log, compare_attribute)
+    feat = task20.task20_trace_feature_dataframe(log, alignments)
+    attrs = list(attribute_set) if attribute_set else task20._default_attributes(log, feat)
+    panels = trace_response.attribute_panels(
+        log, attrs, "fitness", fitness_per_trace=fitness_df["fitness"],
+        strategy=split_strategy, cap=group_cap,
+    )
+    logger.info(f"      -> attributes: {attrs}  ({len(panels)} panel(s))")
+
+    fmt = dict(suptitle=_SPLIT_SUPTITLE, value_label="Mean fitness",
+               value_fmt="{:.3f}", value_max=1.0)
+    task20.task20_bar_chart(panels, output_dir, filename="task22_bar_chart.svg", **fmt)
+    task20.task20_table(panels, output_dir, filename="task22_table.svg", **fmt)
+    task20.task20_table_bar_chart(panels, output_dir,
+                                  filename="task22_table_bar_chart.svg", **fmt)
+    task20.task20_parallel_sets(panels, output_dir,
+                                filename="task22_parallel_sets.svg", **fmt)
+
+    compare_attribute = attrs[0] if attrs else ""
+    groups, assignment, meta = split_by_attribute(
+        log, compare_attribute, max_groups=group_cap or MAX_CATEGORICAL_GROUPS)
     if groups is None:
         available = _available_case_attributes(log)
         logger.error(
@@ -554,10 +422,7 @@ def generate(log, fitness_df, alignments, output_dir: str,
 
     act_viol = _activity_violations(alignments)
 
-    task22_bar_chart(trace_df, groups, compare_attribute, output_dir)
+    # One grouping only: these read a distribution, not a per-bucket summary.
     task22_stacked_bar(trace_df, groups, compare_attribute, output_dir)
     task22_scatter_plot(trace_df, groups, meta, compare_attribute, output_dir)
     task22_flow_chart_elaborate_table(stats_df, act_viol, model_path, compare_attribute, output_dir)
-    task22_table(stats_df, compare_attribute, output_dir)
-    task22_table_bar_chart(stats_df, groups, compare_attribute, output_dir)
-    task22_parallel_sets(trace_df, groups, compare_attribute, output_dir)
