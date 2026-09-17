@@ -360,8 +360,8 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
                                             response_attribute=(p.get("response_attribute") or [])),
         "task04": lambda d: task04.generate(log, fitness_df, d, trace_ids=(p.get("trace_ids") or None), alignments=alignments, model_path=model_path),
         "task05": lambda d: task05.generate(
-            log, alignments, d, outcome_activity=outcome_activity(),
-            split_attribute=(p.get("split_attribute") or ""),
+            log, alignments, d,
+            split_attribute=(p.get("split_attribute") or cmp_attr() or ""),
             grouping_strategy=(p.get("grouping_strategy") or "pattern"),
             selection=(p.get(violation_profile.STRATEGY_SELECTION_KEY.get(
                 p.get("grouping_strategy") or "pattern", "")) or None)),

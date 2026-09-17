@@ -35,7 +35,7 @@ same alignments. The strategy did not have to be invented, only named.
 | task | strategy | split | cut | notes |
 |---|---|---|---|---|
 | task29 | A/B/C | — | — | the class's baseline |
-| task05 | A/B/C | `split_attribute` | — | was fixed to an outcome split |
+| task05 | A/B/C | `split_attribute` (its only split) | — | outcome picker removed |
 | task32 | A/B/C | `split_attribute` | "main" | exposed no parameters at all before |
 | task36 | A/B/C | — | "predominant" | redefined, see below |
 | task11 | fixed `activity` | — | — | + `activities` selection |
@@ -96,6 +96,19 @@ Its `heatmap` and `network_diagram` draw activity-pair constraints, and an
 alignment violation is not a pair. They now render an empty state saying so
 rather than nothing at all — the previous code returned without writing a file,
 which would have left the task with one SVG of three. **Both await a redesign.**
+
+**task05 lost its outcome-activity picker.** It split two outcome groups of
+one log, which the task's own question — how often a set of violations occurs
+*across different logs* — never described. The sub-log attribute does describe
+it, so it is now the only split. Its eight figures change accordingly, and
+every "Outcome Group" caption with them: ten participant-visible strings that
+would otherwise have told a reader the chart splits by outcome while it splits
+by a case attribute.
+
+Without an attribute the whole log is one group and the second series is named
+"(no second sub-log)" rather than left blank — the pipeline falls back to the
+auto-detected compare attribute, so this is reachable only by calling
+`generate` directly.
 
 **task05's group labels follow the data.** Its eight renderers had "Positive
 outcome" / "Negative outcome" written into them; a chart captioned that while
@@ -165,7 +178,6 @@ dataset is worth more than a second run.
   unification, not before it: task11 had a selection and a BPMN idiom, task23
   had neither.
 * **task36's two pair-based idioms** have no data under the redefinition.
-* **task05's question and its default disagree.** "Across different logs" is
-  what `split_attribute` now makes possible; the default is still the outcome
-  split, so nothing changes until an admin chooses. Its question text or its
-  default wants revisiting.
+* **task05 no longer has a default split.** The pipeline falls back to the
+  auto-detected compare attribute when the admin picks none, which is a guess
+  the admin cannot see. Making `split_attribute` required would surface it.
