@@ -39,13 +39,33 @@ same alignments. The strategy did not have to be invented, only named.
 | task32 | A/B/C | `split_attribute` | "main" | exposed no parameters at all before |
 | task36 | A/B/C | — | "predominant" | redefined, see below |
 | task11 | fixed `activity` | — | — | + `activities` selection |
-| task23 | fixed `pattern` | — | — | picks *activities*, reports patterns |
+| task23 | fixed `activity` | — | — | draws task11's renderers |
 | task12 | fixed `pattern` | — | — | one row per violation |
 
 A fixed-strategy task takes its selection parameter from
 `selection_param_for()`, which strips `visible_if`: with no strategy picker to
 read, `/specify` would judge the condition unmet and hide the only control the
 task has.
+
+## task23 draws task11's figures
+
+The two tasks showed the same violations in two shapes: task23 one flat bar per
+pattern counted in occurrences, task11 two bars per activity counted in traces.
+A reader moving between them met two encodings of one thing. task23's four
+shared idioms — bar chart, matrix, table, table+bar — are now drawn *by*
+task11's renderers, from the same coverage Counter, parameterised on filename
+and heading. Checked by rendering both through the same call with the same
+heading: byte-identical.
+
+Its own two idioms, the composition stacked bar and the parallel sets, have no
+task11 counterpart. They keep their shape and were switched from occurrence
+counts to trace counts so nothing inside the task contradicts anything else —
+a no-op on both datasets here, where no trace repeats a violation, but not in
+general.
+
+The four superseded task23 renderers are deleted.
+
+---
 
 What an admin picks need not be the unit reported. task23 asks how the
 violations differ from one another, so a row is a pattern — but the dropdown

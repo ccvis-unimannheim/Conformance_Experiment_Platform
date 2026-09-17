@@ -17,6 +17,11 @@ logger = logging.getLogger(__name__)
 
 import violation_profile
 
+#: Default heading for this task's figures. task23 draws the same four idioms
+#: from the same data and asks a different question of it, so the heading and
+#: the output filename are parameters rather than literals.
+_TITLE_PREFIX = "Predefined Violation Frequency"
+
 IDIOMS = [
     "bar_chart", "matrix",
     "table", "table_bar_chart",
@@ -211,7 +216,8 @@ def _sorted_selected(selected, trace_coverage):
 
 # ── Idiom 1: Bar Chart — trace count per predefined violation ─────────────────
 
-def task11_bar_chart(selected, trace_coverage, n_traces, output_dir):
+def task11_bar_chart(selected, trace_coverage, n_traces, output_dir, *,
+                     filename="task11_bar_chart.svg", title_prefix=_TITLE_PREFIX):
     """Vertical grouped bar chart: one Model Move bar and one Log Move bar per activity.
 
     Activities are sorted by combined (Model Move + Log Move) trace count,
@@ -264,7 +270,7 @@ def task11_bar_chart(selected, trace_coverage, n_traces, output_dir):
     ax.set_xticklabels(labels, rotation=30, ha="right", fontsize=FONT_ANNOT)
     ax.set_ylabel("Number of traces containing this violation", fontsize=FONT_LABEL)
     ax.set_title(
-        f"Predefined Violation Frequency by Activity  ({n} activit{'y' if n == 1 else 'ies'})",
+        f"{title_prefix} by Activity  ({n} activit{'y' if n == 1 else 'ies'})",
         fontsize=FONT_TITLE,
     )
     ax.spines[["top", "right"]].set_visible(False)
@@ -274,12 +280,13 @@ def task11_bar_chart(selected, trace_coverage, n_traces, output_dir):
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=2,
               frameon=False, fontsize=FONT_ANNOT)
     fig.tight_layout(rect=[0, 0.06, 1, 1])
-    save_svg(fig, os.path.join(output_dir, "task11_bar_chart.svg"))
+    save_svg(fig, os.path.join(output_dir, filename))
 
 
 # ── Idiom 2: Matrix — activity × type for selected violations ─────────────────
 
-def task11_matrix(selected, trace_coverage, n_traces, output_dir):
+def task11_matrix(selected, trace_coverage, n_traces, output_dir, *,
+                  filename="task11_matrix.svg", title_prefix=_TITLE_PREFIX):
     """Activity × violation-type grid restricted to the selected violations.
 
     Rows = distinct activities in the selection (ordered by descending total
@@ -341,7 +348,7 @@ def task11_matrix(selected, trace_coverage, n_traces, output_dir):
     ax.set_yticklabels([_short_label(a, 30) for a in selected_acts], fontsize=FONT_ANNOT)
 
     ax.set_title(
-        "Predefined Violation Frequency: Activity × Type",
+        f"{title_prefix}: Activity × Type",
         fontsize=FONT_TITLE,
     )
     ax.tick_params(axis="both", length=0)
@@ -349,12 +356,13 @@ def task11_matrix(selected, trace_coverage, n_traces, output_dir):
         spine.set_visible(False)
 
     fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task11_matrix.svg"))
+    save_svg(fig, os.path.join(output_dir, filename))
 
 
 # ── Idiom 3: Table — violations ranked by trace frequency ─────────────────────
 
-def task11_table(selected, trace_coverage, n_traces, output_dir):
+def task11_table(selected, trace_coverage, n_traces, output_dir, *,
+                 filename="task11_table.svg", title_prefix=_TITLE_PREFIX):
     """Ranked table: Activity | Type | Number of Traces | Percentage of All.
 
     Rows correspond 1-to-1 to the selected violations, sorted descending by
@@ -392,16 +400,18 @@ def task11_table(selected, trace_coverage, n_traces, output_dir):
         cell_pad=0.09,
     )
     ax.set_title(
-        f"Predefined Violation Frequency  ({n_rows} violation{'s' if n_rows != 1 else ''})",
+        f"{title_prefix}  ({n_rows} violation{'s' if n_rows != 1 else ''})",
         fontsize=FONT_TITLE, pad=14,
     )
     fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task11_table.svg"))
+    save_svg(fig, os.path.join(output_dir, filename))
 
 
 # ── Idiom 4: Table & Bar Chart ────────────────────────────────────────────────
 
-def task11_table_bar_chart(selected, trace_coverage, n_traces, output_dir):
+def task11_table_bar_chart(selected, trace_coverage, n_traces, output_dir, *,
+                           filename="task11_table_bar_chart.svg",
+                           title_prefix=_TITLE_PREFIX):
     """Left: compact violation table. Right: gradient horizontal bars by trace count."""
     if not selected:
         _no_violations(output_dir, "table_bar_chart")
@@ -460,12 +470,12 @@ def task11_table_bar_chart(selected, trace_coverage, n_traces, output_dir):
     ax_bar.set_xlim(0, max_c * 1.38)
 
     fig.suptitle(
-        f"Predefined Violation Frequency  ({n} violation{'s' if n != 1 else ''})"
+        f"{title_prefix}  ({n} violation{'s' if n != 1 else ''})"
         f"  ·  {n_traces:,} total traces",
         fontsize=FONT_TITLE + 1, y=1.01,
     )
     fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task11_table_bar_chart.svg"))
+    save_svg(fig, os.path.join(output_dir, filename))
 
 
 # ── BPMN helpers ──────────────────────────────────────────────────────────────

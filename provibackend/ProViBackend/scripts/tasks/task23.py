@@ -127,47 +127,19 @@ def _move_legend(ax, present_types):
 # Visualizations
 # ---------------------------------------------------------------------------
 
-def task23_bar_chart(pat_df: pd.DataFrame, output_dir: str):
-    """Bar chart: top-N violation patterns ranked by occurrence count."""
-    top    = pat_df.head(TOP_N)
-    colors = [_MOVE_COLORS.get(mt, _MOVE_DEFAULT) for mt in top["move_type"]]
-    ymax   = max(int(top["count"].max()), 1)
-
-    fig, ax = plt.subplots(figsize=(max(9, len(top) * 1.6), 6.5))
-    bars = ax.bar(range(len(top)), top["count"], color=colors,
-                  edgecolor="white", width=0.65)
-    for bar, row in zip(bars, top.itertuples()):
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + ymax * 0.012,
-                f"{int(row.count)} ({row.pct:.1f}%)",
-                ha="center", va="bottom", fontsize=FONT_ANNOT - 2)
-
-    act_labels = [p.replace(" (", "\n(") for p in top["pattern"]]
-    ax.set_xticks(range(len(top)))
-    ax.set_xticklabels(act_labels, fontsize=FONT_ANNOT - 1, ha="center")
-    ax.set_ylabel("Occurrences", fontsize=FONT_LABEL)
-    ax.set_title(f"Top-{len(top)} Violation Patterns by Frequency", fontsize=FONT_TITLE, pad=8)
-    ax.set_ylim(0, ymax * 1.28)
-    _move_legend(ax, set(top["move_type"]))
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
-    ax.set_axisbelow(True)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task23_bar_chart.svg"))
-
-
 def task23_stacked_bar(pat_df: pd.DataFrame, output_dir: str):
     """Stacked bar: one bar per activity (top-N), segments = move type."""
-    act_totals = pat_df.groupby("activity")["count"].sum().sort_values(ascending=False)
+    act_totals = pat_df.groupby("activity")["n_traces"].sum().sort_values(ascending=False)
     top_acts   = act_totals.head(TOP_N).index.tolist()
 
     act_df = pat_df[pat_df["activity"].isin(top_acts)].copy()
-    pivot  = (act_df.groupby(["activity", "move_type"])["count"]
+    pivot  = (act_df.groupby(["activity", "move_type"])["n_traces"]
               .sum().unstack(fill_value=0).reindex(top_acts, fill_value=0))
     present_types = [mt for mt in _MOVE_ORDER if mt in pivot.columns]
 
     x                = np.arange(len(top_acts))
     bottoms          = np.zeros(len(top_acts))
-    total_violations = int(pat_df["count"].sum())
+    total_violations = int(pat_df["n_traces"].sum())
     min_seg          = total_violations * 0.04   # skip label if segment < 4% of total
 
     fig, ax = plt.subplots(figsize=(max(8, len(top_acts) * 1.1), 6.0))
@@ -198,137 +170,10 @@ def task23_stacked_bar(pat_df: pd.DataFrame, output_dir: str):
     save_svg(fig, os.path.join(output_dir, "task23_stacked_bar.svg"))
 
 
-def task23_table(pat_df: pd.DataFrame, output_dir: str):
-    """Table: Violation Pattern | Move Type | Activity | Count | %."""
-    top   = pat_df.head(TOP_N)
-    total = int(pat_df["count"].sum())
-    cell_text = [
-        [row["pattern"], row["move_type"], row["activity"],
-         str(int(row["count"])), f"{row['pct']:.1f}%"]
-        for _, row in top.iterrows()
-    ]
-    cell_text.append(["Total", "—", "—", str(total), "100.0%"])
-
-    fig_h = max(3.5, 1.3 + len(cell_text) * 0.46)
-    fig, ax = plt.subplots(figsize=(15, fig_h))
-    ax.axis("off")
-    make_table(
-        ax,
-        cell_text=cell_text,
-        col_labels=["Violation Pattern", "Move Type", "Activity",
-                    "Count", "% of All"],
-        bbox=[0.01, 0.05, 0.98, 0.88],
-        col_widths=[0.34, 0.18, 0.22, 0.12, 0.14],
-        font_size=9.5,
-        scale_xy=(1, 1.75),
-        cell_pad=0.09,
-        highlight_last_row=True,
-    )
-    ax.set_title(f"Top-{len(top)} Violation Patterns", fontsize=FONT_TITLE, pad=8)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task23_table.svg"))
-
-
-def task23_table_and_bar_chart(pat_df: pd.DataFrame, output_dir: str):
-    """Table (left) + horizontal bar chart (right) for top-N patterns."""
-    top = pat_df.head(TOP_N)
-
-    fig = plt.figure(figsize=(16, max(4.5, 1.2 + len(top) * 0.45)))
-    gs  = gridspec.GridSpec(1, 2, width_ratios=[1.6, 1.0], wspace=0.35)
-
-    ax_tbl = fig.add_subplot(gs[0])
-    ax_tbl.axis("off")
-    cell_text = [
-        [row["pattern"], row["move_type"],
-         str(int(row["count"])), f"{row['pct']:.1f}%"]
-        for _, row in top.iterrows()
-    ]
-    make_table(
-        ax_tbl,
-        cell_text=cell_text,
-        col_labels=["Violation Pattern", "Move Type", "Count", "%"],
-        bbox=[0.01, 0.05, 0.98, 0.88],
-        col_widths=[0.46, 0.26, 0.14, 0.14],
-        font_size=9,
-        scale_xy=(1, 1.7),
-        cell_pad=0.09,
-    )
-    fig.suptitle(f"Top-{len(top)} Violation Patterns", fontsize=FONT_TITLE, y=1.02)
-
-    ax_bar = fig.add_subplot(gs[1])
-    x      = np.arange(len(top))
-    colors = [_MOVE_COLORS.get(mt, _MOVE_DEFAULT) for mt in top["move_type"]]
-    ax_bar.barh(x, top["count"], color=colors, edgecolor="white")
-    ax_bar.set_yticks(x)
-    ax_bar.set_yticklabels(top["pattern"], fontsize=FONT_ANNOT - 1)
-    ax_bar.invert_yaxis()   # rank 1 at top, matching table row order
-    ax_bar.set_xlabel("Occurrences", fontsize=FONT_LABEL)
-    ax_bar.legend(
-        handles=[mpatches.Patch(color=_MOVE_COLORS[mt], label=mt)
-                 for mt in _MOVE_ORDER if mt in set(top["move_type"])],
-        loc="lower center", bbox_to_anchor=(0.5, -0.25),
-        ncol=len([mt for mt in _MOVE_ORDER if mt in set(top["move_type"])]),
-        frameon=True, framealpha=0.9, fontsize=FONT_ANNOT,
-        columnspacing=1.4, handletextpad=0.5,
-    )
-    ax_bar.spines[["top", "right"]].set_visible(False)
-    ax_bar.xaxis.grid(True, linestyle="--", alpha=0.5)
-    ax_bar.set_axisbelow(True)
-
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task23_table_and_bar_chart.svg"))
-
-
-def task23_matrix(pat_df: pd.DataFrame, output_dir: str):
-    """Matrix heatmap: rows = activity (top-N), columns = move type, cell = count."""
-    act_totals    = pat_df.groupby("activity")["count"].sum().sort_values(ascending=False)
-    top_acts      = act_totals.head(TOP_N).index.tolist()
-    present_types = [mt for mt in _MOVE_ORDER if mt in pat_df["move_type"].values]
-
-    data = np.zeros((len(top_acts), len(present_types)))
-    for ai, act in enumerate(top_acts):
-        for ci, mt in enumerate(present_types):
-            mask = (pat_df["activity"] == act) & (pat_df["move_type"] == mt)
-            data[ai, ci] = float(pat_df.loc[mask, "count"].sum())
-
-    if data.max() == 0:
-        data[0, 0] = 0  # keep imshow happy with a valid range
-
-    cmap = "cividis_r"   # 0 = yellow (light), high = dark
-    vmax = max(data.max(), 1.0)
-
-    total_violations = float(pat_df["count"].sum())
-    fig_h = max(3.5, 0.75 * len(top_acts) + 1.5)
-    fig, ax = plt.subplots(figsize=(max(5, len(present_types) * 2.5), fig_h))
-    im = ax.imshow(data, cmap=cmap, vmin=0, vmax=vmax, aspect="auto")
-
-    ax.set_xticks(range(len(present_types)))
-    ax.set_xticklabels(present_types, fontsize=FONT_ANNOT)
-    ax.set_yticks(range(len(top_acts)))
-    ax.set_yticklabels(top_acts, fontsize=FONT_ANNOT - 1)
-    ax.set_xlabel("Move Type", fontsize=FONT_LABEL)
-    ax.set_title(f"Violation Count Matrix (top-{len(top_acts)} activities)",
-                 fontsize=FONT_TITLE, pad=8)
-
-    norm = Normalize(vmin=0, vmax=vmax)
-    for ri in range(len(top_acts)):
-        for ci in range(len(present_types)):
-            val = data[ri, ci]
-            tc  = contrasting_text_color(to_hex(CIVIDIS_R(norm(val))))
-            pct = 100 * val / total_violations if total_violations > 0 else 0
-            ax.text(ci, ri, f"{int(val)}\n({pct:.1f}%)", ha="center", va="center",
-                    fontsize=FONT_ANNOT - 1, color=tc, linespacing=1.3)
-
-    cbar = fig.colorbar(im, ax=ax, fraction=0.04, pad=0.02)
-    cbar.set_label("Count", fontsize=FONT_ANNOT)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task23_matrix.svg"))
-
-
 def task23_parallel_sets(pat_df: pd.DataFrame, output_dir: str):
     """Parallel Sets: move type (left) × activity top-N + Other (right)."""
     move_types = [mt for mt in _MOVE_ORDER if mt in pat_df["move_type"].values]
-    act_totals = pat_df.groupby("activity")["count"].sum().sort_values(ascending=False)
+    act_totals = pat_df.groupby("activity")["n_traces"].sum().sort_values(ascending=False)
     top_acts   = act_totals.head(TOP_N_PS).index.tolist()
     has_other  = len(act_totals) > TOP_N_PS
     right_cats = top_acts + (["Other"] if has_other else [])
@@ -337,19 +182,19 @@ def task23_parallel_sets(pat_df: pd.DataFrame, output_dir: str):
     for mi, mt in enumerate(move_types):
         sub = pat_df[pat_df["move_type"] == mt]
         for ci, act in enumerate(top_acts):
-            matrix[mi, ci] = int(sub[sub["activity"] == act]["count"].sum())
+            matrix[mi, ci] = int(sub[sub["activity"] == act]["n_traces"].sum())
         if has_other:
-            matrix[mi, -1] = int(sub[~sub["activity"].isin(top_acts)]["count"].sum())
+            matrix[mi, -1] = int(sub[~sub["activity"].isin(top_acts)]["n_traces"].sum())
 
-    move_totals      = pat_df.groupby("move_type")["count"].sum()
-    total_violations = int(pat_df["count"].sum())
+    move_totals      = pat_df.groupby("move_type")["n_traces"].sum()
+    total_violations = int(pat_df["n_traces"].sum())
     left_labels  = [
         f"{mt}\n(n={int(move_totals.get(mt, 0))}, {100 * move_totals.get(mt, 0) / total_violations:.0f}%)"
         for mt in move_types
     ]
     left_colors  = [_MOVE_COLORS[mt] for mt in move_types]
 
-    other_count    = int(pat_df[~pat_df["activity"].isin(top_acts)]["count"].sum()) if has_other else 0
+    other_count    = int(pat_df[~pat_df["activity"].isin(top_acts)]["n_traces"].sum()) if has_other else 0
     right_labels_n = (
         [f"{act}\n(n={int(act_totals.get(act, 0))}, {100 * act_totals.get(act, 0) / total_violations:.0f}%)"
          for act in top_acts]
@@ -380,14 +225,41 @@ def task23_parallel_sets(pat_df: pd.DataFrame, output_dir: str):
 # Public entry point
 # ---------------------------------------------------------------------------
 
+#: task23's heading for the four idioms it shares with task11. The two tasks
+#: ask different questions of the same numbers, so the wording differs; the
+#: figures do not.
+_TITLE_PREFIX = "Violation Patterns Compared"
+
+
 def generate(alignments, output_dir: str, log=None, activities=None):
-    """Generate all Task ID 23 SVGs into output_dir."""
+    """Generate all Task ID 23 SVGs into output_dir.
+
+    The four idioms task11 also draws are drawn *by* task11's renderers, from
+    the same per-(activity, move type) trace coverage. The two tasks were
+    showing the same violations in two shapes — task23 one flat bar per pattern
+    counted in occurrences, task11 two bars per activity counted in traces — so
+    a reader moving between them met two encodings of one thing. task23
+    follows task11.
+
+    Its own two idioms, the composition stacked bar and the parallel sets, have
+    no task11 counterpart. They keep their shape and now read trace counts too,
+    so no figure in this task contradicts another.
+    """
+    import tasks.task11 as task11
+    import violation_profile
+
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 23 visualizations ---")
 
-    pat_df = _task23_build_pattern_df(alignments, activities=activities)
+    coverage, n_traces = task11._extract_trace_coverage(alignments)
+    if activities:
+        wanted = {str(a).strip() for a in activities}
+        coverage = {pair: n for pair, n in coverage.items() if pair[0] in wanted}
+    selected = [pair for pair in
+                violation_profile.ordered_pairs(alignments, selection=activities)
+                if pair in coverage]
 
-    if pat_df.empty:
+    if not selected:
         logger.warning("      task23: no violation moves found — emitting zero-state SVGs.")
         for fname, title in [
             ("task23_bar_chart.svg",          "Top-N Violation Patterns"),
@@ -400,14 +272,20 @@ def generate(alignments, output_dir: str, log=None, activities=None):
             _empty_svg(output_dir, fname, title)
         return
 
-    logger.info(f"      -> {len(pat_df)} unique patterns; "
-                f"{int(pat_df['count'].sum())} total violations.")
+    logger.info(f"      -> {len(selected)} violation(s) over {n_traces} traces.")
 
-    task23_bar_chart(pat_df, output_dir)
+    task11.task11_bar_chart(selected, coverage, n_traces, output_dir,
+                            filename="task23_bar_chart.svg", title_prefix=_TITLE_PREFIX)
+    task11.task11_matrix(selected, coverage, n_traces, output_dir,
+                         filename="task23_matrix.svg", title_prefix=_TITLE_PREFIX)
+    task11.task11_table(selected, coverage, n_traces, output_dir,
+                        filename="task23_table.svg", title_prefix=_TITLE_PREFIX)
+    task11.task11_table_bar_chart(selected, coverage, n_traces, output_dir,
+                                  filename="task23_table_and_bar_chart.svg",
+                                  title_prefix=_TITLE_PREFIX)
+
+    pat_df = _task23_build_pattern_df(alignments, activities=activities)
     task23_stacked_bar(pat_df, output_dir)
-    task23_table(pat_df, output_dir)
-    task23_table_and_bar_chart(pat_df, output_dir)
-    task23_matrix(pat_df, output_dir)
     task23_parallel_sets(pat_df, output_dir)
 
 
