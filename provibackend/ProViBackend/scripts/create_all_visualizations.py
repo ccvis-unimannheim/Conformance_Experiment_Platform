@@ -395,7 +395,11 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
         "task28": lambda d: task28.generate(alignments, model_path, d),
         "task29": lambda d: task29.generate(alignments, d),
         "task30": lambda d: task30.generate(log, fitness_df, alignments, d, compare_attribute=cmp_attr()),
-        "task31": lambda d: task31.generate(log, alignments, d, outcome_activity=outcome_activity()),
+        # Not outcome_activity(): that falls back to the "contains" heuristic,
+        # and this task asks which activity a trace *ends* on. Passing None
+        # lets it reach for the terminal-activity heuristic instead.
+        "task31": lambda d: task31.generate(log, alignments, d,
+                                            outcome_activity=(p.get("outcome_activity") or None)),
         "task32": lambda d: task32.generate(log, alignments, d, compare_attribute=cmp_attr()),
         "task33": lambda d: task33.generate(log, fitness_df, d, alignments=alignments,
                                             attribute_set=(p.get("attribute_set") or None),

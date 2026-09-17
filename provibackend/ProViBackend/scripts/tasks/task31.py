@@ -52,7 +52,7 @@ import matplotlib.dates as mdates
 from shared import (
     save_svg, make_table, draw_decision_tree, wrap_text,
     format_threshold, GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT, draw_value_heatmap, render_empty_state_svg,
-    infer_outcome_activity, infer_rejected_activities,
+    infer_terminal_activity,
 )
 from tasks.task20 import (
     task20_trace_feature_dataframe,
@@ -69,8 +69,6 @@ _task20_format_threshold = format_threshold
 
 # Task 6 data + labeling helpers
 # Module-level outcome activity — overridden by generate() at runtime
-_OUTCOME_ACTIVITY = "Activate Care"
-_REJECTED_FINAL_ACTIVITIES = {"Reject Case", "Withdraw Case"}
 _TASK6_DURATION_FIRST_SPLIT_DAYS = 5.063008796296296
 _TASK6_DURATION_SECOND_SPLIT_DAYS = 29.986660115740737
 
@@ -95,41 +93,29 @@ def _assign_fitness_band(fitness, include_exact_one=False):
     return result
 
 
-def _task31_positive_outcome_from_trace(trace) -> bool:
-    """Return True if the trace contains the configured positive-outcome activity."""
-    activities = {str(event.get("concept:name", "")) for event in trace}
-    return _OUTCOME_ACTIVITY in activities
+def task31_outcome_dataframe(log, alignments, outcome_activity=None):
+    """Per-trace conformance and whether the trace reached the process goal.
 
+    The goal is reached when the trace *ends* with the chosen activity, not when
+    it merely contains it somewhere. Containment made the question softer than
+    it reads — a case that reaches approval and is later withdrawn contains the
+    approval — and it needed a second list of rejection activities to decide
+    which traces had a definite answer at all. Ending on the activity is a
+    definite answer for every trace, so that list, and the filter that dropped
+    the rest, are both gone.
+    """
+    import trace_features
 
-def _task31_rejected_outcome_from_trace(trace) -> bool:
-    """Return True if the trace ends with a configured rejection activity."""
-    if not trace:
-        return False
-    last_activity = str(trace[-1].get("concept:name", ""))
-    return last_activity in _REJECTED_FINAL_ACTIVITIES
-
-
-def task31_outcome_dataframe(log, alignments, outcome_activity=None, rejected_activities=None):
-    """Build trace-level features for definitive outcome analysis."""
-    oa = outcome_activity if outcome_activity is not None else _OUTCOME_ACTIVITY
-    ra = rejected_activities if rejected_activities is not None else _REJECTED_FINAL_ACTIVITIES
+    oa = outcome_activity
     df = task20_trace_feature_dataframe(log, alignments)
     if df.empty:
         return df
-    positive = [oa in {str(e.get("concept:name", "")) for e in t} for t in log]
-    rejected = [bool(t) and str(t[-1].get("concept:name", "")) in ra for t in log]
-    definitive = [pos or rej for pos, rej in zip(positive, rejected)]
-    df["positive_outcome"] = positive
-    df["rejected_outcome"] = rejected
-    df["definitive_outcome"] = definitive
+    last, _ = trace_features.extract(log, trace_features.LAST_ACTIVITY_KEY)
+    df["positive_outcome"] = [a == oa for a in last[:len(df)]]
     df["conformance_rate"] = df["fitness"].astype(float)
     df["is_fully_conformant"] = (df["fitness"] >= 1.0).astype(float)
     df["is_not_fully_conformant"] = (df["fitness"] < 1.0).astype(float)
-    filtered = df.loc[df["definitive_outcome"]].reset_index(drop=True)
-    filtered.attrs["total_cases_before_filter"] = len(df)
-    filtered.attrs["definitive_cases"] = len(filtered)
-    filtered.attrs["excluded_non_definitive_cases"] = len(df) - len(filtered)
-    return filtered
+    return df.reset_index(drop=True)
 
 
 def _task31_feature_label(feature: str) -> str:
@@ -487,7 +473,7 @@ def task31_bar_chart(df: pd.DataFrame, output_dir: str):
     ax.set_axisbelow(True)
     ax.set_title("Conformance Degree vs. Positive Outcome Rate", fontsize=FONT_TITLE, pad=10)
 
-    caption = "Definitive outcomes only  ·  Bin '= 1.0' = fitness exactly 1.0"
+    caption = "Bin '= 1.0' = fitness exactly 1.0"
     fig.text(0.0, 0.01, caption, ha="left", fontsize=FONT_ANNOT - 1, color="#888888")
     fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
@@ -663,9 +649,7 @@ def task31_scatter_plot(df: pd.DataFrame, log, output_dir: str):
     ]
     ax.legend(handles=legend_patches, loc="upper left", frameon=False, fontsize=FONT_ANNOT)
 
-    caption = "Definitive outcomes only"
-    if sampled:
-        caption += "  ·  Scatter shows 2,000 sampled traces"
+    caption = "Scatter shows 2,000 sampled traces" if sampled else ""
     fig.text(0.0, 0.01, caption, ha="left", fontsize=FONT_ANNOT - 1, color="#888888")
 
     fig.tight_layout(pad=1.2)
@@ -901,7 +885,7 @@ def task31_heatmap(df: pd.DataFrame, log, output_dir: str):
     ax.set_title("Positive Outcome Rate by Conformance Band and Period", fontsize=FONT_TITLE, pad=10)
 
     footnote = (
-        f"Definitive outcomes only  ·  Cells with n < {_HEATMAP_MIN_CELL_N} shown in grey"
+        f"Cells with n < {_HEATMAP_MIN_CELL_N} shown in grey"
         f"  ·  Granularity: {granularity_label}"
     )
     fig.text(0.01, 0.01, footnote, ha="left",
@@ -928,22 +912,19 @@ def generate(log, alignments, output_dir: str, outcome_activity: str = ""):
     logger.info("\n--- Generating Task 31 visualizations ---")
 
     if not outcome_activity:
-        outcome_activity = infer_outcome_activity(log)
+        # This task's goal is "the trace ends here", so the fallback has to
+        # pick a terminal activity rather than a widely present one.
+        outcome_activity = infer_terminal_activity(log)
         logger.info(f"      task31: outcome_activity inferred as '{outcome_activity}'")
-    rejected_activities = infer_rejected_activities(log, outcome_activity)
-
     df = task31_outcome_dataframe(log, alignments,
-                                  outcome_activity=outcome_activity,
-                                  rejected_activities=rejected_activities)
+                                  outcome_activity=outcome_activity)
     if df.empty:
         logger.warning("      Skipped Task 31: no trace-level outcome features found.")
         return
     tree = _task31_fit_tree(df)
     table = task31_summary_table_dataframe(df, tree)
     positive_rate = float(df["positive_outcome"].mean())
-    excluded = df.attrs.get("excluded_non_definitive_cases", 0)
-    logger.info(f"      -> Definitive outcomes: {len(df)} cases  |  Excluded non-definitive: {excluded}")
-    logger.info(f"      -> Positive outcome ({outcome_activity}): {int(df['positive_outcome'].sum())}/{len(df)} ({positive_rate:.2%})")
+    logger.info(f"      -> Ends with '{outcome_activity}': {int(df['positive_outcome'].sum())}/{len(df)} ({positive_rate:.2%})")
     task31_table(table, output_dir)
     task31_tree(tree, output_dir)
     task31_bar_chart(df, output_dir)

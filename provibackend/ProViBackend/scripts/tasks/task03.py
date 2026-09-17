@@ -102,27 +102,26 @@ def _task03_build_trace_rows(log, fitness_df: pd.DataFrame,
     Throughput time is the single attribute every Task 3 idiom compares between
     the Conformant and Non-conformant groups.
     """
+    import trace_features
+
+    # Throughput time is a registry feature, so read it rather than walking the
+    # timestamps again — the two agreed to the last float, and one of them can
+    # now drift without the other.
+    durations, _ = trace_features.extract(log, trace_features.DURATION_KEY)
+
     rows = []
     for i, trace in enumerate(log):
         if i >= len(fitness_df):
             break
         fitness = float(fitness_df.iloc[i]["fitness"])
-        group   = "Conformant" if fitness >= conformant_threshold else "Non-conformant"
-
-        timestamps = []
-        for event in trace:
-            ts = event.get("time:timestamp")
-            if ts is not None and not pd.isna(ts):
-                timestamps.append(pd.Timestamp(ts))
-        duration_hours = (max(timestamps) - min(timestamps)).total_seconds() / 3600.0 \
-            if len(timestamps) >= 2 else 0.0
-
         rows.append({
             "trace_index":    i,
-            "group":          group,
+            # "at or above the threshold counts as conformant" — the same
+            # reading trace_features.split applies to an explicit cut.
+            "group":          "Conformant" if fitness >= conformant_threshold else "Non-conformant",
             "fitness":        fitness,
             "num_events":     len(trace),
-            "duration_hours": duration_hours,
+            "duration_hours": float(durations[i] or 0.0),
         })
     return rows
 

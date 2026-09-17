@@ -2502,6 +2502,42 @@ def infer_outcome_activity(log) -> str:
             return max(candidates, key=lambda a: (presence[a], as_last.get(a, 0)))
 
 
+def infer_terminal_activity(log) -> str:
+    """Infer an activity that *ends* a trace, for a goal read as "ends with X".
+
+    infer_outcome_activity ranks by how many traces contain an activity, which
+    suits a goal read as "contains X" but picks mid-process activities: in
+    BPIC12 it returns A_ACCEPTED, present in 39% of traces and final in 0.02%.
+    Asking which activity a trace ends on needs the presence counted at the end.
+
+    Same widening windows, so an activity that ends a quarter to a half of the
+    traces wins before a near-universal or a rare one is considered.
+    """
+    n = len(log)
+    if n == 0:
+        return ""
+
+    as_last: dict[str, int] = {}
+    for trace in log:
+        if trace:
+            last = str(trace[-1].get("concept:name", ""))
+            if last:
+                as_last[last] = as_last.get(last, 0) + 1
+    if not as_last:
+        return ""
+
+    import logging as _logging
+    _logging.getLogger(__name__).warning(
+        "infer_terminal_activity: no outcome_activity configured — falling back "
+        "to a heuristic. Set outcome_activity explicitly via PARAM_SPEC."
+    )
+    for lo, hi in [(0.25, 0.55), (0.15, 0.65), (0.05, 0.85), (0.0, 1.0)]:
+        candidates = {a for a, c in as_last.items() if lo * n <= c <= hi * n}
+        if candidates:
+            return max(candidates, key=lambda a: (as_last[a], a))
+    return ""
+
+
 def infer_rejected_activities(log, outcome_activity: str, min_pct: float = 0.03) -> set:
     """Infer rejection/cancellation activities from the log.
 
