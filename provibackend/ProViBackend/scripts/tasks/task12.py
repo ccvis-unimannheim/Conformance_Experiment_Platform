@@ -22,7 +22,17 @@ IDIOMS = [
 ]
 
 
-PARAM_SPEC = []
+def _param_spec():
+    """Which violations the study counts (empty = all).
+
+    Fixed to the pattern unit: the question names concrete violations —
+    "Log Move on Ship Order" — not a move type or an activity.
+    """
+    import violation_profile
+    return [violation_profile.selection_param_for("pattern")]
+
+
+PARAM_SPEC = _param_spec()
 
 
 import os
@@ -63,26 +73,39 @@ _CAT_ORDER = ["conformant", "mom_only", "mol_only", "mm_only", "mixed"]
 
 # ── Data extraction ───────────────────────────────────────────────────────────
 
-def _extract_data(alignments):
+def _extract_data(alignments, violation_patterns=None):
     """
     Classify each trace into one of 5 categories:
       conformant / mom_only / mol_only / mm_only / mixed
 
     Returns dict with n_total, n_conformant, n_deviating,
     pct_conformant, pct_deviating, categories (Counter).
+
+    ``violation_patterns`` narrows what counts as a violation here. The task
+    asks in what percentage of traces violations occur, and which violations
+    the study means is the admin's to say: with a selection, a trace carrying
+    only unselected deviations counts as conformant. Empty — the default —
+    counts every violation, which is what this task did before.
+
+    Counting comes from the Violation-profile kernel, so a trace is conformant
+    here exactly when it carries none of the violations the other six tasks of
+    the class would show.
     """
-    n_total    = len(alignments)
+    import violation_profile
+
+    n_total = len(alignments)
+    rows = violation_profile.labelled_rows(alignments, "pattern", violation_patterns)
+
+    # Move type per trace, among the selected patterns only.
+    per_trace = {}
+    for idx, unit in zip(rows["trace_index"], rows["unit"]):
+        pair = violation_profile.parse_pattern(unit)
+        if pair:
+            per_trace.setdefault(int(idx), set()).add(pair[1])
+
     categories = Counter()
-
-    for aln in alignments:
-        vtypes = set()
-        for step in aln.get("alignment", []):
-            if not isinstance(step, (list, tuple)) or len(step) < 2:
-                continue
-            _, vtype = _classify_step(step[0], step[1])
-            if vtype is not None:
-                vtypes.add(vtype)
-
+    for i in range(n_total):
+        vtypes = per_trace.get(i, set())
         if not vtypes:
             categories["conformant"] += 1
         elif len(vtypes) == 1:
@@ -463,7 +486,7 @@ def task12_table_bar_chart(stats, output_dir):
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
-def generate(log, alignments, output_dir, **kwargs):
+def generate(log, alignments, output_dir, violation_patterns=None, **kwargs):
     """Generate all Task 12 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 12 visualizations (Summarize process conformance) ---")
@@ -474,7 +497,7 @@ def generate(log, alignments, output_dir, **kwargs):
             _save_empty(output_dir, f"task12_{name}.svg", "No alignment data available.")
         return
 
-    stats = _extract_data(alignments)
+    stats = _extract_data(alignments, violation_patterns)
 
     task12_tile_metric(stats, output_dir)
     task12_pie_chart(stats, output_dir)

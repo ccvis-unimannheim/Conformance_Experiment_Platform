@@ -372,7 +372,8 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
         "task10": lambda d: task10.generate(fitness_df, d, log=log, conformance_bins=conformance_bins()),
         "task11": lambda d: task11.generate(log, alignments, d, model_path=model_path,
                                             activities=(p.get("activities") or None)),
-        "task12": lambda d: task12.generate(log, alignments, d),
+        "task12": lambda d: task12.generate(log, alignments, d,
+                                            violation_patterns=(p.get("violation_patterns") or None)),
         "task13": lambda d: task13.generate(log, alignments, model_path, d,
                                             candidate_attributes=(p.get("attribute_set") or None)),
         "task14": lambda d: task14.generate(alignments, model_path, d),
@@ -427,7 +428,11 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
                                             group_cap=(int(p["group_cap"]) if p.get("group_cap") else None)),
         "task34": lambda d: task34.generate(log, alignments, d, model_path=model_path, violated_activity=violated_activity()),
         "task35": lambda d: task35.generate(log, alignments, d, model_path=model_path),
-        "task36": lambda d: task36.generate(log, alignments, d, model_path=model_path),
+        "task36": lambda d: task36.generate(log, alignments, d, model_path=model_path,
+            grouping_strategy=(p.get("grouping_strategy") or "pattern"),
+            selection=(p.get(violation_profile.STRATEGY_SELECTION_KEY.get(
+                p.get("grouping_strategy") or "pattern", "")) or None),
+            prominence_threshold=p.get("prominence_threshold")),
         "task37": lambda d: task37.generate(log, alignments, d, model_path=model_path),
     }
 
