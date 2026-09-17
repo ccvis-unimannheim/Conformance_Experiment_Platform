@@ -56,11 +56,27 @@ frozen screenshots show, so they are unaffected.
 
 task03's compared attribute is now a parameter rather than throughput time
 fixed in code — `response_attribute`, `slot: response`, drawing its options from
-the same `log.candidate_attributes` the Attribute → Violation class uses. It is
-**not** that class's `attribute_set`: task03's figure has one attribute axis, so
-a multi-select would be a control the frozen renderers cannot honour, and the
-key sits in the response slot rather than the split slot. Empty keeps throughput
-time, and on that default all 262 rendered SVGs are unchanged.
+the same `log.candidate_attributes` the Attribute → Violation class uses, and
+multi-select as that class is. Empty keeps throughput time.
+
+It is still not that class's `attribute_set`, because the slot differs: here the
+attribute is what gets **measured**, there it is what the log is **split** by.
+Sharing one key across both would defeat the slot mechanism, whose whole job is
+to stop two parameters deciding the same thing.
+
+Each attribute becomes one panel, and its own renderers draw them — task03's
+figure is rows × 2 series, which the shared panel kernel has no shape for. The
+frozen screenshots are the one-attribute case, so that case has to come out
+untouched: `plt.subplots(1, 1, squeeze=False)` renders identically to the bare
+`plt.subplots()` it replaces (checked), the figure size keeps its historical
+value at N=1 rather than a formula that happens to agree, and a panel is titled
+only when there is more than one — with one, the figure title already names it.
+All five task03 idioms come out byte-identical on the default.
+
+An attribute with too little variance to bucket keeps its panel and says so
+inside it, rather than removing the panel or blanking the figure; only when
+*every* attribute fails does the whole figure become an empty state, which is
+what the single-attribute case did before.
 
 The value reaches `trace_features.split` with the registry's own value type
 rather than one guessed from the values. Guessing coerced attributes to float,
