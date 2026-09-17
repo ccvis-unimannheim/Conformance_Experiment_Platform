@@ -881,11 +881,16 @@ def _task20_attribute_panels(log, alignments, attributes=None):
 
 
 def task20_bar_chart(panels, output_dir, *, filename=None, suptitle=None,
-                     value_label=None, value_fmt=None, value_max=None):
+                     value_label=None, value_label_header=None,
+                     value_fmt=None, value_max=None):
     """One sub-panel per attribute: violation rate (%) per bucket, uniform colour,
     fixed 0–100 scale, rate labelled above each bar (no sample sizes)."""
     title = suptitle or _ATTR_SUPTITLE
     vlabel = value_label or "Violation rate (%)"
+    # Axis labels read as sentence case, column headers and tick labels as Title
+    # Case. Collapsing them onto one string silently retitled the table, matrix
+    # and table+bar headers.
+    vlabel_header = value_label_header or vlabel.title()
     value_fmt = value_fmt or "{:.1f}%"
     value_max = 100.0 if value_max is None else float(value_max)
     path = os.path.join(output_dir, filename or "task20_bar_chart.svg")
@@ -922,17 +927,22 @@ def task20_bar_chart(panels, output_dir, *, filename=None, suptitle=None,
 
 
 def task20_table(panels, output_dir, *, filename=None, suptitle=None,
-                 value_label=None, value_fmt=None, value_max=None):
+                 value_label=None, value_label_header=None,
+                     value_fmt=None, value_max=None):
     """One section per attribute (header = attribute name): Bucket | Violation Rate (%)."""
     title = suptitle or _ATTR_SUPTITLE
     vlabel = value_label or "Violation rate (%)"
+    # Axis labels read as sentence case, column headers and tick labels as Title
+    # Case. Collapsing them onto one string silently retitled the table, matrix
+    # and table+bar headers.
+    vlabel_header = value_label_header or vlabel.title()
     value_fmt = value_fmt or "{:.1f}%"
     value_max = 100.0 if value_max is None else float(value_max)
     path = os.path.join(output_dir, filename or "task20_table.svg")
     if not panels:
         render_empty_state_svg(path, title, "No candidate attribute could be bucketed.")
         return
-    col_labels = ["Attribute Value", vlabel]
+    col_labels = ["Attribute Value", vlabel_header]
     height_ratios = [max(1, len(labels)) for (_m, (labels, _r, _c)) in panels]
     fig_h = max(4.0, 1.0 + sum(height_ratios) * 0.42 + len(panels) * 0.55)
     fig = plt.figure(figsize=(8, fig_h))
@@ -950,7 +960,8 @@ def task20_table(panels, output_dir, *, filename=None, suptitle=None,
 
 
 def task20_matrix(panels, output_dir, *, filename=None, suptitle=None,
-                  value_label=None, value_fmt=None, value_max=None):
+                  value_label=None, value_label_header=None,
+                     value_fmt=None, value_max=None):
     """Side-by-side per-attribute grids (same layout as Heatmap: one column per
     attribute, rows = buckets), but with a flat, non-value-encoded colour wash per
     panel — alternating between task03's matrix palette (GREY_DARK = cividis blue
@@ -959,6 +970,10 @@ def task20_matrix(panels, output_dir, *, filename=None, suptitle=None,
     the only thing being read (that's Heatmap's job)."""
     title = suptitle or _ATTR_SUPTITLE
     vlabel = value_label or "Violation rate (%)"
+    # Axis labels read as sentence case, column headers and tick labels as Title
+    # Case. Collapsing them onto one string silently retitled the table, matrix
+    # and table+bar headers.
+    vlabel_header = value_label_header or vlabel.title()
     value_fmt = value_fmt or "{:.1f}%"
     value_max = 100.0 if value_max is None else float(value_max)
     path = os.path.join(output_dir, filename or "task20_matrix.svg")
@@ -983,7 +998,7 @@ def task20_matrix(panels, output_dir, *, filename=None, suptitle=None,
         ax.set_ylim(0, n)
         ax.invert_yaxis()
         ax.set_xticks([0.5])
-        ax.set_xticklabels([vlabel], fontsize=FONT_ANNOT)
+        ax.set_xticklabels([vlabel_header], fontsize=FONT_ANNOT)
         ax.set_yticks([r + 0.5 for r in range(n)])
         ax.set_yticklabels(labels, fontsize=FONT_ANNOT - 1)
         ax.tick_params(length=0)
@@ -996,13 +1011,18 @@ def task20_matrix(panels, output_dir, *, filename=None, suptitle=None,
 
 
 def task20_parallel_sets(panels, output_dir, *, filename=None, suptitle=None,
-                         value_label=None, value_fmt=None, value_max=None):
+                         value_label=None, value_label_header=None,
+                     value_fmt=None, value_max=None):
     """One flow per attribute: bucket → Violation / No violation; ribbon = #traces.
     Left axis carries the per-bucket violation rate (%); right axis is just the
     Violation / No violation category names, unlabelled with a percentage — matching
     every other idiom, none of which surfaces the aggregate split either."""
     title = suptitle or _ATTR_SUPTITLE
     vlabel = value_label or "Violation rate (%)"
+    # Axis labels read as sentence case, column headers and tick labels as Title
+    # Case. Collapsing them onto one string silently retitled the table, matrix
+    # and table+bar headers.
+    vlabel_header = value_label_header or vlabel.title()
     value_fmt = value_fmt or "{:.1f}%"
     value_max = 100.0 if value_max is None else float(value_max)
     path = os.path.join(output_dir, filename or "task20_parallel_sets.svg")
@@ -1023,7 +1043,7 @@ def task20_parallel_sets(panels, output_dir, *, filename=None, suptitle=None,
             viol = round(rate / 100.0 * cnt)          # exact: rate = mean*100
             mat[i, 0] = viol
             mat[i, 1] = cnt - viol
-        left_labels = [f"{lab}  ({value_fmt.format(rate)} {vlabel})" for lab, rate in zip(labels, rates)]
+        left_labels = [f"{lab}  ({value_fmt.format(rate)} {vlabel_header})" for lab, rate in zip(labels, rates)]
         right_labels = ["Violation", "No violation"]
         left_colors = [_GREY_PALETTE[i % len(_GREY_PALETTE)] for i in range(len(labels))]
         draw_parallel_sets(
@@ -1046,19 +1066,24 @@ _GREY_PALETTE = [GREY_MED, GREY_LIGHT, GREY_DARK, GREY_LIGHTER]
 
 
 def task20_table_bar_chart(panels, output_dir, *, filename=None, suptitle=None,
-                           value_label=None, value_fmt=None, value_max=None):
+                           value_label=None, value_label_header=None,
+                     value_fmt=None, value_max=None):
     """Table & Bar Chart combo: per attribute, the Bucket | Violation Rate (%) table
     beside a horizontal bar of the SAME per-bucket rates (fixed 0–100). A native
     combination of task20_table + task20_bar_chart — no derived measures."""
     title = suptitle or _ATTR_SUPTITLE
     vlabel = value_label or "Violation rate (%)"
+    # Axis labels read as sentence case, column headers and tick labels as Title
+    # Case. Collapsing them onto one string silently retitled the table, matrix
+    # and table+bar headers.
+    vlabel_header = value_label_header or vlabel.title()
     value_fmt = value_fmt or "{:.1f}%"
     value_max = 100.0 if value_max is None else float(value_max)
     path = os.path.join(output_dir, filename or "task20_table_bar_chart.svg")
     if not panels:
         render_empty_state_svg(path, title, "No candidate attribute could be bucketed.")
         return
-    col_labels = ["Attribute Value", vlabel]
+    col_labels = ["Attribute Value", vlabel_header]
     height_ratios = [max(1, len(labels)) for (_m, (labels, _r, _c)) in panels]
     fig_h = max(4.0, 1.0 + sum(height_ratios) * 0.5 + len(panels) * 0.6)
     fig = plt.figure(figsize=(11, fig_h))
@@ -1089,12 +1114,17 @@ def task20_table_bar_chart(panels, output_dir, *, filename=None, suptitle=None,
 
 
 def task20_heatmap(panels, output_dir, *, filename=None, suptitle=None,
-                   value_label=None, value_fmt=None, value_max=None):
+                   value_label=None, value_label_header=None,
+                     value_fmt=None, value_max=None):
     """Heatmap: like the Matrix idiom but pure colour intensity (no per-cell numbers)
     — one column per attribute, rows = buckets, violation rate (%) on a fixed 0→100
     colour scale (platform convention: Matrix = annotated, Heatmap = colour only)."""
     title = suptitle or _ATTR_SUPTITLE
     vlabel = value_label or "Violation rate (%)"
+    # Axis labels read as sentence case, column headers and tick labels as Title
+    # Case. Collapsing them onto one string silently retitled the table, matrix
+    # and table+bar headers.
+    vlabel_header = value_label_header or vlabel.title()
     value_fmt = value_fmt or "{:.1f}%"
     value_max = 100.0 if value_max is None else float(value_max)
     path = os.path.join(output_dir, filename or "task20_heatmap.svg")
@@ -1108,8 +1138,8 @@ def task20_heatmap(panels, output_dir, *, filename=None, suptitle=None,
     for ax, (m, (labels, rates, _counts)) in zip(axes[0], panels):
         data = np.asarray(rates, dtype=float).reshape(-1, 1)
         draw_value_heatmap(
-            fig, ax, data, labels, [vlabel],
-            cbar_label=vlabel, annotate=False, vmax=value_max,
+            fig, ax, data, labels, [vlabel_header],
+            cbar_label=vlabel_header, annotate=False, vmax=value_max,
         )
         ax.set_title(m["label"], fontsize=FONT_LABEL)
     fig.suptitle(title, fontsize=FONT_TITLE)
@@ -1118,12 +1148,17 @@ def task20_heatmap(panels, output_dir, *, filename=None, suptitle=None,
 
 
 def task20_tile_metric(panels, output_dir, *, filename=None, suptitle=None,
-                       value_label=None, value_fmt=None, value_max=None):
+                       value_label=None, value_label_header=None,
+                     value_fmt=None, value_max=None):
     """Tile Metric: one KPI tile per bucket showing the violation rate (%) as a
     headline number (+ bucket label), grouped per attribute — the same per-bucket
     rate as a scannable metric grid (tile shade redundantly encodes the rate)."""
     title = suptitle or _ATTR_SUPTITLE
     vlabel = value_label or "Violation rate (%)"
+    # Axis labels read as sentence case, column headers and tick labels as Title
+    # Case. Collapsing them onto one string silently retitled the table, matrix
+    # and table+bar headers.
+    vlabel_header = value_label_header or vlabel.title()
     value_fmt = value_fmt or "{:.1f}%"
     value_max = 100.0 if value_max is None else float(value_max)
     path = os.path.join(output_dir, filename or "task20_tile_metric.svg")
