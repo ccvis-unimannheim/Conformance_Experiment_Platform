@@ -207,8 +207,8 @@ def _make_bpmn_svg(activity_type, activity_totals, model_path):
         tc     = "white" if v_int < 140 else _C_DARK
 
         if kind == "task":
-            mom   = activity_type.get((name, "Move on Model"), 0)
-            mol   = activity_type.get((name, "Move on Log"),   0)
+            mom   = activity_type.get((name, "Model Move"), 0)
+            mol   = activity_type.get((name, "Log Move"),   0)
             total = activity_totals.get(name, 0)
             clip_id = f"clip_{eid}"
             # clip-path to prevent any text overflow beyond the rect
@@ -381,8 +381,8 @@ def task35_flow_chart_elaborate_bpmn_table(activity_type, activity_totals, n_vio
         x += cw * tw
 
     for i, act in enumerate(top_acts):
-        mom   = activity_type.get((act, "Move on Model"), 0)
-        mol   = activity_type.get((act, "Move on Log"),   0)
+        mom   = activity_type.get((act, "Model Move"), 0)
+        mol   = activity_type.get((act, "Log Move"),   0)
         mm    = activity_type.get((act, "Mismatch Move"), 0)
         total = mom + mol + mm
         pct   = total / n_violations * 100 if n_violations > 0 else 0
@@ -513,8 +513,8 @@ def task35_petri_net(activity_type, activity_totals, model_path, output_dir):
                          color="#333333", fontsize="8")
             else:
                 name  = trans.label
-                skip  = activity_type.get((name, "Move on Model"), 0)
-                ins   = activity_type.get((name, "Move on Log"),   0)
+                skip  = activity_type.get((name, "Model Move"), 0)
+                ins   = activity_type.get((name, "Log Move"),   0)
                 total = activity_totals.get(name, 0)
                 rate  = total / max_v
                 fill  = _violation_shade(rate)
@@ -602,8 +602,8 @@ def task35_flow_chart_elaborate_dfg(activity_type, activity_totals, log, output_
 
         # ── Nodes ──────────────────────────────────────────────────────────
         for act in sorted(all_acts):
-            skip  = activity_type.get((act, "Move on Model"), 0)
-            ins   = activity_type.get((act, "Move on Log"),   0)
+            skip  = activity_type.get((act, "Model Move"), 0)
+            ins   = activity_type.get((act, "Log Move"),   0)
             total = activity_totals.get(act, 0)
             rate  = total / max_v
             fill  = _violation_shade(rate)

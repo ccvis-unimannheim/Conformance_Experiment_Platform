@@ -190,14 +190,18 @@ def auto_col_widths(col_labels, cell_text, header_weight: float = 1.15,
 # Two levels of abstraction:
 #   classify_step(obs_raw, exp_raw) -> (activity, type) | (None, None)
 #       Low-level primitive.  Returns the activity name + one of:
-#       "Move on Model" / "Move on Log" / "Mismatch Move".
+#       "Model Move" / "Log Move" / "Mismatch Move".
 #       Used by task09, task11, task12, task34, task35.
 #
 #   alignment_pairs_to_rows(alignment) -> list[dict]
 #       High-level parser producing display rows with step/log_move/model_move/
-#       status/moveType fields.  moveType uses the canonical Convention-A names:
-#       "Synchronous Move" / "Model Move" / "Log Move" / "Mismatch Move".
+#       status/moveType fields.  moveType adds "Synchronous Move" to the same
+#       three names.
 #       Used by task05, task19, task20, task22, task23, task27, task28, task29, task30.
+#
+# The two used to disagree — classify_step said "Move on Model" where this said
+# "Model Move" — and both names reached participants: task09 showed one, task11
+# the other, and task34 showed both in the same task. They now share one name.
 # ---------------------------------------------------------------------------
 
 SKIP_ALIGNMENT_TOKENS = {">>", None}
@@ -295,8 +299,8 @@ def classify_step(observed_raw, expected_raw):
     """Classify one PM4Py alignment step into (activity, violation_type) or (None, None).
 
     Naming convention used by task09, task11, task12, task34, task35:
-        "Move on Model"  – activity required by the model but absent in the trace
-        "Move on Log"    – extra activity present in the trace but not in the model
+        "Model Move"  – activity required by the model but absent in the trace
+        "Log Move"    – extra activity present in the trace but not in the model
         "Mismatch Move"  – both present but with different labels
         (None, None)     – Synchronous Move (conformant) or tau/hidden transition
     """
@@ -312,8 +316,8 @@ def classify_step(observed_raw, expected_raw):
             return None, None
         return obs, "Mismatch Move"
     if obs_skip:
-        return exp, "Move on Model"
-    return obs, "Move on Log"
+        return exp, "Model Move"
+    return obs, "Log Move"
 
 
 # ---------------------------------------------------------------------------

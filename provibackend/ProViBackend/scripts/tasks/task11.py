@@ -60,17 +60,17 @@ _C_XLIGHT = GREY_LIGHTER
 _HDR_BG   = GREY_DARK
 _CMAP_SEQ = CIVIDIS_R  # dark = many violations, yellow = 0
 
-_VTYPES = ["Move on Model", "Move on Log", "Mismatch Move"]
+_VTYPES = ["Model Move", "Log Move", "Mismatch Move"]
 _VTYPE_SHORT = {
-    "Move on Model": "MoM",
-    "Move on Log":   "MoL",
+    "Model Move": "MoM",
+    "Log Move":   "MoL",
     "Mismatch Move": "MM",
 }
 # Display labels shown to admins/participants (internal _VTYPES keys stay as
 # returned by shared.classify_step so they keep matching across tasks).
 _VTYPE_DISPLAY = {
-    "Move on Model": "Model Move",
-    "Move on Log":   "Log Move",
+    "Model Move": "Model Move",
+    "Log Move":   "Log Move",
     "Mismatch Move": "Mismatch Move",
 }
 
@@ -79,16 +79,16 @@ _VTYPE_DISPLAY = {
 # category those tasks don't have — gets the mid-grey stop. Used by both the
 # Bar Chart and Matrix idioms.
 _VTYPE_COLOR = {
-    "Move on Model": GREY_DARK,
-    "Move on Log":   GREY_LIGHTER,
+    "Model Move": GREY_DARK,
+    "Log Move":   GREY_LIGHTER,
     "Mismatch Move": _C_MED,
 }
 _BAR_COLOR = _VTYPE_COLOR
 
 # Accepts full names or short codes when parsing a violation spec.
 _VTYPE_FROM_TOKEN = {
-    "mom": "Move on Model", "move on model": "Move on Model",
-    "mol": "Move on Log",   "move on log":   "Move on Log",
+    "mom": "Model Move", "move on model": "Model Move",
+    "mol": "Log Move",   "move on log":   "Log Move",
     "mm":  "Mismatch Move", "mismatch move": "Mismatch Move",
 }
 
@@ -198,18 +198,18 @@ def task11_bar_chart(selected, trace_coverage, n_traces, output_dir):
 
     acts = {}
     for act, vt in selected:
-        if vt not in ("Move on Model", "Move on Log"):
+        if vt not in ("Model Move", "Log Move"):
             continue
-        acts.setdefault(act, {"Move on Model": 0, "Move on Log": 0})
+        acts.setdefault(act, {"Model Move": 0, "Log Move": 0})
         acts[act][vt] = trace_coverage.get((act, vt), 0)
 
     if not acts:
         _no_violations(output_dir, "bar_chart")
         return
 
-    ordered_acts = sorted(acts, key=lambda a: (-(acts[a]["Move on Model"] + acts[a]["Move on Log"]), str(a)))
-    model_counts = [acts[a]["Move on Model"] for a in ordered_acts]
-    log_counts   = [acts[a]["Move on Log"] for a in ordered_acts]
+    ordered_acts = sorted(acts, key=lambda a: (-(acts[a]["Model Move"] + acts[a]["Log Move"]), str(a)))
+    model_counts = [acts[a]["Model Move"] for a in ordered_acts]
+    log_counts   = [acts[a]["Log Move"] for a in ordered_acts]
     labels       = [_short_label(a, 22) for a in ordered_acts]
 
     n = len(ordered_acts)
@@ -222,9 +222,9 @@ def task11_bar_chart(selected, trace_coverage, n_traces, output_dir):
     ax.set_facecolor("#fafbfc")
 
     bars_model = ax.bar(x - width / 2, model_counts, width,
-                         color=_BAR_COLOR["Move on Model"], edgecolor="none", label="Model Move")
+                         color=_BAR_COLOR["Model Move"], edgecolor="none", label="Model Move")
     bars_log = ax.bar(x + width / 2, log_counts, width,
-                       color=_BAR_COLOR["Move on Log"], edgecolor="none", label="Log Move")
+                       color=_BAR_COLOR["Log Move"], edgecolor="none", label="Log Move")
 
     for bars, counts in ((bars_model, model_counts), (bars_log, log_counts)):
         for bar, cnt in zip(bars, counts):

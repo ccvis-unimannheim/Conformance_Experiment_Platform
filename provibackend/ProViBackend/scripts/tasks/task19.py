@@ -144,7 +144,7 @@ def _trace_patterns(alignments):
 
     Uses the platform-standard classify_step() (also used by get_log_violations(),
     which powers the admin's "log.violations" checkbox source) so pattern keys here
-    match the admin's selection specs ('activity|Move on Model' etc.) exactly.
+    match the admin's selection specs ('activity|Model Move' etc.) exactly.
     """
     out = []
     for result in alignments:
@@ -158,6 +158,9 @@ def _trace_patterns(alignments):
             patterns.add((act, vtype))
         out.append(patterns)
     return out
+
+
+_LEGACY_MOVE_NAMES = {"Move on Model": "Model Move", "Move on Log": "Log Move"}
 
 
 def _resolve_target_patterns(target_patterns, universe):
@@ -178,7 +181,11 @@ def _resolve_target_patterns(target_patterns, universe):
         if "|" not in s:
             continue
         act, vt = s.rsplit("|", 1)
-        key = (act.strip(), vt.strip())
+        # Selections saved before the two spellings were unified read
+        # "activity|Move on Model"; accept them so an existing experiment keeps
+        # resolving without a migration.
+        vt = _LEGACY_MOVE_NAMES.get(vt.strip(), vt.strip())
+        key = (act.strip(), vt)
         if key in universe and key not in seen:
             seen.add(key)
             resolved.append(key)
@@ -258,10 +265,13 @@ def task19_effects(log, alignments, outcome_activity="Activate Care", target_pat
 
 
 # Display labels for move types in the visible pattern strings. The internal
-# move_type (from classify_step) stays "Move on Model" / "Move on Log" so it keeps
+# move_type (from classify_step) stays "Model Move" / "Log Move" so it keeps
 # matching the admin's 'activity|Move on Model' selection specs; only the shown text
 # is shortened to "Model Move" / "Log Move".
-_MOVE_DISPLAY = {"Move on Model": "Model Move", "Move on Log": "Log Move"}
+# classify_step and the display share one set of names now, so nothing is
+# translated; this stays as the single place to change should the shown
+# wording ever need to differ from the internal one again.
+_MOVE_DISPLAY: dict = {}
 
 
 def _display_move(move_type: str) -> str:

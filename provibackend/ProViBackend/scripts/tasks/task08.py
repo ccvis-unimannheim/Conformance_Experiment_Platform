@@ -103,8 +103,8 @@ def _classify_step(observed_raw, expected_raw):
 
     Standard PM4Py alignment terminology:
         Synchronous Move  – both log and model agree (fit, ignored)
-        Move on Model     – model fires a transition the trace skipped
-        Move on Log       – trace has an event the model doesn't expect
+        Model Move        – model fires a transition the trace skipped
+        Log Move          – trace has an event the model doesn't expect
         Mismatch Move     – both present but different labels (rare)
     """
     obs = _extract_label(observed_raw)
@@ -119,8 +119,8 @@ def _classify_step(observed_raw, expected_raw):
             return None                    # Synchronous Move (fit)
         return f"Mismatch Move: {obs}"     # rare in proper alignments
     if obs_skip:
-        return f"Move on Model: {exp}"     # model expected exp, trace skipped it
-    return f"Move on Log: {obs}"           # trace has obs, model didn't expect it
+        return f"Model Move: {exp}"        # model expected exp, trace skipped it
+    return f"Log Move: {obs}"              # trace has obs, model didn't expect it
 
 
 def _extract_violation_data(alignments):
@@ -164,7 +164,7 @@ def _viol_label(v) -> str:
     """Return a violation's display label in 'type: activity' form.
 
     Violation identifiers are strings produced by _classify_step (e.g.
-    "Move on Model: A_ACCEPTED"), which are already in that form, so they pass
+    "Model Move: A_ACCEPTED"), which are already in that form, so they pass
     through unchanged. A legacy (activity, violation_type) tuple is still
     accepted and reformatted for safety.
     """
@@ -357,8 +357,8 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count, 
 
     # Node shades by violation type (updated for new terminology)
     def node_color(label):
-        if "Move on Model" in label: return _C_LIGHT   # light grey
-        if "Move on Log"   in label: return _C_MED     # mid grey
+        if "Model Move" in label: return _C_LIGHT   # light grey
+        if "Log Move"   in label: return _C_MED     # mid grey
         return _C_DARK                                  # dark (Mismatch)
 
     colors = [node_color(n) for n in nodes_ordered]
@@ -404,8 +404,8 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count, 
 
     # Legend with updated terminology
     legend_handles = [
-        mpatches.Patch(color=_C_LIGHT, label="Move on Model (skipped activity)"),
-        mpatches.Patch(color=_C_MED,   label="Move on Log (extra activity)"),
+        mpatches.Patch(color=_C_LIGHT, label="Model Move (skipped activity)"),
+        mpatches.Patch(color=_C_MED,   label="Log Move (extra activity)"),
         mpatches.Patch(color=_C_DARK,  label="Mismatch Move"),
     ]
     ax.legend(handles=legend_handles, loc="lower right",

@@ -87,9 +87,9 @@ def _extract_data(alignments):
             categories["conformant"] += 1
         elif len(vtypes) == 1:
             vt = next(iter(vtypes))
-            if vt == "Move on Model":
+            if vt == "Model Move":
                 categories["mom_only"] += 1
-            elif vt == "Move on Log":
+            elif vt == "Log Move":
                 categories["mol_only"] += 1
             else:
                 categories["mm_only"] += 1

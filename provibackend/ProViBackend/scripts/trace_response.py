@@ -99,9 +99,9 @@ def violation_table(alignments) -> pd.DataFrame:
     Columns: trace_index, activity, move_type, pattern.
 
     ``activity`` and ``move_type`` are separate columns so either can serve as a
-    grouping axis on its own — "all Move on Model regardless of activity", "every
+    grouping axis on its own — "all Model Moves regardless of activity", "every
     violation on activity X regardless of type". They used to exist only baked
-    into ``pattern`` as ``"X (Move on Log)"``, which forced callers to parse the
+    into ``pattern`` as ``"X (Log Move)"``, which forced callers to parse the
     string back apart to get at either half. ``pattern`` remains as the display
     label.
 
