@@ -190,14 +190,18 @@ def auto_col_widths(col_labels, cell_text, header_weight: float = 1.15,
 # Two levels of abstraction:
 #   classify_step(obs_raw, exp_raw) -> (activity, type) | (None, None)
 #       Low-level primitive.  Returns the activity name + one of:
-#       "Move on Model" / "Move on Log" / "Mismatch Move".
+#       "Model Move" / "Log Move" / "Mismatch Move".
 #       Used by task09, task11, task12, task34, task35.
 #
 #   alignment_pairs_to_rows(alignment) -> list[dict]
 #       High-level parser producing display rows with step/log_move/model_move/
-#       status/moveType fields.  moveType uses the canonical Convention-A names:
-#       "Synchronous Move" / "Model Move" / "Log Move" / "Mismatch Move".
+#       status/moveType fields.  moveType adds "Synchronous Move" to the same
+#       three names.
 #       Used by task05, task19, task20, task22, task23, task27, task28, task29, task30.
+#
+# The two used to disagree — classify_step said "Move on Model" where this said
+# "Model Move" — and both names reached participants: task09 showed one, task11
+# the other, and task34 showed both in the same task. They now share one name.
 # ---------------------------------------------------------------------------
 
 SKIP_ALIGNMENT_TOKENS = {">>", None}
@@ -277,12 +281,26 @@ def alignment_pairs_to_rows(alignment):
     return rows_out
 
 
+def most_common_stable(counter, n=None):
+    """`Counter.most_common`, with ties broken by the key instead of by luck.
+
+    `most_common` leaves equal counts in insertion order, and these counters are
+    filled by iterating sets and frozensets — whose order changes with every
+    Python process, since strings hash differently each run. Two runs of the
+    same task therefore ranked tied items differently and drew different charts.
+    Ties are not rare here: a Log Move and a Model Move on one activity usually
+    touch exactly the same traces.
+    """
+    ordered = sorted(counter.items(), key=lambda kv: (-kv[1], str(kv[0])))
+    return ordered if n is None else ordered[:n]
+
+
 def classify_step(observed_raw, expected_raw):
     """Classify one PM4Py alignment step into (activity, violation_type) or (None, None).
 
     Naming convention used by task09, task11, task12, task34, task35:
-        "Move on Model"  – activity required by the model but absent in the trace
-        "Move on Log"    – extra activity present in the trace but not in the model
+        "Model Move"  – activity required by the model but absent in the trace
+        "Log Move"    – extra activity present in the trace but not in the model
         "Mismatch Move"  – both present but with different labels
         (None, None)     – Synchronous Move (conformant) or tau/hidden transition
     """
@@ -298,8 +316,8 @@ def classify_step(observed_raw, expected_raw):
             return None, None
         return obs, "Mismatch Move"
     if obs_skip:
-        return exp, "Move on Model"
-    return obs, "Move on Log"
+        return exp, "Model Move"
+    return obs, "Log Move"
 
 
 # ---------------------------------------------------------------------------
@@ -2482,6 +2500,45 @@ def infer_outcome_activity(log) -> str:
         candidates = {a for a, c in presence.items() if lo * n <= c <= hi * n}
         if candidates:
             return max(candidates, key=lambda a: (presence[a], as_last.get(a, 0)))
+
+
+def infer_terminal_activity(log) -> str:
+    """Infer an activity that *ends* a trace, for a goal read as "ends with X".
+
+    infer_outcome_activity ranks by how many traces contain an activity, which
+    suits a goal read as "contains X" but picks mid-process activities: in
+    BPIC12 it returns A_ACCEPTED, present in 39% of traces and final in 0.02%.
+    Asking which activity a trace ends on needs the presence counted at the end.
+
+    Same widening windows, so an activity that ends a quarter to a half of the
+    traces wins before a near-universal or a rare one is considered.
+    """
+    n = len(log)
+    if n == 0:
+        return ""
+
+    # The registry already derives each trace's last activity; counting a third
+    # copy of that walk here is how the two would drift apart.
+    import trace_features
+
+    last_per_trace, _ = trace_features.extract(log, trace_features.LAST_ACTIVITY_KEY)
+    as_last: dict[str, int] = {}
+    for activity in last_per_trace:
+        if activity:
+            as_last[activity] = as_last.get(activity, 0) + 1
+    if not as_last:
+        return ""
+
+    import logging as _logging
+    _logging.getLogger(__name__).warning(
+        "infer_terminal_activity: no outcome_activity configured — falling back "
+        "to a heuristic. Set outcome_activity explicitly via PARAM_SPEC."
+    )
+    for lo, hi in [(0.25, 0.55), (0.15, 0.65), (0.05, 0.85), (0.0, 1.0)]:
+        candidates = {a for a, c in as_last.items() if lo * n <= c <= hi * n}
+        if candidates:
+            return max(candidates, key=lambda a: (as_last[a], a))
+    return ""
 
 
 def infer_rejected_activities(log, outcome_activity: str, min_pct: float = 0.03) -> set:

@@ -50,7 +50,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
-from shared import save_svg, make_table, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS_R, FONT_TITLE, FONT_LABEL, FONT_ANNOT, contrasting_text_color, classify_step as _classify_step
+from shared import most_common_stable, save_svg, make_table, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS_R, FONT_TITLE, FONT_LABEL, FONT_ANNOT, contrasting_text_color, classify_step as _classify_step
 
 # ── Cividis palette ───────────────────────────────────────────────────────────
 _C_DARK   = GREY_DARK
@@ -60,17 +60,17 @@ _C_XLIGHT = GREY_LIGHTER
 _HDR_BG   = GREY_DARK
 _CMAP_SEQ = CIVIDIS_R  # dark = many violations, yellow = 0
 
-_VTYPES = ["Move on Model", "Move on Log", "Mismatch Move"]
+_VTYPES = ["Model Move", "Log Move", "Mismatch Move"]
 _VTYPE_SHORT = {
-    "Move on Model": "MoM",
-    "Move on Log":   "MoL",
+    "Model Move": "MoM",
+    "Log Move":   "MoL",
     "Mismatch Move": "MM",
 }
 # Display labels shown to admins/participants (internal _VTYPES keys stay as
 # returned by shared.classify_step so they keep matching across tasks).
 _VTYPE_DISPLAY = {
-    "Move on Model": "Model Move",
-    "Move on Log":   "Log Move",
+    "Model Move": "Model Move",
+    "Log Move":   "Log Move",
     "Mismatch Move": "Mismatch Move",
 }
 
@@ -79,16 +79,16 @@ _VTYPE_DISPLAY = {
 # category those tasks don't have — gets the mid-grey stop. Used by both the
 # Bar Chart and Matrix idioms.
 _VTYPE_COLOR = {
-    "Move on Model": GREY_DARK,
-    "Move on Log":   GREY_LIGHTER,
+    "Model Move": GREY_DARK,
+    "Log Move":   GREY_LIGHTER,
     "Mismatch Move": _C_MED,
 }
 _BAR_COLOR = _VTYPE_COLOR
 
 # Accepts full names or short codes when parsing a violation spec.
 _VTYPE_FROM_TOKEN = {
-    "mom": "Move on Model", "move on model": "Move on Model",
-    "mol": "Move on Log",   "move on log":   "Move on Log",
+    "mom": "Model Move", "move on model": "Model Move",
+    "mol": "Log Move",   "move on log":   "Log Move",
     "mm":  "Mismatch Move", "mismatch move": "Mismatch Move",
 }
 
@@ -181,7 +181,7 @@ def _no_violations(output_dir, name):
 
 def _sorted_selected(selected, trace_coverage):
     """Return selected pairs sorted by trace count descending."""
-    return sorted(selected, key=lambda p: -trace_coverage.get(p, 0))
+    return sorted(selected, key=lambda p: (-trace_coverage.get(p, 0), str(p)))
 
 
 # ── Idiom 1: Bar Chart — trace count per predefined violation ─────────────────
@@ -198,18 +198,18 @@ def task11_bar_chart(selected, trace_coverage, n_traces, output_dir):
 
     acts = {}
     for act, vt in selected:
-        if vt not in ("Move on Model", "Move on Log"):
+        if vt not in ("Model Move", "Log Move"):
             continue
-        acts.setdefault(act, {"Move on Model": 0, "Move on Log": 0})
+        acts.setdefault(act, {"Model Move": 0, "Log Move": 0})
         acts[act][vt] = trace_coverage.get((act, vt), 0)
 
     if not acts:
         _no_violations(output_dir, "bar_chart")
         return
 
-    ordered_acts = sorted(acts, key=lambda a: -(acts[a]["Move on Model"] + acts[a]["Move on Log"]))
-    model_counts = [acts[a]["Move on Model"] for a in ordered_acts]
-    log_counts   = [acts[a]["Move on Log"] for a in ordered_acts]
+    ordered_acts = sorted(acts, key=lambda a: (-(acts[a]["Model Move"] + acts[a]["Log Move"]), str(a)))
+    model_counts = [acts[a]["Model Move"] for a in ordered_acts]
+    log_counts   = [acts[a]["Log Move"] for a in ordered_acts]
     labels       = [_short_label(a, 22) for a in ordered_acts]
 
     n = len(ordered_acts)
@@ -222,9 +222,9 @@ def task11_bar_chart(selected, trace_coverage, n_traces, output_dir):
     ax.set_facecolor("#fafbfc")
 
     bars_model = ax.bar(x - width / 2, model_counts, width,
-                         color=_BAR_COLOR["Move on Model"], edgecolor="none", label="Model Move")
+                         color=_BAR_COLOR["Model Move"], edgecolor="none", label="Model Move")
     bars_log = ax.bar(x + width / 2, log_counts, width,
-                       color=_BAR_COLOR["Move on Log"], edgecolor="none", label="Log Move")
+                       color=_BAR_COLOR["Log Move"], edgecolor="none", label="Log Move")
 
     for bars, counts in ((bars_model, model_counts), (bars_log, log_counts)):
         for bar, cnt in zip(bars, counts):
@@ -279,7 +279,7 @@ def task11_matrix(selected, trace_coverage, n_traces, output_dir):
     act_score = {}
     for act, vt in selected:
         act_score[act] = act_score.get(act, 0) + trace_coverage.get((act, vt), 0)
-    selected_acts = sorted(act_score, key=lambda a: -act_score[a])
+    selected_acts = sorted(act_score, key=lambda a: (-act_score[a], str(a)))
 
     n_rows = len(selected_acts)
     n_cols = len(selected_vtypes)
@@ -562,7 +562,7 @@ def generate(log, alignments, output_dir, model_path=None, target_violations=Non
                 "task11: none of the specified violations were found in the log. "
                 "Specified: %s. Available: %s",
                 target_violations,
-                [f"{a}|{v}" for (a, v) in trace_coverage.most_common(20)],
+                [f"{a}|{v}" for (a, v), _ in most_common_stable(trace_coverage, 20)],
             )
             for name in IDIOMS:
                 _save_empty(output_dir, f"task11_{name}.svg",
@@ -575,7 +575,7 @@ def generate(log, alignments, output_dir, model_path=None, target_violations=Non
             logger.warning("task11: unresolved violation specs (ignored): %s", dropped)
     else:
         # Fallback: show all violations sorted by trace count
-        selected = [pair for pair, _ in trace_coverage.most_common()]
+        selected = [pair for pair, _ in most_common_stable(trace_coverage)]
         logger.info("task11: no violations specified — showing all %d distinct violations.",
                     len(selected))
 

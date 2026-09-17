@@ -111,7 +111,7 @@ from matplotlib import gridspec
 from shared import (
     save_svg, make_table, auto_col_widths, draw_parallel_sets, draw_value_heatmap,
     render_empty_state_svg,
-    classify_step, contrasting_text_color,
+    contrasting_text_color,
     GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
     infer_outcome_activity,
 )
@@ -142,22 +142,22 @@ _EMPTY_STEMS = [
 def _trace_patterns(alignments):
     """Per trace: the set of (activity, move_type) violation patterns it exhibits.
 
-    Uses the platform-standard classify_step() (also used by get_log_violations(),
-    which powers the admin's "log.violations" checkbox source) so pattern keys here
-    match the admin's selection specs ('activity|Move on Model' etc.) exactly.
+    Reads the shared violation table rather than walking the alignments again.
+    That table is what task30 and the pattern aggregation already use, so the
+    two ways of asking "which violations does this trace have" can no longer
+    drift apart — and now that both spell a move the same way, the keys still
+    match the admin's 'activity|Model Move' selection specs exactly.
     """
-    out = []
-    for result in alignments:
-        patterns = set()
-        for step in result.get("alignment", []):
-            if not isinstance(step, (list, tuple)) or len(step) < 2:
-                continue
-            act, vtype = classify_step(step[0], step[1])
-            if act is None:
-                continue
-            patterns.add((act, vtype))
-        out.append(patterns)
+    import trace_response
+
+    table = trace_response.violation_table(alignments)
+    out = [set() for _ in alignments]
+    for row in table.itertuples(index=False):
+        out[row.trace_index].add((row.activity, row.move_type))
     return out
+
+
+_LEGACY_MOVE_NAMES = {"Move on Model": "Model Move", "Move on Log": "Log Move"}
 
 
 def _resolve_target_patterns(target_patterns, universe):
@@ -178,7 +178,11 @@ def _resolve_target_patterns(target_patterns, universe):
         if "|" not in s:
             continue
         act, vt = s.rsplit("|", 1)
-        key = (act.strip(), vt.strip())
+        # Selections saved before the two spellings were unified read
+        # "activity|Move on Model"; accept them so an existing experiment keeps
+        # resolving without a migration.
+        vt = _LEGACY_MOVE_NAMES.get(vt.strip(), vt.strip())
+        key = (act.strip(), vt)
         if key in universe and key not in seen:
             seen.add(key)
             resolved.append(key)
@@ -240,7 +244,12 @@ def task19_effects(log, alignments, outcome_activity="Activate Care", target_pat
             "risk_diff": risk_diff,
             "rel_risk": rel_risk,
         })
-    records.sort(key=lambda r: abs(r["risk_diff"]), reverse=True)
+    # Ties are common — a Log Move and a Model Move on the same activity often
+    # affect exactly the same traces — and `universe` is a set, whose iteration
+    # order changes with every Python process. Sorting on the effect alone left
+    # tied rows in that order, so two runs of this task produced different
+    # charts. Break ties on the pattern itself.
+    records.sort(key=lambda r: (-abs(r["risk_diff"]), r["activity"], r["move_type"]))
 
     return {
         "records": records,
@@ -252,11 +261,10 @@ def task19_effects(log, alignments, outcome_activity="Activate Care", target_pat
     }
 
 
-# Display labels for move types in the visible pattern strings. The internal
-# move_type (from classify_step) stays "Move on Model" / "Move on Log" so it keeps
-# matching the admin's 'activity|Move on Model' selection specs; only the shown text
-# is shortened to "Model Move" / "Log Move".
-_MOVE_DISPLAY = {"Move on Model": "Model Move", "Move on Log": "Log Move"}
+# Internal move names and shown ones are the same now, so nothing is
+# translated. Kept as the single place to change should the wording on a chart
+# ever need to differ from the key an admin selects.
+_MOVE_DISPLAY: dict = {}
 
 
 def _display_move(move_type: str) -> str:

@@ -40,7 +40,7 @@ import matplotlib.patches as mpatches
 import matplotlib.colors as mcolors
 import matplotlib.cm as cm
 
-from shared import save_svg, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS, CIVIDIS_R, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
+from shared import most_common_stable, save_svg, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS, CIVIDIS_R, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
 
 # ── Cividis palette ───────────────────────────────────────────────────────────
 _C_DARK   = GREY_DARK
@@ -51,10 +51,10 @@ _HDR_BG   = GREY_DARK
 _CMAP_SEQ = CIVIDIS
 
 # Violation type → grey shade (light=skipped, mid=extra, dark=mismatch)
-_VTYPES = ["Move on Model", "Move on Log", "Mismatch Move"]
+_VTYPES = ["Model Move", "Log Move", "Mismatch Move"]
 _VTYPE_COLOR = {
-    "Move on Model": _C_LIGHT,
-    "Move on Log":   _C_MED,
+    "Model Move": _C_LIGHT,
+    "Log Move":   _C_MED,
     "Mismatch Move": _C_DARK,
 }
 
@@ -92,7 +92,7 @@ def _extract_data(alignments):
 
 
 def _top_activities(activity_totals, n=_TOP_N):
-    return [act for act, _ in activity_totals.most_common(n)]
+    return [act for act, _ in most_common_stable(activity_totals, n)]
 
 
 def _short_label(label, max_len=26):
@@ -198,8 +198,8 @@ def task09_scatter_plot(activity_type, activity_totals, output_dir):
 
     top_acts = _top_activities(activity_totals, _TOP_N)
 
-    mom = np.array([activity_type.get((a, "Move on Model"), 0) for a in top_acts], dtype=float)
-    mol = np.array([activity_type.get((a, "Move on Log"),   0) for a in top_acts], dtype=float)
+    mom = np.array([activity_type.get((a, "Model Move"), 0) for a in top_acts], dtype=float)
+    mol = np.array([activity_type.get((a, "Log Move"),   0) for a in top_acts], dtype=float)
     mm  = np.array([activity_type.get((a, "Mismatch Move"), 0) for a in top_acts], dtype=float)
     totals = mom + mol + mm
 
@@ -208,7 +208,7 @@ def task09_scatter_plot(activity_type, activity_totals, output_dir):
 
     def _dominant_color(i):
         vals  = [mom[i], mol[i], mm[i]]
-        types = ["Move on Model", "Move on Log", "Mismatch Move"]
+        types = ["Model Move", "Log Move", "Mismatch Move"]
         return _VTYPE_COLOR[types[int(np.argmax(vals))]]
 
     colors = [_dominant_color(i) for i in range(len(top_acts))]
@@ -269,8 +269,8 @@ def task09_scatter_plot(activity_type, activity_totals, output_dir):
             used.append((ox, oy))
             t.set_position((mom[i] + ox * 0.01, mol[i] + oy * 0.01))
 
-    ax.set_xlabel("Move on Model count  (activity skipped in log)", fontsize=FONT_LABEL)
-    ax.set_ylabel("Move on Log count  (activity inserted in log)", fontsize=FONT_LABEL)
+    ax.set_xlabel("Model Move count  (activity skipped in log)", fontsize=FONT_LABEL)
+    ax.set_ylabel("Log Move count  (activity inserted in log)", fontsize=FONT_LABEL)
     ax.set_title(
         "Violation Profile per Activity\n"
         "(size = total violations · color = dominant violation type)",
@@ -303,14 +303,14 @@ def task09_table(activity_type, activity_totals, type_totals, n_violations, outp
 
     rows = []
     for a in top_acts:
-        mom   = activity_type.get((a, "Move on Model"), 0)
-        mol   = activity_type.get((a, "Move on Log"),   0)
+        mom   = activity_type.get((a, "Model Move"), 0)
+        mol   = activity_type.get((a, "Log Move"),   0)
         mm    = activity_type.get((a, "Mismatch Move"), 0)
         total = mom + mol + mm
         pct   = total / n_violations * 100 if n_violations > 0 else 0
         rows.append([_short_label(a, 32), mom, mol, mm, total, f"{pct:.1f}%"])
 
-    col_headers = ["Activity", "Move on Model", "Move on Log", "Mismatch Move", "Total", "% of All"]
+    col_headers = ["Activity", "Model Move", "Log Move", "Mismatch Move", "Total", "% of All"]
     col_widths  = [0.34, 0.14, 0.12, 0.15, 0.10, 0.10]
 
     n_rows  = len(rows)
@@ -365,8 +365,8 @@ def task09_table_bar_chart(activity_type, activity_totals, n_violations, output_
     top_acts = _top_activities(activity_totals, _TOP_N)
     n = len(top_acts)
 
-    mom_vals = [activity_type.get((a, "Move on Model"), 0) for a in top_acts]
-    mol_vals = [activity_type.get((a, "Move on Log"),   0) for a in top_acts]
+    mom_vals = [activity_type.get((a, "Model Move"), 0) for a in top_acts]
+    mol_vals = [activity_type.get((a, "Log Move"),   0) for a in top_acts]
     mm_vals  = [activity_type.get((a, "Mismatch Move"), 0) for a in top_acts]
     totals   = [activity_totals[a] for a in top_acts]
 
@@ -414,8 +414,8 @@ def task09_table_bar_chart(activity_type, activity_totals, n_violations, output_
     ax_bar.set_facecolor("#fafbfc")
     lefts = np.zeros(n)
     for vtype, vals in [
-        ("Move on Model", mom_vals),
-        ("Move on Log",   mol_vals),
+        ("Model Move", mom_vals),
+        ("Log Move",   mol_vals),
         ("Mismatch Move", mm_vals),
     ]:
         v = np.array(vals, dtype=float)
@@ -511,7 +511,7 @@ def _infer_activity_order(alignments):
     if not pos_sum:
         return []
     avg = {a: pos_sum[a] / pos_cnt[a] for a in pos_sum}
-    return sorted(avg, key=avg.get)
+    return sorted(avg, key=lambda k: (avg[k], str(k)))
 
 
 def _violation_shade(rate):
@@ -604,7 +604,7 @@ def task09_flow_chart_and_table(activity_type, activity_totals, type_totals, n_v
 
     # ── Table ──────────────────────────────────────────────────────────────────
     ax_tbl.axis("off")
-    col_headers = ["Activity", "Move on Model", "Move on Log", "Mismatch Move", "Total", "% of All"]
+    col_headers = ["Activity", "Model Move", "Log Move", "Mismatch Move", "Total", "% of All"]
     col_widths  = [0.34, 0.14, 0.12, 0.15, 0.10, 0.10]
     t = 0.96; l = 0.01; tw = 0.98
     row_h = (t - 0.02) / (n_rows + 1)
@@ -618,8 +618,8 @@ def task09_flow_chart_and_table(activity_type, activity_totals, type_totals, n_v
                     color="white", fontweight="bold", transform=ax_tbl.transAxes)
         x += cw * tw
     for i, act in enumerate(top_acts):
-        mom   = activity_type.get((act, "Move on Model"), 0)
-        mol   = activity_type.get((act, "Move on Log"),   0)
+        mom   = activity_type.get((act, "Model Move"), 0)
+        mol   = activity_type.get((act, "Log Move"),   0)
         mm    = activity_type.get((act, "Mismatch Move"), 0)
         total = mom + mol + mm
         pct   = total / n_violations * 100 if n_violations > 0 else 0
@@ -850,8 +850,8 @@ def _make_bpmn_violation_svg(activity_totals, model_path, h_scale: float = 1.0):
 # ── T11-specific BPMN: rich node labels with embedded violation details ────────
 
 _T11_VTYPE_SHORT = {
-    "Move on Model": "MoM",
-    "Move on Log":   "MoL",
+    "Model Move": "MoM",
+    "Log Move":   "MoL",
     "Mismatch Move": "MM",
 }
 
@@ -923,7 +923,7 @@ def _make_bpmn_t11_svg(selected, trace_coverage, n_traces, activity_totals,
             (_T11_VTYPE_SHORT.get(vt, vt), cnt, pct)
         )
     for act in act_viols:
-        act_viols[act].sort(key=lambda x: -x[1])
+        act_viols[act].sort(key=lambda x: (-x[1], str(x[0])))
 
     max_v = max(activity_totals.values()) if activity_totals else 1
 
@@ -1122,7 +1122,7 @@ def task09_flow_chart_elaborate_bpmn_table(activity_type, activity_totals, type_
     tbl_h_in = max(3.5, n_rows * 0.48 + 2.0)
     tbl_fig, tbl_ax = plt.subplots(figsize=(tbl_w_in, tbl_h_in))
     tbl_ax.axis("off")
-    col_headers = ["Activity", "Move on Model", "Move on Log", "Mismatch Move", "Total", "% of All"]
+    col_headers = ["Activity", "Model Move", "Log Move", "Mismatch Move", "Total", "% of All"]
     col_widths  = [0.34, 0.14, 0.12, 0.15, 0.10, 0.10]
     t = 0.94; l = 0.02; tw = 0.96
     row_h = (t - 0.06) / (n_rows + 1)
@@ -1136,8 +1136,8 @@ def task09_flow_chart_elaborate_bpmn_table(activity_type, activity_totals, type_
                     color="white", fontweight="bold", transform=tbl_ax.transAxes)
         x += cw * tw
     for i, act in enumerate(top_acts):
-        mom   = activity_type.get((act, "Move on Model"), 0)
-        mol   = activity_type.get((act, "Move on Log"),   0)
+        mom   = activity_type.get((act, "Model Move"), 0)
+        mol   = activity_type.get((act, "Log Move"),   0)
         mm    = activity_type.get((act, "Mismatch Move"), 0)
         total = mom + mol + mm
         pct   = total / n_violations * 100 if n_violations > 0 else 0

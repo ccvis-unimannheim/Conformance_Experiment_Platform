@@ -26,15 +26,27 @@ IDIOMS = ["bar_chart", "table", "table_bar_chart",
           "heatmap"]
 
 
+
+# What this task measures per group, and how it cuts the log — task
+# properties rather than admin choices (see TRACE_FEATURE_REGISTRY.md).
+RESPONSE_MEASURE = "patterns"
+SPLIT_STRATEGY = None  # admin chooses
+import trace_features
+import trace_response
+
 PARAM_SPEC = [
     {
         "key": "compare_attribute",
-        "label": "Case attribute used to split traces into sub-logs (e.g. AMOUNT_REQ)",
+        "slot": "split",
+        "label": "Case attribute used to split traces into sub-logs",
         "hint": "Traces are split into sub-logs by this case attribute",
-        "widget": "text",
-        "default": "AMOUNT_REQ",
+        "widget": "select-one",
+        "source": "log.candidate_attributes",
+        "default": "",
         "required": True,
     },
+    *trace_features.split_params_for(),
+    trace_response.PATTERN_TOP_N_PARAM,
 ]
 
 
@@ -49,9 +61,9 @@ RUBRIC = (
 
 
 def validate_params(log, params) -> list:
-    attr = params.get("compare_attribute", "AMOUNT_REQ")
+    attr = params.get("compare_attribute")
     if not attr or not str(attr).strip():
-        return ["'compare_attribute' must be a non-empty attribute name."]
+        return ["An attribute to split the log by is required."]
     return []
 
 
@@ -130,49 +142,29 @@ def split_by_attribute(log, attr: str, max_groups: int = MAX_CATEGORICAL_GROUPS)
                         "n_missing": int}
     If the attribute is missing from every trace, group_labels is None.
     """
-    raw = [_trace_attribute_value(trace, attr) for trace in log]
-    present = [v for v in raw if v is not None]
-    meta = {"type": "missing", "median": None, "numeric_values": None,
-            "n_missing": raw.count(None)}
-    if not present:
-        return None, None, meta
+    import trace_features
 
-    floats = [_as_float(v) for v in raw]
-    numeric = all(f is not None for v, f in zip(raw, floats) if v is not None)
+    try:
+        values, value_type = trace_features.extract(log, attr)
+        values, value_type = trace_features.as_bucketable(values, value_type)
+    except (KeyError, ValueError) as e:
+        logger.warning(f"      split_by_attribute: '{attr}' unusable — {e}")
+        return None, None, {"type": "missing", "median": None,
+                            "numeric_values": None, "n_missing": len(log)}
 
-    if numeric:
-        values = [f for f in floats if f is not None]
-        median = float(np.median(values))
-        meta.update(type="numeric", median=median, numeric_values=floats)
-        low_label  = f"{attr} ≤ {format_threshold(median)}"
-        high_label = f"{attr} > {format_threshold(median)}"
-        if max(values) - min(values) < 1e-12:
-            # Degenerate split: every case carries the same value
-            single = f"{attr} = {format_threshold(median)}"
-            logger.warning(f"      task30: attribute '{attr}' has a single value "
-                           f"({format_threshold(median)}) — one sub-log only.")
-            assignment = [single if f is not None else None for f in floats]
-            return [single], assignment, meta
-        assignment = [
-            None if f is None else (low_label if f <= median else high_label)
-            for f in floats
-        ]
-        return [low_label, high_label], assignment, meta
+    # This call site cuts a case attribute in two at its median; task13's
+    # quantile ranges are the same operation under a different strategy, which
+    # is why both now go through the shared splitter.
+    strategy = "binary" if value_type == "numeric" else "nominal_n"
+    result = trace_features.split(values, value_type, strategy=strategy,
+                                  cap=max_groups, label_prefix=attr)
+    if not result:
+        return None, None, result.meta
 
-    # Categorical: top-N most frequent values, rest -> "Other"
-    meta["type"] = "categorical"
-    counts = pd.Series([str(v) for v in present]).value_counts()
-    top_values = counts.head(max_groups).index.tolist()
-    labels = [f"{attr} = {v}" for v in top_values]
-    has_other = len(counts) > max_groups
-    if has_other:
-        labels.append("Other")
-    label_of = {v: f"{attr} = {v}" for v in top_values}
-    assignment = [
-        None if v is None else label_of.get(str(v), "Other" if has_other else None)
-        for v in raw
-    ]
-    return labels, assignment, meta
+    if value_type == "numeric" and len(result.labels) == 1:
+        logger.warning(f"      task30: attribute '{attr}' has a single value "
+                       f"— one sub-log only.")
+    return list(result.labels), result.assignment, result.meta
 
 
 # ---------------------------------------------------------------------------
@@ -191,47 +183,55 @@ def _build_trace_df(fitness_df: pd.DataFrame, assignment: list, meta: dict) -> p
 
 
 def _group_stats(trace_df: pd.DataFrame, groups: list) -> pd.DataFrame:
-    """Per sub-log: #traces, % conformant, mean fitness."""
-    rows = []
-    for g in groups:
-        sub = trace_df[trace_df["group"] == g]
-        n = len(sub)
-        rows.append({
-            "group": g,
-            "n": n,
-            "pct_conform": (sub["is_fit"].sum() / n * 100) if n else 0.0,
-            "mean_fitness": float(sub["fitness"].mean()) if n else 0.0,
-        })
-    return pd.DataFrame(rows)
+    """Per sub-log: #traces, % conformant, mean fitness.
+
+    Delegates to the shared response helper; the column names here are this
+    task's own. `is_fit` is `fitness >= 1.0`, which is the threshold passed.
+    """
+    import trace_response
+
+    stats = trace_response.fitness_stats(
+        trace_df["fitness"], trace_df["group"], groups,
+        conformant_threshold=1.0,
+    )
+    return pd.DataFrame({
+        "group": stats["group"],
+        "n": stats["n"],
+        "pct_conform": stats["pct_conformant"],
+        "mean_fitness": stats["mean"],
+    })
 
 
-def _build_violation_df(alignments, assignment: list) -> pd.DataFrame:
-    """Violation rows {trace_index, group, pattern} — task29's (activity,
-    move-type) classification per sub-log."""
-    rows = []
-    for i, result in enumerate(alignments):
-        if i >= len(assignment) or assignment[i] is None:
-            continue
-        for step in alignment_pairs_to_rows(result.get("alignment", [])):
-            if step["moveType"] == "Synchronous Move":
-                continue
-            activity = (step["model_move"] if step["moveType"] == "Model Move"
-                        else step["log_move"])
-            if not activity or activity in {"-", "None", "(skip)"}:
-                continue
-            rows.append({
-                "trace_index": i,
-                "group": assignment[i],
-                "pattern": f"{activity} ({step['moveType']})",
-            })
-    return pd.DataFrame(rows) if rows else pd.DataFrame(
-        columns=["trace_index", "group", "pattern"])
+def _build_violation_df(alignments, assignment: list,
+                        missing_policy: str = "drop") -> pd.DataFrame:
+    """Violation rows per sub-log: trace_index, group, activity, move_type, pattern.
+
+    Extraction and grouping are now two steps (trace_response.violation_table
+    and .assign_groups), so re-grouping does not re-walk the alignments and
+    `activity` / `move_type` are available as columns rather than only as halves
+    of the `pattern` string.
+    """
+    import trace_response
+
+    violations = trace_response.violation_table(alignments)
+    return trace_response.assign_groups(violations, assignment,
+                                        missing_policy=missing_policy)
 
 
 def _aggregate_patterns(viol_df: pd.DataFrame, stats_df: pd.DataFrame,
-                        groups: list, top_n: int = TOP_N) -> pd.DataFrame:
-    """Top-N patterns by total occurrence count with per-group trace counts and
-    rates (% of sub-log traces exhibiting the pattern)."""
+                        groups: list, top_n: int = TOP_N,
+                        count_level: str = "trace") -> pd.DataFrame:
+    """Top-N violation patterns with a per-group breakdown.
+
+    `count_level` decides what is counted, for both the ranking and the columns:
+
+        "trace"       distinct traces exhibiting the pattern; the rate is then
+                      the share of the sub-log's traces (never above 100%)
+        "occurrence"  violating steps; the rate becomes violations per 100
+                      traces and may exceed 100%
+
+    Defaults to "trace", which matches what the rate has always meant.
+    """
     if viol_df.empty:
         cols = ["pattern", "total"]
         for g in groups:
@@ -239,16 +239,32 @@ def _aggregate_patterns(viol_df: pd.DataFrame, stats_df: pd.DataFrame,
         return pd.DataFrame(columns=cols)
 
     group_n = dict(zip(stats_df["group"], stats_df["n"]))
-    totals = viol_df.groupby("pattern").size().sort_values(ascending=False)
+
+    # `total` and the per-group counts must be counted the same way, or the
+    # ranking and the breakdown describe different quantities and the columns do
+    # not add up. They previously did not: `total` counted occurrences while the
+    # per-group columns counted distinct traces. The two coincide only while no
+    # trace repeats a pattern — true of BPIC12-A, not true in general (a loop
+    # violating the same activity repeatedly is exactly the case that diverges).
+    if count_level == "trace":
+        totals = viol_df.groupby("pattern")["trace_index"].nunique()
+        per_group = viol_df.groupby(["pattern", "group"])["trace_index"].nunique()
+    elif count_level == "occurrence":
+        totals = viol_df.groupby("pattern").size()
+        per_group = viol_df.groupby(["pattern", "group"]).size()
+    else:
+        raise ValueError(
+            f"Unknown count_level '{count_level}' — expected 'trace' or 'occurrence'."
+        )
+
+    totals = totals.sort_values(ascending=False)
     top_patterns = totals.head(top_n).index.tolist()
 
-    traces_with = (viol_df.groupby(["pattern", "group"])["trace_index"]
-                   .nunique())
     rows = []
     for pat in top_patterns:
         row = {"pattern": pat, "total": int(totals[pat])}
         for g in groups:
-            cnt = int(traces_with.get((pat, g), 0))
+            cnt = int(per_group.get((pat, g), 0))
             n = group_n.get(g, 0)
             row[f"{g}__count"] = cnt
             row[f"{g}__rate"] = cnt / n * 100 if n else 0.0

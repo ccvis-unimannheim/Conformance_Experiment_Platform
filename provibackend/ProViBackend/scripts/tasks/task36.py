@@ -176,7 +176,7 @@ def _extract_data(log) -> dict:
             "color": _conf_gray(conf_rate),
         })
 
-    constraints.sort(key=lambda x: x["conf_rate"])
+    constraints.sort(key=lambda x: (x["conf_rate"], str(x.get("label", x))))
 
     # Binary only (for heatmap + flow)
     binary = [c for c in constraints if c["is_binary"]]

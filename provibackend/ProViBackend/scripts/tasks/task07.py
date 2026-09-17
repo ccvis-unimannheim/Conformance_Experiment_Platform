@@ -18,6 +18,11 @@ logger = logging.getLogger(__name__)
 
 IDIOMS = ["line_graph", "horizon_chart"]
 
+
+# What this task measures per group, and how it cuts the log — task
+# properties rather than admin choices (see TRACE_FEATURE_REGISTRY.md).
+RESPONSE_MEASURE = "fitness"
+SPLIT_STRATEGY = "ordered_bins"
 import os
 import pandas as pd
 import matplotlib
@@ -31,9 +36,12 @@ from shared import (
 )
 
 
+import trace_features
+
 PARAM_SPEC = [
     {
         "key": "time_granularity",
+        "slot": "split",
         "label": "Time-bin granularity",
         "hint": "The timeline is grouped into these time bins",
         "widget": "select-one",
@@ -45,6 +53,7 @@ PARAM_SPEC = [
         "default": DEFAULT_TIME_GRANULARITY,
         "required": True,
     },
+    *trace_features.split_params_for('ordered_bins'),
 ]
 
 

@@ -20,9 +20,18 @@ IDIOMS = ["bar_chart", "table", "table_and_bar_chart", "parallel_sets",
           "stacked_bar", "box_plot", "matrix"]
 
 
+
+# What this task measures per group, and how it cuts the log — task
+# properties rather than admin choices (see TRACE_FEATURE_REGISTRY.md).
+RESPONSE_MEASURE = "fitness"
+SPLIT_STRATEGY = "binary"
+import trace_features
+import trace_response
+
 PARAM_SPEC = [
     {
         "key": "outcome_activity",
+        "slot": "split",
         "label": "Log split condition (activity present in trace marks the Positive group)",
         "hint": "The 'Positive' group is made up of traces that contain this activity",
         "widget": "activity-picker",
@@ -30,6 +39,8 @@ PARAM_SPEC = [
         "default": "",
         "required": True,
     },
+    *trace_features.split_params_for('binary'),
+    trace_response.CONFORMANT_THRESHOLD_PARAM,
 ]
 
 
@@ -115,22 +126,26 @@ def _task01_build_df(log, fitness_df: pd.DataFrame, outcome_activity: str) -> pd
     return df
 
 
-def _task01_group_stats(df: pd.DataFrame) -> pd.DataFrame:
-    """Return summary stats (n_traces, n_conformant, pct_conformant, mean_fitness) per group."""
-    rows = []
-    for group in ["Positive", "Negative"]:
-        sub = df[df["outcome_group"] == group]
-        n = len(sub)
-        n_conform = int(sub["is_fit"].sum()) if n > 0 else 0
-        mean_fit  = float(sub["fitness"].mean()) if n > 0 else 0.0
-        rows.append({
-            "group":          group,
-            "n_traces":       n,
-            "n_conformant":   n_conform,
-            "pct_conformant": (n_conform / n * 100) if n > 0 else 0.0,
-            "mean_fitness":   mean_fit,
-        })
-    return pd.DataFrame(rows)
+def _task01_group_stats(df: pd.DataFrame, conformant_threshold: float = 1.0) -> pd.DataFrame:
+    """Return summary stats (n_traces, n_conformant, pct_conformant, mean_fitness) per group.
+
+    The binary split is this task's point, so it keeps the conformant/
+    non-conformant cut the other group-comparison tasks dropped. The default
+    reproduces `is_fit` (fitness >= 1.0); an admin threshold overrides it.
+    """
+    import trace_response
+
+    stats = trace_response.fitness_stats(
+        df["fitness"], df["outcome_group"], ["Positive", "Negative"],
+        conformant_threshold=conformant_threshold,
+    )
+    return pd.DataFrame({
+        "group":          stats["group"],
+        "n_traces":       stats["n"],
+        "n_conformant":   stats["n_conformant"],
+        "pct_conformant": stats["pct_conformant"],
+        "mean_fitness":   stats["mean"],
+    })
 
 
 def _task01_conformance_category(fitness: float) -> str:

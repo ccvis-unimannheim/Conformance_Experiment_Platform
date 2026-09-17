@@ -23,6 +23,28 @@ IDIOMS = [
     "table_bar_chart", "parallel_sets",
 ]
 
+
+# What this task measures per group, and how it cuts the log — task
+# properties rather than admin choices (see TRACE_FEATURE_REGISTRY.md).
+RESPONSE_MEASURE = "violation_rate"
+SPLIT_STRATEGY = None  # admin chooses
+
+_SPLIT_SUPTITLE = "Reasons for Guideline Violations — Violation Rate by Attribute"
+
+import trace_features
+
+PARAM_SPEC = [
+    {
+        "key": "attribute_set",
+        "slot": "split",
+        "label": "Attributes to analyse (empty = the discovered default set)",
+        "widget": "select-many",
+        "source": "log.candidate_attributes",
+        "default": [],
+        "required": False,
+    },
+    *trace_features.split_params_for(),
+]
 import os
 import numpy as np
 import pandas as pd
@@ -129,20 +151,31 @@ def _violation_shade(rate: float) -> str:
 # Overall stats (footer for all matplotlib figures)
 # ---------------------------------------------------------------------------
 
-def _overall_stats(fitness_df: pd.DataFrame, viol_df: pd.DataFrame) -> dict:
+def _overall_stats(fitness_df: pd.DataFrame, viol_df: pd.DataFrame,
+                   alignments=None) -> dict:
+    """Footer figures. The headline share is the violation rate, not a
+    conformance cut: this task is about violations (RESPONSE_MEASURE), and the
+    rate needs no threshold — a trace either carries a violating step or not."""
+    import trace_response
+
     fits = fitness_df["fitness"].to_numpy(dtype=float)
     n = len(fits)
+    if alignments is not None:
+        violating = trace_response.violating_traces(alignments)
+        pct_violating = sum(violating) / len(violating) * 100 if violating else 0.0
+    else:
+        pct_violating = 0.0
     return {
-        "n":           n,
-        "mean":        float(fits.mean()) if n else 0.0,
-        "pct_conform": float((fits >= _FIT_THRESHOLD).sum() / n * 100) if n else 0.0,
-        "total_viol":  int(viol_df["count"].sum()) if not viol_df.empty else 0,
+        "n":             n,
+        "mean":          float(fits.mean()) if n else 0.0,
+        "pct_violating": pct_violating,
+        "total_viol":    int(viol_df["count"].sum()) if not viol_df.empty else 0,
     }
 
 
 def _stats_line(s: dict) -> str:
     return (f"n = {s['n']}   mean fitness = {s['mean']:.3f}   "
-            f"conformant = {s['pct_conform']:.1f}%   "
+            f"traces with violations = {s['pct_violating']:.1f}%   "
             f"total violations = {s['total_viol']}")
 
 
@@ -156,97 +189,9 @@ def _add_stats_footer(fig, s: dict):
 # Idiom 1: table — per-activity × move-type count matrix
 # ---------------------------------------------------------------------------
 
-def task16_table(viol_df, s, output_dir):
-    out_path = os.path.join(output_dir, "task16_table.svg")
-    if viol_df.empty:
-        render_empty_state_svg(out_path, "Violations by Activity", "No violations found.")
-        return
-
-    act_totals = _activity_total_violations(viol_df)
-    top_acts = sorted(act_totals, key=lambda a: -act_totals[a])[:20]
-
-    pivot = viol_df.pivot_table(
-        index="activity", columns="move_type", values="count",
-        aggfunc="sum", fill_value=0,
-    )
-    cols_present = [mt for mt in _MOVE_TYPES if mt in pivot.columns]
-
-    cell_text = []
-    for act in top_acts:
-        row_data = [act]
-        total = 0
-        for mt in cols_present:
-            v = int(pivot.loc[act, mt]) if act in pivot.index and mt in pivot.columns else 0
-            row_data.append(str(v))
-            total += v
-        row_data.append(str(total))
-        cell_text.append(row_data)
-
-    n_mt = len(cols_present)
-    mt_w = round(0.56 / max(n_mt + 1, 1), 2)
-    col_widths = [0.40] + [mt_w] * n_mt + [mt_w]
-
-    fig_h = max(3.0, 1.2 + len(cell_text) * 0.48)
-    fig, ax = plt.subplots(figsize=(14, fig_h))
-    ax.axis("off")
-    make_table(
-        ax,
-        cell_text=cell_text,
-        col_labels=["Activity"] + cols_present + ["Total"],
-        bbox=[0.02, 0.08, 0.96, 0.82],
-        col_widths=col_widths,
-        font_size=9.5,
-        scale_xy=(1, 1.35),
-    )
-    ax.set_title("Violations by Activity", fontsize=FONT_TITLE, pad=10)
-    _add_stats_footer(fig, s)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, out_path)
-
-
 # ---------------------------------------------------------------------------
 # Idiom 2: bar_chart — stacked horizontal bar by activity (top N)
 # ---------------------------------------------------------------------------
-
-def task16_bar_chart(viol_df, s, output_dir):
-    out_path = os.path.join(output_dir, "task16_bar_chart.svg")
-    if viol_df.empty:
-        render_empty_state_svg(out_path, "Violations by Activity", "No violations found.")
-        return
-
-    act_totals = _activity_total_violations(viol_df)
-    top_acts = sorted(act_totals, key=lambda a: -act_totals[a])[:15]
-
-    pivot = viol_df[viol_df["activity"].isin(top_acts)].pivot_table(
-        index="activity", columns="move_type", values="count",
-        aggfunc="sum", fill_value=0,
-    ).reindex(top_acts).fillna(0)
-    cols_present = [mt for mt in _MOVE_TYPES if mt in pivot.columns]
-
-    fig_h = max(5, len(top_acts) * 0.48 + 2)
-    fig, ax = plt.subplots(figsize=(12, fig_h))
-    y = np.arange(len(top_acts))
-    bottoms = np.zeros(len(top_acts))
-    for mt in cols_present:
-        vals = pivot[mt].to_numpy(dtype=float)
-        ax.barh(y, vals, left=bottoms, color=_MOVE_COLOR.get(mt, GREY_LIGHT),
-                label=mt, edgecolor="white", linewidth=0.5, height=0.6)
-        bottoms += vals
-
-    ax.set_yticks(y)
-    ax.set_yticklabels(top_acts, fontsize=FONT_ANNOT)
-    ax.invert_yaxis()
-    ax.set_xlabel("Violation Count", fontsize=FONT_LABEL)
-    ax.set_title("Top Activities by Violation Count", fontsize=FONT_TITLE)
-    ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.25),
-              ncol=2, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
-    ax.set_axisbelow(True)
-    _add_stats_footer(fig, s)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, out_path)
-
 
 # ---------------------------------------------------------------------------
 # Idiom 3: scatter_plot — per-trace: fitness × violation count
@@ -478,175 +423,69 @@ def task16_flow_chart_elaborate_table(act_totals, viol_df, s, model_path, output
 # Idiom 8: table_bar_chart — activity table (left) + per-activity bar (right)
 # ---------------------------------------------------------------------------
 
-def task16_table_bar_chart(viol_df, s, output_dir):
-    out_path = os.path.join(output_dir, "task16_table_bar_chart.svg")
-    if viol_df.empty:
-        render_empty_state_svg(out_path, "Activity Violation Summary", "No violations found.")
-        return
-
-    act_totals = _activity_total_violations(viol_df)
-    top_acts = sorted(act_totals, key=lambda a: -act_totals[a])[:10]
-
-    pivot = viol_df[viol_df["activity"].isin(top_acts)].pivot_table(
-        index="activity", columns="move_type", values="count",
-        aggfunc="sum", fill_value=0,
-    ).reindex(top_acts).fillna(0)
-    cols_present = [mt for mt in _MOVE_TYPES if mt in pivot.columns]
-
-    fig = plt.figure(figsize=(16, 6.5), layout="constrained")
-    gs = gridspec.GridSpec(1, 2, width_ratios=[1.5, 1.0], figure=fig)
-    ax_tbl = fig.add_subplot(gs[0])
-    ax_bar = fig.add_subplot(gs[1])
-
-    # Left: table
-    ax_tbl.axis("off")
-    cell_text = []
-    for act in top_acts:
-        row_data = [act]
-        for mt in cols_present:
-            v = int(pivot.loc[act, mt]) if act in pivot.index and mt in pivot.columns else 0
-            row_data.append(str(v))
-        row_data.append(str(act_totals[act]))
-        cell_text.append(row_data)
-
-    n_mt = len(cols_present)
-    mt_w = round(0.50 / max(n_mt + 1, 1), 2)
-    make_table(
-        ax_tbl,
-        cell_text=cell_text,
-        col_labels=["Activity"] + cols_present + ["Total"],
-        bbox=[0.01, 0.08, 0.98, 0.80],
-        col_widths=[0.50] + [mt_w] * n_mt + [mt_w],
-        font_size=9,
-        scale_xy=(1, 1.4),
-    )
-    ax_tbl.set_title("Activity Violation Breakdown", fontsize=FONT_TITLE, pad=10)
-
-    # Right: horizontal bar (total violations per activity, stacked by move type)
-    y = np.arange(len(top_acts))
-    bottoms = np.zeros(len(top_acts))
-    for mt in cols_present:
-        vals = np.array([
-            int(pivot.loc[act, mt]) if act in pivot.index and mt in pivot.columns else 0
-            for act in top_acts
-        ], dtype=float)
-        ax_bar.barh(y, vals, left=bottoms,
-                    color=_MOVE_COLOR.get(mt, GREY_LIGHT),
-                    label=mt, edgecolor="white", linewidth=0.4, height=0.55)
-        bottoms += vals
-
-    act_labels = [a if len(a) <= 16 else a[:14] + "…" for a in top_acts]
-    ax_bar.set_yticks(y)
-    ax_bar.set_yticklabels(act_labels, fontsize=FONT_ANNOT)
-    ax_bar.invert_yaxis()
-    ax_bar.set_xlabel("Violation Count", fontsize=FONT_LABEL)
-    ax_bar.set_title("Violation Count by Activity", fontsize=FONT_TITLE, pad=10)
-    ax_bar.legend(frameon=False, fontsize=FONT_ANNOT - 1,
-                  loc="lower right", title="Move Type", title_fontsize=FONT_ANNOT - 1)
-    ax_bar.spines[["top", "right"]].set_visible(False)
-    ax_bar.xaxis.grid(True, linestyle="--", alpha=0.4)
-    ax_bar.set_axisbelow(True)
-
-    _add_stats_footer(fig, s)
-    save_svg(fig, out_path)
-
-
 # ---------------------------------------------------------------------------
 # Idiom 9: parallel_sets — activity → move type flows
 # ---------------------------------------------------------------------------
-
-def task16_parallel_sets(viol_df, s, output_dir):
-    out_path = os.path.join(output_dir, "task16_parallel_sets.svg")
-    if viol_df.empty:
-        render_empty_state_svg(out_path, "Activity vs. Move Type", "No violations found.")
-        return
-
-    act_totals = _activity_total_violations(viol_df)
-    top_acts = sorted(act_totals, key=lambda a: -act_totals[a])[:8]
-    present_mts = [mt for mt in _MOVE_TYPES if mt in viol_df["move_type"].values]
-
-    if not top_acts or not present_mts:
-        render_empty_state_svg(out_path, "Activity vs. Move Type", "No data.")
-        return
-
-    # Matrix: (n_activities × n_move_types)
-    pivot = viol_df[viol_df["activity"].isin(top_acts)].pivot_table(
-        index="activity", columns="move_type", values="count",
-        aggfunc="sum", fill_value=0,
-    ).reindex(top_acts).fillna(0)
-
-    keep_mts = [mt for mt in present_mts if mt in pivot.columns and pivot[mt].sum() > 0]
-    if not keep_mts:
-        render_empty_state_svg(out_path, "Activity vs. Move Type", "No data.")
-        return
-
-    matrix = np.array([
-        [int(pivot.loc[act, mt]) if act in pivot.index and mt in pivot.columns else 0
-         for mt in keep_mts]
-        for act in top_acts
-    ], dtype=int)
-
-    left_labels = [
-        f"{a[:14] + '…' if len(a) > 14 else a}\n(n={act_totals[a]})"
-        for a in top_acts
-    ]
-    left_colors  = [GREY_DARK] * len(top_acts)
-    right_labels = keep_mts
-    right_colors  = [_MOVE_COLOR.get(mt, GREY_LIGHT) for mt in keep_mts]
-
-    fig, ax = plt.subplots(figsize=(11, 5.5))
-    ax.axis("off")
-    ax.set_xlim(-0.05, 1.05)
-    ax.set_ylim(-0.05, 1.15)
-    ax.set_title("Activity vs. Move Type", fontsize=FONT_TITLE, pad=12)
-    _add_stats_footer(fig, s)
-    draw_parallel_sets(
-        ax,
-        left_labels=left_labels,
-        right_labels=right_labels,
-        matrix=matrix,
-        left_colors=left_colors,
-        right_colors=right_colors,
-        left_title="Activity (top violations)",
-        right_title="Move Type",
-    )
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, out_path)
-
 
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
 
 _ALL_FNAMES_TITLES = [
-    ("task16_table.svg",                      "Violations by Activity"),
-    ("task16_bar_chart.svg",                  "Top Activities by Violation Count"),
+    ("task16_table.svg",                      "Violation Rate by Attribute"),
+    ("task16_bar_chart.svg",                  "Violation Rate by Attribute"),
     ("task16_scatter_plot.svg",               "Fitness vs. Violation Count per Trace"),
     ("task16_flow_chart_and_table.svg",       "Representative Trace Flow & Violations"),
     ("task16_flow_chart_elaborate.svg",       "Violations on the Process Model"),
     ("task16_flow_chart_elaborate_table.svg", "Violations on the Process Model & Summary"),
     ("task16_tree.svg",                       "Violation Hierarchy"),
-    ("task16_table_bar_chart.svg",            "Activity Violation Summary"),
-    ("task16_parallel_sets.svg",              "Activity vs. Move Type"),
+    ("task16_table_bar_chart.svg",            "Violation Rate by Attribute"),
+    ("task16_parallel_sets.svg",              "Attribute Bucket vs. Violation Rate"),
 ]
 
 
-def generate(log, fitness_df, alignments, output_dir: str,
-             model_path: str = None, compare_attribute: str = "AMOUNT_REQ"):
+def generate(log, fitness_df, alignments, output_dir: str, model_path: str = None,
+             attribute_set=None, split_strategy=None, group_cap=None,
+             missing_policy="drop"):
+    """Render Task 16 into output_dir.
+
+    The attribute-split idioms (table, bar chart, table+bar, parallel sets) draw
+    the shared kernel — violation rate per bucket of each chosen attribute — via
+    the panel renderers task20 also uses, so the two tasks now differ in wording
+    and idiom set rather than in what is computed.
+
+    The remaining idioms keep a log-level view: a BPMN annotated with overall
+    violations, and a per-trace scatter, have no per-bucket form.
+    """
+    import trace_response
+    import tasks.task20 as task20
+
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 16 visualizations ---")
 
-    viol_df   = _build_violation_df(alignments)
+    viol_df    = _build_violation_df(alignments)
     act_totals = _activity_total_violations(viol_df)
-    trace_df  = _per_trace_violation_counts(alignments, fitness_df)
-    s         = _overall_stats(fitness_df, viol_df)
+    trace_df   = _per_trace_violation_counts(alignments, fitness_df)
+    s          = _overall_stats(fitness_df, viol_df, alignments)
     logger.info(f"      -> {_stats_line(s)}")
 
-    task16_table(viol_df, s, output_dir)
-    task16_bar_chart(viol_df, s, output_dir)
+    feat   = task20.task20_trace_feature_dataframe(log, alignments)
+    attrs  = list(attribute_set) if attribute_set else task20._default_attributes(log, feat)
+    panels = trace_response.attribute_panels(
+        log, attrs, "violation_rate", alignments=alignments,
+        strategy=split_strategy, cap=group_cap, missing_policy=missing_policy,
+    )
+    logger.info(f"      -> attributes: {attrs}  ({len(panels)} panel(s))")
+
+    st = _SPLIT_SUPTITLE
+    task20.task20_table(panels, output_dir, filename="task16_table.svg", suptitle=st)
+    task20.task20_bar_chart(panels, output_dir, filename="task16_bar_chart.svg", suptitle=st)
+    task20.task20_table_bar_chart(panels, output_dir,
+                                  filename="task16_table_bar_chart.svg", suptitle=st)
+    task20.task20_parallel_sets(panels, output_dir,
+                                filename="task16_parallel_sets.svg", suptitle=st)
+
     task16_scatter_plot(trace_df, s, output_dir)
     task16_flow_chart_table(alignments, fitness_df, s, output_dir)
     task16_flow_chart_elaborate(act_totals, s, model_path, output_dir)
     task16_flow_chart_elaborate_table(act_totals, viol_df, s, model_path, output_dir)
-    task16_table_bar_chart(viol_df, s, output_dir)
-    task16_parallel_sets(viol_df, s, output_dir)

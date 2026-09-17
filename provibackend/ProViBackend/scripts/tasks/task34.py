@@ -51,7 +51,7 @@ PARAM_SPEC = [
 RUBRIC = (
     "A complete answer correctly identifies the activities where violations occur "
     "in the representative (worst-fitness) trace and the type of each violation "
-    "(Move on Model = skipped activity, Move on Log = extra/inserted activity). "
+    "(Model Move = skipped activity, Log Move = extra/inserted activity). "
     "Award full marks for correctly naming the top violated activities with their "
     "violation types. Award partial marks for correctly identifying the activities "
     "without the types, or for identifying most but not all violated activities. "
@@ -86,8 +86,8 @@ from shared import (
 
 # ── Palette (cividis — PALETTE_GUIDE.md) ─────────────────────────────────────
 CAT_STRONG = to_hex(CIVIDIS(0.15))   # dark accent / text  (#243c6e)
-CAT_MID    = to_hex(CIVIDIS(0.50))   # Move on Log         (#7d7c78 grey)
-CAT_SOFT   = to_hex(CIVIDIS(0.20))   # Move on Model       (#35456c navy blue)
+CAT_MID    = to_hex(CIVIDIS(0.50))   # Log Move            (#7d7c78 grey)
+CAT_SOFT   = to_hex(CIVIDIS(0.20))   # Model Move          (#35456c navy blue)
 _C_BG      = "#f5f5f5"
 _HDR_BG    = CAT_STRONG    # dark navy (#243c6e) — matches cividis palette
 _CMAP      = CIVIDIS_R
@@ -95,8 +95,8 @@ _CMAP      = CIVIDIS_R
 # Violation type → bar / node color
 _MOVE_COLORS = {
     "Synchronous":   "#e0e0e0",  # light grey — conformant (neutral, readable)
-    "Move on Model": CAT_SOFT,   # skipped activity
-    "Move on Log":   CAT_MID,    # extra activity
+    "Model Move": CAT_SOFT,   # skipped activity
+    "Log Move":   CAT_MID,    # extra activity
 }
 
 # Alignment-move palette matching task04's Flow Chart / Flow Chart+ (BPMN
@@ -105,22 +105,22 @@ _MOVE_COLORS = {
 # idioms keep the cividis CAT_* palette above.
 _T04_ALIGN_COLORS = {
     "Synchronous":   GREY_LIGHTER,  # yellow
-    "Move on Model": GREY_MED,      # grey
-    "Move on Log":   GREY_DARK,     # dark navy
+    "Model Move": GREY_MED,      # grey
+    "Log Move":   GREY_DARK,     # dark navy
 }
 _T04_ALIGN_STYLE = {
     # (edgecolor, linewidth)
     "Synchronous":   ("#666666", 2),
-    "Move on Model": ("#444444", 3),
-    "Move on Log":   ("#333333", 3),
+    "Model Move": ("#444444", 3),
+    "Log Move":   ("#333333", 3),
 }
 
 # Display labels shown to admins/participants (internal _MOVE_COLORS keys stay
 # as returned by shared.classify_step so they keep matching across tasks).
 _MOVE_DISPLAY = {
     "Synchronous":   "Synchronous Move",
-    "Move on Model": "Model Move",
-    "Move on Log":   "Log Move",
+    "Model Move": "Model Move",
+    "Log Move":   "Log Move",
 }
 
 # Table row fills (cividis-sampled)
@@ -202,10 +202,10 @@ def _trace_activity_violations(rows):
     for r in rows:
         mt = r["moveType"]
         a  = r["activity"]
-        if a == ">>" or mt not in ("Move on Model", "Move on Log"):
+        if a == ">>" or mt not in ("Model Move", "Log Move"):
             continue
         counts.setdefault(a, {"mom": 0, "mol": 0})
-        if mt == "Move on Model": counts[a]["mom"] += 1
+        if mt == "Model Move": counts[a]["mom"] += 1
         else:                     counts[a]["mol"] += 1
     return counts
 
@@ -236,10 +236,10 @@ def _log_activity_violations(alignments):
         for r in _parse_alignment(result):
             mt = r["moveType"]
             a  = r["activity"]
-            if a == ">>" or mt not in ("Move on Model", "Move on Log"):
+            if a == ">>" or mt not in ("Model Move", "Log Move"):
                 continue
             totals.setdefault(a, {"mom": 0, "mol": 0})
-            if mt == "Move on Model": totals[a]["mom"] += 1
+            if mt == "Model Move": totals[a]["mom"] += 1
             else:                     totals[a]["mol"] += 1
     return totals
 
@@ -283,8 +283,8 @@ def _add_trace_heading(fig, ctx, *, x=0.055, y=0.86):
 def _move_legend():
     return [
         mpatches.Patch(color=_MOVE_COLORS["Synchronous"],   label="Synchronous (conform)"),
-        mpatches.Patch(color=_MOVE_COLORS["Move on Model"], label="Move on Model (skipped)"),
-        mpatches.Patch(color=_MOVE_COLORS["Move on Log"],   label="Move on Log (extra)"),
+        mpatches.Patch(color=_MOVE_COLORS["Model Move"], label="Model Move (skipped)"),
+        mpatches.Patch(color=_MOVE_COLORS["Log Move"],   label="Log Move (extra)"),
     ]
 
 
@@ -295,15 +295,15 @@ def _chevron_nodes(rows, colors=None):
         mt = r["moveType"]
         if mt == "Synchronous":
             nodes.append({"label": r["log_move"],   "color": colors["Synchronous"]})
-        elif mt == "Move on Model":
-            nodes.append({"label": r["model_move"], "color": colors["Move on Model"]})
-        elif mt == "Move on Log":
-            nodes.append({"label": r["log_move"],   "color": colors["Move on Log"]})
+        elif mt == "Model Move":
+            nodes.append({"label": r["model_move"], "color": colors["Model Move"]})
+        elif mt == "Log Move":
+            nodes.append({"label": r["log_move"],   "color": colors["Log Move"]})
     return nodes
 
 
 def _log_move_badges(rows, task_names):
-    """Badges for Move on Log steps: {'label': activity, 'anchor': nearest real
+    """Badges for Log Move steps: {'label': activity, 'anchor': nearest real
     model task in the trace's own step order}.
 
     Log Move activities aren't model tasks, so they have no BPMN node of their
@@ -314,7 +314,7 @@ def _log_move_badges(rows, task_names):
     """
     badges = []
     for i, r in enumerate(rows):
-        if r["moveType"] != "Move on Log":
+        if r["moveType"] != "Log Move":
             continue
         label = r["log_move"]
         if not label or label in (">>", "(skip)"):
@@ -400,10 +400,10 @@ def task34_stacked_bar(ctx, output_dir):
     ax.set_facecolor("#fafbfc")
 
     y    = range(len(acts))
-    ax.barh(y, mom_vals, color=CAT_SOFT, label="Move on Model (skipped)",
+    ax.barh(y, mom_vals, color=CAT_SOFT, label="Model Move (skipped)",
             edgecolor="white", height=bar_h)
     left = mom_vals
-    ax.barh(y, mol_vals, left=left, color=CAT_MID, label="Move on Log (extra)",
+    ax.barh(y, mol_vals, left=left, color=CAT_MID, label="Log Move (extra)",
             edgecolor="white", height=bar_h)
 
     totals = [a + b for a, b in zip(mom_vals, mol_vals)]
@@ -452,7 +452,7 @@ def task34_table(ctx, output_dir):
     cell_text = []
     for r in rows:
         mt = r["moveType"]
-        act = r["model_move"] if mt == "Move on Model" else r["log_move"]
+        act = r["model_move"] if mt == "Model Move" else r["log_move"]
         cell_text.append([act, _MOVE_DISPLAY.get(mt, mt)])
 
     fig_h = max(3.5, 1.2 + len(cell_text) * 0.42)
@@ -501,10 +501,10 @@ def task34_flow_chart_table(ctx, output_dir):
     legend_handles = [
         mpatches.Patch(facecolor=_MOVE_COLORS["Synchronous"],   edgecolor="black", linewidth=0.75,
                        label="Synchronous (conform)"),
-        mpatches.Patch(facecolor=_MOVE_COLORS["Move on Model"], edgecolor="black", linewidth=0.75,
-                       label="Move on Model (skipped)"),
-        mpatches.Patch(facecolor=_MOVE_COLORS["Move on Log"],   edgecolor="black", linewidth=0.75,
-                       label="Move on Log (extra)"),
+        mpatches.Patch(facecolor=_MOVE_COLORS["Model Move"], edgecolor="black", linewidth=0.75,
+                       label="Model Move (skipped)"),
+        mpatches.Patch(facecolor=_MOVE_COLORS["Log Move"],   edgecolor="black", linewidth=0.75,
+                       label="Log Move (extra)"),
     ]
     fig.legend(handles=legend_handles, loc="lower center",
                bbox_to_anchor=(0.5, 0.025), ncol=3,
@@ -531,7 +531,7 @@ def task34_flow_chart_elaborate_table(ctx, model_path, output_dir):
         return
 
     # Build activity → worst violation type mapping for this trace
-    priority  = {"Move on Model": 2, "Move on Log": 1, "Synchronous": 0}
+    priority  = {"Model Move": 2, "Log Move": 1, "Synchronous": 0}
     act_status = {}
     for r in ctx["rows"]:
         act, mt = r["activity"], r["moveType"]
@@ -549,8 +549,8 @@ def task34_flow_chart_elaborate_table(ctx, model_path, output_dir):
         if kind != "task":
             return ("#F5F5F5", "#CCCCCC", 1.0, CAT_STRONG)
         mt = act_status.get(name)
-        if mt == "Move on Model":  return (CAT_SOFT, "#888888", 1.5, contrasting_text_color(CAT_SOFT))
-        if mt == "Move on Log":    return (CAT_MID,  "#555555", 1.5, contrasting_text_color(CAT_MID))
+        if mt == "Model Move":  return (CAT_SOFT, "#888888", 1.5, contrasting_text_color(CAT_SOFT))
+        if mt == "Log Move":    return (CAT_MID,  "#555555", 1.5, contrasting_text_color(CAT_MID))
         if mt == "Synchronous":    return (_MOVE_COLORS["Synchronous"], "#888888", 1.0, CAT_STRONG)
         return ("#FAFAFA", "#CCCCCC", 1.0, "#444444")   # not in this trace
 
@@ -695,8 +695,8 @@ def task34_table_bar_chart(worst, log_act_v, output_dir):
     ax_bar.set_axisbelow(True)
 
     legend_handles = [
-        mpatches.Patch(color=CAT_SOFT, label="Move on Model (dominant)"),
-        mpatches.Patch(color=CAT_MID,  label="Move on Log (dominant)"),
+        mpatches.Patch(color=CAT_SOFT, label="Model Move (dominant)"),
+        mpatches.Patch(color=CAT_MID,  label="Log Move (dominant)"),
         mpatches.Patch(color="#d0d0d0", label="Conformant (no violation)"),
     ]
     ax_bar.legend(handles=legend_handles, loc="lower right", fontsize=FONT_ANNOT,
@@ -721,7 +721,7 @@ def task34_flow_chart_basic(ctx, output_dir):
     legend_handles = [
         mpatches.Patch(facecolor=_T04_ALIGN_COLORS[mt], edgecolor=_T04_ALIGN_STYLE[mt][0],
                        linewidth=_T04_ALIGN_STYLE[mt][1], label=_MOVE_DISPLAY[mt])
-        for mt in ("Synchronous", "Move on Model", "Move on Log")
+        for mt in ("Synchronous", "Model Move", "Log Move")
         if mt in present_types
     ]
     # Anchored to the axes (not the figure) so the gap below the chevrons is
@@ -752,7 +752,7 @@ def task34_flow_chart_elaborate(ctx, model_path, output_dir):
     rows = ctx["rows"]
     task_names = {e["name"] for e in parsed["elements"].values() if e.get("kind") == "task"}
 
-    priority  = {"Move on Model": 2, "Move on Log": 1, "Synchronous": 0}
+    priority  = {"Model Move": 2, "Log Move": 1, "Synchronous": 0}
     act_status = {}
     for r in rows:
         act, mt = r["activity"], r["moveType"]
@@ -787,11 +787,11 @@ def task34_flow_chart_elaborate(ctx, model_path, output_dir):
 
     legend_items = [
         (_T04_ALIGN_COLORS[mt], *_T04_ALIGN_STYLE[mt], _MOVE_DISPLAY[mt])
-        for mt in ("Synchronous", "Move on Model")
+        for mt in ("Synchronous", "Model Move")
         if mt in present_status
     ]
     if badges:
-        legend_items.append((GREY_DARK, "#8ba0cf", 2.0, _MOVE_DISPLAY["Move on Log"], "6 4"))
+        legend_items.append((GREY_DARK, "#8ba0cf", 2.0, _MOVE_DISPLAY["Log Move"], "6 4"))
     compose_bpmn_panels(
         panels=[{"parsed": parsed, "node_style_fn": node_style_fn, "subtitle": "", "badges": badges}],
         out_path=out_path,
@@ -863,7 +863,7 @@ def task34_parallel_sets(log_act_v, output_dir):
         _no_violations(output_dir, "parallel_sets")
         return
 
-    vtypes = ["Move on Model", "Move on Log"]
+    vtypes = ["Model Move", "Log Move"]
     vkeys  = ["mom", "mol"]
     top_acts = sorted(log_act_v, key=lambda a: sum(log_act_v[a].values()),
                       reverse=True)[:10]

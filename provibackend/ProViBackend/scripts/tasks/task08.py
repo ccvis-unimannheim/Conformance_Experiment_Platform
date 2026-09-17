@@ -41,7 +41,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
-from shared import save_svg, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS, CIVIDIS_R, FONT_TITLE, FONT_ANNOT
+from shared import most_common_stable, save_svg, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS, CIVIDIS_R, FONT_TITLE, FONT_ANNOT
 
 # ── Cividis palette ──────────────────────────────────────────────────────────
 _C_DARK   = GREY_DARK      # dark navy   (highest emphasis)
@@ -103,8 +103,8 @@ def _classify_step(observed_raw, expected_raw):
 
     Standard PM4Py alignment terminology:
         Synchronous Move  – both log and model agree (fit, ignored)
-        Move on Model     – model fires a transition the trace skipped
-        Move on Log       – trace has an event the model doesn't expect
+        Model Move        – model fires a transition the trace skipped
+        Log Move          – trace has an event the model doesn't expect
         Mismatch Move     – both present but different labels (rare)
     """
     obs = _extract_label(observed_raw)
@@ -119,8 +119,8 @@ def _classify_step(observed_raw, expected_raw):
             return None                    # Synchronous Move (fit)
         return f"Mismatch Move: {obs}"     # rare in proper alignments
     if obs_skip:
-        return f"Move on Model: {exp}"     # model expected exp, trace skipped it
-    return f"Move on Log: {obs}"           # trace has obs, model didn't expect it
+        return f"Model Move: {exp}"        # model expected exp, trace skipped it
+    return f"Log Move: {obs}"              # trace has obs, model didn't expect it
 
 
 def _extract_violation_data(alignments):
@@ -157,14 +157,14 @@ def _extract_violation_data(alignments):
 
 
 def _top_violations(violation_freq, n=_TOP_N):
-    return [v for v, _ in violation_freq.most_common(n)]
+    return [v for v, _ in most_common_stable(violation_freq, n)]
 
 
 def _viol_label(v) -> str:
     """Return a violation's display label in 'type: activity' form.
 
     Violation identifiers are strings produced by _classify_step (e.g.
-    "Move on Model: A_ACCEPTED"), which are already in that form, so they pass
+    "Model Move: A_ACCEPTED"), which are already in that form, so they pass
     through unchanged. A legacy (activity, violation_type) tuple is still
     accepted and reformatted for safety.
     """
@@ -317,9 +317,13 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count, 
         _no_violations(output_dir, "network_diagram")
         return
 
-    top   = set(_top_violations(violation_freq, _TOP_N))
+    # Keep the ranked order: nodes enter the graph in this sequence, and both
+    # layouts place them by insertion order, so a set here would undo the stable
+    # ranking and move every node between runs.
+    top = _top_violations(violation_freq, _TOP_N)
+    top_set = set(top)
     pairs = [(a, b, cnt) for (a, b), cnt in cooccurrence.items()
-             if a in top and b in top and cnt >= _MIN_COOCCUR]
+             if a in top_set and b in top_set and cnt >= _MIN_COOCCUR]
 
     if not pairs:
         _save_empty(output_dir, "task08_network_diagram.svg",
@@ -353,8 +357,8 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count, 
 
     # Node shades by violation type (updated for new terminology)
     def node_color(label):
-        if "Move on Model" in label: return _C_LIGHT   # light grey
-        if "Move on Log"   in label: return _C_MED     # mid grey
+        if "Model Move" in label: return _C_LIGHT   # light grey
+        if "Log Move"   in label: return _C_MED     # mid grey
         return _C_DARK                                  # dark (Mismatch)
 
     colors = [node_color(n) for n in nodes_ordered]
@@ -383,7 +387,7 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count, 
 
     # Edge weight labels: drawn manually at midpoint, pushed perpendicular
     # to avoid overlapping the edge line or nearby nodes
-    top_edges = sorted(zip(edges, weights), key=lambda x: -x[1])[:8]
+    top_edges = sorted(zip(edges, weights), key=lambda x: (-x[1], str(x[0])))[:8]
     for (u, v), w in top_edges:
         x0, y0 = pos[u]
         x1, y1 = pos[v]
@@ -400,8 +404,8 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count, 
 
     # Legend with updated terminology
     legend_handles = [
-        mpatches.Patch(color=_C_LIGHT, label="Move on Model (skipped activity)"),
-        mpatches.Patch(color=_C_MED,   label="Move on Log (extra activity)"),
+        mpatches.Patch(color=_C_LIGHT, label="Model Move (skipped activity)"),
+        mpatches.Patch(color=_C_MED,   label="Log Move (extra activity)"),
         mpatches.Patch(color=_C_DARK,  label="Mismatch Move"),
     ]
     ax.legend(handles=legend_handles, loc="lower right",
@@ -437,7 +441,7 @@ def task08_table(violation_freq, cooccurrence, n_traces, output_dir,
         _no_violations(output_dir, "table")
         return
 
-    top_pairs = cooccurrence.most_common(20)
+    top_pairs = most_common_stable(cooccurrence, 20)
     rows = []
     for (a, b), cnt in top_pairs:
         rows.append([

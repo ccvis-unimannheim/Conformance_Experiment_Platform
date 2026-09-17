@@ -49,6 +49,26 @@ logger = logging.getLogger(__name__)
 IDIOMS = ["bar_chart", "scatter_plot", "table", "table_bar_chart",
           "parallel_sets", "flow_chart_table", "flow_chart_elaborate_table"]
 
+
+# What this task measures per group, and how it cuts the log — task
+# properties rather than admin choices (see TRACE_FEATURE_REGISTRY.md).
+RESPONSE_MEASURE = "violation_rate"
+SPLIT_STRATEGY = None  # admin chooses
+
+import trace_features
+
+PARAM_SPEC = [
+    {
+        "key": "attribute_set",
+        "slot": "split",
+        "label": "Attributes to analyse (empty = the discovered default set)",
+        "widget": "select-many",
+        "source": "log.candidate_attributes",
+        "default": [],
+        "required": False,
+    },
+    *trace_features.split_params_for(),
+]
 import os
 import numpy as np
 import pandas as pd

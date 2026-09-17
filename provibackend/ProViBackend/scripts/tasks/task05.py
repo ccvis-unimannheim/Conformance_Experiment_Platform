@@ -69,7 +69,6 @@ _COLOR_POSITIVE = GREY_MED
 _COLOR_NEGATIVE = GREY_LIGHT
 _GROUP_COLORS   = {"Positive": _COLOR_POSITIVE, "Negative": _COLOR_NEGATIVE}
 
-_OUTCOME_ACTIVITY = "Activate Care"
 
 
 # ---------------------------------------------------------------------------

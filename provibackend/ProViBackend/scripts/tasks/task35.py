@@ -27,7 +27,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from shared import save_svg, GREY_DARK, GREY_MED, FONT_TITLE, FONT_ANNOT, classify_step as _classify_step
+from shared import most_common_stable, save_svg, GREY_DARK, GREY_MED, FONT_TITLE, FONT_ANNOT, classify_step as _classify_step
 
 _C_DARK = GREY_DARK
 _C_MED  = GREY_MED
@@ -207,8 +207,8 @@ def _make_bpmn_svg(activity_type, activity_totals, model_path):
         tc     = "white" if v_int < 140 else _C_DARK
 
         if kind == "task":
-            mom   = activity_type.get((name, "Move on Model"), 0)
-            mol   = activity_type.get((name, "Move on Log"),   0)
+            mom   = activity_type.get((name, "Model Move"), 0)
+            mol   = activity_type.get((name, "Log Move"),   0)
             total = activity_totals.get(name, 0)
             clip_id = f"clip_{eid}"
             # clip-path to prevent any text overflow beyond the rect
@@ -357,7 +357,7 @@ def task35_flow_chart_elaborate_bpmn_table(activity_type, activity_totals, n_vio
         _save_empty(output_dir, fname, "No guideline violations found.")
         return
 
-    top_acts = [a for a, _ in activity_totals.most_common(_TOP_N)]
+    top_acts = [a for a, _ in most_common_stable(activity_totals, _TOP_N)]
     n_rows   = len(top_acts)
     tbl_w_in = 14.0
     tbl_h_in = max(3.5, n_rows * 0.48 + 2.0)
@@ -381,8 +381,8 @@ def task35_flow_chart_elaborate_bpmn_table(activity_type, activity_totals, n_vio
         x += cw * tw
 
     for i, act in enumerate(top_acts):
-        mom   = activity_type.get((act, "Move on Model"), 0)
-        mol   = activity_type.get((act, "Move on Log"),   0)
+        mom   = activity_type.get((act, "Model Move"), 0)
+        mol   = activity_type.get((act, "Log Move"),   0)
         mm    = activity_type.get((act, "Mismatch Move"), 0)
         total = mom + mol + mm
         pct   = total / n_violations * 100 if n_violations > 0 else 0
@@ -476,36 +476,45 @@ def task35_petri_net(activity_type, activity_totals, model_path, output_dir):
         dot.attr("node", fontname="Arial")
         dot.attr("edge", color="#888888")
 
+        # A Petri net's places, transitions and arcs are sets, and naming a node
+        # after id(obj) writes a memory address into the graph. Both change with
+        # every process, so Graphviz saw a different input each run and laid the
+        # net out differently. Order the elements and name them by position.
+        places = sorted(net.places, key=lambda p: str(p.name))
+        transitions = sorted(net.transitions,
+                             key=lambda t: (str(t.label), str(t.name)))
+        node_id = {obj: f"n{i}" for i, obj in enumerate(places + transitions)}
+
         # ── Places ─────────────────────────────────────────────────────────
-        for place in net.places:
+        for place in places:
             is_init  = place in im
             is_final = place in fm
             if is_init:
-                dot.node(str(id(place)), label="●", shape="circle",
+                dot.node(node_id[place], label="●", shape="circle",
                          width="0.35", fixedsize="true",
                          style="filled", fillcolor="#333333", fontcolor="white",
                          color="#333333", fontsize="10")
             elif is_final:
-                dot.node(str(id(place)), label="", shape="doublecircle",
+                dot.node(node_id[place], label="", shape="doublecircle",
                          width="0.3", fixedsize="true",
                          style="filled", fillcolor="white", color="#555555",
                          penwidth="2")
             else:
-                dot.node(str(id(place)), label="", shape="circle",
+                dot.node(node_id[place], label="", shape="circle",
                          width="0.28", fixedsize="true",
                          style="filled", fillcolor="white", color="#888888")
 
         # ── Transitions ────────────────────────────────────────────────────
-        for trans in net.transitions:
+        for trans in transitions:
             if trans.label is None:  # silent / tau
-                dot.node(str(id(trans)), label="τ", shape="rectangle",
+                dot.node(node_id[trans], label="τ", shape="rectangle",
                          width="0.25", height="0.55", fixedsize="true",
                          style="filled", fillcolor="#555555", fontcolor="white",
                          color="#333333", fontsize="8")
             else:
                 name  = trans.label
-                skip  = activity_type.get((name, "Move on Model"), 0)
-                ins   = activity_type.get((name, "Move on Log"),   0)
+                skip  = activity_type.get((name, "Model Move"), 0)
+                ins   = activity_type.get((name, "Log Move"),   0)
                 total = activity_totals.get(name, 0)
                 rate  = total / max_v
                 fill  = _violation_shade(rate)
@@ -514,15 +523,15 @@ def task35_petri_net(activity_type, activity_totals, model_path, output_dir):
                 # Wrap long names at underscore
                 disp  = name.replace("_", "\\n")
                 ann   = f"\\n↑{skip} ↓{ins}" if total > 0 else ""
-                dot.node(str(id(trans)), label=disp + ann,
+                dot.node(node_id[trans], label=disp + ann,
                          shape="rectangle",
                          style="filled", fillcolor=fill, fontcolor=fc,
                          color="#777777", fontsize="9",
                          margin="0.08,0.04")
 
         # ── Arcs ───────────────────────────────────────────────────────────
-        for arc in net.arcs:
-            dot.edge(str(id(arc.source)), str(id(arc.target)),
+        for arc in sorted(net.arcs, key=lambda a: (node_id[a.source], node_id[a.target])):
+            dot.edge(node_id[arc.source], node_id[arc.target],
                      arrowsize="0.7")
 
         # ── Legend group ───────────────────────────────────────────────────
@@ -593,8 +602,8 @@ def task35_flow_chart_elaborate_dfg(activity_type, activity_totals, log, output_
 
         # ── Nodes ──────────────────────────────────────────────────────────
         for act in sorted(all_acts):
-            skip  = activity_type.get((act, "Move on Model"), 0)
-            ins   = activity_type.get((act, "Move on Log"),   0)
+            skip  = activity_type.get((act, "Model Move"), 0)
+            ins   = activity_type.get((act, "Log Move"),   0)
             total = activity_totals.get(act, 0)
             rate  = total / max_v
             fill  = _violation_shade(rate)
