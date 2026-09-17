@@ -240,7 +240,12 @@ def task19_effects(log, alignments, outcome_activity="Activate Care", target_pat
             "risk_diff": risk_diff,
             "rel_risk": rel_risk,
         })
-    records.sort(key=lambda r: abs(r["risk_diff"]), reverse=True)
+    # Ties are common — a Log Move and a Model Move on the same activity often
+    # affect exactly the same traces — and `universe` is a set, whose iteration
+    # order changes with every Python process. Sorting on the effect alone left
+    # tied rows in that order, so two runs of this task produced different
+    # charts. Break ties on the pattern itself.
+    records.sort(key=lambda r: (-abs(r["risk_diff"]), r["activity"], r["move_type"]))
 
     return {
         "records": records,
