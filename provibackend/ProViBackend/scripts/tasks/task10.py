@@ -44,10 +44,6 @@ PARAM_SPEC = [
                 "label": "High-fitness focus (80–85 %, 85–90 %, 90–95 %, 95–<100 %, 100 %)",
                 "value": "0.80,0.85,0.90,0.95,1.0,1.01",
             },
-            {
-                "label": "Study-defined categories (Perfectly conformant = 100 %, Minor 75–<100 %, Moderate 50–75 %, Major <50 %)",
-                "value": "0.0,0.5,0.75,1.0,1.01",
-            },
         ],
         "default": "0.0,0.2,0.4,0.6,0.8,1.01",
         "required": True,
