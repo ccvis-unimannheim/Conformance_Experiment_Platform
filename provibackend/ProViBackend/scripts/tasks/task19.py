@@ -111,7 +111,7 @@ from matplotlib import gridspec
 from shared import (
     save_svg, make_table, auto_col_widths, draw_parallel_sets, draw_value_heatmap,
     render_empty_state_svg,
-    classify_step, contrasting_text_color,
+    contrasting_text_color,
     GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
     infer_outcome_activity,
 )
@@ -142,21 +142,18 @@ _EMPTY_STEMS = [
 def _trace_patterns(alignments):
     """Per trace: the set of (activity, move_type) violation patterns it exhibits.
 
-    Uses the platform-standard classify_step() (also used by get_log_violations(),
-    which powers the admin's "log.violations" checkbox source) so pattern keys here
-    match the admin's selection specs ('activity|Model Move' etc.) exactly.
+    Reads the shared violation table rather than walking the alignments again.
+    That table is what task30 and the pattern aggregation already use, so the
+    two ways of asking "which violations does this trace have" can no longer
+    drift apart — and now that both spell a move the same way, the keys still
+    match the admin's 'activity|Model Move' selection specs exactly.
     """
-    out = []
-    for result in alignments:
-        patterns = set()
-        for step in result.get("alignment", []):
-            if not isinstance(step, (list, tuple)) or len(step) < 2:
-                continue
-            act, vtype = classify_step(step[0], step[1])
-            if act is None:
-                continue
-            patterns.add((act, vtype))
-        out.append(patterns)
+    import trace_response
+
+    table = trace_response.violation_table(alignments)
+    out = [set() for _ in alignments]
+    for row in table.itertuples(index=False):
+        out[row.trace_index].add((row.activity, row.move_type))
     return out
 
 
@@ -264,13 +261,9 @@ def task19_effects(log, alignments, outcome_activity="Activate Care", target_pat
     }
 
 
-# Display labels for move types in the visible pattern strings. The internal
-# move_type (from classify_step) stays "Model Move" / "Log Move" so it keeps
-# matching the admin's 'activity|Move on Model' selection specs; only the shown text
-# is shortened to "Model Move" / "Log Move".
-# classify_step and the display share one set of names now, so nothing is
-# translated; this stays as the single place to change should the shown
-# wording ever need to differ from the internal one again.
+# Internal move names and shown ones are the same now, so nothing is
+# translated. Kept as the single place to change should the wording on a chart
+# ever need to differ from the key an admin selects.
 _MOVE_DISPLAY: dict = {}
 
 
