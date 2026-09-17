@@ -70,10 +70,16 @@ _STRUCTURAL_KEYS = {
 PERSPECTIVES = ("control-flow", "data", "resource", "time")
 VALUE_TYPES = ("numeric", "categorical", "boolean", "ordinal")
 
-# Value types the current bucketer understands. "ordinal" (start_time) needs the
-# ordered-bins strategy and is withheld from the picker until that lands, so the
-# admin is never offered a feature that would render an empty panel.
-BUCKETABLE_TYPES = ("numeric", "categorical", "boolean")
+#: Value types the bucketer understands. All of them — "ordinal" (a timestamp)
+#: is cut into calendar periods by the ordered-bins strategy.
+BUCKETABLE_TYPES = ("numeric", "categorical", "boolean", "ordinal")
+
+#: Calendar periods an ordinal feature can be cut into, coarsest first, with the
+#: pandas period alias for each. Duplicated from shared.TIME_GRANULARITY_FREQ
+#: rather than imported: this module is deliberately free of heavy dependencies
+#: so the attribute picker never pulls matplotlib in behind it.
+TIME_GRANULARITIES = ("year", "month", "day")
+TIME_GRANULARITY_FREQ = {"year": "Y", "month": "M", "day": "D"}
 
 
 @dataclass(frozen=True)
@@ -494,12 +500,9 @@ def as_bucketable(values: list, value_type: str) -> tuple[list, str]:
     """
     if value_type == "boolean":
         return (["Yes" if v else "No" for v in values], "categorical")
-    if value_type in ("numeric", "categorical"):
+    if value_type in ("numeric", "categorical", "ordinal"):
         return (values, value_type)
-    raise ValueError(
-        f"Value type '{value_type}' has no bucketing strategy yet "
-        f"(ordered bins are not implemented)."
-    )
+    raise ValueError(f"Value type '{value_type}' has no bucketing strategy.")
 
 
 # ---------------------------------------------------------------------------
@@ -589,7 +592,7 @@ def default_strategy(value_type: str) -> str:
 
 def split(values, value_type: str, strategy: Optional[str] = None,
           cap: Optional[int] = None, label_prefix: Optional[str] = None,
-          missing_policy: str = "drop") -> Split:
+          missing_policy: str = "drop", granularity: Optional[str] = None) -> Split:
     """Assign each trace to a group.
 
     Replaces two separate bucketers that disagreed on the numeric case:
@@ -598,6 +601,11 @@ def split(values, value_type: str, strategy: Optional[str] = None,
     ``MAX_CATEGORIES`` counted total buckets while ``MAX_CATEGORICAL_GROUPS``
     counted real groups — so ``cap`` here always means **named groups before
     "Other"**.
+
+    An ordinal feature — a timestamp — is cut into calendar periods rather than
+    quantiles, since an even split of dates reads as arbitrary ranges while
+    "2011-10", "2011-11" reads as a timeline. ``granularity`` picks the period;
+    without one the finest that yields at least two periods is used.
 
     ``label_prefix`` reproduces task30's "ATTR = value" / "ATTR ≤ x" wording;
     without it labels are bare, as task13 renders them. ``missing_policy``
@@ -622,7 +630,9 @@ def split(values, value_type: str, strategy: Optional[str] = None,
         return _finish(Split([label], assignment, strategy, value_type, meta),
                        values, missing_policy)
 
-    if strategy in ("binary", "ordered_bins"):
+    if value_type == "ordinal" and strategy == "ordered_bins":
+        result = _split_calendar(values, cap, label_prefix, meta, granularity)
+    elif strategy in ("binary", "ordered_bins"):
         result = _split_numeric(values, strategy, cap, label_prefix, meta)
     else:
         result = _split_nominal(values, cap, label_prefix, meta)
@@ -689,6 +699,48 @@ def _split_numeric(values, strategy, cap, label_prefix, meta) -> Split:
             idx = int(np.clip(np.digitize([x], edges[1:-1])[0], 0, len(labels) - 1))
             assignment.append(labels[idx])
     return Split(labels, assignment, strategy, meta["type"], meta)
+
+
+def _split_calendar(values, cap, label_prefix, meta, granularity) -> Split:
+    """Cut timestamps into calendar periods, coarsest that still separates them.
+
+    Bins are the periods actually present, in order, so an empty month between
+    two busy ones does not appear — the axis follows the data rather than the
+    calendar.
+    """
+    import pandas as pd
+
+    stamps = pd.to_datetime(pd.Series(list(values)), errors="coerce", utc=True)
+    meta["granularity"] = granularity
+    if stamps.notna().sum() == 0:
+        return Split([], [None] * len(values), "ordered_bins", meta["type"], meta)
+
+    order = list(TIME_GRANULARITIES)
+    candidates = [granularity] if granularity else order
+    chosen, periods = None, None
+    for gran in candidates:
+        if gran not in TIME_GRANULARITY_FREQ:
+            raise ValueError(
+                f"Unknown granularity '{gran}' — expected one of {', '.join(order)}."
+            )
+        binned = stamps.dt.to_period(TIME_GRANULARITY_FREQ[gran])
+        if granularity or binned.dropna().nunique() >= 2:
+            chosen, periods = gran, binned
+            break
+    if chosen is None:                      # every period identical at every grain
+        chosen, periods = order[-1], stamps.dt.to_period(TIME_GRANULARITY_FREQ[order[-1]])
+
+    meta["granularity"] = chosen
+    present = sorted(p for p in periods.dropna().unique())
+    if cap and len(present) > cap:
+        # Too many periods to read: keep the most recent `cap`, since a timeline
+        # that runs off the axis is worse than one that starts later.
+        present = present[-cap:]
+    keep = set(present)
+    labels = [f"{label_prefix} {p}" if label_prefix else str(p) for p in present]
+    label_of = {p: lab for p, lab in zip(present, labels)}
+    assignment = [label_of.get(p) if p in keep else None for p in periods]
+    return Split(labels, assignment, "ordered_bins", meta["type"], meta)
 
 
 def _split_nominal(values, cap, label_prefix, meta) -> Split:
