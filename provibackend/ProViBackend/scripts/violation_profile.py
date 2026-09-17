@@ -383,12 +383,41 @@ def profile(alignments, strategy: str = "move_type", *, selection=None,
     # left after a selection — a selected subset still reports its true share.
     agg["pct_count"] = (agg["count"] / total_count * 100) if total_count else 0.0
 
-    sort_cols = ["traces", "group"] + (["series"] if series_col else [])
-    ascending = [False, True] + ([True] if series_col else [])
+    # An activity's rows stay together. Sorting by trace count alone scattered
+    # them — "Ship Order (Model Move)" led the table while "Ship Order (Log
+    # Move)" sat nine rows below, so a reader comparing one activity's two move
+    # types had to hunt for the second. Activities are ranked by their total
+    # violation occurrences (occurrences, not traces: a trace deviating both
+    # ways on one activity would otherwise be counted twice in the ranking),
+    # and inside an activity the move types keep their conceptual order rather
+    # than a frequency or alphabetical one, so every figure reads Model, Log,
+    # Mismatch the way the tuned screenshots do.
+    move_rank = {m: i for i, m in enumerate(MOVE_TYPES)}
+    if strategy in ("activity", "pattern"):
+        if strategy == "activity":
+            act = agg["group"]
+            move = agg["series"]
+        else:
+            parsed = [parse_pattern(g) or ("", "") for g in agg["group"]]
+            act = pd.Series([a for a, _ in parsed], index=agg.index)
+            move = pd.Series([m for _, m in parsed], index=agg.index)
+        totals = agg.groupby(act.values)["count"].sum()
+        agg = agg.assign(
+            _act_total=[-int(totals[a]) for a in act],
+            _act=act.values,
+            _move=[move_rank.get(m, len(move_rank)) for m in move],
+        )
+        sort_cols = ["_act_total", "_act", "_move", "group"]
+        ascending = [True, True, True, True]
+    else:
+        sort_cols = ["traces", "group"]
+        ascending = [False, True]
     if assignment is not None:
         sort_cols = ["split_group"] + sort_cols
         ascending = [True] + ascending
-    agg = agg.sort_values(sort_cols, ascending=ascending).reset_index(drop=True)
+    agg = (agg.sort_values(sort_cols, ascending=ascending)
+              .drop(columns=[c for c in ("_act_total", "_act", "_move") if c in agg])
+              .reset_index(drop=True))
 
     cols = ["group", "series", "count", "traces", "pct_traces", "pct_count"]
     if assignment is not None:

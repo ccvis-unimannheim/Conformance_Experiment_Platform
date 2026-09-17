@@ -54,6 +54,27 @@ types is the question a reader actually has. `select_by` separates the two.
 
 ---
 
+## An activity's rows stay together
+
+Rows were ordered by trace count alone, which scattered them: "Ship Order
+(Model Move)" led the table while "Ship Order (Log Move)" sat nine rows below,
+so a reader comparing one activity's two move types had to hunt for the second.
+Both the `activity` and `pattern` strategies now order activity-major —
+activities ranked by total violation *occurrences* (occurrences, not traces: a
+trace deviating both ways on one activity would be counted twice in the
+ranking), move types inside an activity in their conceptual order, Model then
+Log then Mismatch, as task11's tuned screenshots read.
+
+Three of task23's six idioms — matrix, parallel sets, stacked bar — already
+computed that exact ranking themselves, while its bar chart and two tables used
+the raw order. One task ordered the same data two ways depending on the idiom.
+That ranking now lives in the kernel and all six agree.
+
+task11 is untouched: its renderers work from their own coverage Counter rather
+than the profile's row order, so its frozen screenshots cannot move.
+
+---
+
 ## Two denominators, because the tasks mean different things
 
 `pct_traces` is the share of the log's traces touched by a group; `pct_count`
