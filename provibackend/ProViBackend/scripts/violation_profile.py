@@ -174,6 +174,40 @@ def prominence_threshold_param(label: str, hint: str = "") -> dict:
     }
 
 
+def binary_split(log, attribute: str):
+    """Split a log into exactly two sub-logs on one case attribute.
+
+    Returns ``(assignment, (label_a, label_b))``, or None when the attribute
+    cannot be split in two — one value throughout, or no value at all.
+
+    Two, not N, because the tasks that compare sub-log profiles draw one series
+    per sub-log and their renderers carry two: a split into five would need a
+    different figure, not a wider one. Numeric attributes split at the median
+    and categorical ones into "the commonest value" versus the rest, which is
+    ``trace_features``' own binary and nominal_n — the same bucketing the
+    Attribute -> Violation class uses, so one attribute means the same thing in
+    both classes.
+    """
+    import trace_features
+
+    values, value_type = trace_features.extract(log, attribute)
+    values, value_type = trace_features.as_bucketable(values, value_type)
+    if value_type == "numeric":
+        result = trace_features.split(values, value_type, strategy="binary",
+                                      label_prefix=attribute)
+    else:
+        result = trace_features.split(values, value_type, strategy="nominal_n",
+                                      cap=1, label_prefix=attribute)
+    if not result or len(result.labels) != 2:
+        logger.warning(
+            "      violation_profile: '%s' does not split into two sub-logs "
+            "(%s) — the whole log is used instead.",
+            attribute, "no groups" if not result else f"{len(result.labels)} groups",
+        )
+        return None
+    return list(result.assignment), (str(result.labels[0]), str(result.labels[1]))
+
+
 # ---------------------------------------------------------------------------
 # The profile
 # ---------------------------------------------------------------------------
@@ -221,6 +255,55 @@ def normalise_move_type(spec) -> str:
     return _MOVE_TYPE_ALIASES.get(str(spec).strip().lower(), str(spec).strip())
 
 
+def select(table, strategy: str, selection=None):
+    """Rows of a violation table kept by one selection.
+
+    Each strategy's dropdown stores its own value shape, and none of them is the
+    display label — the pattern list stores "activity|Move Type" while the table
+    reads "activity (Move Type)" — so matching on the label selects nothing.
+    Matching happens on the table's own columns instead. An empty or wholly
+    unparseable selection keeps every row.
+    """
+    if not selection or table.empty:
+        return table
+    if strategy == "activity":
+        return table[table["activity"].isin({str(a).strip() for a in selection})]
+    if strategy == "move_type":
+        return table[table["move_type"].isin({normalise_move_type(m) for m in selection})]
+    pairs = {p for p in (parse_pattern(sp) for sp in selection) if p}
+    if not pairs:
+        logger.warning(
+            "      violation_profile: none of the %d selected patterns could be "
+            "parsed — showing every pattern instead.", len(selection)
+        )
+        return table
+    return table[[(a, m) in pairs
+                  for a, m in zip(table["activity"], table["move_type"])]]
+
+
+def unit_labels(table, strategy: str):
+    """The label each violation row is counted under, for one strategy.
+
+    The same three rules ``profile`` groups by, exposed for callers that need
+    the rows rather than the aggregate — so a second task cannot spell the
+    "activity (Move Type)" unit differently from this one.
+    """
+    if strategy == "move_type":
+        return table["move_type"]
+    if strategy == "activity":
+        return table["activity"] + " (" + table["move_type"] + ")"
+    return table["pattern"]
+
+
+def labelled_rows(alignments, strategy: str = "move_type", selection=None):
+    """Violation rows with their unit label: columns trace_index, unit."""
+    table = select(trace_response.violation_table(alignments), strategy, selection)
+    if table.empty:
+        return pd.DataFrame(columns=["trace_index", "unit"])
+    return pd.DataFrame({"trace_index": table["trace_index"].values,
+                         "unit": unit_labels(table, strategy).values})
+
+
 def profile(alignments, strategy: str = "move_type", *, selection=None,
             n_traces: int = None, assignment=None) -> pd.DataFrame:
     """The violation profile, one row per group.
@@ -255,37 +338,18 @@ def profile(alignments, strategy: str = "move_type", *, selection=None,
         )
     group_col, series_col = _STRATEGY_COLUMNS[strategy]
 
-    table = trace_response.violation_table(alignments)
     if n_traces is None:
         n_traces = len(alignments)
 
     empty_cols = ["group", "series", "count", "traces", "pct_traces", "pct_count"]
     if assignment is not None:
         empty_cols.append("split_group")
-    if table.empty:
+
+    table = trace_response.violation_table(alignments)
+    total_count = float(len(table))
+    df = select(table, strategy, selection)
+    if df.empty:
         return pd.DataFrame(columns=empty_cols)
-
-    df = table.copy()
-
-    # Each strategy's dropdown stores its own value shape, and none of them is
-    # the display label: match on the table's own columns instead.
-    if selection:
-        if strategy == "activity":
-            df = df[df["activity"].isin({str(a).strip() for a in selection})]
-        elif strategy == "move_type":
-            df = df[df["move_type"].isin({normalise_move_type(m) for m in selection})]
-        else:
-            pairs = {p for p in (parse_pattern(s) for s in selection) if p}
-            if not pairs:
-                logger.warning(
-                    "      violation_profile: none of the %d selected patterns "
-                    "could be parsed — showing every pattern instead.", len(selection)
-                )
-            else:
-                df = df[[(a, m) in pairs
-                         for a, m in zip(df["activity"], df["move_type"])]]
-        if df.empty:
-            return pd.DataFrame(columns=empty_cols)
 
     keys = [group_col] + ([series_col] if series_col else [])
     if assignment is not None:
@@ -311,7 +375,6 @@ def profile(alignments, strategy: str = "move_type", *, selection=None,
     agg["pct_traces"] = (agg["traces"] / n_traces * 100) if n_traces else 0.0
     # Denominator is every violation occurrence in the log, not just the rows
     # left after a selection — a selected subset still reports its true share.
-    total_count = float(len(table))
     agg["pct_count"] = (agg["count"] / total_count * 100) if total_count else 0.0
 
     sort_cols = ["traces", "group"] + (["series"] if series_col else [])

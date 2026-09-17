@@ -20,6 +20,20 @@ IDIOMS = ["bar_chart", "stacked_bar", "table", "table_and_bar_chart", "matrix",
           "parallel_sets", "box_plot", "heatmap"]
 
 
+def _shared_params():
+    """The Violation-profile class's split and grouping parameters.
+
+    `split_attribute` overrides the outcome split this task was fixed to. The
+    task's own question says "across different logs", which the outcome split
+    never was — it compares two outcome groups of one log. Empty keeps that
+    behaviour, so nothing changes until an admin chooses otherwise.
+    """
+    import violation_profile
+    return [violation_profile.SPLIT_ATTRIBUTE_PARAM,
+            violation_profile.GROUPING_STRATEGY_PARAM,
+            *violation_profile.SELECTION_PARAMS]
+
+
 PARAM_SPEC = [
     {
         "key": "outcome_activity",
@@ -30,6 +44,7 @@ PARAM_SPEC = [
         "default": "",
         "required": True,
     },
+    *_shared_params(),
 ]
 
 
@@ -80,19 +95,56 @@ def _task05_outcome_group(trace, outcome_activity: str) -> str:
     return "Positive" if outcome_activity in activities else "Negative"
 
 
-def _task05_build_violation_df(log, alignments, outcome_activity: str) -> pd.DataFrame:
-    """Build per-trace violation rows with outcome group label."""
-    rows = []
-    for i, (trace, result) in enumerate(zip(log, alignments)):
-        group = _task05_outcome_group(trace, outcome_activity)
-        for step in alignment_pairs_to_rows(result.get("alignment", [])):
-            if step["moveType"] == "Synchronous Move":
-                continue
-            activity = step["model_move"] if step["moveType"] == "Model Move" else step["log_move"]
-            pattern  = f"{activity} ({step['moveType']})"
-            rows.append({"trace_index": i, "group": group, "pattern": pattern})
-    return pd.DataFrame(rows) if rows else pd.DataFrame(
-        columns=["trace_index", "group", "pattern"])
+def _task05_groups(log, outcome_activity: str, split_attribute: str = ""):
+    """The two sub-logs compared, as (assignment, short_labels, long_labels).
+
+    ``assignment`` holds the internal slot names "Positive"/"Negative" — kept so
+    the aggregation and every renderer's column keys are untouched — while the
+    labels are what the reader sees. Without a split attribute those are this
+    task's original wording; with one they are the attribute's own two groups,
+    because a chart still captioned "Positive outcome" while showing
+    "customer_segment = returning" would tell a participant something untrue.
+    """
+    if split_attribute:
+        import violation_profile
+        split = violation_profile.binary_split(log, split_attribute)
+        if split:
+            raw, (label_a, label_b) = split
+            slot = {label_a: "Positive", label_b: "Negative"}
+            assignment = [slot.get(v) for v in raw]
+            return assignment, (label_a, label_b), (label_a, label_b)
+        logger.warning("      task05: falling back to the outcome split.")
+
+    assignment = [_task05_outcome_group(trace, outcome_activity) for trace in log]
+    return assignment, ("Positive", "Negative"), ("Positive outcome", "Negative outcome")
+
+
+def _task05_build_violation_df(log, alignments, assignment,
+                               grouping_strategy: str = "pattern",
+                               selection=None) -> pd.DataFrame:
+    """Per-trace violation rows labelled with their sub-log.
+
+    The unit in ``pattern`` is whatever the grouping strategy counts in, so the
+    column name is historical: under "move_type" it holds a move type, under
+    "activity" an activity with its move type. Both the unit label and the
+    selection come from the shared kernel, so this task cannot spell either
+    differently from the other six.
+    """
+    import violation_profile
+
+    rows = violation_profile.labelled_rows(alignments, grouping_strategy, selection)
+    cols = ["trace_index", "group", "pattern"]
+    if rows.empty:
+        return pd.DataFrame(columns=cols)
+
+    groups = [assignment[i] if i < len(assignment) else None
+              for i in rows["trace_index"]]
+    out = pd.DataFrame({"trace_index": rows["trace_index"],
+                        "group": groups,
+                        "pattern": rows["unit"]})
+    # A trace outside both sub-logs (no value for the split attribute) belongs
+    # to neither denominator, so it leaves rather than skewing one of them.
+    return out[out["group"].notna()].reset_index(drop=True)
 
 
 def _task05_aggregate(viol_df: pd.DataFrame, n_traces: dict, top_n: int = TOP_N) -> pd.DataFrame:
@@ -131,14 +183,15 @@ def _task05_aggregate(viol_df: pd.DataFrame, n_traces: dict, top_n: int = TOP_N)
 # Visualizations
 # ---------------------------------------------------------------------------
 
-def task05_bar_chart(agg_df: pd.DataFrame, output_dir: str):
+def task05_bar_chart(agg_df: pd.DataFrame, output_dir: str,
+                     labels=("Positive outcome", "Negative outcome")):
     """Grouped bars: violation rate per top-N pattern for Positive vs Negative."""
     patterns = agg_df["pattern"].tolist()
 
     fig, ax = plt.subplots(figsize=(max(9, len(patterns) * 1.5), 5.5))
     rates = agg_df[["Positive_rate", "Negative_rate"]].values
     x = draw_grouped_rate_bars(
-        ax, len(patterns), ["Positive outcome", "Negative outcome"], rates,
+        ax, len(patterns), list(labels), rates,
         [_COLOR_POSITIVE, _COLOR_NEGATIVE],
     )
 
@@ -156,9 +209,10 @@ def task05_bar_chart(agg_df: pd.DataFrame, output_dir: str):
     save_svg(fig, os.path.join(output_dir, "task05_bar_chart.svg"))
 
 
-def task05_stacked_bar(agg_df: pd.DataFrame, n_traces: dict, output_dir: str):
+def task05_stacked_bar(agg_df: pd.DataFrame, n_traces: dict, output_dir: str,
+                       labels=("Positive", "Negative")):
     """Stacked bar: one bar per outcome group, segments = top-N patterns + Other."""
-    groups   = ["Positive", "Negative"]
+    groups   = list(labels)
     patterns = agg_df["pattern"].tolist()
 
     fig, ax = plt.subplots(figsize=(5, 5.5))
@@ -179,7 +233,8 @@ def task05_stacked_bar(agg_df: pd.DataFrame, n_traces: dict, output_dir: str):
     save_svg(fig, os.path.join(output_dir, "task05_stacked_bar.svg"))
 
 
-def task05_table(agg_df: pd.DataFrame, output_dir: str):
+def task05_table(agg_df: pd.DataFrame, output_dir: str,
+                 labels=("Positive", "Negative")):
     """Table: Pattern | Positive (count / rate) | Negative (count / rate) | Total."""
     cell_text = [
         [
@@ -196,7 +251,8 @@ def task05_table(agg_df: pd.DataFrame, output_dir: str):
     make_table(
         ax,
         cell_text=cell_text,
-        col_labels=["Violation Pattern", "Positive (n / rate)", "Negative (n / rate)", "Total"],
+        col_labels=["Violation Pattern", f"{labels[0]} (n / rate)",
+                    f"{labels[1]} (n / rate)", "Total"],
         bbox=[0.01, 0.05, 0.98, 0.80],
         col_widths=[0.50, 0.18, 0.18, 0.10],
         font_size=9.5,
@@ -209,7 +265,8 @@ def task05_table(agg_df: pd.DataFrame, output_dir: str):
     save_svg(fig, os.path.join(output_dir, "task05_table.svg"))
 
 
-def task05_table_and_bar_chart(agg_df: pd.DataFrame, output_dir: str):
+def task05_table_and_bar_chart(agg_df: pd.DataFrame, output_dir: str,
+                               labels=("Positive", "Negative")):
     """Table (left) + grouped bar chart (right) in one figure."""
     fig = plt.figure(figsize=(16, max(4.5, 1.2 + len(agg_df) * 0.45)))
     gs  = gridspec.GridSpec(1, 2, width_ratios=[1.5, 1.0], wspace=0.35)
@@ -226,7 +283,7 @@ def task05_table_and_bar_chart(agg_df: pd.DataFrame, output_dir: str):
     make_table(
         ax_tbl,
         cell_text=cell_text,
-        col_labels=["Violation Pattern", "Positive", "Negative", "Total"],
+        col_labels=["Violation Pattern", labels[0], labels[1], "Total"],
         bbox=[0.01, 0.05, 0.98, 0.82],
         col_widths=[0.52, 0.18, 0.18, 0.10],
         font_size=9,
@@ -238,7 +295,7 @@ def task05_table_and_bar_chart(agg_df: pd.DataFrame, output_dir: str):
     ax_bar = fig.add_subplot(gs[1])
     patterns = agg_df["pattern"].tolist()
     x = draw_grouped_rate_bars(
-        ax_bar, len(patterns), ["Positive", "Negative"],
+        ax_bar, len(patterns), list(labels),
         agg_df[["Positive_rate", "Negative_rate"]].values,
         [_COLOR_POSITIVE, _COLOR_NEGATIVE], horizontal=True,
     )
@@ -254,7 +311,8 @@ def task05_table_and_bar_chart(agg_df: pd.DataFrame, output_dir: str):
     save_svg(fig, os.path.join(output_dir, "task05_table_and_bar_chart.svg"))
 
 
-def task05_matrix(agg_df: pd.DataFrame, output_dir: str):
+def task05_matrix(agg_df: pd.DataFrame, output_dir: str,
+                  labels=("Positive", "Negative")):
     """Heatmap matrix: rows = violation pattern (top-N), cols = outcome group, cell = rate."""
     if agg_df.empty:
         fig, ax = plt.subplots(figsize=(4, 3))
@@ -265,7 +323,7 @@ def task05_matrix(agg_df: pd.DataFrame, output_dir: str):
         return
 
     patterns = agg_df["pattern"].tolist()
-    groups   = ["Positive", "Negative"]
+    groups   = list(labels)
     data     = agg_df[["Positive_rate", "Negative_rate"]].values  # shape (N, 2)
 
     fig_h = max(3.0, 0.55 * len(patterns) + 1.2)
@@ -277,7 +335,8 @@ def task05_matrix(agg_df: pd.DataFrame, output_dir: str):
 
 
 def task05_parallel_sets(agg_df: pd.DataFrame, viol_df: pd.DataFrame,
-                          n_traces: dict, output_dir: str):
+                          n_traces: dict, output_dir: str,
+                          labels=("Positive", "Negative")):
     """Parallel Sets: Outcome Group × Violation Pattern (top-N + Other).
 
     Ribbon width ∝ number of traces in the group that exhibit the pattern
@@ -286,7 +345,7 @@ def task05_parallel_sets(agg_df: pd.DataFrame, viol_df: pd.DataFrame,
     the left match the ribbons leaving them and the participant can read a
     percentage directly.
     """
-    groups   = ["Positive", "Negative"]
+    groups   = list(labels)
     patterns = agg_df["pattern"].tolist() if not agg_df.empty else []
 
     # Count matrix [n_groups × (n_patterns + Other)] at the TRACE level:
@@ -412,7 +471,8 @@ def task05_box_plot(log, viol_df: pd.DataFrame, outcome_activity: str, output_di
     save_svg(fig, os.path.join(output_dir, "task05_box_plot.svg"))
 
 
-def task05_heatmap(agg_df: pd.DataFrame, output_dir: str):
+def task05_heatmap(agg_df: pd.DataFrame, output_dir: str,
+                   labels=("Positive", "Negative")):
     """Violation pattern × sub-log, rate, continuous colour (complements the matrix)."""
     if agg_df.empty:
         render_empty_state_svg(os.path.join(output_dir, "task05_heatmap.svg"),
@@ -433,36 +493,47 @@ def task05_heatmap(agg_df: pd.DataFrame, output_dir: str):
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def generate(log, alignments, output_dir: str, outcome_activity: str = ""):
-    """Generate all Task ID 5 SVGs into output_dir."""
+def generate(log, alignments, output_dir: str, outcome_activity: str = "",
+             split_attribute: str = "", grouping_strategy: str = "pattern",
+             selection=None):
+    """Generate all Task ID 5 SVGs into output_dir.
+
+    Without `split_attribute` the two sub-logs are the outcome groups this task
+    has always compared, and every figure comes out as before.
+    """
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 5 visualizations ---")
-    if not outcome_activity:
+    if not split_attribute and not outcome_activity:
         outcome_activity = infer_outcome_activity(log)
         logger.info(f"      task05: outcome_activity inferred as '{outcome_activity}'")
 
-    # Outcome group counts
+    assignment, short_labels, long_labels = _task05_groups(
+        log, outcome_activity, split_attribute)
+
+    # n_traces keys stay the internal slot names the aggregation pivots on.
     n_traces = {"Positive": 0, "Negative": 0}
-    for trace in log:
-        n_traces[_task05_outcome_group(trace, outcome_activity)] += 1
-    logger.info(f"      -> Positive: {n_traces['Positive']}  |  Negative: {n_traces['Negative']}")
+    for slot in assignment:
+        if slot in n_traces:
+            n_traces[slot] += 1
+    logger.info(f"      -> {short_labels[0]}: {n_traces['Positive']}  |  "
+                f"{short_labels[1]}: {n_traces['Negative']}")
+    for slot, name in zip(("Positive", "Negative"), short_labels):
+        if n_traces[slot] == 0:
+            logger.warning(f"      No traces in '{name}' — that group is empty.")
 
-    if n_traces["Positive"] == 0:
-        logger.warning(f"      No traces with outcome_activity='{outcome_activity}' — all Negative.")
-    if n_traces["Negative"] == 0:
-        logger.warning("      All traces are Positive — no Negative group.")
-
-    viol_df = _task05_build_violation_df(log, alignments, outcome_activity)
-    logger.info(f"      -> {len(viol_df)} violation rows extracted.")
+    viol_df = _task05_build_violation_df(log, alignments, assignment,
+                                         grouping_strategy, selection)
+    logger.info(f"      -> {len(viol_df)} violation rows extracted "
+                f"({grouping_strategy} units).")
 
     agg_df = _task05_aggregate(viol_df, n_traces)
-    logger.info(f"      -> Top-{len(agg_df)} violation patterns aggregated.")
+    logger.info(f"      -> Top-{len(agg_df)} violation groups aggregated.")
 
-    task05_bar_chart(agg_df, output_dir)
-    task05_stacked_bar(agg_df, n_traces, output_dir)
-    task05_table(agg_df, output_dir)
-    task05_table_and_bar_chart(agg_df, output_dir)
-    task05_matrix(agg_df, output_dir)
-    task05_parallel_sets(agg_df, viol_df, n_traces, output_dir)
+    task05_bar_chart(agg_df, output_dir, long_labels)
+    task05_stacked_bar(agg_df, n_traces, output_dir, short_labels)
+    task05_table(agg_df, output_dir, short_labels)
+    task05_table_and_bar_chart(agg_df, output_dir, short_labels)
+    task05_matrix(agg_df, output_dir, short_labels)
+    task05_parallel_sets(agg_df, viol_df, n_traces, output_dir, short_labels)
     task05_box_plot(log, viol_df, outcome_activity, output_dir)
-    task05_heatmap(agg_df, output_dir)
+    task05_heatmap(agg_df, output_dir, short_labels)

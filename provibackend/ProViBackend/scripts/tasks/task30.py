@@ -203,17 +203,30 @@ def _group_stats(trace_df: pd.DataFrame, groups: list) -> pd.DataFrame:
 
 
 def _build_violation_df(alignments, assignment: list,
-                        missing_policy: str = "drop") -> pd.DataFrame:
+                        missing_policy: str = "drop",
+                        grouping_strategy: str = None,
+                        selection=None) -> pd.DataFrame:
     """Violation rows per sub-log: trace_index, group, activity, move_type, pattern.
 
     Extraction and grouping are now two steps (trace_response.violation_table
     and .assign_groups), so re-grouping does not re-walk the alignments and
     `activity` / `move_type` are available as columns rather than only as halves
     of the `pattern` string.
+
+    `grouping_strategy` rewrites `pattern` to the unit that strategy counts in,
+    and applies its selection, for the Violation-profile tasks that share this
+    builder. Left None — task30's own use — `pattern` keeps its "activity (Move
+    Type)" form and nothing is filtered.
     """
     import trace_response
 
     violations = trace_response.violation_table(alignments)
+    if grouping_strategy:
+        import violation_profile
+        violations = violation_profile.select(violations, grouping_strategy, selection)
+        if not violations.empty:
+            violations = violations.assign(
+                pattern=violation_profile.unit_labels(violations, grouping_strategy))
     return trace_response.assign_groups(violations, assignment,
                                         missing_policy=missing_policy)
 
