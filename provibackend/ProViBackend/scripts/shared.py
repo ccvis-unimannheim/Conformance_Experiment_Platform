@@ -2517,12 +2517,15 @@ def infer_terminal_activity(log) -> str:
     if n == 0:
         return ""
 
+    # The registry already derives each trace's last activity; counting a third
+    # copy of that walk here is how the two would drift apart.
+    import trace_features
+
+    last_per_trace, _ = trace_features.extract(log, trace_features.LAST_ACTIVITY_KEY)
     as_last: dict[str, int] = {}
-    for trace in log:
-        if trace:
-            last = str(trace[-1].get("concept:name", ""))
-            if last:
-                as_last[last] = as_last.get(last, 0) + 1
+    for activity in last_per_trace:
+        if activity:
+            as_last[activity] = as_last.get(activity, 0) + 1
     if not as_last:
         return ""
 
