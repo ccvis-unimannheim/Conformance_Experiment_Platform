@@ -18,10 +18,15 @@ IDIOMS = ["bar_chart", "stacked_bar", "table", "table_and_bar_chart", "matrix",
 
 
 def _param_spec():
-    """Only the pattern selection: task23 asks how the patterns differ from one
-    another, so the unit is the pattern and the grouping is not a choice."""
+    """Only the activity selection.
+
+    The unit stays the pattern — the task asks how the violations differ from
+    one another, and "Log Move on Ship Order" is the thing that differs — but
+    what an admin picks is an activity, so choosing one keeps both of its move
+    types on the chart rather than making them pick each half separately.
+    """
     import violation_profile
-    return [violation_profile.selection_param_for("pattern")]
+    return [violation_profile.selection_param_for("activity")]
 
 
 PARAM_SPEC = _param_spec()
@@ -73,7 +78,7 @@ _MOVE_ORDER  = ["Model Move", "Log Move", "Mismatch Move"]
 # Data helper
 # ---------------------------------------------------------------------------
 
-def _task23_build_pattern_df(alignments, selection=None) -> pd.DataFrame:
+def _task23_build_pattern_df(alignments, activities=None) -> pd.DataFrame:
     """One row per violation pattern, in the columns task23's idioms read.
 
     Counting is the Violation-profile kernel's, shared with the six other tasks
@@ -82,8 +87,8 @@ def _task23_build_pattern_df(alignments, selection=None) -> pd.DataFrame:
     """
     import violation_profile
 
-    prof = violation_profile.profile(alignments, "pattern", selection=selection,
-                                     n_traces=len(alignments))
+    prof = violation_profile.profile(alignments, "pattern", selection=activities,
+                                     select_by="activity", n_traces=len(alignments))
     cols = ["pattern", "activity", "move_type", "count", "n_traces", "pct"]
     if prof.empty:
         return pd.DataFrame(columns=cols)
@@ -375,12 +380,12 @@ def task23_parallel_sets(pat_df: pd.DataFrame, output_dir: str):
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def generate(alignments, output_dir: str, log=None, violation_patterns=None):
+def generate(alignments, output_dir: str, log=None, activities=None):
     """Generate all Task ID 23 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 23 visualizations ---")
 
-    pat_df = _task23_build_pattern_df(alignments, selection=violation_patterns)
+    pat_df = _task23_build_pattern_df(alignments, activities=activities)
 
     if pat_df.empty:
         logger.warning("      task23: no violation moves found — emitting zero-state SVGs.")

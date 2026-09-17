@@ -398,7 +398,7 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
                                             split_strategy=(p.get("split_strategy") or None),
                                             group_cap=(int(p["group_cap"]) if p.get("group_cap") else None)),
         "task23": lambda d: task23.generate(alignments, d, log=log,
-                                            violation_patterns=(p.get("violation_patterns") or None)),
+                                            activities=(p.get("activities") or None)),
         "task24": lambda d: task24.generate(log, model_path, d),
         "task25": lambda d: task25.generate(log, fitness_df, d, model_path=model_path),
         "task26": lambda d: task26.generate(alignments, d, model_path=model_path),

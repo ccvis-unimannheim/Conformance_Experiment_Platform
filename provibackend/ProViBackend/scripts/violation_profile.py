@@ -295,9 +295,11 @@ def unit_labels(table, strategy: str):
     return table["pattern"]
 
 
-def labelled_rows(alignments, strategy: str = "move_type", selection=None):
+def labelled_rows(alignments, strategy: str = "move_type", selection=None,
+                  select_by: str = None):
     """Violation rows with their unit label: columns trace_index, unit."""
-    table = select(trace_response.violation_table(alignments), strategy, selection)
+    table = select(trace_response.violation_table(alignments),
+                   select_by or strategy, selection)
     if table.empty:
         return pd.DataFrame(columns=["trace_index", "unit"])
     return pd.DataFrame({"trace_index": table["trace_index"].values,
@@ -305,7 +307,8 @@ def labelled_rows(alignments, strategy: str = "move_type", selection=None):
 
 
 def profile(alignments, strategy: str = "move_type", *, selection=None,
-            n_traces: int = None, assignment=None) -> pd.DataFrame:
+            select_by: str = None, n_traces: int = None,
+            assignment=None) -> pd.DataFrame:
     """The violation profile, one row per group.
 
     Columns: ``group``, ``series``, ``count``, ``traces``, ``pct_traces``,
@@ -347,7 +350,10 @@ def profile(alignments, strategy: str = "move_type", *, selection=None,
 
     table = trace_response.violation_table(alignments)
     total_count = float(len(table))
-    df = select(table, strategy, selection)
+    # `select_by` lets a task narrow by one unit while counting in another —
+    # task23 picks activities but still reports one row per pattern, so the
+    # reader sees both move types of the activity they chose.
+    df = select(table, select_by or strategy, selection)
     if df.empty:
         return pd.DataFrame(columns=empty_cols)
 

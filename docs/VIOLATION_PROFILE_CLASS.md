@@ -39,13 +39,18 @@ same alignments. The strategy did not have to be invented, only named.
 | task32 | A/B/C | `split_attribute` | "main" | exposed no parameters at all before |
 | task36 | A/B/C | — | "predominant" | redefined, see below |
 | task11 | fixed `activity` | — | — | + `activities` selection |
-| task23 | fixed `pattern` | — | — | |
-| task12 | fixed `pattern` | — | — | selection narrows what counts |
+| task23 | fixed `pattern` | — | — | picks *activities*, reports patterns |
+| task12 | fixed `pattern` | — | — | one row per violation |
 
 A fixed-strategy task takes its selection parameter from
 `selection_param_for()`, which strips `visible_if`: with no strategy picker to
 read, `/specify` would judge the condition unmet and hide the only control the
 task has.
+
+What an admin picks need not be the unit reported. task23 asks how the
+violations differ from one another, so a row is a pattern — but the dropdown
+lists activities, because picking "Ship Order" and getting both of its move
+types is the question a reader actually has. `select_by` separates the two.
 
 ---
 
@@ -117,6 +122,22 @@ The internal column keys are unchanged, so only visible strings move, and the
 defaults reproduce all three original wordings — `Positive`,
 `Positive outcome`, `Positive (n / rate)` — exactly.
 
+**task12 reports one row per violation.** It classified traces into five
+categories (conformant / one move type only / mixed) and drew the conformant
+share; it now gives the percentage of traces containing each violation, which
+is what its question asks.
+
+Two of its six idioms cannot draw that number. A pie and a 100% stacked bar
+partition a whole, and the per-violation trace shares overlap — one trace
+carrying two violations is counted under each — so they sum past the share of
+traces that deviate at all: 38.2% against 28.4% on order_to_cash. Those two
+draw the share of violation *occurrences*, which does sum to 100, and name that
+denominator in their titles. The other four say "% of traces". Silently mixing
+the two would have been the same confound the class was built to remove.
+
+The overall deviating count is distinct traces, not the sum of the rows, for
+the same reason.
+
 **task29 no longer counts tau moves.** It counted every non-synchronous step,
 including moves on hidden transitions, which name no activity and so could
 never be attributed to one. Neither dataset here has any, so no number moved.
@@ -168,11 +189,11 @@ dataset is worth more than a second run.
 
 ## Open
 
-* **task12 is now close to task23.** Both are fixed to the pattern unit. They
-  differ in what they measure — task12 the share of traces carrying any selected
-  violation, task23 the ranking of the patterns themselves — but a class is the
-  sampling unit when drawing an experiment, and these two sample nearly the same
-  thing.
+* **task12 and task23 both report one row per pattern.** task12 measures the
+  share of traces containing each, task23 each pattern's share of all
+  occurrences, and they select differently (patterns against activities) — but
+  a class is the sampling unit when drawing an experiment, and these two are
+  close enough to be worth checking before both go into one.
 * **task11 and task23 are the same pipeline** once the strategy is a parameter,
   differing only in which unit their question names. That is true *after* the
   unification, not before it: task11 had a selection and a BPMN idiom, task23
