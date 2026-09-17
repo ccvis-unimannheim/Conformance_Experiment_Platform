@@ -12,6 +12,15 @@ logger = logging.getLogger(__name__)
 IDIOMS = ["bar_chart", "heatmap", "pie_chart", "flow_chart_table", "table", "table_bar_chart",
           "stacked_bar", "matrix", "sunburst", "tree_map", "parallel_sets"]
 
+
+def _param_spec():
+    """The Violation-profile class's shared parameters (see violation_profile)."""
+    import violation_profile
+    return [violation_profile.GROUPING_STRATEGY_PARAM, *violation_profile.SELECTION_PARAMS]
+
+
+PARAM_SPEC = _param_spec()
+
 import os
 import numpy as np
 import pandas as pd
@@ -141,37 +150,62 @@ TASK29_TYPE_LABELS = {
 }
 
 
-def task29_violation_summary_dataframe(alignments):
-    """Count violation move types across all trace alignments."""
-    rows = []
-    for trace_idx, result in enumerate(alignments):
-        for step in alignment_pairs_to_rows(result.get("alignment", [])):
-            move_type = step["moveType"]
-            if move_type == "Synchronous Move":
-                continue
-            rows.append({
-                "trace_index": trace_idx,
-                "move_type": move_type,
-                "violation_type": TASK29_TYPE_LABELS.get(move_type, move_type),
-                "activity": step["model_move"] if move_type == "Model Move" else step["log_move"],
-            })
+def task29_violation_summary_dataframe(alignments, grouping_strategy: str = "move_type",
+                                       selection=None):
+    """The violation profile, in the column shape task29's idioms already read.
 
-    if rows:
-        raw = pd.DataFrame(rows)
-        summary = (
-            raw.groupby(["move_type", "violation_type"], as_index=False)
-            .agg(count=("move_type", "size"), traces=("trace_index", "nunique"))
-        )
+    Counting now comes from ``violation_profile``, shared with the other six
+    tasks of this class, so a change to what counts as a violation lands in all
+    of them at once. The columns are unchanged:
+
+        move_type       the colour key — which move type this row belongs to
+        violation_type  the label drawn
+        count, traces   occurrences and distinct traces
+        percentage      share of all violation occurrences
+
+    ``move_type`` and ``violation_type`` mean different things per strategy,
+    which is the point of the strategy: under "move_type" a row *is* a move
+    type, under "activity" a row is one activity's moves of one type, and under
+    "pattern" a row is one "Move on Activity" unit.
+
+    One behavioural difference from the hand-rolled count this replaces: steps
+    whose activity is a tau / hidden transition ("-", ">>", "(skip)") are no
+    longer counted as violations. They name no activity, so they could never be
+    attributed to one; BPIC12 has none, so its numbers are unchanged.
+    """
+    import violation_profile
+
+    prof = violation_profile.profile(alignments, grouping_strategy,
+                                     selection=selection, n_traces=len(alignments))
+    cols = ["move_type", "violation_type", "count", "traces", "percentage"]
+    if prof.empty:
+        return pd.DataFrame(columns=cols)
+
+    summary = prof.copy()
+    if grouping_strategy == "move_type":
+        summary["move_type"] = summary["group"]
+        summary["violation_type"] = summary["group"].map(
+            lambda m: TASK29_TYPE_LABELS.get(m, m))
+        # The move types read in a fixed order, not by frequency: they are a
+        # nominal scale the reader learns, and reordering them between datasets
+        # would make two charts of the same three categories look different.
+        order = ["Model Move", "Log Move", "Mismatch Move"]
+        summary["_order"] = summary["move_type"].apply(
+            lambda x: order.index(x) if x in order else len(order))
+        summary = summary.sort_values(["_order", "violation_type"]).drop(columns=["_order"])
+    elif grouping_strategy == "activity":
+        summary["move_type"] = summary["series"]
+        summary["violation_type"] = summary["group"] + "\n(" + summary["series"] + ")"
     else:
-        summary = pd.DataFrame(columns=["move_type", "violation_type", "count", "traces"])
+        pairs = summary["group"].map(violation_profile.parse_pattern)
+        summary["move_type"] = [p[1] if p else "" for p in pairs]
+        summary["violation_type"] = summary["group"]
 
-    order = ["Model Move", "Log Move", "Mismatch Move"]
-    summary["order"] = summary["move_type"].apply(lambda x: order.index(x) if x in order else len(order))
-    summary = summary.sort_values(["order", "violation_type"]).drop(columns=["order"]).reset_index(drop=True)
-    total = int(summary["count"].sum()) if not summary.empty else 0
-    summary["percentage"] = (summary["count"] / total * 100) if total else 0.0
-    logger.info(f"      -> Violation moves: {total}")
-    return summary
+    summary["percentage"] = summary["pct_count"]
+    summary = summary.reset_index(drop=True)
+    logger.info(f"      -> Violation moves: {int(summary['count'].sum())} "
+                f"in {len(summary)} {grouping_strategy} group(s)")
+    return summary[cols]
 
 
 # Task 3 visualizations
@@ -776,11 +810,12 @@ def task29_sunburst(alignments, output_dir: str):
 
 # ---------------------------------------------------------------------------
 
-def generate(alignments, output_dir: str):
-    """Generate all Task 3 SVGs into output_dir."""
+def generate(alignments, output_dir: str, grouping_strategy: str = "move_type",
+             selection=None):
+    """Generate all Task 29 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 29 visualizations ---")
-    df = task29_violation_summary_dataframe(alignments)
+    df = task29_violation_summary_dataframe(alignments, grouping_strategy, selection)
     if df.empty:
         logger.warning("      Skipped Task 29: no violation moves found.")
         return

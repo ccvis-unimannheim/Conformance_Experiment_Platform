@@ -62,6 +62,7 @@ import tasks.task08 as task08
 import tasks.task09 as task09
 import tasks.task10 as task10
 import tasks.task11 as task11
+import violation_profile
 import tasks.task12 as task12
 import tasks.task13 as task13
 import tasks.task14 as task14
@@ -364,7 +365,8 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
         "task08": lambda d: task08.generate(log, alignments, d),
         "task09": lambda d: task09.generate(log, alignments, d, model_path=model_path),
         "task10": lambda d: task10.generate(fitness_df, d, log=log, conformance_bins=conformance_bins()),
-        "task11": lambda d: task11.generate(log, alignments, d, model_path=model_path),
+        "task11": lambda d: task11.generate(log, alignments, d, model_path=model_path,
+                                            activities=(p.get("activities") or None)),
         "task12": lambda d: task12.generate(log, alignments, d),
         "task13": lambda d: task13.generate(log, alignments, model_path, d,
                                             candidate_attributes=(p.get("attribute_set") or None)),
@@ -389,13 +391,18 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
                                             attribute_set=(p.get("attribute_set") or None),
                                             split_strategy=(p.get("split_strategy") or None),
                                             group_cap=(int(p["group_cap"]) if p.get("group_cap") else None)),
-        "task23": lambda d: task23.generate(alignments, d, log=log),
+        "task23": lambda d: task23.generate(alignments, d, log=log,
+                                            violation_patterns=(p.get("violation_patterns") or None)),
         "task24": lambda d: task24.generate(log, model_path, d),
         "task25": lambda d: task25.generate(log, fitness_df, d, model_path=model_path),
         "task26": lambda d: task26.generate(alignments, d, model_path=model_path),
         "task27": lambda d: task27.generate(log, fitness_df, alignments, d, model_path=model_path),
         "task28": lambda d: task28.generate(alignments, model_path, d),
-        "task29": lambda d: task29.generate(alignments, d),
+        "task29": lambda d: task29.generate(
+            alignments, d,
+            grouping_strategy=(p.get("grouping_strategy") or "move_type"),
+            selection=(p.get(violation_profile.STRATEGY_SELECTION_KEY.get(
+                p.get("grouping_strategy") or "move_type", "")) or None)),
         "task30": lambda d: task30.generate(log, fitness_df, alignments, d, compare_attribute=cmp_attr()),
         # Not outcome_activity(): that falls back to the "contains" heuristic,
         # and this task asks which activity a trace *ends* on. Passing None

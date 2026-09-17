@@ -22,7 +22,26 @@ IDIOMS = [
 ]
 
 
-PARAM_SPEC = []
+def _param_spec():
+    """Only the activity selection.
+
+    The question this task asks — "how do the violations for activity X compare
+    to those of other activities?" — names an activity, but that name is *not* a
+    parameter here: the figure has to keep showing every activity for the
+    comparison to be possible, so choosing X would change nothing the renderers
+    read. The subject belongs in the question text, which an admin edits
+    directly (PATCH /admin/tasks/{id}); a control that alters no output is the
+    dead parameter this codebase has removed before.
+
+    `activities` does change the figure — it narrows which activities appear —
+    and empty, its default, means all of them, which is what the tuned
+    screenshots show.
+    """
+    import violation_profile
+    return [violation_profile.selection_param_for("activity")]
+
+
+PARAM_SPEC = _param_spec()
 
 
 RUBRIC = (
@@ -98,23 +117,19 @@ _VTYPE_FROM_TOKEN = {
 def _extract_trace_coverage(alignments):
     """Returns (trace_coverage Counter, n_traces int).
 
-    trace_coverage maps (activity, vtype) → number of distinct traces in which
-    that violation appears at least once.
+    trace_coverage maps (activity, move_type) -> number of distinct traces in
+    which that violation appears at least once — the Violation-profile kernel's
+    "activity" strategy, which is exactly this shape. Counting moved there so
+    the seven tasks of the class cannot drift apart on what a violation is.
     """
-    trace_coverage = Counter()
+    import violation_profile
+
     n_traces = len(alignments)
-    for aln in alignments:
-        seen = set()
-        for step in aln.get("alignment", []):
-            if not isinstance(step, (list, tuple)) or len(step) < 2:
-                continue
-            act, vtype = _classify_step(step[0], step[1])
-            if act is None:
-                continue
-            seen.add((act, vtype))
-        for pair in seen:
-            trace_coverage[pair] += 1
-    return trace_coverage, n_traces
+    profile = violation_profile.profile(alignments, "activity", n_traces=n_traces)
+    coverage = Counter()
+    for _, row in profile.iterrows():
+        coverage[(str(row["group"]), str(row["series"]))] = int(row["traces"])
+    return coverage, n_traces
 
 
 def _resolve_target(spec, trace_coverage):
@@ -531,7 +546,8 @@ def task11_flow_chart_elaborate(selected, trace_coverage, n_traces,
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
-def generate(log, alignments, output_dir, model_path=None, target_violations=None):
+def generate(log, alignments, output_dir, model_path=None, target_violations=None,
+             activities=None):
     """Generate all Task 11 SVGs into output_dir.
 
     target_violations: list of 'activity|move_type' strings (the predefined set
@@ -553,6 +569,21 @@ def generate(log, alignments, output_dir, model_path=None, target_violations=Non
             _save_empty(output_dir, f"task11_{name}.svg",
                         "No guideline violations found in this log.")
         return
+
+    # An activity selection narrows to that activity's violations, keeping both
+    # move types. Empty — the default — keeps every activity, which is what the
+    # tuned screenshots show and what the comparison question needs.
+    if activities:
+        wanted = {str(a).strip() for a in activities}
+        trace_coverage = Counter({pair: n for pair, n in trace_coverage.items()
+                                  if pair[0] in wanted})
+        if not trace_coverage:
+            logger.error("task11: none of the selected activities carry violations: %s",
+                         sorted(wanted))
+            for name in IDIOMS:
+                _save_empty(output_dir, f"task11_{name}.svg",
+                            "None of the selected activities carry violations.")
+            return
 
     # Resolve the predefined set.
     if target_violations:

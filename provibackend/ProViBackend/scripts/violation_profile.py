@@ -123,6 +123,25 @@ SELECTION_PARAMS = [
     PATTERN_SELECTION_PARAM,
 ]
 
+_SELECTION_PARAM_BY_STRATEGY = {
+    "move_type": MOVE_TYPE_SELECTION_PARAM,
+    "activity":  ACTIVITY_SELECTION_PARAM,
+    "pattern":   PATTERN_SELECTION_PARAM,
+}
+
+
+def selection_param_for(strategy: str) -> dict:
+    """The selection parameter for a task whose strategy is fixed in code.
+
+    Strips `visible_if`: with no strategy picker on the task there is nothing
+    for the condition to read, so /specify would evaluate it against an absent
+    value, decide the entry does not apply, and hide the only control the task
+    has.
+    """
+    entry = dict(_SELECTION_PARAM_BY_STRATEGY[strategy])
+    entry.pop("visible_if", None)
+    return entry
+
 #: Splits the log into sub-logs whose profiles are compared. Single-select: the
 #: figures put one sub-log per series, and two split attributes at once would be
 #: a cross-tabulation none of these idioms draw.

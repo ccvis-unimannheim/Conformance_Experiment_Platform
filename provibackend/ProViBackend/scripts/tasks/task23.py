@@ -17,7 +17,14 @@ IDIOMS = ["bar_chart", "stacked_bar", "table", "table_and_bar_chart", "matrix",
           "parallel_sets"]
 
 
-PARAM_SPEC = []
+def _param_spec():
+    """Only the pattern selection: task23 asks how the patterns differ from one
+    another, so the unit is the pattern and the grouping is not a choice."""
+    import violation_profile
+    return [violation_profile.selection_param_for("pattern")]
+
+
+PARAM_SPEC = _param_spec()
 
 
 RUBRIC = (
@@ -66,9 +73,30 @@ _MOVE_ORDER  = ["Model Move", "Log Move", "Mismatch Move"]
 # Data helper
 # ---------------------------------------------------------------------------
 
-def _task23_build_pattern_df(alignments) -> pd.DataFrame:
-    """Pattern aggregation; shared implementation lives in shared.build_violation_pattern_df."""
-    return build_violation_pattern_df(alignments)
+def _task23_build_pattern_df(alignments, selection=None) -> pd.DataFrame:
+    """One row per violation pattern, in the columns task23's idioms read.
+
+    Counting is the Violation-profile kernel's, shared with the six other tasks
+    of this class; `pct` is the share of all violation occurrences, which is
+    what this task's tables have always shown.
+    """
+    import violation_profile
+
+    prof = violation_profile.profile(alignments, "pattern", selection=selection,
+                                     n_traces=len(alignments))
+    cols = ["pattern", "activity", "move_type", "count", "n_traces", "pct"]
+    if prof.empty:
+        return pd.DataFrame(columns=cols)
+    pairs = [violation_profile.parse_pattern(g) for g in prof["group"]]
+    out = pd.DataFrame({
+        "pattern": prof["group"],
+        "activity": [p[0] if p else "" for p in pairs],
+        "move_type": [p[1] if p else "" for p in pairs],
+        "count": prof["count"],
+        "n_traces": prof["traces"],
+        "pct": prof["pct_count"],
+    })
+    return out.reset_index(drop=True)
 
 
 def _empty_svg(output_dir: str, fname: str, title: str):
@@ -347,12 +375,12 @@ def task23_parallel_sets(pat_df: pd.DataFrame, output_dir: str):
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def generate(alignments, output_dir: str, log=None):
+def generate(alignments, output_dir: str, log=None, violation_patterns=None):
     """Generate all Task ID 23 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 23 visualizations ---")
 
-    pat_df = _task23_build_pattern_df(alignments)
+    pat_df = _task23_build_pattern_df(alignments, selection=violation_patterns)
 
     if pat_df.empty:
         logger.warning("      task23: no violation moves found — emitting zero-state SVGs.")

@@ -211,7 +211,12 @@ def task24_flow_chart_and_table(diff: dict, output_dir: str):
     missing_activities    = diff["missing_activities"]
 
     rows = []
-    for (a, b) in sorted(observed_not_in_model, key=lambda e: -dfg_counts.get(e, 0)):
+    # Tie-break on the edge itself. Sorting a *set* by frequency alone leaves
+    # equal-frequency edges in set-iteration order, which changes with every
+    # Python process, so this table's rows were shuffled between runs of the
+    # same data — see the reproducibility note in
+    # docs/CONFORMANCE_ATTRIBUTE_CLASS.md.
+    for (a, b) in sorted(observed_not_in_model, key=lambda e: (-dfg_counts.get(e, 0), e)):
         rows.append(["Observed not in model", a, b, str(dfg_counts.get((a, b), 0))])
     for (a, b) in sorted(in_model_not_observed):
         rows.append(["In model, not observed", a, b, "—"])
