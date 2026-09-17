@@ -54,6 +54,21 @@ task10's bin presets are down to two, Standard and High-fitness focus; the
 "Study-defined categories" preset is gone. Standard is the default and what the
 frozen screenshots show, so they are unaffected.
 
+task03's compared attribute is now a parameter rather than throughput time
+fixed in code — `response_attribute`, `slot: response`, drawing its options from
+the same `log.candidate_attributes` the Attribute → Violation class uses. It is
+**not** that class's `attribute_set`: task03's figure has one attribute axis, so
+a multi-select would be a control the frozen renderers cannot honour, and the
+key sits in the response slot rather than the split slot. Empty keeps throughput
+time, and on that default all 262 rendered SVGs are unchanged.
+
+The value reaches `trace_features.split` with the registry's own value type
+rather than one guessed from the values. Guessing coerced attributes to float,
+which turned a resource id into a number: `resource::dominant` is 94% one
+resource, so its quantiles collapsed to a single bucket and the task drew an
+empty chart instead of the comparison — non-conformant traces are in fact 4.7×
+likelier to be handled by a resource other than the dominant one.
+
 Each swap was checked by computing both ways and comparing: task03's durations
 agreed to the last float over 13,087 traces, and task19's pattern sets agreed on
 every one of them.
@@ -187,5 +202,6 @@ which covers their three whichever they are.
   patterns directly rather than going through `split_feature`, and `violates::`
   features were not added: only one task in the class splits by violation, so
   the registry entry would have had a single consumer.
-* The pink tasks have no `slot` metadata on their parameters yet, unlike the
-  Attribute → Violation class.
+* The pink tasks are only partly slotted: task03's `response_attribute` carries
+  `slot: response`, but `conformant_threshold` and `conformance_bins` still
+  carry none, unlike the Attribute → Violation class.

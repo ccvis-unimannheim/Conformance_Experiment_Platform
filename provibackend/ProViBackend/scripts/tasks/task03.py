@@ -39,6 +39,17 @@ PARAM_SPEC = [
         "max": 1.0,
         "step": 0.01,
     },
+    {
+        "key": "response_attribute",
+        "slot": "response",
+        "label": "Attribute compared between the two groups (empty = throughput time)",
+        "hint": "Each group's traces are distributed over this attribute's buckets",
+        "widget": "select-one",
+        "source": "log.candidate_attributes",
+        "default": "",
+        "required": False,
+        "optional_hint": "(optional — empty compares throughput time)",
+    },
 ]
 
 
@@ -75,7 +86,7 @@ from matplotlib import gridspec
 from shared import (
     save_svg, make_table, auto_col_widths,
     draw_composition_stacked_bars, contrasting_text_color,
-    render_empty_state_svg, format_threshold,
+    render_empty_state_svg,
     GREY_DARK, GREY_LIGHTER, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
@@ -88,7 +99,9 @@ _GROUPS = ["Conformant", "Non-conformant"]
 
 # Shared figure title — the single title on *every* Task 3 idiom, at one font
 # size (FONT_TITLE), so no idiom exposes more/less framing than another.
-FIG_SUPTITLE = "Conformant vs. Non-conformant: Throughput Time"
+# Two registers, as before: the suptitle is Title Case, the column header
+# and legend title sentence case.
+_SUPTITLE_FMT = "Conformant vs. Non-conformant: {}"
 
 
 # ---------------------------------------------------------------------------
@@ -96,18 +109,23 @@ FIG_SUPTITLE = "Conformant vs. Non-conformant: Throughput Time"
 # ---------------------------------------------------------------------------
 
 def _task03_build_trace_rows(log, fitness_df: pd.DataFrame,
-                             conformant_threshold: float = 1.0) -> list:
-    """Pair each trace with its conformance label and its throughput time (hours).
+                             conformant_threshold: float = 1.0,
+                             response_attribute: str = "") -> list:
+    """Pair each trace with its conformance label and the compared attribute.
 
-    Throughput time is the single attribute every Task 3 idiom compares between
-    the Conformant and Non-conformant groups.
+    The attribute is whatever `response_attribute` names — throughput time by
+    default, which is what every Task 3 idiom compared before it was a choice.
+    Returns `(rows, value_type)`; the type comes from the registry rather than
+    being guessed from the values, so a categorical attribute is not coerced.
     """
     import trace_features
 
-    # Throughput time is a registry feature, so read it rather than walking the
-    # timestamps again — the two agreed to the last float, and one of them can
-    # now drift without the other.
-    durations, _ = trace_features.extract(log, trace_features.DURATION_KEY)
+    # Whichever attribute the admin picked, read as a registry feature rather
+    # than derived here; throughput time — the default — used to be computed by
+    # walking every trace's timestamps a second time.
+    key = response_attribute or trace_features.DURATION_KEY
+    values, value_type = trace_features.extract(log, key)
+    values, value_type = trace_features.as_bucketable(values, value_type)
 
     rows = []
     for i, trace in enumerate(log):
@@ -121,26 +139,39 @@ def _task03_build_trace_rows(log, fitness_df: pd.DataFrame,
             "group":          "Conformant" if fitness >= conformant_threshold else "Non-conformant",
             "fitness":        fitness,
             "num_events":     len(trace),
-            "duration_hours": float(durations[i] or 0.0),
+            # Left exactly as the registry returned it. Casting to float here
+            # turned a resource id into a number and a missing value into a
+            # real 0, so a categorical attribute quantile-collapsed into one
+            # bucket and drew an empty chart instead of a comparison.
+            "value":          values[i],
         })
-    return rows
+    return rows, value_type
 
 
-def _task03_throughput_buckets(trace_rows: list, n_buckets: int = N_TIME_BUCKETS):
-    """Quartile-bucket the throughput times; return (labels, {group: counts_per_bucket})
-    or None if there's not enough variance to bucket."""
-    durations = np.array([r["duration_hours"] for r in trace_rows], dtype=float)
-    if durations.size < 2 or np.unique(durations).size < 2:
+def _task03_throughput_buckets(trace_rows: list, n_buckets: int = N_TIME_BUCKETS,
+                               unit: str = "h", value_type: str = "numeric"):
+    """Bucket the compared attribute; return (labels, {group: counts_per_bucket})
+    or None if there's not enough variance to bucket.
+
+    Numeric attributes get quantile ranges, categorical ones their top-N values
+    plus Other — `trace_features.split` picks, from the registry's value type.
+    """
+    import trace_features
+
+    values = [r["value"] for r in trace_rows]
+    result = trace_features.split(values, value_type, cap=n_buckets)
+    if not result or len(result.labels) < 2:
         return None
-    edges = np.unique(np.quantile(durations, np.linspace(0, 1, n_buckets + 1)))
-    if len(edges) < 2:
-        return None
-    labels = [f"{format_threshold(edges[i])}–{format_threshold(edges[i + 1])}h"
-              for i in range(len(edges) - 1)]
+    # A quartile label reads as a range, so it needs the unit the numbers are in;
+    # the registry's throughput feature is in hours. A category name is already
+    # a name and takes no unit.
+    suffix = unit if value_type == "numeric" else ""
+    labels = [f"{lab}{suffix}" for lab in result.labels]
     counts = {g: [0] * len(labels) for g in _GROUPS}
-    for r in trace_rows:
-        b = int(np.clip(np.digitize([r["duration_hours"]], edges[1:-1])[0], 0, len(labels) - 1))
-        counts[r["group"]][b] += 1
+    index = {lab: i for i, lab in enumerate(result.labels)}
+    for r, assigned in zip(trace_rows, result.assignment):
+        if assigned is not None:
+            counts[r["group"]][index[assigned]] += 1
     return labels, counts
 
 
@@ -174,7 +205,9 @@ def _task03_throughput_bucket_rows(throughput_buckets):
 # Idioms — every one shows the SAME throughput-time bucket comparison
 # ---------------------------------------------------------------------------
 
-def task03_bar_chart(throughput_buckets, output_dir: str):
+def task03_bar_chart(throughput_buckets, output_dir: str,
+                      attr_label: str = "Throughput time",
+                      attr_title: str = "Throughput Time"):
     """Grouped bars: share (%) of each group's traces per throughput-time quartile
     bucket (normalised within group), Conformant vs. Non-conformant."""
     fig, ax = plt.subplots(figsize=(9, 5.5))
@@ -211,15 +244,17 @@ def task03_bar_chart(throughput_buckets, output_dir: str):
     if handles:
         fig.legend(handles, lbls, loc="lower center", bbox_to_anchor=(0.5, 0.0),
                    ncol=2, frameon=False, fontsize=FONT_ANNOT)
-    fig.suptitle(FIG_SUPTITLE, fontsize=FONT_TITLE)
+    fig.suptitle(_SUPTITLE_FMT.format(attr_title), fontsize=FONT_TITLE)
     fig.tight_layout(rect=[0, 0.07, 1, 0.94])
     save_svg(fig, os.path.join(output_dir, "task03_bar_chart.svg"))
 
 
-def task03_table(throughput_buckets, output_dir: str):
+def task03_table(throughput_buckets, output_dir: str,
+                  attr_label: str = "Throughput time",
+                  attr_title: str = "Throughput Time"):
     """One table: throughput-time quartile buckets × per-group within-group share (%)."""
     throughput_rows   = _task03_throughput_bucket_rows(throughput_buckets)
-    throughput_labels = ["Throughput time", "Conformant (% of group)", "Non-conformant (% of group)"]
+    throughput_labels = [attr_label, "Conformant (% of group)", "Non-conformant (% of group)"]
 
     fig_h = max(4.0, 1.4 + max(1, len(throughput_rows)) * 0.5)
     fig = plt.figure(figsize=(9, fig_h))
@@ -230,15 +265,17 @@ def task03_table(throughput_buckets, output_dir: str):
         font_size=10, cell_pad=0.09,
     )
 
-    fig.suptitle(FIG_SUPTITLE, fontsize=FONT_TITLE, y=0.99)
+    fig.suptitle(_SUPTITLE_FMT.format(attr_title), fontsize=FONT_TITLE, y=0.99)
     save_svg(fig, os.path.join(output_dir, "task03_table.svg"))
 
 
-def task03_table_and_bar_chart(throughput_buckets, output_dir: str):
+def task03_table_and_bar_chart(throughput_buckets, output_dir: str,
+                                attr_label: str = "Throughput time",
+                                attr_title: str = "Throughput Time"):
     """Left: throughput-bucket table (within-group share % per group). Right: grouped
     horizontal bars of the same within-group shares — one encoding in two forms."""
     throughput_rows   = _task03_throughput_bucket_rows(throughput_buckets)
-    throughput_labels = ["Throughput time", "Conformant (% of group)", "Non-conformant (% of group)"]
+    throughput_labels = [attr_label, "Conformant (% of group)", "Non-conformant (% of group)"]
 
     fig_h = max(5.0, 1.6 + max(1, len(throughput_rows)) * 0.5)
     fig = plt.figure(figsize=(15, fig_h))
@@ -264,7 +301,7 @@ def task03_table_and_bar_chart(throughput_buckets, output_dir: str):
         ax_bar.set_yticklabels(labels, fontsize=FONT_ANNOT - 1)
         ax_bar.set_xlabel("% of group's traces", fontsize=FONT_LABEL)
     else:
-        ax_bar.text(0.5, 0.5, "No throughput-time variance", ha="center", va="center",
+        ax_bar.text(0.5, 0.5, f"{attr_label}: no variance to bucket", ha="center", va="center",
                     transform=ax_bar.transAxes, fontsize=FONT_ANNOT)
     ax_bar.spines[["top", "right"]].set_visible(False)
     ax_bar.xaxis.grid(True, linestyle="--", alpha=0.5)
@@ -274,19 +311,22 @@ def task03_table_and_bar_chart(throughput_buckets, output_dir: str):
     if handles:
         fig.legend(handles, lbls, loc="lower center", bbox_to_anchor=(0.5, 0.0),
                    ncol=2, frameon=False, fontsize=FONT_ANNOT)
-    fig.suptitle(FIG_SUPTITLE, fontsize=FONT_TITLE, y=0.99)
+    fig.suptitle(_SUPTITLE_FMT.format(attr_title), fontsize=FONT_TITLE, y=0.99)
     fig.tight_layout(rect=[0, 0.06, 1, 0.95])
     save_svg(fig, os.path.join(output_dir, "task03_table_and_bar_chart.svg"))
 
 
-def task03_stacked_bar(throughput_buckets, output_dir: str):
+def task03_stacked_bar(throughput_buckets, output_dir: str,
+                        attr_label: str = "Throughput time",
+                        attr_title: str = "Throughput Time"):
     """100%-stacked bar per conformance group; segments = throughput-time quartile
     buckets, segment height = share (%) of that group's traces in the bucket. The
     within-group normalisation keeps it consistent with the bar_chart / table /
     matrix idioms and makes the two distributions comparable despite group sizes."""
     path = os.path.join(output_dir, "task03_stacked_bar.svg")
     if throughput_buckets is None:
-        render_empty_state_svg(path, FIG_SUPTITLE, "No throughput-time variance.")
+        render_empty_state_svg(path, _SUPTITLE_FMT.format(attr_title),
+                               f"{attr_label}: no variance to bucket.")
         return
 
     labels, _ = throughput_buckets
@@ -305,13 +345,15 @@ def task03_stacked_bar(throughput_buckets, output_dir: str):
     if handles:
         fig.legend(handles, lbls, loc="lower center", bbox_to_anchor=(0.5, 0.0),
                    ncol=min(len(lbls), 4), frameon=False, fontsize=FONT_ANNOT,
-                   title="Throughput time", title_fontsize=FONT_ANNOT)
-    fig.suptitle(FIG_SUPTITLE, fontsize=FONT_TITLE)
+                   title=attr_label, title_fontsize=FONT_ANNOT)
+    fig.suptitle(_SUPTITLE_FMT.format(attr_title), fontsize=FONT_TITLE)
     fig.tight_layout(rect=[0, 0.10, 1, 0.93])
     save_svg(fig, path)
 
 
-def task03_matrix(throughput_buckets, output_dir: str):
+def task03_matrix(throughput_buckets, output_dir: str,
+                   attr_label: str = "Throughput time",
+                   attr_title: str = "Throughput Time"):
     """Numeric grid — each column filled with its conformance-group colour, the
     same cividis dark-blue / yellow the bar_chart and stacked_bar use (uniform
     per column, so it encodes the GROUP, not the value: distinct from a
@@ -319,7 +361,8 @@ def task03_matrix(throughput_buckets, output_dir: str):
     conformance group, cells = share (%) of that group's traces in the bucket."""
     path = os.path.join(output_dir, "task03_matrix.svg")
     if throughput_buckets is None:
-        render_empty_state_svg(path, FIG_SUPTITLE, "No throughput-time variance.")
+        render_empty_state_svg(path, _SUPTITLE_FMT.format(attr_title),
+                               f"{attr_label}: no variance to bucket.")
         return
 
     tt_labels, _ = throughput_buckets
@@ -354,7 +397,7 @@ def task03_matrix(throughput_buckets, output_dir: str):
     for spine in ax.spines.values():
         spine.set_visible(False)
 
-    fig.suptitle(FIG_SUPTITLE, fontsize=FONT_TITLE)
+    fig.suptitle(_SUPTITLE_FMT.format(attr_title), fontsize=FONT_TITLE)
     fig.tight_layout(rect=[0, 0, 1, 0.95])
     save_svg(fig, path)
 
@@ -364,13 +407,28 @@ def task03_matrix(throughput_buckets, output_dir: str):
 # ---------------------------------------------------------------------------
 
 
-def generate(log, fitness_df, output_dir: str, conformant_threshold: float = 1.0):
-    """Generate all Task ID 3 SVGs into output_dir (throughput-time comparison)."""
+def generate(log, fitness_df, output_dir: str, conformant_threshold: float = 1.0,
+             response_attribute: str = ""):
+    """Generate all Task ID 3 SVGs into output_dir.
+
+    `response_attribute` is what the two conformance groups are compared on;
+    empty keeps throughput time, which is what the task was fixed to before.
+    """
+    import trace_features
+
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 3 visualizations ---")
 
-    trace_rows = _task03_build_trace_rows(log, fitness_df,
-                                          conformant_threshold=conformant_threshold)
+    key = response_attribute or trace_features.DURATION_KEY
+    if key == trace_features.DURATION_KEY:
+        attr_label, attr_title, unit = "Throughput time", "Throughput Time", "h"
+    else:
+        attr_label = attr_title = trace_features.label_for(key)
+        unit = ""
+
+    trace_rows, value_type = _task03_build_trace_rows(
+        log, fitness_df, conformant_threshold=conformant_threshold,
+        response_attribute=response_attribute)
     n_c  = sum(1 for r in trace_rows if r["group"] == "Conformant")
     n_nc = len(trace_rows) - n_c
     logger.info(f"      -> Conformant: {n_c}  |  Non-conformant: {n_nc}"
@@ -381,12 +439,13 @@ def generate(log, fitness_df, output_dir: str, conformant_threshold: float = 1.0
     if n_nc == 0:
         logger.warning("      No non-conformant traces — Non-conformant group is empty.")
 
-    throughput_buckets = _task03_throughput_buckets(trace_rows)
+    throughput_buckets = _task03_throughput_buckets(trace_rows, unit=unit,
+                                                    value_type=value_type)
     if throughput_buckets is not None:
-        logger.info(f"      -> {len(throughput_buckets[0])} throughput-time buckets.")
+        logger.info(f"      -> {len(throughput_buckets[0])} {attr_label} buckets.")
 
-    task03_bar_chart(throughput_buckets, output_dir)
-    task03_table(throughput_buckets, output_dir)
-    task03_table_and_bar_chart(throughput_buckets, output_dir)
-    task03_stacked_bar(throughput_buckets, output_dir)
-    task03_matrix(throughput_buckets, output_dir)
+    task03_bar_chart(throughput_buckets, output_dir, attr_label, attr_title)
+    task03_table(throughput_buckets, output_dir, attr_label, attr_title)
+    task03_table_and_bar_chart(throughput_buckets, output_dir, attr_label, attr_title)
+    task03_stacked_bar(throughput_buckets, output_dir, attr_label, attr_title)
+    task03_matrix(throughput_buckets, output_dir, attr_label, attr_title)
