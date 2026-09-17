@@ -50,6 +50,7 @@ RESOURCE_DOMINANT_KEY = "resource::dominant"
 RESOURCE_FIRST_KEY = "resource::first"
 RESOURCE_LAST_KEY = "resource::last"
 RESOURCE_N_DISTINCT_KEY = "resource::n_distinct"
+CONFORMANCE_KEY = "conformance::value"
 
 _ACTIVITY_ATTR = "concept:name"
 _RESOURCE_ATTR = "org:resource"
@@ -247,7 +248,8 @@ def _activity_stats(log) -> tuple[dict, list[str]]:
 # Discovery
 # ---------------------------------------------------------------------------
 
-def discover_features(log, activity_cap: Optional[int] = None) -> list[Feature]:
+def discover_features(log, activity_cap: Optional[int] = None,
+                      fitness_per_trace=None) -> list[Feature]:
     """Every trace-level feature this log supports, as Feature rows.
 
     ``activity_cap`` limits how many activities get ``contains::`` / ``count::``
@@ -257,6 +259,13 @@ def discover_features(log, activity_cap: Optional[int] = None) -> list[Feature]:
 
     Needs only the event log: no model, no alignments. The picker used to
     compute alignments purely to reach the throughput column.
+
+    ``fitness_per_trace`` adds the one feature the log alone cannot supply —
+    conformance itself. It is what the Conformance → Attribute tasks split by,
+    and it is a predictor there rather than a response: they ask what
+    distinguishes conformant traces, not what causes non-conformance, so no
+    circularity arises as long as the measured response is not also alignment-
+    derived.
     """
     n_traces = len(log)
     if n_traces == 0:
@@ -267,7 +276,19 @@ def discover_features(log, activity_cap: Optional[int] = None) -> list[Feature]:
     features.extend(_data_features(log))
     features.extend(_resource_features(log))
     features.extend(_time_features(log))
+    if fitness_per_trace is not None:
+        features.extend(_conformance_features(fitness_per_trace))
     return features
+
+
+def _conformance_features(fitness_per_trace) -> list:
+    values = [None if _is_missing(v) else float(v) for v in fitness_per_trace]
+    cardinality, coverage = _stats(values)
+    return [Feature(
+        key=CONFORMANCE_KEY, label="Conformance (fitness)", perspective="control-flow",
+        source="alignment", value_type="numeric", requires="log+alignment",
+        cardinality=cardinality, coverage=coverage,
+    )]
 
 
 def _control_flow_features(log, activity_cap: Optional[int]) -> list[Feature]:
@@ -469,6 +490,13 @@ def label_for(key: str) -> str:
     Callers that hold only the key (a saved ``attribute_set``, say) get the same
     wording the picker showed, instead of falling back to the raw key.
     """
+    if key == CONFORMANCE_KEY:
+        if fitness_per_trace is None:
+            raise KeyError(
+                f"'{key}' is alignment-derived — pass fitness_per_trace to read it."
+            )
+        return ([None if _is_missing(v) else float(v) for v in fitness_per_trace], "numeric")
+
     if key.startswith(CONTAINS_PREFIX):
         return f"Contains '{key[len(CONTAINS_PREFIX):]}'"
     if key.startswith(COUNT_PREFIX):
@@ -480,6 +508,7 @@ def label_for(key: str) -> str:
         RESOURCE_FIRST_KEY: "Executor (first event)",
         RESOURCE_LAST_KEY: "Executor (last event)",
         RESOURCE_N_DISTINCT_KEY: "Number of distinct executors",
+        CONFORMANCE_KEY: "Conformance (fitness)",
         DURATION_KEY: "Throughput time (h)",
         START_TIME_KEY: "Trace start time",
     }
@@ -592,7 +621,8 @@ def default_strategy(value_type: str) -> str:
 
 def split(values, value_type: str, strategy: Optional[str] = None,
           cap: Optional[int] = None, label_prefix: Optional[str] = None,
-          missing_policy: str = "drop", granularity: Optional[str] = None) -> Split:
+          missing_policy: str = "drop", granularity: Optional[str] = None,
+          edges=None, cut: Optional[float] = None) -> Split:
     """Assign each trace to a group.
 
     Replaces two separate bucketers that disagreed on the numeric case:
@@ -606,6 +636,11 @@ def split(values, value_type: str, strategy: Optional[str] = None,
     quantiles, since an even split of dates reads as arbitrary ranges while
     "2011-10", "2011-11" reads as a timeline. ``granularity`` picks the period;
     without one the finest that yields at least two periods is used.
+
+    ``edges`` and ``cut`` name the boundaries instead of deriving them: a
+    conformance scale has meaningful cut points (1.0 is perfect, 0.8 is a
+    convention) that quantiles of the observed data would never land on, and a
+    study that fixes its categories needs the same bins whatever the log holds.
 
     ``label_prefix`` reproduces task30's "ATTR = value" / "ATTR ≤ x" wording;
     without it labels are bare, as task13 renders them. ``missing_policy``
@@ -633,7 +668,8 @@ def split(values, value_type: str, strategy: Optional[str] = None,
     if value_type == "ordinal" and strategy == "ordered_bins":
         result = _split_calendar(values, cap, label_prefix, meta, granularity)
     elif strategy in ("binary", "ordered_bins"):
-        result = _split_numeric(values, strategy, cap, label_prefix, meta)
+        result = _split_numeric(values, strategy, cap, label_prefix, meta,
+                                edges=edges, cut=cut)
     else:
         result = _split_nominal(values, cap, label_prefix, meta)
 
@@ -651,7 +687,7 @@ def _finish(result: Split, values: list, missing_policy: str) -> Split:
                  result.strategy, result.value_type, result.meta)
 
 
-def _split_numeric(values, strategy, cap, label_prefix, meta) -> Split:
+def _split_numeric(values, strategy, cap, label_prefix, meta, edges=None, cut=None) -> Split:
     import numpy as np
     import pandas as pd
     from shared import format_threshold
@@ -663,28 +699,39 @@ def _split_numeric(values, strategy, cap, label_prefix, meta) -> Split:
         return Split([], [None] * len(values), strategy, meta["type"], meta)
 
     if strategy == "binary":
-        median = float(np.median(present))
+        median = float(cut) if cut is not None else float(np.median(present))
         meta["median"] = median
+        meta["cut"] = median
         if float(present.max()) - float(present.min()) < 1e-12:
             # Every trace carries the same value: one group, not a split.
             label = (f"{label_prefix} = {format_threshold(median)}" if label_prefix
                      else format_threshold(median))
             assignment = [None if pd.isna(x) else label for x in numbers]
             return Split([label], assignment, strategy, meta["type"], meta)
-        if label_prefix:
-            low = f"{label_prefix} ≤ {format_threshold(median)}"
-            high = f"{label_prefix} > {format_threshold(median)}"
+        # A median splits the data in two, so the midpoint belongs to the lower
+        # half. A named threshold means "at or above this counts", so the cut
+        # point belongs to the upper one — "conformant at 1.0" has to include
+        # the traces that fit exactly.
+        if cut is not None:
+            below, at_or_above = "<", "≥"
+            in_low = lambda x: x < median
         else:
-            low = f"≤ {format_threshold(median)}"
-            high = f"> {format_threshold(median)}"
-        assignment = [None if pd.isna(x) else (low if x <= median else high) for x in numbers]
+            below, at_or_above = "≤", ">"
+            in_low = lambda x: x <= median
+        edge = format_threshold(median)
+        low = f"{label_prefix} {below} {edge}" if label_prefix else f"{below} {edge}"
+        high = f"{label_prefix} {at_or_above} {edge}" if label_prefix else f"{at_or_above} {edge}"
+        assignment = [None if pd.isna(x) else (low if in_low(x) else high) for x in numbers]
         return Split([low, high], assignment, strategy, meta["type"], meta)
 
     # ordered_bins
     if present.nunique() < 2 or len(present) < 2:
         return Split([], [None] * len(values), strategy, meta["type"], meta)
-    bins = cap or DEFAULT_BIN_COUNT
-    edges = np.unique(np.quantile(present, np.linspace(0, 1, bins + 1)))
+    if edges is not None:
+        edges = np.asarray(sorted(float(e) for e in edges), dtype=float)
+    else:
+        bins = cap or DEFAULT_BIN_COUNT
+        edges = np.unique(np.quantile(present, np.linspace(0, 1, bins + 1)))
     if len(edges) < 2:
         return Split([], [None] * len(values), strategy, meta["type"], meta)
     labels = [f"{format_threshold(edges[i])}–{format_threshold(edges[i + 1])}"
@@ -768,13 +815,20 @@ def _split_nominal(values, cap, label_prefix, meta) -> Split:
     return Split(labels, assignment, "nominal_n", meta["type"], meta)
 
 
-def extract(log, key: str) -> tuple[list, str]:
+def extract(log, key: str, fitness_per_trace=None) -> tuple[list, str]:
     """Per-trace values for one feature key, as ``(values, value_type)``.
 
     One entry per trace, in log order, None where the trace carries no value.
     Raises KeyError for a key this log does not support, so a stale
     ``attribute_set`` fails loudly instead of rendering an empty panel.
     """
+    if key == CONFORMANCE_KEY:
+        if fitness_per_trace is None:
+            raise KeyError(
+                f"'{key}' is alignment-derived — pass fitness_per_trace to read it."
+            )
+        return ([None if _is_missing(v) else float(v) for v in fitness_per_trace], "numeric")
+
     if key.startswith(CONTAINS_PREFIX):
         activity = key[len(CONTAINS_PREFIX):]
         return ([activity in {str(ev[_ACTIVITY_ATTR]) for ev in trace if _ACTIVITY_ATTR in ev}
