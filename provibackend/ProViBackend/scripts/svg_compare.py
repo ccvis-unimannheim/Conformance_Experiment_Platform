@@ -28,13 +28,13 @@ import sys
 # A hex run long enough to be a generated name, wherever it appears.
 _ID = re.compile(r"[0-9a-f]{8,}")
 # The payload of an embedded image, which is base64 and usually very long.
-_B64 = re.compile(r'(xlink:href="data:image/png;base64,)([A-Za-z0-9+/=\s]+)(")')
+_B64_PNG = re.compile(r'(data:image/png;base64,)([A-Za-z0-9+/=\s]+)')
+_B64_SVG = re.compile(r'(data:image/svg\+xml;base64,)([A-Za-z0-9+/=\s]+)')
 
 
 def normalise(path) -> str:
     """The SVG at *path* with its run-to-run noise removed."""
     text = open(path, encoding="utf-8").read()
-    text = re.sub(r"<dc:date>.*?</dc:date>", "<dc:date/>", text, flags=re.S)
 
     def raster(m):
         payload = re.sub(r"\s+", "", m.group(2))
@@ -42,9 +42,21 @@ def normalise(path) -> str:
             size = len(base64.b64decode(payload))
         except Exception:
             size = len(payload)
-        return f"{m.group(1)}[{size} bytes]{m.group(3)}"
+        return f"{m.group(1)}[{size} bytes]"
 
-    text = _B64.sub(raster, text)
+    def inner_svg(m):
+        # A nested SVG carries random ids of its own, so inline its text and let
+        # the id pass below renumber those too.
+        payload = re.sub(r"\s+", "", m.group(2))
+        try:
+            return m.group(1) + base64.b64decode(payload).decode("utf-8", "replace")
+        except Exception:
+            return m.group(0)
+
+    text = _B64_SVG.sub(inner_svg, text)
+    text = _B64_PNG.sub(raster, text)
+    # After inlining, so a nested SVG's own creation date goes too.
+    text = re.sub(r"<dc:date>.*?</dc:date>", "<dc:date/>", text, flags=re.S)
 
     mapping: dict = {}
 
@@ -57,14 +69,14 @@ def normalise(path) -> str:
     return _ID.sub(rename, text)
 
 
-#: Idioms this cannot compare at all. parallel_sets emits different ribbon
-#: coordinates on every run — it is not reproducible, which is worth knowing
-#: independently of any refactor.
-UNCOMPARABLE = ("parallel_sets",)
-
-
 def comparable(path) -> bool:
-    return not any(name in str(path) for name in UNCOMPARABLE)
+    """Every idiom is comparable once the noise above is removed.
+
+    An earlier version excluded parallel_sets and the raster idioms; both turned
+    out to be artefacts of an incomplete normaliser rather than real
+    nondeterminism, so nothing is excluded now.
+    """
+    return True
 
 
 if __name__ == "__main__":

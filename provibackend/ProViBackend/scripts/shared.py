@@ -277,6 +277,20 @@ def alignment_pairs_to_rows(alignment):
     return rows_out
 
 
+def most_common_stable(counter, n=None):
+    """`Counter.most_common`, with ties broken by the key instead of by luck.
+
+    `most_common` leaves equal counts in insertion order, and these counters are
+    filled by iterating sets and frozensets — whose order changes with every
+    Python process, since strings hash differently each run. Two runs of the
+    same task therefore ranked tied items differently and drew different charts.
+    Ties are not rare here: a Log Move and a Model Move on one activity usually
+    touch exactly the same traces.
+    """
+    ordered = sorted(counter.items(), key=lambda kv: (-kv[1], str(kv[0])))
+    return ordered if n is None else ordered[:n]
+
+
 def classify_step(observed_raw, expected_raw):
     """Classify one PM4Py alignment step into (activity, violation_type) or (None, None).
 

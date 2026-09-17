@@ -50,7 +50,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
-from shared import save_svg, make_table, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS_R, FONT_TITLE, FONT_LABEL, FONT_ANNOT, contrasting_text_color, classify_step as _classify_step
+from shared import most_common_stable, save_svg, make_table, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS_R, FONT_TITLE, FONT_LABEL, FONT_ANNOT, contrasting_text_color, classify_step as _classify_step
 
 # ── Cividis palette ───────────────────────────────────────────────────────────
 _C_DARK   = GREY_DARK
@@ -181,7 +181,7 @@ def _no_violations(output_dir, name):
 
 def _sorted_selected(selected, trace_coverage):
     """Return selected pairs sorted by trace count descending."""
-    return sorted(selected, key=lambda p: -trace_coverage.get(p, 0))
+    return sorted(selected, key=lambda p: (-trace_coverage.get(p, 0), str(p)))
 
 
 # ── Idiom 1: Bar Chart — trace count per predefined violation ─────────────────
@@ -207,7 +207,7 @@ def task11_bar_chart(selected, trace_coverage, n_traces, output_dir):
         _no_violations(output_dir, "bar_chart")
         return
 
-    ordered_acts = sorted(acts, key=lambda a: -(acts[a]["Move on Model"] + acts[a]["Move on Log"]))
+    ordered_acts = sorted(acts, key=lambda a: (-(acts[a]["Move on Model"] + acts[a]["Move on Log"]), str(a)))
     model_counts = [acts[a]["Move on Model"] for a in ordered_acts]
     log_counts   = [acts[a]["Move on Log"] for a in ordered_acts]
     labels       = [_short_label(a, 22) for a in ordered_acts]
@@ -279,7 +279,7 @@ def task11_matrix(selected, trace_coverage, n_traces, output_dir):
     act_score = {}
     for act, vt in selected:
         act_score[act] = act_score.get(act, 0) + trace_coverage.get((act, vt), 0)
-    selected_acts = sorted(act_score, key=lambda a: -act_score[a])
+    selected_acts = sorted(act_score, key=lambda a: (-act_score[a], str(a)))
 
     n_rows = len(selected_acts)
     n_cols = len(selected_vtypes)
@@ -562,7 +562,7 @@ def generate(log, alignments, output_dir, model_path=None, target_violations=Non
                 "task11: none of the specified violations were found in the log. "
                 "Specified: %s. Available: %s",
                 target_violations,
-                [f"{a}|{v}" for (a, v) in trace_coverage.most_common(20)],
+                [f"{a}|{v}" for (a, v), _ in most_common_stable(trace_coverage, 20)],
             )
             for name in IDIOMS:
                 _save_empty(output_dir, f"task11_{name}.svg",
@@ -575,7 +575,7 @@ def generate(log, alignments, output_dir, model_path=None, target_violations=Non
             logger.warning("task11: unresolved violation specs (ignored): %s", dropped)
     else:
         # Fallback: show all violations sorted by trace count
-        selected = [pair for pair, _ in trace_coverage.most_common()]
+        selected = [pair for pair, _ in most_common_stable(trace_coverage)]
         logger.info("task11: no violations specified — showing all %d distinct violations.",
                     len(selected))
 

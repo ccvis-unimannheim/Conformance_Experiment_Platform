@@ -40,7 +40,7 @@ import matplotlib.patches as mpatches
 import matplotlib.colors as mcolors
 import matplotlib.cm as cm
 
-from shared import save_svg, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS, CIVIDIS_R, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
+from shared import most_common_stable, save_svg, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS, CIVIDIS_R, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
 
 # ── Cividis palette ───────────────────────────────────────────────────────────
 _C_DARK   = GREY_DARK
@@ -92,7 +92,7 @@ def _extract_data(alignments):
 
 
 def _top_activities(activity_totals, n=_TOP_N):
-    return [act for act, _ in activity_totals.most_common(n)]
+    return [act for act, _ in most_common_stable(activity_totals, n)]
 
 
 def _short_label(label, max_len=26):
@@ -511,7 +511,7 @@ def _infer_activity_order(alignments):
     if not pos_sum:
         return []
     avg = {a: pos_sum[a] / pos_cnt[a] for a in pos_sum}
-    return sorted(avg, key=avg.get)
+    return sorted(avg, key=lambda k: (avg[k], str(k)))
 
 
 def _violation_shade(rate):
@@ -923,7 +923,7 @@ def _make_bpmn_t11_svg(selected, trace_coverage, n_traces, activity_totals,
             (_T11_VTYPE_SHORT.get(vt, vt), cnt, pct)
         )
     for act in act_viols:
-        act_viols[act].sort(key=lambda x: -x[1])
+        act_viols[act].sort(key=lambda x: (-x[1], str(x[0])))
 
     max_v = max(activity_totals.values()) if activity_totals else 1
 

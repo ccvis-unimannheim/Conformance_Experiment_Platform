@@ -41,7 +41,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
-from shared import save_svg, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS, CIVIDIS_R, FONT_TITLE, FONT_ANNOT
+from shared import most_common_stable, save_svg, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS, CIVIDIS_R, FONT_TITLE, FONT_ANNOT
 
 # ── Cividis palette ──────────────────────────────────────────────────────────
 _C_DARK   = GREY_DARK      # dark navy   (highest emphasis)
@@ -157,7 +157,7 @@ def _extract_violation_data(alignments):
 
 
 def _top_violations(violation_freq, n=_TOP_N):
-    return [v for v, _ in violation_freq.most_common(n)]
+    return [v for v, _ in most_common_stable(violation_freq, n)]
 
 
 def _viol_label(v) -> str:
@@ -317,9 +317,13 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count, 
         _no_violations(output_dir, "network_diagram")
         return
 
-    top   = set(_top_violations(violation_freq, _TOP_N))
+    # Keep the ranked order: nodes enter the graph in this sequence, and both
+    # layouts place them by insertion order, so a set here would undo the stable
+    # ranking and move every node between runs.
+    top = _top_violations(violation_freq, _TOP_N)
+    top_set = set(top)
     pairs = [(a, b, cnt) for (a, b), cnt in cooccurrence.items()
-             if a in top and b in top and cnt >= _MIN_COOCCUR]
+             if a in top_set and b in top_set and cnt >= _MIN_COOCCUR]
 
     if not pairs:
         _save_empty(output_dir, "task08_network_diagram.svg",
@@ -383,7 +387,7 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count, 
 
     # Edge weight labels: drawn manually at midpoint, pushed perpendicular
     # to avoid overlapping the edge line or nearby nodes
-    top_edges = sorted(zip(edges, weights), key=lambda x: -x[1])[:8]
+    top_edges = sorted(zip(edges, weights), key=lambda x: (-x[1], str(x[0])))[:8]
     for (u, v), w in top_edges:
         x0, y0 = pos[u]
         x1, y1 = pos[v]
@@ -437,7 +441,7 @@ def task08_table(violation_freq, cooccurrence, n_traces, output_dir,
         _no_violations(output_dir, "table")
         return
 
-    top_pairs = cooccurrence.most_common(20)
+    top_pairs = most_common_stable(cooccurrence, 20)
     rows = []
     for (a, b), cnt in top_pairs:
         rows.append([

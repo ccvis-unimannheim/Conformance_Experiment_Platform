@@ -69,6 +69,7 @@ RUBRIC = (
 
 
 import os
+import re
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -1043,7 +1044,10 @@ def task20_parallel_sets(panels, output_dir, *, filename=None, suptitle=None,
             viol = round(rate / 100.0 * cnt)          # exact: rate = mean*100
             mat[i, 0] = viol
             mat[i, 1] = cnt - viol
-        left_labels = [f"{lab}  ({value_fmt.format(rate)} {vlabel_header})" for lab, rate in zip(labels, rates)]
+        # The number already carries the unit here, so the label wants the bare
+        # name: "3.1% Violation Rate", not "3.1% Violation Rate (%)".
+        name = re.sub(r"\s*\([^)]*\)\s*$", "", vlabel_header)
+        left_labels = [f"{lab}  ({value_fmt.format(rate)} {name})" for lab, rate in zip(labels, rates)]
         right_labels = ["Violation", "No violation"]
         left_colors = [_GREY_PALETTE[i % len(_GREY_PALETTE)] for i in range(len(labels))]
         draw_parallel_sets(
