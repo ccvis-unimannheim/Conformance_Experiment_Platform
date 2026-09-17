@@ -28,6 +28,19 @@ function StatusBadge({ status }) {
   );
 }
 
+// A PARAM_SPEC entry may declare `visible_if: {other_key: value}` — it applies
+// only when that other parameter holds that value. The Violation-profile class
+// uses it so the strategy picker's three selection lists don't all show at once,
+// two of them inert. An entry with no `visible_if` always applies.
+function entryApplies(entry, vals) {
+  const cond = entry.visible_if;
+  if (!cond) return true;
+  return Object.entries(cond).every(([key, want]) => {
+    const have = vals?.[key];
+    return Array.isArray(want) ? want.includes(have) : have === want;
+  });
+}
+
 // Generic param widget — renders per PARAM_SPEC entry (see docs/ADMIN_EXPERIMENT_SETUP.md).
 function ParamField({ entry, value, onChange }) {
   const options = entry.options || [];
@@ -350,6 +363,9 @@ function SpecifyContent() {
       const spec = paramSpecs[ti.task_id] || [];
       const vals = paramValues[ti.task_id] || {};
       for (const entry of spec) {
+        // A hidden entry does not apply, so it cannot be missing — otherwise
+        // Generate would block on a control the admin cannot even see.
+        if (!entryApplies(entry, vals)) continue;
         const v = vals[entry.key];
         const empty = v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
         if (entry.required && empty) {
@@ -510,7 +526,7 @@ function SpecifyContent() {
                       </p>
                     ) : (
                       <div className="grid grid-cols-2 gap-4">
-                        {spec.map((entry) => (
+                        {spec.filter((entry) => entryApplies(entry, vals)).map((entry) => (
                           <div key={entry.key} className="flex flex-col gap-1">
                             <label className="text-xs font-semibold text-on-surface">
                               {entry.label || entry.key}

@@ -711,6 +711,22 @@ def get_log_candidate_attributes(dataset_dir: str) -> list[dict]:
             if feature.value_type in trace_features.BUCKETABLE_TYPES]
 
 
+def get_log_violation_activities(dataset_dir: str) -> list[dict]:
+    """Activities carrying at least one violation, most traces first.
+
+    Powers the Violation-profile class's "activities" selection. Distinct from
+    `log.activities`, which lists every activity in the log: offering one with
+    no violations would put an empty group on the chart.
+    """
+    import violation_profile
+
+    alignments = get_or_compute_alignments(dataset_dir)
+    return [
+        {"value": activity, "label": f"{activity}  ({traces} traces, {pct:.1f}%)"}
+        for activity, traces, pct in violation_profile.activity_coverage(alignments)
+    ]
+
+
 def get_log_violated_activities_task34(dataset_dir: str) -> list[dict]:
     """Distinct violated activities for task34's admin dropdown.
 

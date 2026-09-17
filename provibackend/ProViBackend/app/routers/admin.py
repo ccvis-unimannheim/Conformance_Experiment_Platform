@@ -26,6 +26,7 @@ try:
         get_log_trace_ids,
         get_log_candidate_attributes,
         get_log_violated_activities_task34,
+        get_log_violation_activities,
         get_log_time_bins,
         _FILE_RENAME,
         _TASK_RENAME_SKIP,
@@ -44,6 +45,7 @@ except ImportError:
     get_log_trace_ids = None
     get_log_candidate_attributes = None
     get_log_violated_activities_task34 = None
+    get_log_violation_activities = None
     get_log_time_bins = None
     _FILE_RENAME = {}
     _TASK_RENAME_SKIP = {}
@@ -101,6 +103,7 @@ _LOG_TIME_GRANULARITIES_CACHE: dict[str, list[str]] = {}
 # Cache of distinct (activity, move_type) violation pairs (task11); alignment
 # computation is expensive, so results are cached in-process per dataset_id.
 _LOG_VIOLATIONS_CACHE: dict[str, list[dict]] = {}
+_LOG_VIOLATION_ACTS_CACHE: dict[str, list[dict]] = {}
 # Cache of top-10 worst-fitness traces (task34); alignment computation is shared
 # with _LOG_VIOLATIONS_CACHE but cached separately to avoid coupled invalidation.
 _LOG_WORST_TRACES_CACHE: dict[str, list[dict]] = {}
@@ -182,6 +185,17 @@ def _dataset_candidate_attributes(dataset_id: str) -> list[dict]:
     return attrs
 
 
+def _dataset_violation_activities(dataset_id: str) -> list[dict]:
+    """Activities carrying violations, for the Violation-profile class (cached)."""
+    if dataset_id in _LOG_VIOLATION_ACTS_CACHE:
+        return _LOG_VIOLATION_ACTS_CACHE[dataset_id]
+    if get_log_violation_activities is None:
+        return []
+    acts = get_log_violation_activities(str(DATA_DIRECTORY / dataset_id))
+    _LOG_VIOLATION_ACTS_CACHE[dataset_id] = acts
+    return acts
+
+
 def _dataset_violated_activities_task34(dataset_id: str) -> list[dict]:
     """Violated activities for task34's activity-picker dropdown (cached)."""
     if dataset_id in _LOG_VIOLATED_ACTS_TASK34_CACHE:
@@ -222,6 +236,7 @@ _MATRIX_AXIS_MAX = 16
 OPTION_SOURCES: list[dict] = [
     {"source": "log.activities",           "label": "Activities"},
     {"source": "log.violations",           "label": "Violation types (activity · move type)"},
+    {"source": "log.violation_activities", "label": "Activities carrying violations"},
     {"source": "log.candidate_attributes", "label": "Case-attribute buckets"},
     {"source": "log.time_bins",            "label": "Time bins", "granularity": True},
     {"source": "log.trace_ids",            "label": "Traces"},
@@ -243,6 +258,8 @@ def _param_candidates(source: str, dataset_id: str) -> list:
         return _dataset_trace_ids(dataset_id)
     if source == "log.candidate_attributes":
         return _dataset_candidate_attributes(dataset_id)
+    if source == "log.violation_activities":
+        return _dataset_violation_activities(dataset_id)
     if source == "log.violated_activities_task34":
         return _dataset_violated_activities_task34(dataset_id)
     return []
