@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AdminNav from "../../../../components/Admin/AdminNav";
 import { saveWizardStep } from "../../../../utils/wizardSave";
@@ -162,23 +162,6 @@ export default function KnowledgeSetupPage() {
   const [saveError, setSaveError] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
 
-  const fetchQuestions = useCallback(() => {
-    setLoading(true);
-    fetch("/api/admin/knowledge-questions")
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data) => {
-        const qs = Array.isArray(data) ? data : [];
-        setQuestions(qs);
-        // Pre-select all by default (empty list = all system; for new wizard step, select all)
-        setSelectedIds((prev) => {
-          if (prev.size > 0) return prev;
-          return new Set(qs.map((q) => q._id));
-        });
-      })
-      .catch(() => setError("Failed to load knowledge questions."))
-      .finally(() => setLoading(false));
-  }, []);
-
   // Also load the experiment's existing knowledge_question_ids to pre-populate selection
   useEffect(() => {
     if (!experimentId) return;
@@ -190,11 +173,14 @@ export default function KnowledgeSetupPage() {
         const allQs = Array.isArray(qs) ? qs : [];
         setQuestions(allQs);
         const exp = Array.isArray(exps) ? exps.find((e) => e._id === experimentId) : null;
+        // An empty saved selection is a choice, not an absence. Keying off
+        // length alone re-ticked every box on reload, so "Deselect All" never
+        // survived leaving the page.
         const existingIds = exp?.knowledge_question_ids;
-        if (existingIds && existingIds.length > 0) {
-          setSelectedIds(new Set(existingIds));
+        if (exp?.knowledge_questions_configured || existingIds?.length > 0) {
+          setSelectedIds(new Set(existingIds || []));
         } else {
-          // Default: select all questions
+          // Never chosen for this experiment: start from all questions.
           setSelectedIds(new Set(allQs.map((q) => q._id)));
         }
       })
@@ -318,6 +304,16 @@ export default function KnowledgeSetupPage() {
 
         {loading && <p className="text-body-sm text-secondary">Loading questions…</p>}
         {error && <p className="text-body-sm text-error">{error}</p>}
+
+        {/* Selecting none is allowed, but it removes a step from the journey —
+            say so here rather than letting the admin find out from a participant. */}
+        {!loading && !error && selectedIds.size === 0 && (
+          <p className="mb-6 text-body-sm text-on-surface-variant bg-surface-container border border-outline-variant rounded-lg px-4 py-3">
+            No questions selected — participants will skip the knowledge survey
+            entirely, going from the pre-questionnaire straight to the conformance
+            terms page.
+          </p>
+        )}
 
         {!loading && !error && (
           <div className="space-y-section-gap">

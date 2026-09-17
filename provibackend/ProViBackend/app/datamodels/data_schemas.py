@@ -240,7 +240,12 @@ class Experiment(BaseModel):
     dataset_ids: List[str]
     task_configs: List[TaskConfig] = []      # legacy flat view (mirror of task_instances)
     task_instances: List[TaskInstance] = []  # canonical: one entry per task
-    knowledge_question_ids: List[str] = []   # empty = use all system questions
+    # The questions this experiment asks. An empty list is a real answer — the
+    # admin deselected every one — so it cannot *also* mean "not chosen yet";
+    # that is what the flag below is for. Experiments written before the flag
+    # existed have it absent (False) and so keep the old all-system default.
+    knowledge_question_ids: List[str] = []
+    knowledge_questions_configured: bool = False
     prequestionnaire_sections: List[str] = ["personal_info", "academic_profile", "technical_expertise", "tool_experience"]  # enabled sections
     current_step: Optional[str] = None  # wizard route slug the admin last reached, e.g. "task", "specify"
     # Tasks an admin added for this experiment only (see POST

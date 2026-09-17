@@ -1934,7 +1934,12 @@ async def delete_knowledge_question(question_id: str):
 
 @router.patch("/experiments/{experiment_id}/knowledge-questions", tags=["admin"])
 async def update_experiment_knowledge_questions(experiment_id: str, body: ds.KnowledgeQuestionIds):
-    set_fields = {"knowledge_question_ids": body.knowledge_question_ids}
+    # Reaching this endpoint at all means the admin chose; an empty list is
+    # then "ask nothing", not "fall back to every system question".
+    set_fields = {
+        "knowledge_question_ids": body.knowledge_question_ids,
+        "knowledge_questions_configured": True,
+    }
     if body.current_step is not None:
         set_fields["current_step"] = body.current_step
     updated = dbc.update_document(

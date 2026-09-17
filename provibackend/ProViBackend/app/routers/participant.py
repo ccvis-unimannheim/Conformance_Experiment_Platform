@@ -183,6 +183,10 @@ def _get_experiment_knowledge_questions(exp: dict) -> list:
         questions = list(db["KnowledgeQuestion"].find({"_id": {"$in": kq_ids}}))
         id_order = {qid: i for i, qid in enumerate(kq_ids)}
         questions.sort(key=lambda q: id_order.get(q["_id"], 999))
+    elif exp.get("knowledge_questions_configured"):
+        # The admin deselected every question. This used to fall through to the
+        # branch below, so "Deselect All" silently asked all of them anyway.
+        questions = []
     else:
         questions = list(db["KnowledgeQuestion"].find({"is_system": True}))
     for q in questions:
