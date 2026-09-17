@@ -15,6 +15,8 @@ Visualizations (all SVG, white-grey-black palette):
 import logging
 logger = logging.getLogger(__name__)
 
+import violation_profile
+
 IDIOMS = [
     "bar_chart", "matrix",
     "table", "table_bar_chart",
@@ -195,8 +197,16 @@ def _no_violations(output_dir, name):
 
 
 def _sorted_selected(selected, trace_coverage):
-    """Return selected pairs sorted by trace count descending."""
-    return sorted(selected, key=lambda p: (-trace_coverage.get(p, 0), str(p)))
+    """The selected pairs in the order `generate` resolved them.
+
+    That order is the class's canonical one: activity-major, so an activity's
+    Model and Log moves are adjacent. It used to sort by trace count here, which
+    put "Ship Order (Model Move)" at the top of the table and its Log Move nine
+    rows below — while this task's own bar chart and matrix, being two
+    dimensional, showed them side by side. One task ordered the same data two
+    ways depending on the idiom.
+    """
+    return list(selected)
 
 
 # ── Idiom 1: Bar Chart — trace count per predefined violation ─────────────────
@@ -587,7 +597,9 @@ def generate(log, alignments, output_dir, model_path=None, target_violations=Non
 
     # Resolve the predefined set.
     if target_violations:
-        selected = _resolve_violations(target_violations, trace_coverage)
+        resolved = set(_resolve_violations(target_violations, trace_coverage))
+        selected = [p for p in violation_profile.ordered_pairs(alignments)
+                    if p in resolved]
         if not selected:
             logger.error(
                 "task11: none of the specified violations were found in the log. "
@@ -605,8 +617,9 @@ def generate(log, alignments, output_dir, model_path=None, target_violations=Non
         if dropped:
             logger.warning("task11: unresolved violation specs (ignored): %s", dropped)
     else:
-        # Fallback: show all violations sorted by trace count
-        selected = [pair for pair, _ in most_common_stable(trace_coverage)]
+        # Every violation, in the class's canonical order.
+        selected = [p for p in violation_profile.ordered_pairs(alignments)
+                    if p in trace_coverage]
         logger.info("task11: no violations specified — showing all %d distinct violations.",
                     len(selected))
 

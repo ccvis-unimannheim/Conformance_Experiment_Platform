@@ -461,6 +461,21 @@ def activity_coverage(alignments, n_traces: int = None):
             for _, r in per.iterrows()]
 
 
+def ordered_pairs(alignments, selection=None, select_by: str = "activity"):
+    """``(activity, move_type)`` pairs in this class's canonical order.
+
+    Activity-major, activities by total occurrences, move types in conceptual
+    order — the same rule ``profile`` applies, exposed for callers that keep
+    their own per-pair data and only need the order. task11 holds a trace-count
+    Counter and would otherwise have to rank activities by summing it, which
+    double-counts a trace that deviates both ways on one activity.
+    """
+    df = profile(alignments, "activity", selection=selection, select_by=select_by)
+    if df.empty:
+        return []
+    return [(str(r["group"]), str(r["series"])) for _, r in df.iterrows()]
+
+
 def violation_activities(alignments) -> list:
     """Activities that carry at least one violation, most traces first.
 

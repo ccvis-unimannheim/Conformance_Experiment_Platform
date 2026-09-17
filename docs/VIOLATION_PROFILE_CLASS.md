@@ -70,8 +70,18 @@ computed that exact ranking themselves, while its bar chart and two tables used
 the raw order. One task ordered the same data two ways depending on the idiom.
 That ranking now lives in the kernel and all six agree.
 
-task11 is untouched: its renderers work from their own coverage Counter rather
-than the profile's row order, so its frozen screenshots cannot move.
+task11 had the same split inside itself. Its bar chart and matrix are two
+dimensional — activity against move type — so an activity's two bars sit
+together by construction. Its table and table+bar chart were flat lists sorted
+by trace count, which put "Ship Order (Model Move)" third and its Log Move
+twelfth. All four now follow the kernel's order, through `ordered_pairs`: task11
+keeps a trace-count Counter, and ranking activities by summing it would
+double-count a trace deviating both ways on one activity, which is the same
+trap `activity_coverage` fell into.
+
+**This changes a frozen screenshot.** Picture 20 is that flat table, and it was
+frozen in the scattered state; the decision was to make the four idioms agree.
+Pictures 19 and 21 — the bar chart and matrix — are untouched.
 
 ---
 
