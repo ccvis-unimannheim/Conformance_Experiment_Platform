@@ -26,7 +26,6 @@ IDIOMS = ["bar_chart", "table", "table_and_bar_chart", "parallel_sets",
 RESPONSE_MEASURE = "fitness"
 SPLIT_STRATEGY = "binary"
 import trace_features
-import trace_response
 
 PARAM_SPEC = [
     {
@@ -40,7 +39,6 @@ PARAM_SPEC = [
         "required": True,
     },
     *trace_features.split_params_for('binary'),
-    trace_response.CONFORMANT_THRESHOLD_PARAM,
 ]
 
 

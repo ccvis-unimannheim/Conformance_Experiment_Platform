@@ -32,7 +32,15 @@ IDIOMS = [
 ]
 
 
+import trace_alignment
+
 PARAM_SPEC = [
+    *trace_alignment.selection_params(
+        rules=["worst_fitness", "first_nonconformant", "most_frequent_variants"],
+        default_rule="worst_fitness",
+        count_default=1, count_min=1, count_max=4,
+        unit=True,
+    ),
     {
         "key":      "violated_activity",
         "label":    "Activity to highlight violations for (the worst-fitness trace where this activity is violated will be shown)",
@@ -44,8 +52,18 @@ PARAM_SPEC = [
         "default":  None,
         "required": False,
         "optional_hint": "(optional — leave empty to show the overall worst-fitness trace)",
+        # A filter on the worst-fitness rule, not a rule of its own: it narrows
+        # the candidates to the traces violating this activity and then still
+        # takes the worst. Inert under any other rule, so /specify hides it.
+        "visible_if": {"trace_selection_mode": "auto", "trace_pick_rule": "worst_fitness"},
     },
 ]
+
+
+def validate_params(log, params) -> list:
+    """Task 34 presents one trace or a few; four is where the panels stop being
+    readable."""
+    return trace_alignment.validate_selection(log, params, min_traces=1, max_traces=4)
 
 
 RUBRIC = (
@@ -922,18 +940,102 @@ def _pick_ctx(ctxs, params):
     return ctxs[0]
 
 
+def _select_ctxs(ctxs, log, *, trace_ids=None, rule="worst_fitness", count=1,
+                 unit="trace", violated_activity=None):
+    """The contexts to show, in display order.
+
+    ``ctxs`` arrives sorted worst-first (most violations, then lowest fitness),
+    which *is* the worst_fitness rule — so the single-trace default returns
+    exactly what ``_pick_ctx`` always returned, and the frozen figures below
+    keep rendering from the same trace.
+    """
+    if not ctxs:
+        return []
+    by_index = {c["trace_index"]: c for c in ctxs}
+
+    if trace_ids:
+        index_of = trace_alignment.case_index(log)
+        chosen = [by_index[index_of[str(t)]] for t in trace_ids
+                  if str(t) in index_of and index_of[str(t)] in by_index]
+        if chosen:
+            return chosen[:max(count, len(trace_ids))]
+        # Every named trace is fully conformant (so has no context): fall through
+        # to the rule rather than rendering nothing at all.
+
+    if unit == "variant":
+        seen, pool = set(), []
+        for i in trace_alignment.variant_order(log, len(log)):
+            ctx = by_index.get(i)
+            if ctx is None:
+                continue
+            key = tuple(r["activity"] for r in ctx["rows"])
+            if key not in seen:
+                seen.add(key)
+                pool.append(ctx)
+    else:
+        pool = list(ctxs)
+
+    if rule == "first_nonconformant":
+        pool = sorted(pool, key=lambda c: c["trace_index"])
+    elif rule == "most_frequent_variants":
+        order = {i: rank for rank, i in enumerate(trace_alignment.variant_order(log, len(log)))}
+        pool = sorted(pool, key=lambda c: order.get(c["trace_index"], len(order)))
+    elif violated_activity:
+        # worst_fitness narrowed to the traces violating one activity.
+        narrowed = [c for c in pool
+                    if any(r["activity"] == violated_activity and _is_violation(r)
+                           for r in c["rows"])]
+        pool = narrowed or pool
+
+    return pool[:count]
+
+
+def _multi_trace_alignment_figures(log, alignments, shown, model_path, output_dir):
+    """Chevron, BPMN and move table for more than one trace.
+
+    Drawn by task04's renderers rather than by stacked copies of task34's
+    single-trace ones: comparing traces is task04's figure, and two tasks
+    drawing the same comparison two ways is what the trace-alignment class
+    exists to prevent. Only the output filename differs.
+    """
+    import tasks.task04 as task04
+
+    records = trace_alignment.trace_records(
+        log, alignments, [ctx["trace_index"] for ctx in shown])
+    task04.task04_flow_chart_basic(
+        records, output_dir, model_path=model_path,
+        filename="task34_flow_chart_basic.svg")
+    task04.task04_flow_chart_elaborate(
+        records, model_path, output_dir,
+        filename="task34_flow_chart_elaborate.svg")
+    task04.task04_table(
+        records, model_path, output_dir,
+        filename="task34_table.svg",
+        title="Violations by Activity Across Traces")
+
+
 # ── Ground truth ─────────────────────────────────────────────────────────────
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def generate(log, alignments, output_dir, model_path=None, violated_activity=None):
+def generate(log, alignments, output_dir, model_path=None, violated_activity=None,
+             trace_ids=None, trace_pick_rule="worst_fitness", trace_count=1,
+             trace_unit="trace"):
     """Generate all Task 34 SVGs into output_dir.
 
+    The task presents "one trace or few traces simultaneously". With one trace —
+    the default — every idiom draws that trace, as it always has. With more, the
+    three trace-alignment idioms (chevron, BPMN, move table) draw all of them
+    side by side through task04's renderers, which is what comparing traces
+    looks like in this class; the idioms that summarise a single trace
+    (bar/stacked/heatmap/matrix/…) stay on the first one, since stacking a
+    per-activity bar chart per trace answers a different question.
+
     violated_activity : str | None
-        Activity name chosen by the admin on /specify. The worst-fitness trace
-        where this activity is violated will be used as the representative trace.
-        Defaults to None (falls back to the overall worst-fitness trace).
+        Activity name chosen by the admin on /specify. Narrows the
+        ``worst_fitness`` rule to the traces where this activity is violated.
+        Defaults to None (the overall worst-fitness trace).
     """
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 34 visualizations ---")
@@ -951,25 +1053,33 @@ def generate(log, alignments, output_dir, model_path=None, violated_activity=Non
             _no_violations(output_dir, k)
         return
 
-    worst = _pick_ctx(ctxs, {"violated_activity": violated_activity})
+    shown = _select_ctxs(ctxs, log, trace_ids=trace_ids, rule=trace_pick_rule,
+                         count=trace_count, unit=trace_unit,
+                         violated_activity=violated_activity)
+    worst = shown[0] if shown else _pick_ctx(ctxs, {"violated_activity": violated_activity})
     log_act  = _log_activity_violations(alignments)
 
     logger.info(
         f"      Representative: {worst['trace_label']} "
         f"(fitness={worst['fitness']:.4f}, violations={worst['n_violations']})"
     )
+    if len(shown) > 1:
+        logger.info(f"      -> {len(shown)} traces shown side by side.")
 
     write_traces_sidecar(output_dir, [{
-        "label":      worst["trace_label"],
-        "activities": trace_activities(log[worst["trace_index"]]),
-    }])
+        "label":      ctx["trace_label"],
+        "activities": trace_activities(log[ctx["trace_index"]]),
+    } for ctx in (shown or [worst])])
 
     task34_bar_chart(worst,                         output_dir)
     task34_stacked_bar(worst,                       output_dir)
-    task34_table(worst,                             output_dir)
-    task34_flow_chart_basic(worst,                  output_dir)
+    if len(shown) > 1:
+        _multi_trace_alignment_figures(log, alignments, shown, model_path, output_dir)
+    else:
+        task34_table(worst,                         output_dir)
+        task34_flow_chart_basic(worst,              output_dir)
+        task34_flow_chart_elaborate(worst,          model_path, output_dir)
     task34_flow_chart_table(worst,                  output_dir)
-    task34_flow_chart_elaborate(worst,              model_path, output_dir)
     task34_flow_chart_elaborate_table(worst,        model_path, output_dir)
     task34_heatmap(worst,                           output_dir)
     task34_matrix(worst,                            output_dir)

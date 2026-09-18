@@ -35,22 +35,48 @@ IDIOMS = ["flow_chart_basic", "flow_chart_elaborate",
           "matrix", "heatmap"]
 
 
+import trace_alignment
+
+#: Task 4 is asked at two levels ("At the log level ... At the trace level ..."),
+#: and they are different pipelines, not two views of one: at log level the log
+#: is split into sub-logs and their conformance compared — task01's question and
+#: task01's figures — while at trace level the traces' alignments are compared.
+#: The level therefore routes generation, and each level's parameters are hidden
+#: at the other.
+LEVEL_PARAM = {
+    "key": "analysis_level",
+    "slot": "level",
+    "label": "Level the conformance is compared at",
+    "hint": "Whether the figures compare sub-logs or individual traces",
+    "widget": "select-one",
+    "options": [
+        {"value": "trace", "label": "Trace level — the alignment of individual traces"},
+        {"value": "log",   "label": "Log level — sub-logs split by a condition"},
+    ],
+    "default": "trace",
+    "required": False,
+}
+
 PARAM_SPEC = [
+    LEVEL_PARAM,
     {
-        "key": "trace_ids",
-        "label": "Specific traces to compare (optional; default = the two traces with the largest violation gap)",
-        # Internal to reading the chart — the participant sees the traces directly.
-        "hide_hint": True,
-        "widget": "select-many",
-        "source": "log.trace_ids",
-        # Admin convenience: a checkbox that auto-selects one trace from each of
-        # the first N distinct variants. Handled in the specify-page select-many UI.
-        "variant_autoselect": True,
-        "autoselect_count": 2,
-        "default": [],
+        "key": "outcome_activity",
+        "slot": "split",
+        "label": "Log split condition (activity present in trace marks the Positive group)",
+        "hint": "The 'Positive' group is made up of traces that contain this activity",
+        "widget": "activity-picker",
+        "source": "log.activities",
+        "default": "",
         "required": False,
-        "optional_hint": "(optional — leave empty to compare the two traces with the largest violation gap)",
+        "visible_if": {"analysis_level": "log"},
     },
+    *trace_alignment.selection_params(
+        rules=["violation_gap", "worst_fitness", "most_frequent_variants"],
+        default_rule="violation_gap",
+        count_default=2, count_min=2, count_max=4,
+        unit=True,
+        only_when={"analysis_level": "trace"},
+    ),
 ]
 
 
@@ -68,9 +94,28 @@ RUBRIC = (
 
 
 def validate_params(log, params) -> list:
-    """trace_ids is optional; the generic /specify validation already checks that
-    each selected id exists in the dataset, so nothing task-specific is required."""
-    return []
+    """Each level validates only its own half.
+
+    At log level the split condition has to actually split: an activity every
+    trace contains (or none does) puts every trace in one group and the
+    comparison has nothing to compare.
+    """
+    params = params or {}
+    if params.get("analysis_level", "trace") == "log":
+        activity = (params.get("outcome_activity") or "").strip()
+        if not activity:
+            return ["Pick the activity whose presence marks the Positive group."]
+        present = sum(
+            1 for trace in log
+            if any(str(e.get("concept:name", "")) == activity for e in trace)
+        )
+        if present == 0:
+            return [f"No trace contains '{activity}' — every trace would be Negative."]
+        if present == len(log):
+            return [f"Every trace contains '{activity}' — no trace would be Negative."]
+        return []
+
+    return trace_alignment.validate_selection(log, params, min_traces=2, max_traces=4)
 
 
 import os
@@ -180,7 +225,19 @@ def _task04_trace_violations(alignments, i):
     return rows, viol
 
 
-def _task04_select_compare_traces(log, alignments, fitness_df, trace_ids=None, n=2):
+def _task04_pick_by_rule(log, alignments, fitness_df, n: int, rule: str,
+                         unit: str) -> list:
+    """Trace indices for a rule other than the frozen two-trace default.
+
+    Kept separate from the default below so that path stays literally the code
+    that rendered the experiment's stimuli: a rule the admin never changes must
+    not pick differently because the picker grew more options.
+    """
+    return trace_alignment.pick_indices(log, alignments, fitness_df, n, rule, unit)
+
+
+def _task04_select_compare_traces(log, alignments, fitness_df, trace_ids=None, n=2,
+                                  rule="violation_gap", unit="trace"):
     """Pick the traces to compare, as a list of dicts
     {label, case_id, fitness, rows, violations}.
 
@@ -188,7 +245,9 @@ def _task04_select_compare_traces(log, alignments, fitness_df, trace_ids=None, n
     "complete" traces (those covering the most distinct activities, so the chevron
     strips are substantial rather than trivially short) are chosen such that their
     fitness differs as much as possible — one clearly more conformant than the
-    other — making the comparison meaningful.
+    other — making the comparison meaningful. That default is
+    ``violation_gap`` at two traces; any other rule or count goes through
+    ``_task04_pick_by_rule``.
     """
     n_traces = min(len(log), len(alignments), len(fitness_df))
     if n_traces == 0:
@@ -203,6 +262,8 @@ def _task04_select_compare_traces(log, alignments, fitness_df, trace_ids=None, n
     if trace_ids:
         by_id = _task04_case_index(log)
         chosen = [by_id[str(t)] for t in trace_ids if str(t) in by_id][:max(n, len(trace_ids))]
+    elif rule != "violation_gap" or n != 2 or unit != "trace":
+        chosen = _task04_pick_by_rule(log, alignments, fitness_df, n, rule, unit)
     else:
         # Activity coverage (distinct activities) and fitness per trace.
         coverage = [len({str(e.get("concept:name", "")) for e in log[i]}) for i in range(n_traces)]
@@ -273,12 +334,18 @@ def _task04_model_task_names(model_path):
     return [e.get("name", "") for e in vals if e.get("kind") == "task" and e.get("name")]
 
 
-def task04_flow_chart_basic(selected, output_dir: str, model_path=None):
+def task04_flow_chart_basic(selected, output_dir: str, model_path=None, *,
+                            filename="task04_flow_chart_basic.svg"):
     """Chevron flow chart: one horizontal chevron strip per selected trace, stacked
     so the two traces sit side by side (top vs bottom). Each activity chevron is
     coloured by its alignment move type — Synchronous Move, Model Move or Log Move;
-    only the activities that trace actually touches are shown."""
-    path = os.path.join(output_dir, "task04_flow_chart_basic.svg")
+    only the activities that trace actually touches are shown.
+
+    ``filename`` lets the other trace-alignment tasks (task09, task14, task27,
+    task28, task34) draw this same figure into their own output directory —
+    the figure is the class's, not task04's, and one renderer keeps them from
+    drifting into five encodings of one thing."""
+    path = os.path.join(output_dir, filename)
     if not selected:
         fig, ax = plt.subplots(figsize=(7, 3)); ax.axis("off")
         ax.text(0.5, 0.5, "No trace data available.", ha="center", va="center",
@@ -375,7 +442,9 @@ def _task04_log_move_badges(rows):
     return [b for b in badges if b["anchor"]]
 
 
-def task04_flow_chart_elaborate(selected, model_path, output_dir):
+def task04_flow_chart_elaborate(selected, model_path, output_dir, *,
+                                filename="task04_flow_chart_elaborate.svg",
+                                title="Trace-Level Conformance on the Process Model"):
     """BPMN idiom, information-equivalent to the chevron: the guideline model is
     drawn once per trace (stacked), each model task coloured by that trace's
     alignment — Synchronous Move (yellow) or Model Move / skipped (grey). Log Move
@@ -383,8 +452,7 @@ def task04_flow_chart_elaborate(selected, model_path, output_dir):
     navy dashed badges floating above their sequence position (never highlighted on
     a model node). Together the panels + badges encode the three move types the
     chevron shows."""
-    path = os.path.join(output_dir, "task04_flow_chart_elaborate.svg")
-    title = "Trace-Level Conformance on the Process Model"
+    path = os.path.join(output_dir, filename)
     if not selected or not model_path:
         render_empty_state_svg(path, title, "No traces or model available.")
         return
@@ -441,15 +509,16 @@ def task04_bar_chart(tdf: pd.DataFrame, output_dir: str):
     save_svg(fig, os.path.join(output_dir, "task04_bar_chart.svg"))
 
 
-def task04_table(selected, model_path, output_dir):
+def task04_table(selected, model_path, output_dir, *,
+                 filename="task04_table.svg",
+                 title="Move Type by Activity Across Traces"):
     """Activity × trace move-type table: one row per activity (model tasks plus
     any inserted ones), one column per compared trace, cell = the alignment move
     type in that trace (Synchronous Move / Model Move / Log Move). Only activities
     at least one trace touches are listed; a "—" marks the rare case an activity
     appears in one trace but not the other. The tabular twin of the chevron / BPMN
     / heatmap, read as plain text (only the header row is coloured)."""
-    path = os.path.join(output_dir, "task04_table.svg")
-    title = "Move Type by Activity Across Traces"
+    path = os.path.join(output_dir, filename)
     activities = _task04_model_task_names(model_path)
     if not activities or not selected:
         fig, ax = plt.subplots(figsize=(6.5, 3.0))
@@ -634,35 +703,54 @@ def task04_heatmap(selected, model_path, output_dir):
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def generate(log, fitness_df, output_dir: str, trace_ids=None, alignments=None, model_path=None):
+def generate(log, fitness_df, output_dir: str, trace_ids=None, alignments=None, model_path=None,
+             analysis_level="trace", trace_pick_rule="violation_gap", trace_count=SAMPLE_N,
+             trace_unit="trace", outcome_activity=""):
     """Generate all Task ID 4 SVGs into output_dir.
 
+    ``analysis_level`` routes the whole task: "log" answers the question's
+    log-level half, which is task01's pipeline (sub-logs split by
+    ``outcome_activity``, their conformance compared), and returns. "trace" — the
+    default — compares the alignments of individual traces below.
+
     ``trace_ids`` is the admin-configured list of case-id strings (from
-    PARAM_SPEC "trace_ids"). When empty/None the first ``SAMPLE_N`` traces in log
-    order are shown. Every idiom renders the same traces so the views are
-    directly comparable.
+    PARAM_SPEC "trace_ids"). When empty/None the traces are chosen by
+    ``trace_pick_rule`` (see trace_alignment.PICK_RULES), ``trace_count`` of
+    them, over individual traces or one per variant per ``trace_unit``. Every
+    idiom renders the same traces so the views are directly comparable.
 
     ``alignments`` (optional) enables the trace-level flow-chart idioms, which
-    compare the alignment (conformance) patterns of two traces side by side.
+    compare the alignment (conformance) patterns of the traces side by side.
     """
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 4 visualizations ---")
 
+    if analysis_level == "log":
+        import tasks.task01 as task01
+        from shared import infer_outcome_activity
+        activity = outcome_activity or infer_outcome_activity(log)
+        logger.info(f"      -> Log level: comparing sub-logs split on '{activity}'.")
+        task01.generate(log, fitness_df, output_dir, outcome_activity=activity)
+        return
+
     # Single trace selection shared by EVERY idiom: the admin-selected traces, or
     # (default) the two traces with the largest violation-count gap. This needs
     # alignments; without them we fall back to the first SAMPLE_N in log order.
-    selected = _task04_select_compare_traces(log, alignments, fitness_df, trace_ids=trace_ids) \
-        if alignments else []
+    selected = _task04_select_compare_traces(
+        log, alignments, fitness_df, trace_ids=trace_ids,
+        n=trace_count, rule=trace_pick_rule, unit=trace_unit,
+    ) if alignments else []
     if selected:
         tdf = pd.DataFrame([{"case_id": t["case_id"], "fitness": t["fitness"], "label": t["label"]}
                             for t in selected])
     else:
-        tdf = _task04_build_trace_df(log, fitness_df, trace_ids=trace_ids)
+        tdf = _task04_build_trace_df(log, fitness_df, trace_ids=trace_ids,
+                                     sample_n=trace_count)
     if tdf.empty:
         logger.warning("      Skipped Task 4: no trace data available.")
         return
 
-    source = "admin-selected" if trace_ids else "largest violation gap"
+    source = "admin-selected" if trace_ids else trace_pick_rule
     logger.info(f"      -> Comparing {len(tdf)} traces ({source}).")
 
     case_index = _task04_case_index(log)
