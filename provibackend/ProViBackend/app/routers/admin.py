@@ -1422,6 +1422,28 @@ def _load_dataset_log(dataset_id: str):
     return load_event_log(log_path)
 
 
+def _entry_applies(entry: dict, params: dict) -> bool:
+    """Does this PARAM_SPEC entry apply, given the other parameters?
+
+    The mirror of entryApplies() on the specify page: an entry may declare
+    `visible_if: {other_key: value}` (or a list of values) and only applies when
+    every one of those holds. Without this the generate endpoint rejected a
+    required parameter the admin was never shown — task04's log-level split
+    condition while the task is set to trace level, say.
+    """
+    condition = entry.get("visible_if")
+    if not condition:
+        return True
+    for key, wanted in condition.items():
+        have = (params or {}).get(key)
+        if isinstance(wanted, (list, tuple, set)):
+            if have not in wanted:
+                return False
+        elif have != wanted:
+            return False
+    return True
+
+
 def _validate_task_instances(exp: dict) -> list[str]:
     """Hard-validate every task_instance's parameters against its PARAM_SPEC and
     optional validate_params hook (see docs/ADMIN_EXPERIMENT_SETUP.md). Returns
@@ -1439,6 +1461,8 @@ def _validate_task_instances(exp: dict) -> list[str]:
         # Generic: required present + membership against dataset candidates
         # (catches gibberish and typo'd activity names).
         for entry in spec:
+            if not _entry_applies(entry, params):
+                continue
             key = entry.get("key")
             label = entry.get("label", key)
             val = params.get(key)
