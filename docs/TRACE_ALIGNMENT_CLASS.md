@@ -108,6 +108,13 @@ task27 does not get it: `conformant_threshold` already defines conformance
 there, and two parameters deciding one thing is what this class exists to
 prevent.
 
+The pattern decides which traces are *picked* and nothing else — the figures
+colour by move type whatever is named — so it is hidden when the admin names the
+traces themselves. `conformant_threshold` is not: ten of task27's idioms colour
+and label whole-log variants by it, so it keeps working when the selection is
+manual. Neither are the data and resource rules, which are what the figures draw
+a verdict from.
+
 ### How `violation_gap` generalises past two traces
 
 At two traces it is the most- and the least-violating trace, which is what the

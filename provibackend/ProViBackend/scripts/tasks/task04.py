@@ -98,7 +98,8 @@ PARAM_SPEC = [
         only_when={"analysis_level": "trace"},
     ),
     {**trace_alignment.VIOLATION_PATTERN_PARAM,
-     "visible_if": {"analysis_level": "trace"}},
+     "visible_if": {**trace_alignment.VIOLATION_PATTERN_PARAM["visible_if"],
+                    "analysis_level": "trace"}},
 ]
 
 

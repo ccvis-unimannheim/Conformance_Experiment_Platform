@@ -115,6 +115,10 @@ TRACE_IDS_PARAM = {
 #: flow had no such definition, so every rule counted *any* deviation and a task
 #: asking about one specific violation still ranked traces by their unrelated
 #: ones. Empty keeps that behaviour: any deviation counts.
+#: It decides *which traces are picked*, and nothing else — the figures colour
+#: by move type whatever pattern is named — so a task that has the traces named
+#: for it has no use for one. Every task therefore adds
+#: ``trace_selection_mode: auto`` to the condition below.
 VIOLATION_PATTERN_PARAM = {
     "key": "violation_pattern",
     "slot": "guideline",
@@ -125,6 +129,7 @@ VIOLATION_PATTERN_PARAM = {
     "default": "",
     "required": False,
     "optional_hint": "(optional — leave empty to count any deviation as a violation)",
+    "visible_if": {"trace_selection_mode": "auto"},
 }
 
 # --- data / resource branch ------------------------------------------------
