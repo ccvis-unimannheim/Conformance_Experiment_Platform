@@ -50,22 +50,13 @@ PARAM_SPEC = [
         default_rule="worst_fitness",
         count_default=1, count_min=1, count_max=4,
     ),
-    {
-        "key":      "violated_activity",
-        "label":    "Activity to highlight violations for (the worst-fitness trace where this activity is violated will be shown)",
-        "hint":     "Worst-fitness trace among all traces that violate",
-        "hide_hint": True,
-        "widget":   "select-one",
-        "source":   "log.violated_activities_task34",
-        "options":  [],
-        "default":  None,
-        "required": False,
-        "optional_hint": "(optional — leave empty to show the overall worst-fitness trace)",
-        # A filter on the worst-fitness rule, not a rule of its own: it narrows
-        # the candidates to the traces violating this activity and then still
-        # takes the worst. Inert under any other rule, so /specify hides it.
-        "visible_if": {"trace_selection_mode": "auto", "trace_pick_rule": "worst_fitness"},
-    },
+    # Supersedes this task's own `violated_activity`, which named an activity
+    # and left the move type open: "Confirm Order" meant a skipped Confirm Order
+    # and an inserted one at once. The class parameter names both, and every
+    # rule honours it rather than only the worst-fitness one. A
+    # `violated_activity` saved by an existing experiment still narrows the
+    # selection (see generate) — it just is not offered any more.
+    trace_alignment.VIOLATION_PATTERN_PARAM,
 ]
 
 
@@ -950,7 +941,7 @@ def _pick_ctx(ctxs, params):
 
 
 def _select_ctxs(ctxs, log, alignments, *, trace_ids=None, rule="worst_fitness",
-                 count=1, violated_activity=None):
+                 count=1, pattern="", violated_activity=None):
     """The contexts to show, in display order.
 
     Selection is the class's (trace_alignment.pick_indices): one context per
@@ -972,7 +963,7 @@ def _select_ctxs(ctxs, log, alignments, *, trace_ids=None, rule="worst_fitness",
         # Every named trace is fully conformant (so has no context): fall through
         # to the rule rather than rendering nothing at all.
 
-    if violated_activity and rule == "worst_fitness":
+    if violated_activity and not pattern and rule == "worst_fitness":
         narrowed = [c for c in ctxs
                     if any(r["activity"] == violated_activity and _is_violation(r)
                            for r in c["rows"])]
@@ -989,7 +980,8 @@ def _select_ctxs(ctxs, log, alignments, *, trace_ids=None, rule="worst_fitness",
     n_traces = min(len(log), len(alignments))
     fitness_df = pd.DataFrame(
         [{"fitness": float(a.get("fitness", 1.0))} for a in alignments[:n_traces]])
-    indices = trace_alignment.pick_indices(log, alignments, fitness_df, count, rule)
+    indices = trace_alignment.pick_indices(log, alignments, fitness_df, count, rule,
+                                           pattern=pattern)
     return [by_index[i] for i in indices if i in by_index]
 
 
@@ -1020,7 +1012,8 @@ def _multi_trace_alignment_figures(log, alignments, shown, model_path, output_di
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def generate(log, alignments, output_dir, model_path=None, violated_activity=None,
-             trace_ids=None, trace_pick_rule="worst_fitness", trace_count=1):
+             trace_ids=None, trace_pick_rule="worst_fitness", trace_count=1,
+             violation_pattern=""):
     """Generate all Task 34 SVGs into output_dir.
 
     The task presents "one trace or few traces simultaneously". With one trace —
@@ -1031,10 +1024,14 @@ def generate(log, alignments, output_dir, model_path=None, violated_activity=Non
     (bar/stacked/heatmap/matrix/…) stay on the first one, since stacking a
     per-activity bar chart per trace answers a different question.
 
+    violation_pattern : str
+        "activity|move type" defining the guideline (trace_alignment). Every
+        rule then picks among the traces that violate it.
+
     violated_activity : str | None
-        Activity name chosen by the admin on /specify. Narrows the
-        ``worst_fitness`` rule to the traces where this activity is violated.
-        Defaults to None (the overall worst-fitness trace).
+        The superseded activity-only form, kept so an experiment specified
+        before `violation_pattern` existed still shows its trace. Ignored when a
+        pattern is given.
     """
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 34 visualizations ---")
@@ -1054,6 +1051,7 @@ def generate(log, alignments, output_dir, model_path=None, violated_activity=Non
 
     shown = _select_ctxs(ctxs, log, alignments, trace_ids=trace_ids,
                          rule=trace_pick_rule, count=trace_count,
+                         pattern=violation_pattern,
                          violated_activity=violated_activity)
     worst = shown[0] if shown else _pick_ctx(ctxs, {"violated_activity": violated_activity})
     log_act  = _log_activity_violations(alignments)

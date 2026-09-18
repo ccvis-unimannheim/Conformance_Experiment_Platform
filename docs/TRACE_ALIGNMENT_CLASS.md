@@ -38,8 +38,9 @@ ever answer the control-flow half.
 |---|---|---|
 | `trace_selection_mode` | admin names the traces, or a rule picks them | all six |
 | `trace_ids` | which traces (manual mode) | all six |
-| `trace_pick_rule` | which rule (auto mode) | all six |
-| `trace_count` | how many the rule picks | all but task14 |
+| `trace_pick_rule` | which rule (auto mode) | all but task27 |
+| `trace_count` | how many the rule picks — for task27, how many *of each status* | all but task14 |
+| `violation_pattern` | which violation defines the guideline (control flow) | task04, task09, task14, task28, task34 |
 | `analysis_level` | log level vs trace level | task04 only |
 | `perspective` | control-flow / data / resource | task09, task28 |
 | `data_attribute`, `conformant_values` | the data rule | task09, task28 |
@@ -84,10 +85,43 @@ each rule could select a trace that answers nothing:
    attribute value was perfectly conformant. `trace_alignment.violation_count`
    counts violations **in `view`**, and the rules rank on that.
 
-The exception is task27's `conformant_vs_non`, whose question needs a
-conformant trace — it passes `require_violation=False` and splits by status
-itself. If nothing violates at all, the filter lifts rather than leaving the
-figure empty: a fully conformant log is a finding, not a failure.
+If nothing violates at all, the filter lifts rather than leaving the figure
+empty: a fully conformant log is a finding, not a failure.
+
+### What defines "the guideline"
+
+In the data and resource perspectives the admin's conformant values define it.
+The control flow had no such definition — every rule counted *any* deviation, so
+a task asking about one specific violation still ranked traces by their
+unrelated ones. `violation_pattern` (an `activity | move type` pair from
+`log.violations`) supplies it: when set, a trace violates iff its alignment
+contains that pattern, and every rule ranks on that count. Empty keeps the old
+meaning, any deviation.
+
+It supersedes task34's `violated_activity`, which named an activity and left the
+move type open — "Confirm Order" meant a skipped one and an inserted one at
+once — and which only the worst-fitness rule honoured. A `violated_activity`
+saved by an existing experiment still narrows that task's selection; it is no
+longer offered.
+
+task27 does not get it: `conformant_threshold` already defines conformance
+there, and two parameters deciding one thing is what this class exists to
+prevent.
+
+### How `violation_gap` generalises past two traces
+
+At two traces it is the most- and the least-violating trace, which is what the
+name plainly means. Above two it used to be those two extremes plus whatever had
+the widest activity coverage — at four traces it returned violation counts of
+3, 1, 1, 1, three of which compare nothing.
+
+The distinct violation counts present in the pool are now the axis, and the
+traces taken are evenly spaced along it with both ends always included: four
+traces come back as 3, 2, 1 and whatever the fourth step lands on. Within one
+count the trace touching the most distinct activities wins, so the strips stay
+substantial. When the log holds fewer distinct counts than traces asked for, the
+rest are topped up from the most-violating end rather than repeating a count's
+representative.
 
 **There is no "trace or variant" unit parameter.** With the deduplication above,
 picking "variants" instead of "traces" changed no figure — each rule already
@@ -194,6 +228,10 @@ one process already disagree), and pm4py exposes no deterministic tie-break. So:
   rather than growing a second copy of it.
 * **task14** is fixed at one trace by its own wording ("a given trace"), so it
   offers no count, and it gained the chevron and BPMN it was missing.
+* **task27** has no rule picker: its question *is* "what are conformant and what
+  are non-conformant traces", so the traces come one group at a time and any
+  other rule would answer something else. Its count is therefore per group — two
+  means two conformant and two non-conformant.
 * **task27**'s table is the class's activity × trace table. It used to list the
   top fifteen variants regardless of the selection, so an admin asking for one
   conformant and one non-conformant variant got a table contradicting the two

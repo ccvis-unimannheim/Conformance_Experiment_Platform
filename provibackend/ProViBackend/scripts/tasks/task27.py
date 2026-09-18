@@ -40,12 +40,16 @@ import trace_response
 #: Which variants are shown is the same choice the rest of the class makes, with
 #: one rule of its own: the task asks "what are conformant and what are
 #: non-conformant traces", so the default picks both, in equal number.
+#: No rule picker: this task's question *is* "what are conformant and what are
+#: non-conformant traces", so the traces come one group at a time and any other
+#: rule would answer a different question. The count is therefore per group.
 PARAM_SPEC = [
-    *trace_alignment.selection_params(
-        rules=["conformant_vs_non", "most_frequent_variants", "worst_fitness"],
-        default_rule="conformant_vs_non",
-        count_default=1, count_min=1, count_max=3,
-    ),
+    dict(trace_alignment.TRACE_SELECTION_MODE_PARAM),
+    dict(trace_alignment.TRACE_IDS_PARAM),
+    {**trace_alignment.trace_count_param(1, 1, 3),
+     "label": "How many conformant and how many non-conformant traces to show",
+     "hint": "This many of each, so two means two conformant and two non-conformant",
+     "visible_if": {"trace_selection_mode": "auto"}},
     trace_response.CONFORMANT_THRESHOLD_PARAM,
 ]
 
@@ -693,12 +697,13 @@ def task27_flow_chart_elaborate_table(vdf, alignments, model_path, output_dir, t
 # ---------------------------------------------------------------------------
 
 def _task27_alignment_figures(log, alignments, vdf, model_path, output_dir, *,
-                              threshold, trace_ids, rule, count):
+                              threshold, trace_ids, count):
     """Chevron and BPMN of the compared variants, drawn by task04's renderers.
 
-    The variants are picked as representatives: one trace per variant (its
-    ``rep_trace_index``), conformant ones first so "Trace 1" is the conformant
-    exemplar the question contrasts against.
+    ``count`` of each status, not ``count`` in total: the contrast is the
+    question, so both sides are always on screen. The variants are picked as
+    representatives — one trace per variant (its ``rep_trace_index``) — with the
+    conformant ones first, so "Trace 1" is the conformant exemplar.
     """
     import tasks.task04 as task04
 
@@ -710,18 +715,8 @@ def _task27_alignment_figures(log, alignments, vdf, model_path, output_dir, *,
         indices = [index_of[str(t)] for t in trace_ids if str(t) in index_of]
     else:
         conform, nonconf = _split_by_status(vdf, threshold)
-        if rule in ("worst_fitness", "most_frequent_variants", "violation_gap"):
-            import pandas as pd
-            n_traces = min(len(log), len(alignments))
-            fitness_df = pd.DataFrame(
-                [{"fitness": float(a.get("fitness", 1.0))} for a in alignments[:n_traces]])
-            indices = trace_alignment.pick_indices(
-                log, alignments, fitness_df, count * 2, rule)
-        else:
-            # conformant_vs_non: `count` of each, so the figure always shows the
-            # contrast the task asks about even when one side is rarer.
-            indices = ([int(r) for r in conform["rep_trace_index"].head(count)] +
-                       [int(r) for r in nonconf["rep_trace_index"].head(count)])
+        indices = ([int(r) for r in conform["rep_trace_index"].head(count)] +
+                   [int(r) for r in nonconf["rep_trace_index"].head(count)])
 
     records = trace_alignment.trace_records(log, alignments, indices)
     if not records:
@@ -747,7 +742,7 @@ def _task27_alignment_figures(log, alignments, vdf, model_path, output_dir, *,
 
 def generate(log, fitness_df, alignments, output_dir: str, model_path: str = None,
              conformant_threshold: float = CONFORMANT_DEFAULT, trace_ids=None,
-             trace_pick_rule="conformant_vs_non", trace_count=1):
+             trace_count=1):
     """Generate all Task ID 27 SVGs into output_dir.
 
     model_path is required for the flow_chart_elaborate_table idiom (two annotated
@@ -755,8 +750,8 @@ def generate(log, fitness_df, alignments, output_dir: str, model_path: str = Non
 
     ``conformant_threshold`` is the fitness at or above which a variant counts as
     conformant — the cut this task's whole question rests on, and previously
-    fixed at 1.0 in code. ``trace_pick_rule`` / ``trace_count`` choose which
-    variants the chevron and BPMN idioms show; the aggregate idioms keep showing
+    fixed at 1.0 in code. ``trace_count`` is how many variants of *each* status
+    the chevron, BPMN and table idioms show; the aggregate idioms keep showing
     the top-N variants, since which variants are conformant is what they are
     there to report.
     """
@@ -793,7 +788,7 @@ def generate(log, fitness_df, alignments, output_dir: str, model_path: str = Non
 
     _task27_alignment_figures(log, alignments, vdf, model_path, output_dir,
                               threshold=conformant_threshold, trace_ids=trace_ids,
-                              rule=trace_pick_rule, count=trace_count)
+                              count=trace_count)
 
     tdf = _task27_trace_df(log, fitness_df, conformant_threshold)
     task27_stacked_bar(tdf, output_dir)

@@ -34,11 +34,14 @@ import trace_alignment
 #: to choose — only which one. The default rule reproduces what the task always
 #: did: the trace with the highest alignment cost, which is the worst-fitness
 #: one.
-PARAM_SPEC = trace_alignment.selection_params(
-    rules=["worst_fitness", "first_nonconformant", "most_frequent_variants"],
-    default_rule="worst_fitness",
-    count_default=1, count_min=1, count_max=1,
-)
+PARAM_SPEC = [
+    *trace_alignment.selection_params(
+        rules=["worst_fitness", "first_nonconformant", "most_frequent_variants"],
+        default_rule="worst_fitness",
+        count_default=1, count_min=1, count_max=1,
+    ),
+    trace_alignment.VIOLATION_PATTERN_PARAM,
+]
 
 
 def validate_params(log, params) -> list:
@@ -113,7 +116,7 @@ _MISSING_TOKENS = {"-", "None", "(skip)", ""}
 # ---------------------------------------------------------------------------
 
 def _pick_representative_trace(alignments, log=None, trace_ids=None,
-                               rule="worst_fitness"):
+                               rule="worst_fitness", pattern=""):
     """Index of the one trace to annotate.
 
     Delegates to the class's picker so "the worst-fitness trace" means the same
@@ -132,7 +135,8 @@ def _pick_representative_trace(alignments, log=None, trace_ids=None,
         n_traces = min(len(log), len(alignments))
         fitness_df = pd.DataFrame(
             [{"fitness": float(a.get("fitness", 1.0))} for a in alignments[:n_traces]])
-        picked = trace_alignment.pick_indices(log, alignments, fitness_df, 1, rule)
+        picked = trace_alignment.pick_indices(log, alignments, fitness_df, 1, rule,
+                                              pattern=pattern)
         if picked:
             return picked[0]
 
@@ -147,11 +151,13 @@ def _pick_representative_trace(alignments, log=None, trace_ids=None,
     return best_idx
 
 
-def _build_context(alignments, log=None, trace_ids=None, rule="worst_fitness"):
+def _build_context(alignments, log=None, trace_ids=None, rule="worst_fitness",
+                   pattern=""):
     """Extract representative trace context. Returns None if no usable alignment."""
     if not alignments:
         return None
-    idx = _pick_representative_trace(alignments, log=log, trace_ids=trace_ids, rule=rule)
+    idx = _pick_representative_trace(alignments, log=log, trace_ids=trace_ids,
+                                     rule=rule, pattern=pattern)
     result = alignments[idx]
     rows = alignment_pairs_to_rows(result.get("alignment", []))
     if not rows:
@@ -622,7 +628,8 @@ def task14_parallel_sets(ctx, output_dir):
 # ---------------------------------------------------------------------------
 
 def generate(alignments, model_path: str, output_dir: str, log=None,
-             trace_ids=None, trace_pick_rule="worst_fitness"):
+             trace_ids=None, trace_pick_rule="worst_fitness",
+             violation_pattern=""):
     """Generate all Task 14 SVGs into output_dir.
 
     The chevron and BPMN idioms are task04's renderers on this one trace, so the
@@ -632,7 +639,7 @@ def generate(alignments, model_path: str, output_dir: str, log=None,
     logger.info("\n--- Generating Task 14 visualizations ---")
 
     ctx = _build_context(alignments, log=log, trace_ids=trace_ids,
-                         rule=trace_pick_rule)
+                         rule=trace_pick_rule, pattern=violation_pattern)
     if ctx is None:
         logger.warning("      task14: no usable alignment — emitting zero-state SVGs.")
         _msg = "No alignment data available."

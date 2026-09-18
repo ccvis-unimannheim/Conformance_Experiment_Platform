@@ -356,10 +356,12 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
     def trace_ids():
         """The trace-alignment class's explicit selection, or None for its rule."""
         return trace_alignment.selected_trace_ids(p) or None
+    def violation_pattern():      return p.get("violation_pattern") or ""
     def perspective_kwargs(default_rule, default_count):
         """The trace-alignment + perspective block task09 and task28 share."""
         return dict(
             perspective=trace_alignment.perspective(p),
+            violation_pattern=violation_pattern(),
             trace_ids=trace_ids(),
             trace_pick_rule=trace_alignment.pick_rule(p, default_rule),
             trace_count=trace_alignment.trace_count(p, default_count),
@@ -385,6 +387,7 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
             analysis_level=(p.get("analysis_level") or "trace"),
             trace_pick_rule=trace_alignment.pick_rule(p, "violation_gap"),
             trace_count=trace_alignment.trace_count(p, task04.SAMPLE_N),
+            violation_pattern=violation_pattern(),
             outcome_activity=(p.get("outcome_activity") or "")),
         "task05": lambda d: task05.generate(
             log, alignments, d,
@@ -406,7 +409,8 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
                                             candidate_attributes=(p.get("attribute_set") or None)),
         "task14": lambda d: task14.generate(
             alignments, model_path, d, log=log, trace_ids=trace_ids(),
-            trace_pick_rule=trace_alignment.pick_rule(p, "worst_fitness")),
+            trace_pick_rule=trace_alignment.pick_rule(p, "worst_fitness"),
+            violation_pattern=violation_pattern()),
         "task15": lambda d: task15.generate(log, fitness_df, alignments, d, model_path=model_path,
                                             attribute_set=(p.get("attribute_set") or None),
                                             split_strategy=(p.get("split_strategy") or None),
@@ -436,7 +440,6 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
             log, fitness_df, alignments, d, model_path=model_path,
             conformant_threshold=conformant_threshold(),
             trace_ids=trace_ids(),
-            trace_pick_rule=trace_alignment.pick_rule(p, "conformant_vs_non"),
             trace_count=trace_alignment.trace_count(p, 1)),
         "task28": lambda d: task28.generate(alignments, model_path, d, log=log,
                                             **perspective_kwargs("first_nonconformant", 1)),
@@ -467,7 +470,8 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
             violated_activity=violated_activity(),
             trace_ids=trace_ids(),
             trace_pick_rule=trace_alignment.pick_rule(p, "worst_fitness"),
-            trace_count=trace_alignment.trace_count(p, 1)),
+            trace_count=trace_alignment.trace_count(p, 1),
+            violation_pattern=violation_pattern()),
         "task35": lambda d: task35.generate(log, alignments, d, model_path=model_path,
                                             move_types=(p.get("move_types") or None)),
         "task36": lambda d: task36.generate(log, alignments, d, model_path=model_path,

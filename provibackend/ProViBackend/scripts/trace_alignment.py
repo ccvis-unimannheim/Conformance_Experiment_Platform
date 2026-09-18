@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 #: How the traces are picked when the admin names none. Each entry is the rule
 #: one task already applied in code; the label is what /specify shows.
 PICK_RULES: dict[str, str] = {
-    "violation_gap":          "The traces with the largest violation gap between them",
+    "violation_gap":          "Traces spread across the violation counts (most- and least-violating first)",
     "worst_fitness":          "The worst-fitness trace(s)",
     "first_nonconformant":    "The first trace that violates the guideline",
     "conformant_vs_non":      "Conformant and non-conformant traces in equal number",
@@ -109,6 +109,23 @@ TRACE_IDS_PARAM = {
 #: representative per distinct activity sequence — two identical chevron strips
 #: side by side compare nothing — so picking "variants" instead of "traces"
 #: changed no figure, and "the most frequent variants" is a rule of its own.
+
+#: What "violates the guideline" means in the control-flow perspective. The data
+#: and resource perspectives are defined by their conformant values; the control
+#: flow had no such definition, so every rule counted *any* deviation and a task
+#: asking about one specific violation still ranked traces by their unrelated
+#: ones. Empty keeps that behaviour: any deviation counts.
+VIOLATION_PATTERN_PARAM = {
+    "key": "violation_pattern",
+    "slot": "guideline",
+    "label": "Violation that defines the guideline (empty = any deviation)",
+    "hint": "The traces shown are the ones that violate this",
+    "widget": "select-one",
+    "source": "log.violations",
+    "default": "",
+    "required": False,
+    "optional_hint": "(optional — leave empty to count any deviation as a violation)",
+}
 
 # --- data / resource branch ------------------------------------------------
 
@@ -327,8 +344,26 @@ def sequence_of(log, i: int) -> tuple:
     return tuple(str(e.get("concept:name", "")) for e in log[i])
 
 
-def violation_count(log, alignments, i: int, view: str = "control-flow",
-                    **rule) -> int:
+def _matches_pattern(row, activity: str, move_type: str) -> bool:
+    """Does this alignment step realise the (activity, move type) pattern?
+
+    A mismatch move carries both labels, so it answers to either side's
+    activity — it is a deviation on both.
+    """
+    kind = row["moveType"]
+    if move_type and kind != move_type and kind != "Mismatch Move":
+        return False
+    if kind == "Model Move":
+        return str(row["model_move"]) == activity
+    if kind == "Log Move":
+        return str(row["log_move"]) == activity
+    if kind == "Mismatch Move":
+        return activity in (str(row["log_move"]), str(row["model_move"]))
+    return False
+
+
+def violation_count(log, alignments, i: int, view: str = "control-flow", *,
+                    pattern: str = "", **rule) -> int:
     """How many steps of this trace violate **the guideline being asked about**.
 
     The perspective decides, and this is the whole point: a rule that always
@@ -341,6 +376,9 @@ def violation_count(log, alignments, i: int, view: str = "control-flow",
 
     rows = alignment_pairs_to_rows(alignments[i].get("alignment", []))
     if view == "control-flow":
+        if pattern:
+            activity, _, move_type = str(pattern).partition("|")
+            return sum(1 for r in rows if _matches_pattern(r, activity, move_type))
         return sum(1 for r in rows if r["moveType"] != "Synchronous Move")
     steps = value_steps(log[i], {"rows": rows}, view, **rule)
     return sum(1 for s in steps if s["verdict"] == "violation")
@@ -348,7 +386,7 @@ def violation_count(log, alignments, i: int, view: str = "control-flow",
 
 def pick_indices(log, alignments, fitness_df, n: int, rule: str, *,
                  view: str = "control-flow", require_violation: bool = True,
-                 **rule_kwargs) -> list:
+                 pattern: str = "", **rule_kwargs) -> list:
     """Trace indices for one pick rule, in display order.
 
     Two filters apply before any rule does, because every rule was picking
@@ -379,7 +417,8 @@ def pick_indices(log, alignments, fitness_df, n: int, rule: str, *,
         candidates.append(i)
 
     fitness = {i: float(fitness_df.iloc[i]["fitness"]) for i in candidates}
-    violations = {i: violation_count(log, alignments, i, view, **rule_kwargs)
+    violations = {i: violation_count(log, alignments, i, view, pattern=pattern,
+                                     **rule_kwargs)
                   for i in candidates}
 
     pool = [i for i in candidates if violations[i] > 0] if require_violation else candidates
@@ -401,25 +440,63 @@ def pick_indices(log, alignments, fitness_df, n: int, rule: str, *,
         # ranks them at all.
         return sorted(pool, key=lambda i: (-violations[i], fitness[i], i))[:n]
 
-    # violation_gap: the widest contrast the pool allows, both ends violating.
-    # Ties on the violation count fall back to fitness, and the filling of a
-    # count above two prefers the traces that touch the most activities, so the
-    # strips stay substantial rather than trivially short.
-    coverage = {i: len(set(sequence_of(log, i))) for i in candidates}
-    ranked = sorted(pool, key=lambda i: (violations[i], fitness[i], i))
-    chosen = [ranked[-1]]
-    if len(ranked) > 1:
-        chosen.append(ranked[0])
-    for i in sorted(pool, key=lambda i: (-coverage[i], i)):
-        if len(chosen) >= n:
-            break
-        if i not in chosen:
-            chosen.append(i)
-    return sorted(chosen[:n], key=lambda i: (-violations[i], fitness[i], i))
+    return _spread_by_violations(log, pool, violations, fitness, n)
+
+
+def _spread_by_violations(log, pool: list, violations: dict, fitness: dict,
+                          n: int) -> list:
+    """The ``violation_gap`` rule: n traces spread across the violation counts.
+
+    At two traces this is the most- and least-violating trace, which is what
+    "largest violation gap" plainly means. Above two it was the two extremes
+    plus whatever had the widest activity coverage, which had nothing to do with
+    the gap — at four traces it returned violation counts of 3, 1, 1, 1, three
+    of which compare nothing.
+
+    Now the distinct violation counts present in the pool are the axis, and the
+    n counts taken are evenly spaced along it (always including both ends), so
+    four traces come back as 3, 2, 1 and whatever the fourth step lands on.
+    Within one count the trace touching the most distinct activities wins, so
+    the strips stay substantial rather than trivially short.
+    """
+    if not pool:
+        return []
+    coverage = {i: len(set(sequence_of(log, i))) for i in pool}
+    best_of_count: dict = {}
+    for i in sorted(pool, key=lambda i: (-coverage[i], fitness[i], i)):
+        best_of_count.setdefault(violations[i], i)
+
+    counts = sorted(best_of_count)
+    if len(counts) <= n:
+        picked = [best_of_count[c] for c in counts]
+        # Fewer distinct counts than traces asked for: top up with the next-best
+        # trace of each count rather than repeating a count's representative.
+        if len(picked) < n:
+            for i in sorted(pool, key=lambda i: (-violations[i], -coverage[i], i)):
+                if len(picked) >= n:
+                    break
+                if i not in picked:
+                    picked.append(i)
+    else:
+        # Evenly spaced positions over the distinct counts, ends included.
+        positions = [round(k * (len(counts) - 1) / (n - 1)) for k in range(n)] \
+            if n > 1 else [len(counts) - 1]
+        picked, seen = [], set()
+        for pos in positions:
+            while pos in seen and pos < len(counts) - 1:
+                pos += 1
+            while pos in seen and pos > 0:
+                pos -= 1
+            if pos in seen:
+                continue
+            seen.add(pos)
+            picked.append(best_of_count[counts[pos]])
+
+    return sorted(picked[:n], key=lambda i: (-violations[i], fitness[i], i))
 
 
 def select_records(log, alignments, *, view="control-flow", trace_ids=None,
-                   rule="violation_gap", count=2, attribute="",
+                   rule="violation_gap", count=2, pattern="", attribute="",
                    conformant_values=(), resources=(), scoped_activity="") -> list:
     """The traces a task09-shaped task shows, annotated for its perspective."""
     import pandas as pd
@@ -436,7 +513,7 @@ def select_records(log, alignments, *, view="control-flow", trace_ids=None,
         fitness_df = pd.DataFrame(
             [{"fitness": float(a.get("fitness", 1.0))} for a in alignments[:n_traces]])
         indices = pick_indices(
-            log, alignments, fitness_df, count, rule, view=view,
+            log, alignments, fitness_df, count, rule, view=view, pattern=pattern,
             attribute=attribute, conformant_values=conformant_values,
             resources=resources, scoped_activity=scoped_activity)
 

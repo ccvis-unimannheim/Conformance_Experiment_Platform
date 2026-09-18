@@ -47,6 +47,8 @@ PARAM_SPEC = [
         default_rule="first_nonconformant",
         count_default=1, count_min=1, count_max=4,
     ),
+    {**trace_alignment.VIOLATION_PATTERN_PARAM,
+     "visible_if": {"perspective": "control-flow"}},
     trace_alignment.DATA_ATTRIBUTE_PARAM,
     trace_alignment.CONFORMANT_VALUES_PARAM,
     trace_alignment.CONFORMANT_RESOURCES_PARAM,
@@ -795,7 +797,7 @@ _LOG_FNAMES_TITLES = [
 def generate(alignments, model_path: str, output_dir: str, log=None,
              perspective="control-flow", trace_ids=None,
              trace_pick_rule="first_nonconformant", trace_count=1,
-             data_attribute="", conformant_values=(),
+             violation_pattern="", data_attribute="", conformant_values=(),
              conformant_resources=(), scoped_activity=""):
     """Generate all Task 28 SVGs into output_dir (trace-level deep-dive + log-level
     exploratory overview).
@@ -812,7 +814,7 @@ def generate(alignments, model_path: str, output_dir: str, log=None,
     ctx = build_task28_context(alignments)
     records = trace_alignment.select_records(
         log, alignments, view=perspective, trace_ids=trace_ids,
-        rule=trace_pick_rule, count=trace_count,
+        rule=trace_pick_rule, count=trace_count, pattern=violation_pattern,
         attribute=data_attribute, conformant_values=conformant_values,
         resources=conformant_resources, scoped_activity=scoped_activity,
     ) if log is not None else []

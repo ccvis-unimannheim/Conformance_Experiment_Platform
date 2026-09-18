@@ -97,6 +97,8 @@ PARAM_SPEC = [
         count_default=2, count_min=2, count_max=4,
         only_when={"analysis_level": "trace"},
     ),
+    {**trace_alignment.VIOLATION_PATTERN_PARAM,
+     "visible_if": {"analysis_level": "trace"}},
 ]
 
 
@@ -246,7 +248,7 @@ def _task04_trace_violations(alignments, i):
 
 
 def _task04_select_compare_traces(log, alignments, fitness_df, trace_ids=None, n=2,
-                                  rule="violation_gap"):
+                                  rule="violation_gap", pattern=""):
     """Pick the traces to compare, as a list of dicts
     {label, case_id, fitness, rows, violations}.
 
@@ -271,7 +273,8 @@ def _task04_select_compare_traces(log, alignments, fitness_df, trace_ids=None, n
         by_id = _task04_case_index(log)
         chosen = [by_id[str(t)] for t in trace_ids if str(t) in by_id][:max(n, len(trace_ids))]
     else:
-        chosen = trace_alignment.pick_indices(log, alignments, fitness_df, n, rule)
+        chosen = trace_alignment.pick_indices(log, alignments, fitness_df, n, rule,
+                                              pattern=pattern)
 
     return [_info(idx, f"Trace {k + 1}") for k, idx in enumerate(chosen)]
 
@@ -696,7 +699,7 @@ def task04_heatmap(selected, model_path, output_dir):
 
 def generate(log, fitness_df, output_dir: str, trace_ids=None, alignments=None, model_path=None,
              analysis_level="trace", trace_pick_rule="violation_gap", trace_count=SAMPLE_N,
-             outcome_activity=""):
+             violation_pattern="", outcome_activity=""):
     """Generate all Task ID 4 SVGs into output_dir.
 
     ``analysis_level`` routes the whole task: "log" answers the question's
@@ -729,7 +732,7 @@ def generate(log, fitness_df, output_dir: str, trace_ids=None, alignments=None, 
     # alignments; without them we fall back to the first SAMPLE_N in log order.
     selected = _task04_select_compare_traces(
         log, alignments, fitness_df, trace_ids=trace_ids,
-        n=trace_count, rule=trace_pick_rule,
+        n=trace_count, rule=trace_pick_rule, pattern=violation_pattern,
     ) if alignments else []
     if selected:
         tdf = pd.DataFrame([{"case_id": t["case_id"], "fitness": t["fitness"], "label": t["label"]}
