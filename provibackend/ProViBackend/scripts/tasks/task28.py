@@ -1,5 +1,11 @@
 """
-tasks/task28.py – Task 2: Location/alignment visualizations for a representative trace.
+tasks/task28.py – task28: where exactly the process execution differs from the
+guideline.
+
+Trace level: the alignment of the chosen traces (see trace_ids / trace_pick_rule
+below), drawn by task09's trace-alignment figures in the chosen perspective
+(control flow, data or resource) — the same pictures task09 shows. Log level: an
+exploratory overview of the deviations across the whole log.
 
 Public API:
     generate(alignments, model_path, output_dir, log=None,

@@ -2,7 +2,11 @@
 tasks/task04.py – Task ID 4: Describe / Compare / Conformance across individual traces.
 
 Task 4 asks "How does the degree of conformance differ between multiple logs or
-traces?". Every idiom shows the *same* concrete traces (individual traces, NOT
+traces?", and `analysis_level` picks which half is answered. At log level the
+task draws task01's sub-log comparison instead (see LEVEL_PARAM below); what
+follows describes the trace level, the default.
+
+Every idiom shows the *same* concrete traces (individual traces, NOT
 aggregated variants) with their conformance fitness, just encoded differently, so
 no idiom exposes more information than another (information equivalence):
 

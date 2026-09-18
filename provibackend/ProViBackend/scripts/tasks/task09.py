@@ -5,17 +5,25 @@ Goal: Describe · Means: Identify · Characteristics: Guideline violations
 Question: How exactly does the process execution differ from the guidelines?
           Which activities are responsible, and what violation type occurs?
 
-Visualizations (all SVG, cividis palette from shared.py):
-  bar_chart       – violation type frequency
-  stacked_bar     – per-activity stacked bar by violation type
-  scatter_plot    – Model Move vs Log Move count per activity
-  table           – per-activity violation breakdown
-  table_bar_chart – table + stacked bar (side by side)
-  matrix          – activity × violation-type count heatmap
-  flow_chart_basic, flow_chart_and_table,
-  flow_chart_elaborate_bpmn, flow_chart_elaborate_bpmn_table
-                  – the violations drawn on a chevron strip / the BPMN model,
-                    alone or next to the breakdown table
+Visualizations (all SVG, cividis palette from shared.py).
+
+Trace level — the alignment of the chosen traces (trace_pick_rule /
+trace_ids, see trace_alignment), judged on the chosen perspective
+(control flow, data or resource):
+  flow_chart_basic          – one chevron strip per trace
+  flow_chart_elaborate_bpmn – the BPMN model coloured per trace
+  table                     – move table across the traces
+  (With no traces to show, these three fall back to whole-log summaries.)
+
+Whole log:
+  bar_chart                       – violation type frequency
+  stacked_bar                     – per-activity stacked bar by violation type
+  scatter_plot                    – Model Move vs Log Move count per activity
+  table_bar_chart                 – table + stacked bar (side by side)
+  matrix                          – activity × violation-type count heatmap
+  flow_chart_and_table,
+  flow_chart_elaborate_bpmn_table – the violations on a chevron strip / the
+                                    BPMN model, next to the breakdown table
 """
 
 import logging

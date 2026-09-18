@@ -4,14 +4,24 @@ tasks/task34.py – Where does the recorded behavior violate which guidelines?
 Trace-level: shows violations for one or few traces simultaneously,
 with clear attribution of which violations belong to which activities.
 
+Which traces: trace_ids, else trace_pick_rule / trace_count (1–4, see
+trace_alignment), with violated_activity narrowing the worst-fitness rule.
+"The trace" below is the first one chosen.
+
 IDIOMS:
-    bar_chart                  – top-N activities by total violation count (log-level, colored by dominant type)
-    stacked_bar                – violations per activity (representative trace, stacked MoM/MoL)
-    table                      – alignment table for worst-fitness trace
-    flow_chart_table           – chevron + alignment table
-    flow_chart_elaborate_table – BPMN with per-node violation coloring + alignment table
-    heatmap                    – top-20 traces × activities violation heatmap
-    table_bar_chart            – top-10 trace summary table + log-level violations bar chart
+    bar_chart                  – violation count per activity of the trace
+    stacked_bar                – the same, stacked by Model Move / Log Move
+    heatmap, matrix            – the same counts as one row / one column of cells
+    table                      – the trace's alignment, one row per step
+    flow_chart_basic           – chevron strip of the trace's alignment
+    flow_chart_elaborate       – BPMN coloured by the trace's violations
+      (with more than one trace chosen, these three are drawn for all of them
+       side by side by task04's renderers)
+    flow_chart_table           – chevron + alignment table for the trace
+    flow_chart_elaborate_table – BPMN + alignment table for the trace
+    table_bar_chart            – the trace's alignment table + a whole-log
+                                 violations bar chart
+    parallel_sets              – violation type → activity, over the whole log
 """
 
 import logging
