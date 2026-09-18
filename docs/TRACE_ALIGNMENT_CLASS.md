@@ -130,6 +130,15 @@ substantial. When the log holds fewer distinct counts than traces asked for, the
 rest are topped up from the most-violating end rather than repeating a count's
 representative.
 
+Naming a `violation_pattern` used to collapse that axis. A pattern occurs at
+most once per trace in every log looked at here, so counting *it* left every
+qualifying trace on 1 — the rule degenerated into "the widest-coverage traces
+that violate this", and on `Prepare Shipment · Model Move` it returned traces
+deviating 2, 1 and 1 times while missing the one deviating 3 times. The pattern's
+two jobs are therefore split: it decides which traces qualify, and the spread
+falls back to how much each deviates overall whenever the pattern leaves them
+all on the same count. The same three traces then come back as 3, 2, 1.
+
 **There is no "trace or variant" unit parameter.** With the deduplication above,
 picking "variants" instead of "traces" changed no figure — each rule already
 returns one representative per activity sequence — and "the most frequent

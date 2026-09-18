@@ -445,12 +445,26 @@ def pick_indices(log, alignments, fitness_df, n: int, rule: str, *,
         # ranks them at all.
         return sorted(pool, key=lambda i: (-violations[i], fitness[i], i))[:n]
 
-    return _spread_by_violations(log, pool, violations, fitness, n)
+    # violation_gap. The pattern has two jobs — which traces qualify, and how
+    # far apart they are — and they pull against each other: a pattern occurs at
+    # most once in a trace in every log looked at here, so counting *it* leaves
+    # every qualifying trace on 1 and the axis collapses to a point. The pattern
+    # keeps the filtering job; the spread falls back to how much each trace
+    # deviates overall, which is the contrast the rule's name promises.
+    axis = violations
+    if pattern and len({violations[i] for i in pool}) < 2:
+        axis = {i: violation_count(log, alignments, i, view, **rule_kwargs)
+                for i in pool}
+    return _spread_by_violations(log, pool, axis, fitness, n)
 
 
 def _spread_by_violations(log, pool: list, violations: dict, fitness: dict,
                           n: int) -> list:
     """The ``violation_gap`` rule: n traces spread across the violation counts.
+
+    ``violations`` is the axis the traces are spread along — the count of the
+    named guideline's violations, or, when naming one leaves every trace on the
+    same count, of their deviations overall.
 
     At two traces this is the most- and least-violating trace, which is what
     "largest violation gap" plainly means. Above two it was the two extremes
