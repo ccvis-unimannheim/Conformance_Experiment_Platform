@@ -397,7 +397,9 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
                 p.get("grouping_strategy") or "pattern", "")) or None)),
         "task06": lambda d: task06.generate(fitness_df, d, log=log, alignments=alignments, model_path=model_path),
         "task07": lambda d: task07.generate(log, fitness_df, d, time_granularity=time_granularity()),
-        "task08": lambda d: task08.generate(log, alignments, d),
+        "task08": lambda d: task08.generate(
+            log, alignments, d,
+            violation_patterns=(p.get("violation_patterns") or None)),
         "task09": lambda d: task09.generate(log, alignments, d, model_path=model_path,
                                             **perspective_kwargs("violation_gap", 2)),
         "task10": lambda d: task10.generate(fitness_df, d, log=log, conformance_bins=conformance_bins()),

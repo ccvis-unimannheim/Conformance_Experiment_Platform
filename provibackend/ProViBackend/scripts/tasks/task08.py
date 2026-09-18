@@ -22,7 +22,26 @@ analyst decides which correlations are noteworthy.
 import logging
 logger = logging.getLogger(__name__)
 
-PARAM_SPEC = []
+import violation_profile
+
+#: Which violations the axes are built from. The same parameter the
+#: Violation-profile tasks declare, so "violation pattern" means one thing
+#: across the platform; empty keeps the task's own top-N by trace coverage.
+#:
+#: There is no co-occurrence threshold. One was plumbed through every renderer
+#: and then passed as None — "no pair is flagged high or low, so the analyst
+#: decides which correlations are noteworthy" — and naming the pairs worth
+#: looking at is what choosing the patterns does, without pre-judging them.
+PARAM_SPEC = [violation_profile.selection_param_for("pattern")]
+
+
+def validate_params(log, params) -> list:
+    """A co-occurrence needs two things to co-occur."""
+    selected = (params or {}).get("violation_patterns") or []
+    if len(selected) == 1:
+        return ["Select at least two violation patterns — a co-occurrence "
+                "between one pattern and itself is not a finding."]
+    return []
 
 IDIOMS = [
     "heatmap",
@@ -160,6 +179,30 @@ def _top_violations(violation_freq, n=_TOP_N):
     return [v for v, _ in most_common_stable(violation_freq, n)]
 
 
+def _selected_labels(violation_patterns) -> set:
+    """`log.violations` values ("Ship Order|Model Move") as this task's labels.
+
+    The picker speaks the platform's activity|move-type vocabulary; this module
+    labels a violation "Model Move: Ship Order". Translating at the boundary
+    keeps both intact.
+    """
+    labels = set()
+    for raw in violation_patterns or []:
+        activity, _, move_type = str(raw).partition("|")
+        labels.add(f"{move_type}: {activity}" if move_type else str(raw))
+    return labels
+
+
+def _restrict_to_selection(violation_freq, cooccurrence, labels):
+    """Keep only the chosen patterns, and only pairs between two of them."""
+    if not labels:
+        return violation_freq, cooccurrence
+    freq = Counter({v: n for v, n in violation_freq.items() if v in labels})
+    pairs = Counter({pair: n for pair, n in cooccurrence.items()
+                     if pair[0] in labels and pair[1] in labels})
+    return freq, pairs
+
+
 def _viol_label(v) -> str:
     """Return a violation's display label in 'type: activity' form.
 
@@ -210,12 +253,13 @@ def _build_cooccur_matrix(top_viols, violation_freq, cooccurrence):
     return mat
 
 
-def task08_heatmap(violation_freq, cooccurrence, output_dir, thr_count, thr_frac):
+def task08_heatmap(violation_freq, cooccurrence, output_dir, thr_count, thr_frac,
+                   top_n=_MATRIX_TOP_N):
     if not violation_freq:
         _no_violations(output_dir, "heatmap")
         return
 
-    top = _top_violations(violation_freq, _MATRIX_TOP_N)  # same axis as the matrix idiom
+    top = _top_violations(violation_freq, top_n)  # same axis as the matrix idiom
     if len(top) < 2:
         _save_empty(output_dir, "task08_heatmap.svg",
                     "Too few distinct violations for co-occurrence heatmap")
@@ -254,12 +298,13 @@ def task08_heatmap(violation_freq, cooccurrence, output_dir, thr_count, thr_frac
 # Idiom 3: Matrix — same as heatmap but with numbers in each cell
 # ---------------------------------------------------------------------------
 
-def task08_matrix(violation_freq, cooccurrence, output_dir, thr_count, thr_frac):
+def task08_matrix(violation_freq, cooccurrence, output_dir, thr_count, thr_frac,
+                  top_n=_MATRIX_TOP_N):
     if not violation_freq:
         _no_violations(output_dir, "matrix")
         return
 
-    top = _top_violations(violation_freq, _MATRIX_TOP_N)  # same axis as the heatmap idiom
+    top = _top_violations(violation_freq, top_n)  # same axis as the heatmap idiom
     if len(top) < 2:
         _save_empty(output_dir, "task08_matrix.svg",
                     "Too few distinct violations for co-occurrence matrix")
@@ -305,7 +350,8 @@ def task08_matrix(violation_freq, cooccurrence, output_dir, thr_count, thr_frac)
 # Idiom 4: Network Diagram — violations as nodes, co-occurrence as edges
 # ---------------------------------------------------------------------------
 
-def task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count, thr_frac):
+def task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count,
+                           thr_frac, top_n=_TOP_N):
     try:
         import networkx as nx
     except ImportError:
@@ -320,7 +366,7 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count, 
     # Keep the ranked order: nodes enter the graph in this sequence, and both
     # layouts place them by insertion order, so a set here would undo the stable
     # ranking and move every node between runs.
-    top = _top_violations(violation_freq, _TOP_N)
+    top = _top_violations(violation_freq, top_n)
     top_set = set(top)
     pairs = [(a, b, cnt) for (a, b), cnt in cooccurrence.items()
              if a in top_set and b in top_set and cnt >= _MIN_COOCCUR]
@@ -495,13 +541,32 @@ def task08_table(violation_freq, cooccurrence, n_traces, output_dir,
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def generate(log, alignments, output_dir: str):
-    """Generate all Task 8 SVGs into output_dir."""
+def generate(log, alignments, output_dir: str, violation_patterns=None):
+    """Generate all Task 8 SVGs into output_dir.
+
+    ``violation_patterns`` — `log.violations` values — restricts the axes to
+    those violations, and the pairs to those between two of them. Empty keeps
+    the task's own top-N by trace coverage. A selection is never truncated: the
+    axis grows to hold every pattern the admin named, since a cap silently
+    dropping three of fifteen chosen patterns would answer a question nobody
+    asked.
+    """
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 8 visualizations (Violation co-occurrence patterns) ---")
 
     n_traces = len(log)
     violation_sets, violation_freq, cooccurrence = _extract_violation_data(alignments)
+
+    selected = _selected_labels(violation_patterns)
+    if selected:
+        missing = selected - set(violation_freq)
+        if missing:
+            logger.warning(f"      task08: {len(missing)} selected pattern(s) do not "
+                           f"occur in this log: {', '.join(sorted(missing))}")
+        violation_freq, cooccurrence = _restrict_to_selection(
+            violation_freq, cooccurrence, selected)
+        logger.info(f"      -> restricted to {len(violation_freq)} selected pattern(s).")
+    axis_n = len(selected) if selected else None
 
     n_with_viols = sum(1 for vs in violation_sets if vs)
     logger.info(f"      -> {n_with_viols} / {n_traces} traces have violations; "
@@ -518,7 +583,10 @@ def generate(log, alignments, output_dir: str):
     # thr_frac = None disables the footer caption, the heatmap reference line
     # and the matrix cell outlines, leaving the co-occurrence counts to speak
     # for themselves.
-    task08_heatmap(violation_freq, cooccurrence, output_dir, None, None)
-    task08_matrix(violation_freq, cooccurrence, output_dir, None, None)
-    task08_network_diagram(violation_freq, cooccurrence, output_dir, None, None)
+    task08_heatmap(violation_freq, cooccurrence, output_dir, None, None,
+                   top_n=axis_n or _MATRIX_TOP_N)
+    task08_matrix(violation_freq, cooccurrence, output_dir, None, None,
+                  top_n=axis_n or _MATRIX_TOP_N)
+    task08_network_diagram(violation_freq, cooccurrence, output_dir, None, None,
+                           top_n=axis_n or _TOP_N)
     task08_table(violation_freq, cooccurrence, n_traces, output_dir, None, None)
