@@ -7,8 +7,15 @@ import { useRouter } from "next/navigation";
 import { hasKnowledgeQuestions } from "../../utils/knowledgeStep";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 
-import ProcessModelDiagram from "../../public/images/order_to_cash_model.svg";
 import HeaderLogos from "../../components/General/HeaderLogos";
+import ProcessModelImage from "../../components/General/ProcessModelImage";
+import IntroCitation from "../../components/General/IntroCitation";
+import {
+  CONCEPT_DEFINITION_SECTIONS,
+  fetchIntroPages,
+  pageAfterConcepts,
+  showsCitation,
+} from "../../utils/introPages";
 
 const C = {
   primary:       "#00305e",
@@ -114,6 +121,7 @@ function ImageLightbox({ children, onClose }) {
 export default function ConformanceTermsPage() {
   const router = useRouter();
   const [imageZoomOpen, setImageZoomOpen] = React.useState(false);
+  const [cfg, setCfg] = React.useState(null);
 
   // Going back to a step the admin emptied would land on a page that
   // immediately forwards here again, so Back would look broken. Skip to the
@@ -124,96 +132,32 @@ export default function ConformanceTermsPage() {
     );
   };
 
-  return (
-    <div style={{ backgroundColor: C.surface, color: C.onSurface, minHeight: "100vh", fontFamily: "'Inter', Arial, sans-serif" }}>
+  React.useEffect(() => {
+    let cancelled = false;
+    fetchIntroPages().then((c) => {
+      if (cancelled) return;
+      // The admin switched this page off: go straight on to whatever comes next.
+      if (c.concept_sections.length === 0) {
+        router.replace(pageAfterConcepts(c));
+        return;
+      }
+      setCfg(c);
+    });
+    return () => { cancelled = true; };
+  }, [router]);
 
-      {/* ── Top Nav */}
-      <header style={{
-        position: "fixed", top: 0, left: 0, width: "100%", zIndex: 50,
-        backgroundColor: C.white,
-        borderBottom: `1px solid ${C.containerHigh}`,
-        height: "4rem",
-        display: "flex", alignItems: "center", padding: "0 2rem",
-        boxSizing: "border-box",
-      }}>
-        <div style={{
-          maxWidth: "56rem", margin: "0 auto", width: "100%",
-          display: "flex", justifyContent: "space-between", alignItems: "center",
-        }}>
-          <HeaderLogos />
-        </div>
-      </header>
+  const shown = new Set(cfg?.concept_sections ?? []);
+  const modelUrl = cfg?.process_model_url ?? null;
+  // Only point at "the diagram at the top" when it's actually there, and only
+  // name order-to-cash when that's the diagram being shown.
+  const diagramRef = shown.has("process_model")
+    ? (modelUrl ? " — the diagram shown at the top of this page" : " — the order-to-cash diagram shown at the top of this page")
+    : "";
+  const hr = <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />;
 
-      {/* ── Main */}
-      <main style={{ paddingTop: "6rem", paddingBottom: "6rem", minHeight: "100vh" }}>
-        <div style={{ maxWidth: "48rem", margin: "0 auto", padding: "0 1.5rem" }}>
-
-          {/* Page heading */}
-          <header style={{ marginBottom: "2.5rem", textAlign: "center" }}>
-            <h1 style={{
-              fontFamily: "'Work Sans', 'Inter', sans-serif",
-              fontSize: "1.875rem", fontWeight: 700,
-              color: C.primary, letterSpacing: "-0.02em", marginBottom: "0.5rem",
-            }}>
-              Key Concepts in Conformance Checking
-            </h1>
-            <p style={{ fontSize: "0.875rem", color: C.onVariant, maxWidth: "36rem", margin: "0 auto", lineHeight: 1.6 }}>
-              Before you begin the tasks, please read the following definitions. They explain the core concepts used throughout this study.
-            </p>
-          </header>
-
-          {/* Process model illustration */}
-          <div style={{
-            backgroundColor: C.white,
-            border: `1px solid ${C.containerHigh}`,
-            borderRadius: "0.75rem",
-            boxShadow: "0 1px 4px rgba(45,52,53,0.06)",
-            padding: "1.5rem 1.5rem 1.25rem",
-            marginBottom: "1.5rem",
-          }}>
-            <p style={{ fontSize: "0.8125rem", color: C.onVariant, margin: "0 0 0.75rem", lineHeight: 1.6 }}>
-              This is the <strong>process model (guideline)</strong> used throughout this study — an order-to-cash
-              process. The definitions below refer back to it. Click the diagram to enlarge.
-            </p>
-            <button
-              type="button"
-              onClick={() => setImageZoomOpen(true)}
-              aria-label="Enlarge process model diagram"
-              style={{
-                display: "block", width: "100%", padding: 0, border: "none", background: "none", cursor: "zoom-in",
-                overflowX: "auto",
-              }}
-            >
-              <ProcessModelDiagram
-                role="img"
-                aria-label="Order-to-cash process model (BPMN): Receive Order, Check Credit, Confirm Order, Prepare Shipment, Issue Invoice, Ship Order, Receive Payment, Cancel Order"
-                style={{ width: "100%", height: "auto", borderRadius: "0.5rem" }}
-              />
-            </button>
-          </div>
-
-          {imageZoomOpen && (
-            <ImageLightbox onClose={() => setImageZoomOpen(false)}>
-              <ProcessModelDiagram
-                role="img"
-                aria-label="Order-to-cash process model (BPMN): Receive Order, Check Credit, Confirm Order, Prepare Shipment, Issue Invoice, Ship Order, Receive Payment, Cancel Order"
-                style={{ maxWidth: "85vw", maxHeight: "80vh", borderRadius: "0.5rem" }}
-              />
-            </ImageLightbox>
-          )}
-
-          {/* Content card */}
-          <div style={{
-            backgroundColor: C.white,
-            border: `1px solid ${C.containerHigh}`,
-            borderRadius: "0.75rem",
-            boxShadow: "0 1px 4px rgba(45,52,53,0.06)",
-            overflow: "hidden",
-          }}>
-            <div style={{ padding: "2.5rem 3rem", display: "flex", flexDirection: "column", gap: "1.75rem" }}>
-
-              {/* ── 1. Process, Event, Case, Trace & Event Log */}
-              <section>
+  const definitionSections = [];
+  if (shown.has("event_log")) definitionSections.push(
+              <section key="event_log">
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>table_rows</span>
                   <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
@@ -226,7 +170,7 @@ export default function ConformanceTermsPage() {
                 </p>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                   {[
-                    ["hub",        "#15803d", "#f0fdf4", "#bbf7d0", "Process",    "A set of activities executed in a coordinated manner to achieve a goal — e.g. order-to-cash, shown at the top of this page."],
+                    ["hub",        "#15803d", "#f0fdf4", "#bbf7d0", "Process",    `A set of activities executed in a coordinated manner to achieve a goal — e.g. order-to-cash${shown.has("process_model") && !modelUrl ? ", shown at the top of this page" : ""}.`],
                     ["bolt",       "#7c3aed", "#f5f3ff", "#ddd6fe", "Event",      "A single recorded occurrence, indicating the time, the activity, and the case it belongs to."],
                     ["assignment", "#1d4ed8", "#eff6ff", "#bfdbfe", "Case",       "An instance of the process — e.g. one customer order."],
                     ["linear_scale","#b45309", "#fffbeb", "#fde68a", "Trace",     "The recorded representation of a case — i.e. all events sharing the same case identifier."],
@@ -295,11 +239,9 @@ export default function ConformanceTermsPage() {
                   </div>
                 </Collapsible>
               </section>
-
-              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
-
-              {/* ── 2. Attribute */}
-              <section>
+  );
+  if (shown.has("attribute")) definitionSections.push(
+              <section key="attribute">
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>tune</span>
                   <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
@@ -331,11 +273,9 @@ export default function ConformanceTermsPage() {
                   ))}
                 </div>
               </section>
-
-              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
-
-              {/* ── 3. Guideline */}
-              <section>
+  );
+  if (shown.has("guideline")) definitionSections.push(
+              <section key="guideline">
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>account_tree</span>
                   <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
@@ -347,43 +287,135 @@ export default function ConformanceTermsPage() {
                   process model serves as an abstract representation of the process for specific modelling goals
                   and describes the allowed execution sequences for different process cases. In this study, we
                   represent multiple guidelines collectively in an imperative process model as a{" "}
-                  <strong>BPMN</strong>{" "}(Business Process Model and Notation) diagram — the order-to-cash
-                  diagram shown at the top of this page. &ldquo;Guideline&rdquo; and &ldquo;process
+                  <strong>BPMN</strong>{" "}(Business Process Model and Notation) diagram{diagramRef}.
+                  &ldquo;Guideline&rdquo; and &ldquo;process
                   model&rdquo; therefore refer to the same underlying reference behaviour and are used
                   interchangeably throughout.
                 </p>
               </section>
+  );
 
-              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+  return (
+    <div style={{ backgroundColor: C.surface, color: C.onSurface, minHeight: "100vh", fontFamily: "'Inter', Arial, sans-serif" }}>
 
-              <p style={{ fontSize: "0.8125rem", color: C.onVariant, lineHeight: 1.6, fontStyle: "italic" }}>
-                How guideline violations are detected (alignment, log/model moves), and how fitness is
-                computed from them, is explained on the next page, right before you start the tasks.
-              </p>
+      {/* ── Top Nav */}
+      <header style={{
+        position: "fixed", top: 0, left: 0, width: "100%", zIndex: 50,
+        backgroundColor: C.white,
+        borderBottom: `1px solid ${C.containerHigh}`,
+        height: "4rem",
+        display: "flex", alignItems: "center", padding: "0 2rem",
+        boxSizing: "border-box",
+      }}>
+        <div style={{
+          maxWidth: "56rem", margin: "0 auto", width: "100%",
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+        }}>
+          <HeaderLogos />
+        </div>
+      </header>
 
-              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+      {/* ── Main */}
+      <main style={{ paddingTop: "6rem", paddingBottom: "6rem", minHeight: "100vh" }}>
+        <div style={{ maxWidth: "48rem", margin: "0 auto", padding: "0 1.5rem" }}>
 
-              {/* Citation */}
-              <section>
-                <div style={{
-                  display: "flex", alignItems: "flex-start", gap: "0.75rem",
-                  padding: "0.875rem 1rem",
-                  backgroundColor: C.containerLow,
-                  borderRadius: "0.5rem",
-                  borderLeft: `3px solid ${C.outlineVar}`,
-                }}>
-                  <span className="material-symbols-outlined" style={{ color: C.outlineVar, fontSize: "1.1rem", flexShrink: 0, marginTop: "0.1rem" }}>menu_book</span>
-                  <p style={{ margin: 0, fontSize: "0.8125rem", color: C.onVariant, lineHeight: 1.65 }}>
-                    Definitions adapted from: Carmona, J., van Dongen, B., Solti, A., &amp; Weidlich, M. (2018).{" "}
-                    <em>Conformance Checking: Relating Processes and Models</em>. Springer.{" "}
-                    <span style={{ fontFamily: "monospace", fontSize: "0.75rem" }}>
-                      ISBN 978-3-319-99413-0 · DOI 10.1007/978-3-319-99414-7
-                    </span>
+          {/* Page heading */}
+          <header style={{ marginBottom: "2.5rem", textAlign: "center" }}>
+            <h1 style={{
+              fontFamily: "'Work Sans', 'Inter', sans-serif",
+              fontSize: "1.875rem", fontWeight: 700,
+              color: C.primary, letterSpacing: "-0.02em", marginBottom: "0.5rem",
+            }}>
+              Key Concepts in Conformance Checking
+            </h1>
+            <p style={{ fontSize: "0.875rem", color: C.onVariant, maxWidth: "36rem", margin: "0 auto", lineHeight: 1.6 }}>
+              Before you begin the tasks, please read the following definitions. They explain the core concepts used throughout this study.
+            </p>
+          </header>
+
+          {!cfg ? (
+            <p style={{ textAlign: "center", fontSize: "0.875rem", color: C.onVariant }}>Loading…</p>
+          ) : (<>
+
+          {/* Process model illustration */}
+          {shown.has("process_model") && (
+          <div style={{
+            backgroundColor: C.white,
+            border: `1px solid ${C.containerHigh}`,
+            borderRadius: "0.75rem",
+            boxShadow: "0 1px 4px rgba(45,52,53,0.06)",
+            padding: "1.5rem 1.5rem 1.25rem",
+            marginBottom: "1.5rem",
+          }}>
+            <p style={{ fontSize: "0.8125rem", color: C.onVariant, margin: "0 0 0.75rem", lineHeight: 1.6 }}>
+              This is the <strong>process model (guideline)</strong> used throughout this study
+              {modelUrl ? "." : " — an order-to-cash process."}
+              {definitionSections.length > 0 && " The definitions below refer back to it."} Click the diagram to enlarge.
+            </p>
+            <button
+              type="button"
+              onClick={() => setImageZoomOpen(true)}
+              aria-label="Enlarge process model diagram"
+              style={{
+                display: "block", width: "100%", padding: 0, border: "none", background: "none", cursor: "zoom-in",
+                overflowX: "auto",
+              }}
+            >
+              <ProcessModelImage
+                url={modelUrl}
+                style={{ width: "100%", height: "auto", borderRadius: "0.5rem" }}
+              />
+            </button>
+          </div>
+          )}
+
+          {imageZoomOpen && (
+            <ImageLightbox onClose={() => setImageZoomOpen(false)}>
+              <ProcessModelImage
+                url={modelUrl}
+                style={{ maxWidth: "85vw", maxHeight: "80vh", borderRadius: "0.5rem" }}
+              />
+            </ImageLightbox>
+          )}
+
+          {/* Content card */}
+          <div style={{
+            backgroundColor: C.white,
+            border: `1px solid ${C.containerHigh}`,
+            borderRadius: "0.75rem",
+            boxShadow: "0 1px 4px rgba(45,52,53,0.06)",
+            overflow: "hidden",
+          }}>
+            {definitionSections.length > 0 && (
+            <div style={{ padding: "2.5rem 3rem", display: "flex", flexDirection: "column", gap: "1.75rem" }}>
+
+              {definitionSections.flatMap((section, i) =>
+                i === 0 ? [section] : [<React.Fragment key={`hr-${i}`}>{hr}</React.Fragment>, section]
+              )}
+
+              {cfg.taskintro_sections.length > 0 && (
+                <>
+                  {hr}
+
+                  <p style={{ fontSize: "0.8125rem", color: C.onVariant, lineHeight: 1.6, fontStyle: "italic" }}>
+                    How guideline violations are detected (alignment, log/model moves), and how fitness is
+                    computed from them, is explained on the next page, right before you start the tasks.
                   </p>
-                </div>
-              </section>
+                </>
+              )}
+
+              {showsCitation(cfg.concept_citation, shown, CONCEPT_DEFINITION_SECTIONS) && (
+                <>
+                  {hr}
+
+                  <section>
+                    <IntroCitation text={cfg.concept_citation.text} />
+                  </section>
+                </>
+              )}
 
             </div>
+            )}
 
             {/* CTA area */}
             <div style={{
@@ -410,7 +442,7 @@ export default function ConformanceTermsPage() {
               </button>
               <button
                 type="button"
-                onClick={() => router.push("/taskintro")}
+                onClick={() => router.push(pageAfterConcepts(cfg))}
                 style={{
                   padding: "0.75rem 2.5rem", borderRadius: "0.5rem", border: "none",
                   backgroundColor: C.primary, color: C.white,
@@ -428,6 +460,7 @@ export default function ConformanceTermsPage() {
               </button>
             </div>
           </div>
+          </>)}
 
         </div>
       </main>

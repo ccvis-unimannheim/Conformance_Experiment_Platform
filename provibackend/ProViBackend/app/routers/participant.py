@@ -10,6 +10,7 @@ from pydantic import BaseModel
 import ProViBackend.app.answer_formats as afmt
 import ProViBackend.utils.config as config
 import ProViBackend.utils.database.connection as dbc
+from ProViBackend.utils import utils
 from ProViBackend.scripts.tasks import task_registry
 from ProViBackend.app.label_overrides import resolve_idiom_label
 from ProViBackend.utils.database.assignment import (
@@ -209,6 +210,55 @@ async def get_active_prequestionnaire_sections():
     exp = sorted(experiments, key=lambda e: e.get("created_at", ""), reverse=True)[0]
     sections = exp.get("prequestionnaire_sections", _DEFAULT_PREQUESTIONNAIRE_SECTIONS)
     return JSONResponse(content={"sections": sections})
+
+
+_DEFAULT_CONCEPT_SECTIONS = ["process_model", "event_log", "attribute", "guideline"]
+_DEFAULT_TASKINTRO_SECTIONS = [
+    "the_process", "what_to_expect", "alignment", "violation", "conformant_traces", "fitness"
+]
+
+
+def _latest_active_experiment() -> dict | None:
+    experiments = dbc.get_query_db("Experiment", {"status": {"$in": ["active", "published"]}})
+    if not experiments:
+        return None
+    return sorted(experiments, key=lambda e: e.get("created_at", ""), reverse=True)[0]
+
+
+@router.get("/intro-pages", tags=["participant"])
+async def get_active_intro_pages():
+    """Which sections of the Key Concepts and Before You Begin pages the active
+    experiment shows (an empty list skips that page), and the URL of its uploaded
+    process model image (null = the bundled order-to-cash diagram)."""
+    exp = _latest_active_experiment() or {}
+    model_path = utils.process_model_path(exp) if exp else None
+    return JSONResponse(content={
+        "concept_sections": exp.get("concept_sections", _DEFAULT_CONCEPT_SECTIONS),
+        "taskintro_sections": exp.get("taskintro_sections", _DEFAULT_TASKINTRO_SECTIONS),
+        # text null = the default Carmona et al. (2018) reference
+        "concept_citation": {
+            "enabled": exp.get("concept_citation_enabled", True),
+            "text": exp.get("concept_citation_text"),
+        },
+        "taskintro_citation": {
+            "enabled": exp.get("taskintro_citation_enabled", True),
+            "text": exp.get("taskintro_citation_text"),
+        },
+        # mtime query param busts the browser cache when the admin replaces the image
+        "process_model_url": (
+            f"/api/participant/process-model?v={int(model_path.stat().st_mtime)}" if model_path else None
+        ),
+    })
+
+
+@router.get("/process-model", tags=["participant"])
+async def get_active_process_model():
+    """Serve the active experiment's uploaded process model image."""
+    exp = _latest_active_experiment()
+    model_path = utils.process_model_path(exp) if exp else None
+    if model_path is None:
+        raise HTTPException(status_code=404, detail="No uploaded process model for the active experiment.")
+    return FileResponse(str(model_path), media_type=utils.image_media_type(model_path.suffix))
 
 
 @router.get("/knowledge-questions", tags=["participant"])

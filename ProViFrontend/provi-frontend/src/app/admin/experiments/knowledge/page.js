@@ -228,7 +228,7 @@ export default function KnowledgeSetupPage() {
 
   async function handleNext() {
     if (!experimentId) {
-      router.push("/admin/experiments/task");
+      router.push("/admin/experiments/concepts");
       return;
     }
     setSaveError(null);
@@ -246,7 +246,7 @@ export default function KnowledgeSetupPage() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.detail || `Server error: ${res.status}`);
       }
-      router.push(`/admin/experiments/task?experiment_id=${encodeURIComponent(experimentId)}`);
+      router.push(`/admin/experiments/concepts?experiment_id=${encodeURIComponent(experimentId)}`);
     } catch (e) {
       setSaveError(e.message);
     } finally {

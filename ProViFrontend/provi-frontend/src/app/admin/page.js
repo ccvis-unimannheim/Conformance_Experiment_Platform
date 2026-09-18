@@ -90,7 +90,7 @@ function TasksTooltip({ exp, taskMap, idiomMap }) {
   );
 }
 
-const WIZARD_STEPS = ["new", "prequestionnaire", "knowledge", "task", "idiom", "specify", "answer-format", "overview"];
+const WIZARD_STEPS = ["new", "prequestionnaire", "knowledge", "concepts", "task", "idiom", "specify", "answer-format", "overview"];
 
 // Drafts saved while the removed parameter-matching step existed still carry
 // it as their current step; resume them where that step used to lead.
