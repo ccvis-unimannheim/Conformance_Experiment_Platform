@@ -7,8 +7,8 @@ deviations*:
      need to formally define the process goal."
 
 Design (settled):
-  * Formal process goal := reaching the configured ``outcome_activity`` (reuses the
-    exact outcome logic from task31.py; --outcome-activity, default A_ACTIVATED).
+  * Formal process goal := reaching the configured ``outcome_activity``; when it
+    is not set, shared.infer_outcome_activity picks one from the log.
     A trace "achieves the goal" iff the outcome activity occurs in it.
   * Effect of a violation pattern v = outcome_rate(traces WITH v) −
     outcome_rate(traces WITHOUT v): the signed **risk difference** (the relative
@@ -36,7 +36,12 @@ canonical slug after the pipeline rename:
     task19_parallel_sets.svg       → parallel_sets
 
 Public API:
-    generate(log, alignments, model_path, output_dir, outcome_activity="Activate Care")
+    generate(log, alignments, model_path, output_dir, outcome_activity="",
+             target_patterns=None)
+        outcome_activity – the goal activity; empty = inferred from the log by
+                           shared.infer_outcome_activity
+        target_patterns  – violation patterns to show; None/empty = all
+        model_path       – accepted for the calling convention only
 """
 
 import logging
@@ -602,8 +607,10 @@ def _emit_all_empty(output_dir, message: str):
 
 def generate(log, alignments, model_path, output_dir: str, outcome_activity: str = "",
              target_patterns=None):
-    """Generate all Task ID 19 SVGs into output_dir. The process goal reuses task31's
-    outcome activity; effects are per-violation-pattern risk differences computed from
+    """Generate all Task ID 19 SVGs into output_dir. The process goal is reaching
+    ``outcome_activity`` (inferred from the log when empty — by presence, unlike
+    task31, which infers a terminal activity); effects are per-violation-pattern
+    risk differences computed from
     the central alignment run (never recomputed). ``model_path`` is accepted for calling
     convention only — no model-level idiom is produced anymore. ``target_patterns`` is
     the admin's checkbox selection of violation patterns to show (None/empty = all)."""

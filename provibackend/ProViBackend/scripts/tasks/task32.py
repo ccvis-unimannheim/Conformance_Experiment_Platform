@@ -15,7 +15,18 @@ new dataset flows through unchanged: the compare attribute is auto-detected upst
 and split_by_attribute adapts to numeric (median split) or categorical values.
 
 Public API:
-    generate(log, alignments, output_dir, compare_attribute="AMOUNT_REQ")
+    generate(log, alignments, output_dir, compare_attribute="AMOUNT_REQ",
+             split_attribute="", grouping_strategy="pattern", selection=None,
+             prominence_threshold=None)
+        split_attribute      – case attribute defining the sub-processes; when
+                               empty, compare_attribute (auto-detected
+                               upstream) is used instead
+        grouping_strategy    – what a violation is counted as: "move_type",
+                               "activity" or "pattern" (see violation_profile)
+        selection            – which groups to show, in the units of the
+                               strategy; empty = all
+        prominence_threshold – minimum share (%) of all violations for one to
+                               count as "main"; None keeps every violation
 """
 
 import logging

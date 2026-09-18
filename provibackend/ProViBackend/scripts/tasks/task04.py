@@ -2,7 +2,11 @@
 tasks/task04.py – Task ID 4: Describe / Compare / Conformance across individual traces.
 
 Task 4 asks "How does the degree of conformance differ between multiple logs or
-traces?". Every idiom shows the *same* concrete traces (individual traces, NOT
+traces?", and `analysis_level` picks which half is answered. At log level the
+task draws task01's sub-log comparison instead (see LEVEL_PARAM below); what
+follows describes the trace level, the default.
+
+Every idiom shows the *same* concrete traces (individual traces, NOT
 aggregated variants) with their conformance fitness, just encoded differently, so
 no idiom exposes more information than another (information equivalence):
 
@@ -12,17 +16,34 @@ no idiom exposes more information than another (information equivalence):
     * table_bar_chart  – Trace | Fitness table + adjacent per-trace fitness bars
     * matrix           – trace × Fitness grid, colour + numeric annotation
     * heatmap          – trace × Fitness grid, continuous colour (no annotation)
+    * flow_chart_basic     – one chevron strip per trace, each activity coloured
+                             by its alignment move type (needs alignments)
+    * flow_chart_elaborate – the BPMN model drawn once per trace, coloured the
+                             same way (needs alignments and the model)
 
 Fitness is rounded to 3 decimals in every idiom; there is no #Traces column, no
 conformant/non-conformant colour coding, and no pre-computed differences — the
-participant derives the conformance assessment from the fitness values.
+participant derives the conformance assessment from the fitness values (the flow
+charts colour individual moves, not whole traces).
 
 Public API:
-    generate(log, fitness_df, output_dir, trace_ids=None)
-        log        – PM4Py EventLog
-        fitness_df – per-trace fitness DataFrame from io_helpers.fitness_summary_dataframe
-        output_dir – directory where SVGs are written
-        trace_ids  – optional list of case-id strings to show (default: first 10)
+    generate(log, fitness_df, output_dir, trace_ids=None, alignments=None,
+             model_path=None, analysis_level="trace",
+             trace_pick_rule="violation_gap", trace_count=SAMPLE_N,
+             outcome_activity="")
+        log              – PM4Py EventLog
+        fitness_df       – per-trace fitness DataFrame from io_helpers.fitness_summary_dataframe
+        output_dir       – directory where SVGs are written
+        analysis_level   – "trace" (the idioms above) or "log", which draws
+                           task01's sub-log comparison instead and returns
+        trace_ids        – optional list of case-id strings to show; empty =
+                           chosen by trace_pick_rule, trace_count of them (see
+                           trace_alignment.PICK_RULES)
+        alignments       – raw alignment results; needed for the rule-based
+                           trace choice and the flow-chart idioms
+        model_path       – reference BPMN, for the model-based idioms
+        outcome_activity – log level only: the activity that splits the log;
+                           empty = inferred by shared.infer_outcome_activity
 """
 
 import logging

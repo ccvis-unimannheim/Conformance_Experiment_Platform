@@ -29,7 +29,8 @@ Design (settled):
     neither kind is structurally favoured; candidates are then ranked together.
   * Top-N unified candidate reasons (TOP_N).
 
-Scope = the 7 "High" idioms. Stems → canonical slug after the pipeline rename:
+Scope = the 7 "High" idioms (Priority column of docs/TASK_IDIOM_MAPPING.md).
+Stems → canonical slug after the pipeline rename:
     task21_bar_chart.svg                       → bar_chart
     task21_scatter_plot.svg                    → scatterplot   (reuses task13's scatter)
     task21_table.svg                           → table

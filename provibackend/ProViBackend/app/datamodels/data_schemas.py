@@ -72,7 +72,11 @@ class IntroPageSections(BaseModel):
     current_step: Optional[str] = None
 
 class FeedbackAnswersRequest(BaseModel):
-    ratings:  dict        # {mentalDemand, physicalDemand, temporalDemand, performance, effort, frustration}
+    # Keyed by the `key` of each question in the endpage's QUESTIONS (the NASA-TLX
+    # items mentalDemand … frustration, currently commented out, so this arrives
+    # empty). The admin export's "End Survey" sheet reads a different, older set
+    # of keys (RATING_KEYS in routers/admin.py) — the two do not match.
+    ratings:  dict
     feedback: str | None = None
 
 class User(BaseModel):
@@ -281,6 +285,9 @@ class UserAssignment(BaseModel):
     group_id: str
     assigned_between: Dict[str, str]
     trial_sequence: List[str]
+    # Not live progress: 0 until POST /participant/complete sets it to
+    # len(trial_sequence). In practice a "has finished" marker, which is what the
+    # admin stats count as completed.
     current_trial_index: int
     insert_datetime: str
 
@@ -302,7 +309,6 @@ class TaskUpdate(BaseModel):
     description: str | None = None
     answer_type: str | None = None
     rubric: str | None = None
-    # Admin overrides of this task's own PARAM_SPEC entries (see GET
 
 class Question(BaseModel):
     model_config = ConfigDict(populate_by_name=True)

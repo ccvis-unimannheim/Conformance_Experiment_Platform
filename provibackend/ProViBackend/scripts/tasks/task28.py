@@ -1,8 +1,27 @@
 """
-tasks/task28.py – Task 2: Location/alignment visualizations for a representative trace.
+tasks/task28.py – task28: where exactly the process execution differs from the
+guideline.
+
+Trace level: the alignment of the chosen traces (see trace_ids / trace_pick_rule
+below), drawn by task09's trace-alignment figures in the chosen perspective
+(control flow, data or resource) — the same pictures task09 shows. Log level: an
+exploratory overview of the deviations across the whole log.
 
 Public API:
-    generate(alignments, model_path, output_dir)
+    generate(alignments, model_path, output_dir, log=None,
+             perspective="control-flow", trace_ids=None,
+             trace_pick_rule="first_nonconformant", trace_count=1,
+             data_attribute="", conformant_values=(),
+             conformant_resources=(), scoped_activity="")
+        perspective          – "control-flow" | "data" | "resource": what the
+                               shown traces are checked against
+        trace_ids            – traces to show; empty = chosen by
+                               trace_pick_rule, trace_count of them (see
+                               trace_alignment.PICK_RULES)
+        data_attribute,
+        conformant_values    – the data rule (perspective "data")
+        conformant_resources,
+        scoped_activity      – the resource rule (perspective "resource")
 """
 
 import logging

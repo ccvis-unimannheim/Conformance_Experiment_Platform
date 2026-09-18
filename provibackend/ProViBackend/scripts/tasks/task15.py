@@ -5,12 +5,23 @@ Goal: Explain · Means: Annotate · Characteristics: Reasons for process conform
 "How can the overall process conformance be explained? Requires prior knowledge
 of potential explanations."
 
-All idioms show log-level aggregate conformance (fitness distribution,
-per-activity violation counts) so the analyst can match observed patterns
-to their prior knowledge. No sublog splitting — the focus is the overall picture.
+The table, bar chart, table + bar chart and parallel sets split the log by each
+selected attribute and show mean fitness per bucket; the scatter plot and the
+model idioms stay log-level (fitness distribution, per-activity violation
+counts). Either way the analyst matches the observed patterns to their prior
+knowledge.
 
 Public API:
-    generate(log, fitness_df, alignments, output_dir, model_path=None)
+    generate(log, fitness_df, alignments, output_dir, model_path=None,
+             attribute_set=None, split_strategy=None, group_cap=None,
+             missing_policy="drop")
+        attribute_set  – attributes the split idioms cut the log by; empty =
+                         the discovered default set
+        split_strategy – "binary" | "nominal_n" | "ordered_bins"; None picks
+                         by each attribute's type (see trace_features)
+        group_cap      – most groups named before the rest become "Other"
+        missing_policy – "drop" traces lacking the attribute, or keep them as
+                         their own "Missing" group ("own_group")
 """
 
 import logging

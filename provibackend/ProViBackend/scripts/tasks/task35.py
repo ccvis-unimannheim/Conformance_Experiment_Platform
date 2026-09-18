@@ -5,9 +5,13 @@ Goal: Present · Means: Present · Characteristics: Guideline violations in mode
 Question: Where does the recorded behavior violate which guidelines?
           Violations (skip / insert) annotated directly on the BPMN process model.
 
-Idioms:
-  flow_chart_elaborate       – BPMN shaded by violation count; skip/insert counts per node
-  flow_chart_elaborate_table – same BPMN + violation breakdown table below
+Idioms (see IDIOMS below for why there is only one):
+  flow_chart_elaborate – BPMN shaded by violation count; skip/insert counts per node
+
+Public API:
+    generate(log, alignments, output_dir, model_path=None, move_types=None)
+        move_types – violation types to annotate ("Model Move", "Log Move");
+                     None/empty = all
 """
 
 import logging

@@ -4,12 +4,13 @@ tasks/task07.py – Task 7: Process conformance over time.
 Visualizations: Line Graph, Horizon Chart.
 
 Public API:
-    generate(log, fitness_df, output_dir)
+    generate(log, fitness_df, output_dir, time_granularity=DEFAULT_TIME_GRANULARITY)
         log              – PM4Py event log (used for trace timestamps)
         fitness_df       – per-trace fitness DataFrame from io_helpers.fitness_summary_dataframe
         output_dir       – directory where SVGs are written
-        time_granularity – ("year" | "month" | "day") controls the time-axis 
-                aggregation of the line graph and horizon chart (default: month).
+        time_granularity – ("year" | "month" | "day") controls the time-axis
+                           aggregation of the line graph and horizon chart
+                           (default: month).
 """
 
 import logging
@@ -57,7 +58,7 @@ PARAM_SPEC = [
 ]
 
 
-# Per-granularity label format for GT rows / bin axis.
+# Per-granularity label format for the time-bin axis.
 _BIN_LABEL_FMT = {"day": "%Y-%m-%d", "month": "%Y-%m", "year": "%Y"}
 
 

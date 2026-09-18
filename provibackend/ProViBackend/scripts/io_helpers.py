@@ -10,7 +10,12 @@ import pandas as pd
 
 
 def load_event_log(log_path: str):
-    """Load XES or CSV event log and always return a PM4Py EventLog object."""
+    """Load XES or CSV event log and always return a PM4Py EventLog object.
+
+    On an unsupported extension or a CSV whose case/activity/timestamp columns
+    cannot be detected this calls sys.exit(1) — written for the CLI. Backend
+    callers therefore have to catch SystemExit as well as Exception.
+    """
     print(f"[1/3] Loading event log: {log_path}")
     ext = os.path.splitext(log_path)[1].lower()
     if ext == ".xes":
@@ -72,7 +77,8 @@ def run_alignments(log, net, im, fm):
 
 
 def fitness_summary_dataframe(alignments):
-    """Build per-trace fitness DataFrame from raw alignment results (used by Task 6 & Task 10)."""
+    """Build per-trace fitness DataFrame from raw alignment results — the
+    `fitness_df` the central run hands to every task that needs fitness."""
     rows = []
     for i, result in enumerate(alignments):
         fitness = result["fitness"]

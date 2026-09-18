@@ -4,7 +4,7 @@ tasks/task37.py – Task 37: Present · Summarize · Process conformance
 Question: How do fitness values of traces differ when applying two different
 techniques to compute them? What is the overall trend of trace fitness?
 
-Visualizations (all SVG, white-grey-black palette):
+Visualizations (all SVG, cividis palette from shared.py):
   bar_chart       – mean/median comparison: T1 vs T2
   boxplot         – distribution: T1 vs T2 side by side
   scatter_plot    – per-trace T1 vs T2 (technique agreement)

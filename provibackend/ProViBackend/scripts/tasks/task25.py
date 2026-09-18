@@ -5,10 +5,10 @@ The analyst discovers the overall conformance degree (= conformance rate, i.e.
 **fitness**) themself from the per-trace data. Three core principles:
 
   * **One vocabulary — fitness (0–1).** Every idiom speaks the same conformance-
-    rate language as the GT (mean per-trace fitness). NO idiom reduces the log to
+    rate language: the log's mean per-trace fitness. NO idiom reduces the log to
     a binary conformant-vs-non-conformant split: a trace with fitness 0.9 is
     *mostly* conformant, and a binary count would mislead the analyst toward a far
-    lower conformance estimate than the true rate (the answer the GT buckets).
+    lower conformance estimate than the true rate.
   * **Discovery, not description.** No single aggregated conformance number is
     handed over (no overall fitness value, no mean line, no summary row).
   * **Derivable, not binned.** Every idiom shows the EXACT per-trace fitness — never
@@ -19,10 +19,11 @@ The analyst discovers the overall conformance degree (= conformance rate, i.e.
     them do so. Reuses the centrally computed per-trace fitness.
 
 Public API:
-    generate(log, fitness_df, output_dir)
+    generate(log, fitness_df, output_dir, model_path=None)
         log        – PM4Py EventLog
         fitness_df – per-trace fitness DataFrame from io_helpers.fitness_summary_dataframe
         output_dir – directory where SVGs are written
+        model_path – accepted for the calling convention; unused
 """
 
 import logging

@@ -13,13 +13,19 @@ the table carries each group's deviation from the overall mean, and the BPMN
 model localises *where* conformance breaks.
 
 Building blocks (sub-log split, violation extraction, annotated BPMN) are reused
-from task30/shared, so a new dataset flows through unchanged: the compare
-attribute is auto-detected upstream and split_by_attribute adapts to numeric
-(median split) or categorical values.
+from task30/shared, so a new dataset flows through unchanged: the admin picks the
+candidate attributes, and each is cut by its own type unless a split strategy is
+set (see trace_features).
 
 Public API:
-    generate(log, fitness_df, alignments, output_dir,
-             model_path=None, compare_attribute="AMOUNT_REQ")
+    generate(log, fitness_df, alignments, output_dir, model_path=None,
+             attribute_set=None, split_strategy=None, group_cap=None)
+        attribute_set  – candidate reasons (attributes); empty = the
+                         discovered default set. The distribution idioms use
+                         only the first one.
+        split_strategy – "binary" | "nominal_n" | "ordered_bins"; None picks
+                         by each attribute's type
+        group_cap      – most groups named before the rest become "Other"
 """
 
 import logging

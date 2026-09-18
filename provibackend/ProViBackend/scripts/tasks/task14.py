@@ -6,7 +6,12 @@ Goal: Explain · Means: Annotate · Characteristics: Guideline violations
 violations, and a textual description of them."
 
 Public API:
-    generate(alignments, model_path, output_dir)
+    generate(alignments, model_path, output_dir, log=None, trace_ids=None,
+             trace_pick_rule="worst_fitness")
+        log             – needed for the chevron / BPMN idioms (drawn by task04's
+                          renderers) and for picking the trace by rule
+        trace_ids       – the one trace to annotate; empty = chosen by
+                          trace_pick_rule (see trace_alignment.PICK_RULES)
 """
 
 import logging
@@ -654,7 +659,7 @@ def generate(alignments, model_path: str, output_dir: str, log=None,
     task14_table(ctx, output_dir)
     task14_bar_chart(ctx, output_dir)
     task14_flow_chart_and_table(ctx, output_dir)
-    # task14_flow_chart_elaborate(ctx, model_path, output_dir)  # commented out
+    # task14_flow_chart_elaborate(ctx, model_path, output_dir)  # superseded: task04's renderer draws it above
     task14_flow_chart_elaborate_table(ctx, model_path, output_dir)
     task14_table_bar_chart(ctx, output_dir)
     task14_parallel_sets(ctx, output_dir)

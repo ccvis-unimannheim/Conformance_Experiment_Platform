@@ -4,8 +4,7 @@ tasks/task06.py – Task ID 6: Describe / Derive / Process conformance
 
 The task asks a single question — the overall degree of conformance, i.e. the
 mean fitness expressed as a percentage. All five idioms encode exactly the same
-scalar: Fitness (%, 1 d.p.) — matching the one-decimal percentage of the
-generated answer options. No idiom exposes additional distribution statistics
+scalar: Fitness (%, 1 d.p.). No idiom exposes additional distribution statistics
 (min, max, std, trace count) so that the only experimental variable between
 conditions is visual encoding, not information quantity.
 

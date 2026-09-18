@@ -13,11 +13,10 @@ same underlying per-trace attribute data + violation label, different (non-tree)
 presentations. It complements, it does not duplicate, task20.
 
 Design (settled):
-  * Candidate attributes (the "reasons") = a configurable module-level list.
-    Default for BPIC12-A: AMOUNT_REQ (data, numeric), org:resource (resource,
-    categorical), throughput time (time, numeric). Each is verified to exist in
-    the log (reuses task30's attribute-existence helpers); missing ones are
-    skipped with a warning that lists the available case/event attributes.
+  * Candidate attributes (the "reasons") = the admin's selection, or by default
+    every attribute the log actually carries that can be bucketed, plus the
+    derived throughput time (discover_candidate_attributes). Nothing is keyed
+    to a particular dataset's attribute names.
   * Target label = guideline violations per trace, REUSED from the already
     computed alignment data via task20's per-trace feature frame
     (`task20_trace_feature_dataframe`). No alignments are re-run, nothing is
@@ -32,7 +31,7 @@ Design (settled):
                               rate.
     Attributes are ranked by strength.
 
-Scope = the 7 "High" idioms. Stems written here → canonical slug after the
+Scope = the 7 "High" idioms (Priority column of docs/TASK_IDIOM_MAPPING.md). Stems written here → canonical slug after the
 pipeline rename (see create_all_visualizations._FILE_RENAME):
     task13_bar_chart.svg                      → bar_chart
     task13_scatter_plot.svg                   → scatterplot
@@ -127,12 +126,6 @@ from tasks.task28 import build_task28_context
 # Sentinel for the derived "throughput time" reason (no raw log key; taken from
 # task20's per-trace ``duration_hours``).
 THROUGHPUT_KEY = "__throughput_hours__"
-
-# Legacy hard-coded reasons — kept only as an explicit override example. The
-# dataset-INDEPENDENT default is discover_candidate_attributes(), which derives the
-# candidate reasons from whatever attributes the log actually carries; these BPIC12
-# names are no longer used as a fallback (that would probe non-existent keys and
-# emit spurious "not found" warnings on other datasets).
 
 NUMERIC_BUCKETS = 4   # quantile buckets for a numeric attribute's bar/parallel dim
 MAX_CATEGORIES  = 5   # top categories kept for a categorical attribute (rest -> "Other")

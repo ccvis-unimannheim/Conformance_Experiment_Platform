@@ -1,13 +1,13 @@
 """
 tasks/task20.py – Task ID 20: Explain / Discover / Reasons for guideline violations
-(the Decision-Tree member of the Reasons triad).
+(the Decision-Tree member of the Reasons triad — though, as below, the tree
+itself is no longer drawn).
 
-Information-equivalent idiom set (11 idioms). Every idiom renders the SAME kernel —
-per selected attribute, the guideline-violation rate (%) per bucket:
-    rate-only:    bar_chart, table, table_bar_chart, matrix, heatmap,
-                  tile_metric, stacked_bar
-    rate+counts:  parallel_sets, tree_map, sunburst
-    (pie_chart shows the per-bucket violation / no-violation split = the rate.)
+Information-equivalent idiom set (7 idioms, see IDIOMS). Every idiom renders the
+SAME kernel — per selected attribute, the guideline-violation rate (%) per bucket:
+    rate-only:    bar_chart, table, table_bar_chart, matrix, heatmap, tile_metric
+    rate+counts:  parallel_sets
+(generate() explains why stacked_bar, pie_chart, sunburst and tree_map were dropped.)
 
 The bucket data comes from task13's helpers (_build_evidence_frame / _bucket_rates),
 consumed here via _task20_attribute_panels(). The former decision-tree, flow-chart and

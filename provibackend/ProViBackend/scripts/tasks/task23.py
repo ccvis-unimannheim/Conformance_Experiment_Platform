@@ -2,12 +2,15 @@
 tasks/task23.py – Task ID 23: Explore / Compare / Guideline violations.
 
 Compare violation patterns against one another across the whole log.
-Unit of comparison = (activity, move_type); no outcome-group split
-(that is task05). Reuses the alignment_pairs_to_rows classification
+Unit of comparison = (activity, move_type); the log is not split into
+groups (task05 compares two sub-logs split by a case attribute). Reuses the alignment_pairs_to_rows classification
 from shared.py and the draw_parallel_sets helper.
 
 Public API:
-    generate(alignments, output_dir)
+    generate(alignments, output_dir, log=None, activities=None)
+        activities – activities whose violation patterns are shown (both move
+                     types of each); None/empty = all
+        log        – accepted for the calling convention; unused
 """
 
 import logging
@@ -287,9 +290,3 @@ def generate(alignments, output_dir: str, log=None, activities=None):
     pat_df = _task23_build_pattern_df(alignments, activities=activities)
     task23_stacked_bar(pat_df, output_dir)
     task23_parallel_sets(pat_df, output_dir)
-
-
-# ---------------------------------------------------------------------------
-# Ground truth (free-text answer type)
-# ---------------------------------------------------------------------------
-

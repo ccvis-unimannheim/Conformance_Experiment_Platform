@@ -2,20 +2,25 @@
 tasks/task03.py – Task ID 3: Describe / Compare / Conformant vs. non-conformant
 throughput time.
 
-Every idiom contrasts the SAME single factor between the Conformant
+Every idiom contrasts the SAME factors between the Conformant
 (fitness ≥ threshold) and Non-conformant (fitness < threshold) trace groups —
-the throughput-time distribution over quartile buckets:
-    * bar_chart            – grouped bars, # traces per throughput bucket
-    * table                – throughput-bucket table (share % per group)
-    * table_and_bar_chart  – throughput table + grouped-bar panel (# traces)
-    * stacked_bar          – 100%-stacked bars per group over throughput buckets
+each selected attribute's distribution over quartile buckets, one panel per
+attribute (throughput time when none is selected):
+    * bar_chart            – grouped bars, # traces per bucket
+    * table                – bucket table (share % per group)
+    * table_and_bar_chart  – bucket table + grouped-bar panel (# traces)
+    * stacked_bar          – 100%-stacked bars per group over the buckets
     * matrix               – annotated grid, buckets × group, share (%)
 
 Public API:
-    generate(log, fitness_df, output_dir)
-        log        – PM4Py EventLog
-        fitness_df – per-trace fitness DataFrame from io_helpers.fitness_summary_dataframe
-        output_dir – directory where SVGs are written
+    generate(log, fitness_df, output_dir, conformant_threshold=1.0,
+             response_attribute=None)
+        log                  – PM4Py EventLog
+        fitness_df           – per-trace fitness DataFrame from io_helpers.fitness_summary_dataframe
+        output_dir           – directory where SVGs are written
+        conformant_threshold – traces with fitness ≥ this value are Conformant
+        response_attribute   – attributes compared between the two groups, one
+                               panel each; empty compares throughput time
 """
 
 import logging
@@ -506,9 +511,8 @@ def task03_matrix(panels, output_dir: str):
 
 
 # ---------------------------------------------------------------------------
-# Ground truth
+# Public entry point
 # ---------------------------------------------------------------------------
-
 
 def generate(log, fitness_df, output_dir: str, conformant_threshold: float = 1.0,
              response_attribute=None):

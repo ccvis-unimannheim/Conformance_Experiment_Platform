@@ -702,7 +702,9 @@ async def select_active_datasets(selected_datasets_from_frontend: ds.ListDataset
 
 @router.get("/usagedataset", tags=["admin"])
 async def get_users_usage_of_datasets():
-    # dataset assignment is stored in UserAssignment.assigned_between (Dict[str, str])
+    # Despite the name, this counts idioms, not datasets: assigned_between maps
+    # task_id -> idiom_id (between-subjects only). Left from the ProVi-era
+    # dataset rotation; no page calls this endpoint any more.
     assignments = dbc.get_query_db("UserAssignment", query={})
     dataset_usage_count = {}
     for assignment in assignments:
@@ -1437,6 +1439,9 @@ def _validate_task_instances(exp: dict) -> list[str]:
         # Task-specific semantic validation (e.g. the condition must split the log).
         validate = task_registry.get_validate_params(task_key)
         if validate is not None and dataset_id:
+            # SystemExit too: io_helpers.load_event_log exits on a log it cannot
+            # read (it was written for the CLI), and uncaught that would take
+            # the request down instead of reporting a validation error.
             if dataset_id not in log_cache:
                 try:
                     log_cache[dataset_id] = _load_dataset_log(dataset_id)
@@ -1570,7 +1575,7 @@ async def generate_experiment_visualizations(experiment_id: str, background_task
 
 def _run_preview_job(experiment_id: str, mode: str):
     """Background job: generate preview SVGs without touching the experiment's
-    permanent output or GT data.
+    permanent output.
 
     mode='sample' — uses the bundled synthetic sample dataset so the admin can
                     quickly see what each idiom looks like regardless of whether

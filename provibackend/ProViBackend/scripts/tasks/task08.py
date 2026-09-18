@@ -215,7 +215,7 @@ def task08_heatmap(violation_freq, cooccurrence, output_dir, thr_count, thr_frac
         _no_violations(output_dir, "heatmap")
         return
 
-    top = _top_violations(violation_freq, _MATRIX_TOP_N)  # same axis as the matrix GT
+    top = _top_violations(violation_freq, _MATRIX_TOP_N)  # same axis as the matrix idiom
     if len(top) < 2:
         _save_empty(output_dir, "task08_heatmap.svg",
                     "Too few distinct violations for co-occurrence heatmap")
@@ -259,7 +259,7 @@ def task08_matrix(violation_freq, cooccurrence, output_dir, thr_count, thr_frac)
         _no_violations(output_dir, "matrix")
         return
 
-    top = _top_violations(violation_freq, _MATRIX_TOP_N)  # same axis as the matrix GT
+    top = _top_violations(violation_freq, _MATRIX_TOP_N)  # same axis as the heatmap idiom
     if len(top) < 2:
         _save_empty(output_dir, "task08_matrix.svg",
                     "Too few distinct violations for co-occurrence matrix")
@@ -489,11 +489,6 @@ def task08_table(violation_freq, cooccurrence, n_traces, output_dir,
     else:
         fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task08_table.svg"))
-
-
-# ---------------------------------------------------------------------------
-# Ground-truth computation (SEMI tier)
-# ---------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------

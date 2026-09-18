@@ -3,16 +3,25 @@ tasks/task27.py – Task ID 27: Explore / Identify / Conformant and non-conforma
 
 Identify WHICH variants/traces are conformant and which are not, and how they
 differ. Unit = control-flow variant (shared.build_variant_df, reused from
-task04); Conformant = fitness == 1.0. Encodings are status-centric
+task04); Conformant = fitness ≥ conformant_threshold (default 1.0). Encodings are status-centric
 (frequency × status), unlike task04 (degree-centric) and task03 (behavioural
 group comparison). Reuses the centrally computed alignments — nothing re-run.
 
 Public API:
-    generate(log, fitness_df, alignments, output_dir)
-        log        – PM4Py EventLog
-        fitness_df – per-trace fitness DataFrame from io_helpers.fitness_summary_dataframe
-        alignments – raw alignment results from io_helpers.run_alignments
-        output_dir – directory where SVGs are written
+    generate(log, fitness_df, alignments, output_dir, model_path=None,
+             conformant_threshold=CONFORMANT_DEFAULT, trace_ids=None,
+             trace_pick_rule="conformant_vs_non", trace_count=1)
+        log                  – PM4Py EventLog
+        fitness_df           – per-trace fitness DataFrame from io_helpers.fitness_summary_dataframe
+        alignments           – raw alignment results from io_helpers.run_alignments
+        output_dir           – directory where SVGs are written
+        model_path           – reference BPMN; without it flow_chart_elaborate_table is skipped
+        conformant_threshold – fitness at or above which a variant is conformant
+        trace_ids,
+        trace_pick_rule,
+        trace_count          – which variants the chevron and BPMN idioms show
+                               (see trace_alignment.PICK_RULES); the aggregate
+                               idioms keep showing the top-N variants
 """
 
 import logging

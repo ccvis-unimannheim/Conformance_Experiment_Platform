@@ -2,7 +2,9 @@
 tasks/task10.py – Task ID 10: Describe / Present / Conformance distribution
 (which percentage of traces fall into which conformance category).
 
-Validated idiom mapping (11 idioms = 6 High + 5 Medium):
+Validated idiom mapping (11 idioms = 6 High + 5 Medium — the Priority column of
+docs/TASK_IDIOM_MAPPING.md; the "HIGH:" prefixes on renderer docstrings below
+refer to the same rating):
     HIGH:   stacked_bar, line_graph, horizon_chart, boxplot, heatmap, calendar
     MEDIUM: bar_chart, scatter_plot, table, table_bar_chart, pie_chart
 
@@ -11,9 +13,10 @@ shared.py (CONFORMANCE_BINS / CONFORMANCE_LABELS / CONFORMANCE_CATEGORY_NAMES),
 reused here and by task01 / task25 / task27 / task33.
 
 Public API:
-    generate(df, output_dir, log=None)
+    generate(df, output_dir, log=None, conformance_bins=None)
         df               – fitness summary DataFrame (trace_index, fitness, is_fit)
-        log              – PM4Py log; needed for the time-based idioms (line/horizon/heatmap/calendar)
+        output_dir       – directory where SVGs are written
+        log           – PM4Py log; needed for the time-based idioms (line/horizon/heatmap/calendar)
         conformance_bins – optional list of conformance interval boundaries
             (e.g. [0.0, 0.5, 0.9, 1.01]). Defaults to the canonical CONFORMANCE_BINS in
             shared.py — the single source of truth shared with task01/25/27/33. Range
@@ -199,7 +202,7 @@ def _resolve_ranges(df, bins=None, labels=None):
     bins=None  → adaptive mode (sample preview): may switch to HIGH_FITNESS bins
                  when fitness.min() ≥ 0.8, or fall back to quantile bins when
                  fewer than 3 default buckets are occupied.
-    bins given → exact mode (admin-configured run / GT): the caller's bins are
+    bins given → exact mode (admin-configured run): the caller's bins are
                  used as-is with no adaptive override, so participants always see
                  the intervals the admin actually selected.
     """

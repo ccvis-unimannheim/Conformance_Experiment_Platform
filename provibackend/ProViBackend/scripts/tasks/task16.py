@@ -5,12 +5,23 @@ Goal: Explain · Means: Annotate · Characteristics: Reasons for guideline viola
 "What is the reason for guideline violations? Preexisting knowledge about
 the reason is taken into account."
 
-All idioms show log-level violation patterns (per-activity counts, type
-distribution, representative trace) so the analyst can match observed
-patterns to their prior knowledge. Dataset-agnostic; no domain labels.
+The table, bar chart, table + bar chart and parallel sets split the log by each
+selected attribute and show the violation rate per bucket; the scatter plot and
+the flow/model idioms stay log-level (per-activity counts, type distribution,
+representative trace). Either way the analyst matches the observed patterns to
+their prior knowledge. Dataset-agnostic; no domain labels.
 
 Public API:
-    generate(log, fitness_df, alignments, output_dir, model_path=None)
+    generate(log, fitness_df, alignments, output_dir, model_path=None,
+             attribute_set=None, split_strategy=None, group_cap=None,
+             missing_policy="drop")
+        attribute_set  – attributes the split idioms cut the log by; empty =
+                         the discovered default set
+        split_strategy – "binary" | "nominal_n" | "ordered_bins"; None picks
+                         by each attribute's type (see trace_features)
+        group_cap      – most groups named before the rest become "Other"
+        missing_policy – "drop" traces lacking the attribute, or keep them as
+                         their own "Missing" group ("own_group")
 """
 
 import logging

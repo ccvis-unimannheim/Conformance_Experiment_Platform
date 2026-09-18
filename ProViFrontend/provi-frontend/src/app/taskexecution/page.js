@@ -9,6 +9,11 @@ import { UITrackingProvider } from "../../utils/usertracking";
 
 import HeaderLogos from "../../components/General/HeaderLogos";
 
+// Regroups the assignment's trial sequence so each task's trials run
+// consecutively: tasks in the order their first trial appears, idioms in their
+// sequence order. A shuffled sequence therefore still randomises task order and
+// idiom order within a task, but never interleaves tasks (see the note in
+// provibackend/ProViBackend/utils/database/assignment.py).
 function groupTrialsByTask(trials) {
   const groups = [];
   const seen = new Map();
@@ -308,6 +313,10 @@ export default function TaskExecutionPage() {
           height: "4rem", display: "flex", alignItems: "center",
           boxSizing: "border-box", padding: "0 1.25rem",
         }}>
+          {/* Hidden (display: none), not removed, in cabcd16 along with the
+              fitness help and Previous Visualization buttons below; no reason
+              was recorded. Before showing it again: /conformance-terms has no
+              way back to the tasks, and an experiment may skip that page. */}
           <button
             onClick={() => { window.location.href = "/conformance-terms"; }}
             style={{
@@ -335,6 +344,9 @@ export default function TaskExecutionPage() {
               <span style={{ color: "#3c5f90", fontWeight: 700, fontSize: "0.875rem" }}>
                 Task Execution
               </span>
+              {/* Hidden in cabcd16 (see the Key Concept button above). While
+                  hidden it never opens, so /uitracking/fitness-help receives
+                  no events. */}
               <span style={{ display: "none" }}><FitnessHelpButton experimentId={experimentId} /></span>
               <div style={{ width: "4rem", height: "6px", backgroundColor: "#ebeeef", borderRadius: "9999px", overflow: "hidden" }}>
                 <div style={{ width: `${progressPercent}%`, height: "100%", backgroundColor: "#3c5f90" }} />
@@ -362,6 +374,8 @@ export default function TaskExecutionPage() {
             </div>
           ) : (
             <>
+              {/* Hidden in cabcd16 (see the Key Concept button above), so
+                  participants can only move forward. */}
               {!isFirstIdiom && (
                 <div style={{ marginBottom: "0.75rem", display: "none" }}>
                   <button
