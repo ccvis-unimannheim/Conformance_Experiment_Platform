@@ -74,8 +74,8 @@ class IntroPageSections(BaseModel):
 class FeedbackAnswersRequest(BaseModel):
     # Keyed by the `key` of each question in the endpage's QUESTIONS (the NASA-TLX
     # items mentalDemand … frustration, currently commented out, so this arrives
-    # empty). The admin export's "End Survey" sheet reads a different, older set
-    # of keys (RATING_KEYS in routers/admin.py) — the two do not match.
+    # empty). The admin export's "End Survey" sheet exports every key it finds
+    # (RATING_LABELS in routers/admin.py names the known ones).
     ratings:  dict
     feedback: str | None = None
 

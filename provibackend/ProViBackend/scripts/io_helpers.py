@@ -3,18 +3,55 @@ io_helpers.py – Data loading and alignment computation for the CC Visualizatio
 """
 
 import os
-import sys
 
 import pm4py
 import pandas as pd
 
 
+class EventLogFormatError(ValueError):
+    """An event log this pipeline cannot read: wrong extension, or a CSV whose
+    case / activity / timestamp columns cannot be identified. The message is
+    meant for the admin who uploaded the file."""
+
+
+# Accepted CSV header names per role, tried in order.
+CSV_COLUMN_CANDIDATES: dict[str, list[str]] = {
+    "case_id_key":   ["case:concept:name", "case_id", "CaseID", "Case ID", "caseid"],
+    "activity_key":  ["concept:name", "activity", "Activity", "ActivityName", "task"],
+    "timestamp_key": ["time:timestamp", "timestamp", "Timestamp", "StartTimestamp", "start_time"],
+}
+_ROLE_NAMES = {"case_id_key": "case id", "activity_key": "activity",
+               "timestamp_key": "timestamp"}
+
+
+def detect_csv_columns(columns) -> dict:
+    """Map each role to the CSV column that plays it.
+
+    Raises EventLogFormatError naming every role that has no matching column,
+    the names that would have been accepted, and the columns the file has.
+    """
+    columns = list(columns)
+    col_map, problems = {}, []
+    for role, candidates in CSV_COLUMN_CANDIDATES.items():
+        found = next((c for c in candidates if c in columns), None)
+        if found is None:
+            problems.append(f"no {_ROLE_NAMES[role]} column (accepted names: "
+                            f"{', '.join(candidates)})")
+        else:
+            col_map[role] = found
+    if problems:
+        raise EventLogFormatError(
+            "The event log CSV cannot be read: " + "; ".join(problems)
+            + f". Columns in the file: {', '.join(map(str, columns)) or '(none)'}.")
+    return col_map
+
+
 def load_event_log(log_path: str):
     """Load XES or CSV event log and always return a PM4Py EventLog object.
 
-    On an unsupported extension or a CSV whose case/activity/timestamp columns
-    cannot be detected this calls sys.exit(1) — written for the CLI. Backend
-    callers therefore have to catch SystemExit as well as Exception.
+    Raises EventLogFormatError (a ValueError) for an unsupported extension or
+    a CSV whose columns cannot be identified — never exits the process, since
+    the backend calls this inside requests and background jobs.
     """
     print(f"[1/3] Loading event log: {log_path}")
     ext = os.path.splitext(log_path)[1].lower()
@@ -22,24 +59,7 @@ def load_event_log(log_path: str):
         raw = pm4py.read_xes(log_path)
     elif ext == ".csv":
         df_csv = pd.read_csv(log_path)
-        col_map = {}
-        for candidate in ["case:concept:name", "case_id", "CaseID", "Case ID", "caseid"]:
-            if candidate in df_csv.columns:
-                col_map["case_id_key"] = candidate
-                break
-        for candidate in ["concept:name", "activity", "Activity", "ActivityName", "task"]:
-            if candidate in df_csv.columns:
-                col_map["activity_key"] = candidate
-                break
-        for candidate in ["time:timestamp", "timestamp", "Timestamp", "StartTimestamp", "start_time"]:
-            if candidate in df_csv.columns:
-                col_map["timestamp_key"] = candidate
-                break
-        if len(col_map) < 3:
-            missing = {"case_id_key", "activity_key", "timestamp_key"} - col_map.keys()
-            print(f"ERROR: Could not auto-detect columns for: {missing}", file=sys.stderr)
-            print(f"       Available columns: {list(df_csv.columns)}", file=sys.stderr)
-            sys.exit(1)
+        col_map = detect_csv_columns(df_csv.columns)
         raw = pm4py.format_dataframe(
             df_csv,
             case_id=col_map["case_id_key"],
@@ -47,8 +67,7 @@ def load_event_log(log_path: str):
             timestamp_key=col_map["timestamp_key"],
         )
     else:
-        print(f"ERROR: Unsupported file format '{ext}'. Use .xes or .csv", file=sys.stderr)
-        sys.exit(1)
+        raise EventLogFormatError(f"Unsupported event log format '{ext}'. Use .xes or .csv.")
 
     # PM4Py ≥ 2.7 returns a DataFrame from read_xes; convert to EventLog so
     # task20/task31 can iterate over traces and events directly.
