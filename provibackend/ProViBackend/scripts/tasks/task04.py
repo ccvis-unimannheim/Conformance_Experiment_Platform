@@ -88,7 +88,9 @@ PARAM_SPEC = [
         "widget": "activity-picker",
         "source": "log.activities",
         "default": "",
-        "required": False,
+        # Required where it applies: validate_params refuses to generate the log
+        # level without it, so "(optional)" was the UI contradicting the backend.
+        "required": True,
         "visible_if": {"analysis_level": "log"},
     },
     *trace_alignment.selection_params(

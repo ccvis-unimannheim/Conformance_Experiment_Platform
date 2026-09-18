@@ -39,7 +39,6 @@ PARAM_SPEC = [
         "widget": "threshold",
         "default": 1.0,
         "required": False,
-        "optional_hint": "(optional — leave empty to use the default of 1.0, i.e. only perfect-fitness traces count as Conformant)",
         "min": 0.01,
         "max": 1.0,
         "step": 0.01,
@@ -53,7 +52,6 @@ PARAM_SPEC = [
         "source": "log.candidate_attributes",
         "default": [],
         "required": False,
-        "optional_hint": "(optional — empty compares throughput time)",
     },
 ]
 

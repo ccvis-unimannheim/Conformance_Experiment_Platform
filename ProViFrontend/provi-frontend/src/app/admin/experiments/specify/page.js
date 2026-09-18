@@ -546,11 +546,6 @@ function SpecifyContent() {
                             <label className="text-xs font-semibold text-on-surface">
                               {entry.label || entry.key}
                               {entry.required && <span className="text-error ml-0.5">*</span>}
-                              {entry.required === false && (
-                                <span className="text-on-surface-variant font-normal ml-1">
-                                  {entry.optional_hint || "(optional)"}
-                                </span>
-                              )}
                             </label>
                             <ParamField
                               entry={entry}

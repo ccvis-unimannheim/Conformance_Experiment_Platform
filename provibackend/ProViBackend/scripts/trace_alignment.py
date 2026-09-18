@@ -131,7 +131,6 @@ VIOLATION_PATTERN_PARAM = {
     "source": "log.violations",
     "default": "",
     "required": False,
-    "optional_hint": "(optional — leave empty to count any deviation as a violation)",
     "visible_if": {"trace_selection_mode": "auto"},
 }
 
@@ -147,7 +146,8 @@ DATA_ATTRIBUTE_PARAM = {
     "widget": "select-one",
     "source": "log.data_attributes",
     "default": "",
-    "required": False,
+    # validate_perspective refuses to generate without it in this perspective.
+    "required": True,
     "visible_if": {"perspective": "data"},
 }
 
@@ -157,7 +157,8 @@ CONFORMANT_VALUES_PARAM = {
     "widget": "select-many",
     "source": "log.attribute_values",
     "default": [],
-    "required": False,
+    # validate_perspective refuses to generate without it in this perspective.
+    "required": True,
     "visible_if": {"perspective": "data"},
 }
 
@@ -167,7 +168,8 @@ CONFORMANT_RESOURCES_PARAM = {
     "widget": "select-many",
     "source": "log.resource_values",
     "default": [],
-    "required": False,
+    # validate_perspective refuses to generate without it in this perspective.
+    "required": True,
     "visible_if": {"perspective": "resource"},
 }
 
@@ -178,7 +180,6 @@ SCOPED_ACTIVITY_PARAM = {
     "source": "log.activities",
     "default": "",
     "required": False,
-    "optional_hint": "(optional — leave empty to check every activity in the trace)",
     "visible_if": {"perspective": "resource"},
 }
 

@@ -555,13 +555,12 @@ SPLIT_PARAMS = [
     {
         "key": "split_strategy",
         "slot": "split",
-        "label": "How the chosen attribute is cut into groups",
+        "label": "How the chosen attribute is cut into groups (empty = by its own type)",
         "hint": "Leave empty to cut by the attribute's own type",
         "widget": "select-one",
         "options": ["binary", "nominal_n", "ordered_bins"],
         "default": "",
         "required": False,
-        "optional_hint": "(optional — empty picks by attribute type)",
     },
     {
         "key": "group_cap",
