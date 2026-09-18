@@ -2,7 +2,20 @@
 tasks/task28.py – Task 2: Location/alignment visualizations for a representative trace.
 
 Public API:
-    generate(alignments, model_path, output_dir)
+    generate(alignments, model_path, output_dir, log=None,
+             perspective="control-flow", trace_ids=None,
+             trace_pick_rule="first_nonconformant", trace_count=1,
+             data_attribute="", conformant_values=(),
+             conformant_resources=(), scoped_activity="")
+        perspective          – "control-flow" | "data" | "resource": what the
+                               shown traces are checked against
+        trace_ids            – traces to show; empty = chosen by
+                               trace_pick_rule, trace_count of them (see
+                               trace_alignment.PICK_RULES)
+        data_attribute,
+        conformant_values    – the data rule (perspective "data")
+        conformant_resources,
+        scoped_activity      – the resource rule (perspective "resource")
 """
 
 import logging
@@ -13,6 +26,36 @@ IDIOMS = ["flow_chart_basic", "flow_chart_table", "flow_chart_elaborate", "table
           "bar_chart", "stacked_bar", "scatter_plot", "boxplot", "matrix",
           "heatmap", "table_bar_chart", "network_diagram",
           "flow_chart_elaborate_table"]
+
+import trace_alignment
+
+#: Same question as task09 — where does the execution differ from the guideline,
+#: and in which perspective — explored rather than presented, so the parameters
+#: are task09's. The difference is not a parameter: task28 does not hand the
+#: participant the violations, which is HIGHLIGHT_VIOLATIONS below.
+PARAM_SPEC = [
+    trace_alignment.PERSPECTIVE_PARAM,
+    *trace_alignment.selection_params(
+        rules=["first_nonconformant", "worst_fitness", "violation_gap",
+               "most_frequent_variants"],
+        default_rule="first_nonconformant",
+        count_default=1, count_min=1, count_max=4,
+    ),
+    trace_alignment.DATA_ATTRIBUTE_PARAM,
+    trace_alignment.CONFORMANT_VALUES_PARAM,
+    trace_alignment.CONFORMANT_RESOURCES_PARAM,
+    trace_alignment.SCOPED_ACTIVITY_PARAM,
+]
+
+#: Explore · Identify: the means to find the violations are provided, the
+#: violations themselves are not pointed out. A task property, not an admin
+#: choice — the wording of the task fixes it.
+HIGHLIGHT_VIOLATIONS = False
+
+
+def validate_params(log, params) -> list:
+    return (trace_alignment.validate_selection(log, params, min_traces=1, max_traces=4)
+            + trace_alignment.validate_perspective(log, params))
 
 import html
 import math
@@ -743,23 +786,48 @@ _LOG_FNAMES_TITLES = [
 ]
 
 
-def generate(alignments, model_path: str, output_dir: str):
+def generate(alignments, model_path: str, output_dir: str, log=None,
+             perspective="control-flow", trace_ids=None,
+             trace_pick_rule="first_nonconformant", trace_count=1,
+             data_attribute="", conformant_values=(),
+             conformant_resources=(), scoped_activity=""):
     """Generate all Task 28 SVGs into output_dir (trace-level deep-dive + log-level
-    exploratory overview)."""
+    exploratory overview).
+
+    The trace-level trio is task09's, in whichever perspective the admin chose —
+    the two tasks ask the same question of the same traces, one presenting the
+    answer and one leaving it to be explored, so they must not show two
+    different pictures of it.
+    """
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 28 visualizations ---")
 
-    # Trace-level deep-dive (representative trace)
+    # Trace-level deep-dive (the chosen traces)
     ctx = build_task28_context(alignments)
-    if ctx is not None:
+    records = trace_alignment.select_records(
+        log, alignments, view=perspective, trace_ids=trace_ids,
+        rule=trace_pick_rule, count=trace_count,
+        attribute=data_attribute, conformant_values=conformant_values,
+        resources=conformant_resources, scoped_activity=scoped_activity,
+    ) if log is not None else []
+
+    if records:
+        import tasks.task09 as task09
+        logger.info(f"      -> {len(records)} trace(s) shown, {perspective} perspective.")
+        task09.alignment_figures(output_dir, model_path, view=perspective,
+                                 records=records, attribute=data_attribute,
+                                 prefix="task28")
+    elif ctx is not None:
         logger.info(f"      Using {ctx['trace_label']} (log index {ctx['trace_index']}, "
                     f"fitness={ctx['fitness']:.4f})")
         task28_alignment_table(ctx, output_dir)
         task28_flow_chart_basic(ctx, output_dir)
-        task28_flow_chart_and_table(ctx, output_dir)
         task28_flow_chart_elaborate_bpmn(ctx, model_path, output_dir)
     else:
         logger.warning("      task28: no deviating trace — trace-level idioms skipped.")
+
+    if ctx is not None:
+        task28_flow_chart_and_table(ctx, output_dir)
 
     # Log-level exploratory overview
     df = _dev_df(alignments)

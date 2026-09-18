@@ -65,6 +65,7 @@ import tasks.task08 as task08
 import tasks.task09 as task09
 import tasks.task10 as task10
 import tasks.task11 as task11
+import trace_alignment
 import violation_profile
 import tasks.task12 as task12
 import tasks.task13 as task13
@@ -352,6 +353,21 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
     def time_granularity():        return p.get("time_granularity", "month")
     def conformance_bins():        return p.get("conformance_bins", None)
     def violated_activity():       return p.get("violated_activity", None)
+    def trace_ids():
+        """The trace-alignment class's explicit selection, or None for its rule."""
+        return trace_alignment.selected_trace_ids(p) or None
+    def perspective_kwargs(default_rule, default_count):
+        """The trace-alignment + perspective block task09 and task28 share."""
+        return dict(
+            perspective=trace_alignment.perspective(p),
+            trace_ids=trace_ids(),
+            trace_pick_rule=trace_alignment.pick_rule(p, default_rule),
+            trace_count=trace_alignment.trace_count(p, default_count),
+            data_attribute=(p.get("data_attribute") or ""),
+            conformant_values=(p.get("conformant_values") or ()),
+            conformant_resources=(p.get("conformant_resources") or ()),
+            scoped_activity=(p.get("scoped_activity") or ""),
+        )
     def conformant_threshold():
         raw = p.get("conformant_threshold")
         return 1.0 if (raw is None or raw == "") else float(raw)
@@ -363,7 +379,13 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
         "task03": lambda d: task03.generate(log, fitness_df, d,
                                             conformant_threshold=conformant_threshold(),
                                             response_attribute=(p.get("response_attribute") or [])),
-        "task04": lambda d: task04.generate(log, fitness_df, d, trace_ids=(p.get("trace_ids") or None), alignments=alignments, model_path=model_path),
+        "task04": lambda d: task04.generate(
+            log, fitness_df, d,
+            trace_ids=trace_ids(), alignments=alignments, model_path=model_path,
+            analysis_level=(p.get("analysis_level") or "trace"),
+            trace_pick_rule=trace_alignment.pick_rule(p, "violation_gap"),
+            trace_count=trace_alignment.trace_count(p, task04.SAMPLE_N),
+            outcome_activity=(p.get("outcome_activity") or "")),
         "task05": lambda d: task05.generate(
             log, alignments, d,
             split_attribute=(p.get("split_attribute") or cmp_attr() or ""),
@@ -373,7 +395,8 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
         "task06": lambda d: task06.generate(fitness_df, d, log=log, alignments=alignments, model_path=model_path),
         "task07": lambda d: task07.generate(log, fitness_df, d, time_granularity=time_granularity()),
         "task08": lambda d: task08.generate(log, alignments, d),
-        "task09": lambda d: task09.generate(log, alignments, d, model_path=model_path),
+        "task09": lambda d: task09.generate(log, alignments, d, model_path=model_path,
+                                            **perspective_kwargs("violation_gap", 2)),
         "task10": lambda d: task10.generate(fitness_df, d, log=log, conformance_bins=conformance_bins()),
         "task11": lambda d: task11.generate(log, alignments, d, model_path=model_path,
                                             activities=(p.get("activities") or None)),
@@ -381,7 +404,9 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
                                             violation_patterns=(p.get("violation_patterns") or None)),
         "task13": lambda d: task13.generate(log, alignments, model_path, d,
                                             candidate_attributes=(p.get("attribute_set") or None)),
-        "task14": lambda d: task14.generate(alignments, model_path, d),
+        "task14": lambda d: task14.generate(
+            alignments, model_path, d, log=log, trace_ids=trace_ids(),
+            trace_pick_rule=trace_alignment.pick_rule(p, "worst_fitness")),
         "task15": lambda d: task15.generate(log, fitness_df, alignments, d, model_path=model_path,
                                             attribute_set=(p.get("attribute_set") or None),
                                             split_strategy=(p.get("split_strategy") or None),
@@ -407,8 +432,14 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
         "task24": lambda d: task24.generate(log, model_path, d),
         "task25": lambda d: task25.generate(log, fitness_df, d, model_path=model_path),
         "task26": lambda d: task26.generate(alignments, d, model_path=model_path),
-        "task27": lambda d: task27.generate(log, fitness_df, alignments, d, model_path=model_path),
-        "task28": lambda d: task28.generate(alignments, model_path, d),
+        "task27": lambda d: task27.generate(
+            log, fitness_df, alignments, d, model_path=model_path,
+            conformant_threshold=conformant_threshold(),
+            trace_ids=trace_ids(),
+            trace_pick_rule=trace_alignment.pick_rule(p, "conformant_vs_non"),
+            trace_count=trace_alignment.trace_count(p, 1)),
+        "task28": lambda d: task28.generate(alignments, model_path, d, log=log,
+                                            **perspective_kwargs("first_nonconformant", 1)),
         "task29": lambda d: task29.generate(
             alignments, d,
             grouping_strategy=(p.get("grouping_strategy") or "move_type"),
@@ -431,8 +462,14 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
                                             attribute_set=(p.get("attribute_set") or None),
                                             split_strategy=(p.get("split_strategy") or None),
                                             group_cap=(int(p["group_cap"]) if p.get("group_cap") else None)),
-        "task34": lambda d: task34.generate(log, alignments, d, model_path=model_path, violated_activity=violated_activity()),
-        "task35": lambda d: task35.generate(log, alignments, d, model_path=model_path),
+        "task34": lambda d: task34.generate(
+            log, alignments, d, model_path=model_path,
+            violated_activity=violated_activity(),
+            trace_ids=trace_ids(),
+            trace_pick_rule=trace_alignment.pick_rule(p, "worst_fitness"),
+            trace_count=trace_alignment.trace_count(p, 1)),
+        "task35": lambda d: task35.generate(log, alignments, d, model_path=model_path,
+                                            move_types=(p.get("move_types") or None)),
         "task36": lambda d: task36.generate(log, alignments, d, model_path=model_path,
             grouping_strategy=(p.get("grouping_strategy") or "pattern"),
             selection=(p.get(violation_profile.STRATEGY_SELECTION_KEY.get(
@@ -706,6 +743,83 @@ def get_log_trace_ids(dataset_dir: str) -> list[dict]:
     return options
 
 
+def _dataset_attribute_index(dataset_dir: str):
+    """(attribute -> sorted distinct values, resource values) for this dataset.
+
+    Walks the log once for both the data and the resource perspective of task09
+    / task28. Case-level and event-level attributes are collected the same way —
+    which one an attribute is depends on the log, not on the admin — and the
+    structural keys (the activity name, the timestamp, the case id) are left out
+    because no rule is written about them.
+    """
+    log_path, _model_path, _ = _resolve_dataset_paths(dataset_dir, None)
+    log = load_event_log(log_path)
+
+    skip = {"concept:name", "time:timestamp", "lifecycle:transition",
+            "case:concept:name", "concept:instance", "variant", "variant-index"}
+    values: dict[str, set] = {}
+    resources: set = set()
+
+    def _record(key, value):
+        if value is None:
+            return
+        key = str(key)
+        if key.startswith("case:"):
+            key = key[len("case:"):]
+        if key in skip or key.startswith(":"):
+            return
+        if key == "org:resource":
+            resources.add(str(value))
+            return
+        values.setdefault(key, set()).add(str(value))
+
+    for trace in log:
+        for key, value in (getattr(trace, "attributes", {}) or {}).items():
+            _record(key, value)
+        for event in trace:
+            for key, value in dict(event).items():
+                _record(key, value)
+
+    return ({k: sorted(v) for k, v in values.items()}, sorted(resources))
+
+
+def get_log_data_attributes(dataset_dir: str) -> list[dict]:
+    """Attributes a data rule can be written about, with their cardinality.
+
+    Powers the 'log.data_attributes' param-spec source (task09 / task28).
+    """
+    values, _resources = _dataset_attribute_index(dataset_dir)
+    return [{"value": key, "label": f"{key} ({len(vals)} distinct values)"}
+            for key, vals in sorted(values.items())]
+
+
+def get_log_attribute_values(dataset_dir: str) -> list[dict]:
+    """Every "attribute = value" pair in the log, as picker options.
+
+    Flat on purpose: /specify bakes a param's options in once per dataset, so a
+    value list that narrowed itself to a separately-chosen attribute would have
+    nothing to narrow by at the time it is built. Powers
+    'log.attribute_values'.
+    """
+    values, _resources = _dataset_attribute_index(dataset_dir)
+    options = []
+    for key, vals in sorted(values.items()):
+        for value in vals:
+            options.append({"value": f"{key} = {value}", "label": f"{key} = {value}"})
+    return options
+
+
+def get_log_resource_values(dataset_dir: str) -> list[dict]:
+    """Distinct org:resource values. Powers 'log.resource_values'.
+
+    Empty for a log that records no executor — which /specify reports as "this
+    source returned nothing for this dataset", the honest answer: the resource
+    perspective cannot be asked about of such a log.
+    """
+    _values, resources = _dataset_attribute_index(dataset_dir)
+    return [{"value": r, "label": r} for r in resources]
+
+
 def get_log_candidate_attributes(dataset_dir: str) -> list[dict]:
     """Trace-level features the admin can split this log by.
 
@@ -859,7 +973,7 @@ def run_pipeline(dataset_dir: str, experiment_id: str | None = None,
         instead of ``<dataset_dir>/output/`` (see docs/ADMIN_EXPERIMENT_SETUP.md).
     outcome_activity : str
         Activity name that marks a positive process outcome (task01, task19,
-        task31).
+        task31, and task04 at its log level).
     compare_attribute : str
         Case-level data attribute that splits the log into sub-logs (numeric →
         median split, categorical → value groups) for task30, task32 and, when

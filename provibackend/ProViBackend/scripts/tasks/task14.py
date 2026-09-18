@@ -6,7 +6,12 @@ Goal: Explain · Means: Annotate · Characteristics: Guideline violations
 violations, and a textual description of them."
 
 Public API:
-    generate(alignments, model_path, output_dir)
+    generate(alignments, model_path, output_dir, log=None, trace_ids=None,
+             trace_pick_rule="worst_fitness")
+        log             – needed for the chevron / BPMN idioms (drawn by task04's
+                          renderers) and for picking the trace by rule
+        trace_ids       – the one trace to annotate; empty = chosen by
+                          trace_pick_rule (see trace_alignment.PICK_RULES)
 """
 
 import logging
@@ -15,15 +20,29 @@ logger = logging.getLogger(__name__)
 
 IDIOMS = [
     "table", "bar_chart",
+    "flow_chart_basic",
     "flow_chart_table",
-    # "flow_chart_elaborate" was taken out of the set in 193e659 (no reason
-    # recorded); its renderer is still defined but no longer called, see generate().
+    "flow_chart_elaborate",
     "flow_chart_elaborate_table",
     "table_bar_chart", "parallel_sets",
 ]
 
 
-PARAM_SPEC = []
+import trace_alignment
+
+#: One trace, by the task's own wording ("a given trace"), so there is no count
+#: to choose — only which one. The default rule reproduces what the task always
+#: did: the trace with the highest alignment cost, which is the worst-fitness
+#: one.
+PARAM_SPEC = trace_alignment.selection_params(
+    rules=["worst_fitness", "first_nonconformant", "most_frequent_variants"],
+    default_rule="worst_fitness",
+    count_default=1, count_min=1, count_max=1,
+)
+
+
+def validate_params(log, params) -> list:
+    return trace_alignment.validate_selection(log, params, min_traces=1, max_traces=1)
 
 
 RUBRIC = (
@@ -93,8 +112,30 @@ _MISSING_TOKENS = {"-", "None", "(skip)", ""}
 # Data helpers
 # ---------------------------------------------------------------------------
 
-def _pick_representative_trace(alignments):
-    """Return index of the trace with the highest alignment cost, else 0."""
+def _pick_representative_trace(alignments, log=None, trace_ids=None,
+                               rule="worst_fitness"):
+    """Index of the one trace to annotate.
+
+    Delegates to the class's picker so "the worst-fitness trace" means the same
+    trace here as in task04 and task34 — and so the trace shown actually
+    violates something, which is what this task asks the participant to
+    classify. Falls back to the highest-alignment-cost trace when there is no
+    log to pick from (cost and fitness rank the same traces).
+    """
+    if log is not None:
+        if trace_ids:
+            index_of = trace_alignment.case_index(log)
+            for tid in trace_ids:
+                if str(tid) in index_of and index_of[str(tid)] < len(alignments):
+                    return index_of[str(tid)]
+        import pandas as pd
+        n_traces = min(len(log), len(alignments))
+        fitness_df = pd.DataFrame(
+            [{"fitness": float(a.get("fitness", 1.0))} for a in alignments[:n_traces]])
+        picked = trace_alignment.pick_indices(log, alignments, fitness_df, 1, rule)
+        if picked:
+            return picked[0]
+
     best_idx, best_cost = 0, -1.0
     for i, result in enumerate(alignments):
         try:
@@ -106,11 +147,11 @@ def _pick_representative_trace(alignments):
     return best_idx
 
 
-def _build_context(alignments):
+def _build_context(alignments, log=None, trace_ids=None, rule="worst_fitness"):
     """Extract representative trace context. Returns None if no usable alignment."""
     if not alignments:
         return None
-    idx = _pick_representative_trace(alignments)
+    idx = _pick_representative_trace(alignments, log=log, trace_ids=trace_ids, rule=rule)
     result = alignments[idx]
     rows = alignment_pairs_to_rows(result.get("alignment", []))
     if not rows:
@@ -580,12 +621,18 @@ def task14_parallel_sets(ctx, output_dir):
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def generate(alignments, model_path: str, output_dir: str):
-    """Generate all Task 14 SVGs into output_dir."""
+def generate(alignments, model_path: str, output_dir: str, log=None,
+             trace_ids=None, trace_pick_rule="worst_fitness"):
+    """Generate all Task 14 SVGs into output_dir.
+
+    The chevron and BPMN idioms are task04's renderers on this one trace, so the
+    trace-alignment tasks show one picture of an alignment rather than five.
+    """
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 14 visualizations ---")
 
-    ctx = _build_context(alignments)
+    ctx = _build_context(alignments, log=log, trace_ids=trace_ids,
+                         rule=trace_pick_rule)
     if ctx is None:
         logger.warning("      task14: no usable alignment — emitting zero-state SVGs.")
         _msg = "No alignment data available."
@@ -601,10 +648,18 @@ def generate(alignments, model_path: str, output_dir: str):
         f"fitness={ctx['fitness']:.4f}, violations={len(ctx['violations'])})"
     )
 
+    if log is not None and model_path:
+        import tasks.task04 as task04
+        records = trace_alignment.trace_records(log, alignments, [ctx["trace_index"]])
+        task04.task04_flow_chart_basic(records, output_dir, model_path=model_path,
+                                       filename="task14_flow_chart_basic.svg")
+        task04.task04_flow_chart_elaborate(records, model_path, output_dir,
+                                           filename="task14_flow_chart_elaborate.svg")
+
     task14_table(ctx, output_dir)
     task14_bar_chart(ctx, output_dir)
     task14_flow_chart_and_table(ctx, output_dir)
-    # task14_flow_chart_elaborate(ctx, model_path, output_dir)  # dropped from IDIOMS, see above
+    # task14_flow_chart_elaborate(ctx, model_path, output_dir)  # superseded: task04's renderer draws it above
     task14_flow_chart_elaborate_table(ctx, model_path, output_dir)
     task14_table_bar_chart(ctx, output_dir)
     task14_parallel_sets(ctx, output_dir)

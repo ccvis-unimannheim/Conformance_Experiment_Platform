@@ -28,6 +28,32 @@ IDIOMS = [
     "flow_chart_elaborate_bpmn", "flow_chart_elaborate_bpmn_table",
 ]
 
+import trace_alignment
+
+#: Task 9 asks how the execution differs from the guidelines — "this can relate
+#: to different control-flow relations, but also resource and data constraints".
+#: The perspective decides what counts as a violation; the chevron, the model and
+#: the table keep their shape across all three so a participant reads them the
+#: same way.
+PARAM_SPEC = [
+    trace_alignment.PERSPECTIVE_PARAM,
+    *trace_alignment.selection_params(
+        rules=["violation_gap", "worst_fitness", "first_nonconformant",
+               "most_frequent_variants"],
+        default_rule="violation_gap",
+        count_default=2, count_min=1, count_max=4,
+    ),
+    trace_alignment.DATA_ATTRIBUTE_PARAM,
+    trace_alignment.CONFORMANT_VALUES_PARAM,
+    trace_alignment.CONFORMANT_RESOURCES_PARAM,
+    trace_alignment.SCOPED_ACTIVITY_PARAM,
+]
+
+
+def validate_params(log, params) -> list:
+    return (trace_alignment.validate_selection(log, params, min_traces=1, max_traces=4)
+            + trace_alignment.validate_perspective(log, params))
+
 import os
 import html as _html
 import io as _io
@@ -1211,8 +1237,49 @@ def task09_flow_chart_elaborate_bpmn_table(activity_type, activity_totals, type_
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
-def generate(log, alignments, output_dir, model_path=None):
-    """Generate all Task 9 SVGs into output_dir."""
+def alignment_figures(output_dir, model_path, *, view, records, attribute,
+                      prefix="task09"):
+    """The three trace-alignment figures, in whichever perspective was chosen.
+
+    Control flow reuses task04's renderers — the alignment of a few traces is
+    one figure in this platform, not one per task. Data and resource are the
+    same three shapes with the colour meaning a value verdict instead of a move
+    type (trace_alignment.draw_value_*).
+    """
+    if view == "control-flow":
+        import tasks.task04 as task04
+        task04.task04_flow_chart_basic(records, output_dir, model_path=model_path,
+                                       filename=f"{prefix}_flow_chart_basic.svg")
+        task04.task04_flow_chart_elaborate(
+            records, model_path, output_dir,
+            filename=f"{prefix}_flow_chart_elaborate_bpmn.svg")
+        task04.task04_table(records, model_path, output_dir,
+                            filename=f"{prefix}_table.svg")
+        return
+
+    trace_alignment.draw_value_chevrons(
+        records, output_dir, f"{prefix}_flow_chart_basic.svg",
+        view=view, attribute=attribute)
+    trace_alignment.draw_value_bpmn(
+        records, model_path, output_dir, f"{prefix}_flow_chart_elaborate_bpmn.svg",
+        view=view, attribute=attribute)
+    trace_alignment.draw_value_table(
+        records, output_dir, f"{prefix}_table.svg",
+        view=view, attribute=attribute)
+
+
+def generate(log, alignments, output_dir, model_path=None,
+             perspective="control-flow", trace_ids=None,
+             trace_pick_rule="violation_gap", trace_count=2,
+             data_attribute="", conformant_values=(), conformant_resources=(),
+             scoped_activity=""):
+    """Generate all Task 9 SVGs into output_dir.
+
+    The chevron / model / table trio is trace-level: it shows the chosen traces'
+    alignment, which is what "how exactly does the process execution differ from
+    the guidelines" asks. The remaining idioms stay as they were, summarising the
+    violations over the whole log.
+    """
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 9 visualizations (Identify guideline violations) ---")
 
@@ -1228,10 +1295,21 @@ def generate(log, alignments, output_dir, model_path=None):
     task09_bar_chart(type_totals, n_violations, output_dir)
     task09_stacked_bar(activity_type, activity_totals, output_dir)
     task09_scatter_plot(activity_type, activity_totals, output_dir)
-    task09_table(activity_type, activity_totals, type_totals, n_violations, output_dir)
     task09_table_bar_chart(activity_type, activity_totals, n_violations, output_dir)
     task09_matrix(activity_type, activity_totals, output_dir)
-    task09_flow_chart_basic(activity_type, activity_totals, alignments, output_dir)
+    records = trace_alignment.select_records(
+        log, alignments, view=perspective, trace_ids=trace_ids,
+        rule=trace_pick_rule, count=trace_count,
+        attribute=data_attribute, conformant_values=conformant_values,
+        resources=conformant_resources, scoped_activity=scoped_activity)
+    if records:
+        logger.info(f"      -> {len(records)} trace(s) shown, {perspective} perspective.")
+        alignment_figures(output_dir, model_path, view=perspective,
+                          records=records, attribute=data_attribute)
+    else:
+        logger.warning("      task09: no traces to align — keeping the aggregate figures only.")
+        task09_flow_chart_basic(activity_type, activity_totals, alignments, output_dir)
+        task09_flow_chart_elaborate_bpmn(activity_type, activity_totals, model_path, output_dir)
+        task09_table(activity_type, activity_totals, type_totals, n_violations, output_dir)
     task09_flow_chart_and_table(activity_type, activity_totals, type_totals, n_violations, alignments, output_dir)
-    task09_flow_chart_elaborate_bpmn(activity_type, activity_totals, model_path, output_dir)
     task09_flow_chart_elaborate_bpmn_table(activity_type, activity_totals, type_totals, n_violations, model_path, output_dir)

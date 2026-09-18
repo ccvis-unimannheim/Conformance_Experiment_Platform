@@ -27,6 +27,9 @@ try:
         get_log_candidate_attributes,
         get_log_violated_activities_task34,
         get_log_violation_activities,
+        get_log_data_attributes,
+        get_log_attribute_values,
+        get_log_resource_values,
         get_log_time_bins,
         _FILE_RENAME,
         _TASK_RENAME_SKIP,
@@ -46,6 +49,9 @@ except ImportError:
     get_log_candidate_attributes = None
     get_log_violated_activities_task34 = None
     get_log_violation_activities = None
+    get_log_data_attributes = None
+    get_log_attribute_values = None
+    get_log_resource_values = None
     get_log_time_bins = None
     _FILE_RENAME = {}
     _TASK_RENAME_SKIP = {}
@@ -117,6 +123,43 @@ _LOG_TRACE_IDS_CACHE: dict[str, list[dict]] = {}
 _LOG_CANDIDATE_ATTRS_CACHE: dict[str, list[dict]] = {}
 # Cache of violated activities for task34's activity-picker dropdown.
 _LOG_VIOLATED_ACTS_TASK34_CACHE: dict[str, list[dict]] = {}
+# Caches for the data / resource perspective of task09 and task28.
+_LOG_DATA_ATTRS_CACHE: dict[str, list[dict]] = {}
+_LOG_ATTR_VALUES_CACHE: dict[str, list[dict]] = {}
+_LOG_RESOURCE_VALUES_CACHE: dict[str, list[dict]] = {}
+
+
+def _dataset_data_attributes(dataset_id: str) -> list[dict]:
+    """Attributes a data rule can be written about (task09 / task28, cached)."""
+    if dataset_id in _LOG_DATA_ATTRS_CACHE:
+        return _LOG_DATA_ATTRS_CACHE[dataset_id]
+    if get_log_data_attributes is None:
+        return []
+    attrs = get_log_data_attributes(str(DATA_DIRECTORY / dataset_id))
+    _LOG_DATA_ATTRS_CACHE[dataset_id] = attrs
+    return attrs
+
+
+def _dataset_attribute_values(dataset_id: str) -> list[dict]:
+    """Flat "attribute = value" candidates (task09 / task28, cached)."""
+    if dataset_id in _LOG_ATTR_VALUES_CACHE:
+        return _LOG_ATTR_VALUES_CACHE[dataset_id]
+    if get_log_attribute_values is None:
+        return []
+    values = get_log_attribute_values(str(DATA_DIRECTORY / dataset_id))
+    _LOG_ATTR_VALUES_CACHE[dataset_id] = values
+    return values
+
+
+def _dataset_resource_values(dataset_id: str) -> list[dict]:
+    """Distinct org:resource values (task09 / task28, cached)."""
+    if dataset_id in _LOG_RESOURCE_VALUES_CACHE:
+        return _LOG_RESOURCE_VALUES_CACHE[dataset_id]
+    if get_log_resource_values is None:
+        return []
+    values = get_log_resource_values(str(DATA_DIRECTORY / dataset_id))
+    _LOG_RESOURCE_VALUES_CACHE[dataset_id] = values
+    return values
 
 
 def _dataset_activities(dataset_id: str) -> list[str]:
@@ -245,6 +288,9 @@ OPTION_SOURCES: list[dict] = [
     {"source": "log.time_bins",            "label": "Time bins", "granularity": True},
     {"source": "log.trace_ids",            "label": "Traces"},
     {"source": "log.worst_traces",         "label": "Worst-fitness traces"},
+    {"source": "log.data_attributes",      "label": "Data attributes"},
+    {"source": "log.attribute_values",     "label": "Attribute values (attribute = value)"},
+    {"source": "log.resource_values",      "label": "Resources"},
 ]
 
 
@@ -266,6 +312,12 @@ def _param_candidates(source: str, dataset_id: str) -> list:
         return _dataset_violation_activities(dataset_id)
     if source == "log.violated_activities_task34":
         return _dataset_violated_activities_task34(dataset_id)
+    if source == "log.data_attributes":
+        return _dataset_data_attributes(dataset_id)
+    if source == "log.attribute_values":
+        return _dataset_attribute_values(dataset_id)
+    if source == "log.resource_values":
+        return _dataset_resource_values(dataset_id)
     return []
 
 

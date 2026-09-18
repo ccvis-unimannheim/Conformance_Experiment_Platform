@@ -13,7 +13,31 @@ Idioms:
 import logging
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["flow_chart_elaborate", "flow_chart_elaborate_table", "petri_net", "flow_chart_elaborate_dfg"]
+#: One idiom only. task35's question — "the desired state in this model is
+#: annotated with frequently skipped/inserted activities" — is answered by the
+#: annotated process model; the Petri net and DFG variants re-draw the same
+#: annotation on a different notation, which is a notation comparison, not this
+#: task. Their renderers stay (nothing else changes about this task, which keeps
+#: aggregating over the whole log) but are no longer offered.
+IDIOMS = ["flow_chart_elaborate"]
+
+import violation_profile
+
+#: Which deviations get annotated. Empty means all of them, which is what the
+#: task did before this parameter existed.
+PARAM_SPEC = [
+    {
+        "key": "move_types",
+        "slot": "selection",
+        "label": "Violation types to annotate on the model (empty = all)",
+        "hint": "Model Move = a prescribed activity was skipped; Log Move = an "
+                "activity was executed that the model does not prescribe",
+        "widget": "select-many",
+        "options": list(violation_profile.MOVE_TYPES),
+        "default": [],
+        "required": False,
+    },
+]
 
 import os
 import html as _html
@@ -37,7 +61,13 @@ _TOP_N  = 15
 
 # ── Data extraction ────────────────────────────────────────────────────────────
 
-def _extract_data(alignments):
+def _extract_data(alignments, move_types=None):
+    """Per-(activity, violation type) counts over the whole log.
+
+    ``move_types`` keeps only those violation types; empty or None keeps all,
+    which is what every caller did before the parameter existed.
+    """
+    wanted = {str(m) for m in (move_types or [])}
     activity_type = Counter()
     for aln in alignments:
         for step in aln.get("alignment", []):
@@ -45,6 +75,8 @@ def _extract_data(alignments):
                 continue
             act, vtype = _classify_step(step[0], step[1])
             if act is None:
+                continue
+            if wanted and vtype not in wanted:
                 continue
             activity_type[(act, vtype)] += 1
     activity_totals = Counter()
@@ -686,11 +718,12 @@ def task35_flow_chart_elaborate_dfg(activity_type, activity_totals, log, output_
 
 # ── Public entry point ─────────────────────────────────────────────────────────
 
-def generate(log, alignments, output_dir, model_path=None):
+def generate(log, alignments, output_dir, model_path=None, move_types=None):
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 35 visualizations (Guideline violations in model) ---")
 
-    activity_type, activity_totals, type_totals, n_violations = _extract_data(alignments)
+    activity_type, activity_totals, type_totals, n_violations = _extract_data(
+        alignments, move_types=move_types)
 
     if not activity_totals:
         logger.warning("Skipped Task 35: no violations found in alignments.")
