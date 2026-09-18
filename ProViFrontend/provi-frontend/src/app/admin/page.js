@@ -503,19 +503,11 @@ export default function AdminPage() {
                                 Download Data
                               </a>
                             )}
-                            {(status === "published" || status === "finished") && (
-                              <a href={`/api/admin/experiments/${encodeURIComponent(expId)}/idioms/export`}
-                                title="The images participants saw, with a manifest of how they were produced"
-                                className="text-xs border border-border-subtle text-on-surface-variant px-3 py-1.5 rounded hover:bg-surface-container transition-colors flex items-center gap-1">
-                                <span className="material-symbols-outlined text-sm">image</span>
-                                Download Idioms
-                              </a>
-                            )}
                           </div>
                         )}
                       </div>
                       {/* Row 2: stats + task preview (all experiments) */}
-                      <div className="mt-3 pt-3 border-t border-outline-variant/40 flex items-center gap-4">
+                      <div className="mt-3 pt-3 border-t border-outline-variant/40 flex flex-wrap items-center gap-x-4 gap-y-2">
                         {status === "published" && expStats[expId] && (
                           <>
                             <span className="flex items-center gap-1 text-[11px] text-on-surface-variant">
@@ -529,6 +521,14 @@ export default function AdminPage() {
                           </>
                         )}
                         <TasksTooltip exp={exp} taskMap={taskMap} idiomMap={idiomMap} />
+                        {!expManageMode && (status === "published" || status === "finished") && (
+                          <a href={`/api/admin/experiments/${encodeURIComponent(expId)}/idioms/export`}
+                            title="The images participants saw, with a manifest of how they were produced"
+                            className="ml-auto flex items-center gap-1 text-[11px] font-medium text-on-surface-variant hover:text-primary transition-colors whitespace-nowrap">
+                            <span className="material-symbols-outlined text-[14px]">image</span>
+                            Idioms (.zip)
+                          </a>
+                        )}
                       </div>
                     </div>
                   );
