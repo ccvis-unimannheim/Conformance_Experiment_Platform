@@ -15,6 +15,13 @@ Visualizations (all SVG, white-grey-black palette):
 import logging
 logger = logging.getLogger(__name__)
 
+import violation_profile
+
+#: Default heading for this task's figures. task23 draws the same four idioms
+#: from the same data and asks a different question of it, so the heading and
+#: the output filename are parameters rather than literals.
+_TITLE_PREFIX = "Predefined Violation Frequency"
+
 IDIOMS = [
     "bar_chart", "matrix",
     "table", "table_bar_chart",
@@ -22,7 +29,26 @@ IDIOMS = [
 ]
 
 
-PARAM_SPEC = []
+def _param_spec():
+    """Only the activity selection.
+
+    The question this task asks — "how do the violations for activity X compare
+    to those of other activities?" — names an activity, but that name is *not* a
+    parameter here: the figure has to keep showing every activity for the
+    comparison to be possible, so choosing X would change nothing the renderers
+    read. The subject belongs in the question text, which an admin edits
+    directly (PATCH /admin/tasks/{id}); a control that alters no output is the
+    dead parameter this codebase has removed before.
+
+    `activities` does change the figure — it narrows which activities appear —
+    and empty, its default, means all of them, which is what the tuned
+    screenshots show.
+    """
+    import violation_profile
+    return [violation_profile.selection_param_for("activity")]
+
+
+PARAM_SPEC = _param_spec()
 
 
 RUBRIC = (
@@ -98,23 +124,19 @@ _VTYPE_FROM_TOKEN = {
 def _extract_trace_coverage(alignments):
     """Returns (trace_coverage Counter, n_traces int).
 
-    trace_coverage maps (activity, vtype) → number of distinct traces in which
-    that violation appears at least once.
+    trace_coverage maps (activity, move_type) -> number of distinct traces in
+    which that violation appears at least once — the Violation-profile kernel's
+    "activity" strategy, which is exactly this shape. Counting moved there so
+    the seven tasks of the class cannot drift apart on what a violation is.
     """
-    trace_coverage = Counter()
+    import violation_profile
+
     n_traces = len(alignments)
-    for aln in alignments:
-        seen = set()
-        for step in aln.get("alignment", []):
-            if not isinstance(step, (list, tuple)) or len(step) < 2:
-                continue
-            act, vtype = _classify_step(step[0], step[1])
-            if act is None:
-                continue
-            seen.add((act, vtype))
-        for pair in seen:
-            trace_coverage[pair] += 1
-    return trace_coverage, n_traces
+    profile = violation_profile.profile(alignments, "activity", n_traces=n_traces)
+    coverage = Counter()
+    for _, row in profile.iterrows():
+        coverage[(str(row["group"]), str(row["series"]))] = int(row["traces"])
+    return coverage, n_traces
 
 
 def _resolve_target(spec, trace_coverage):
@@ -180,13 +202,22 @@ def _no_violations(output_dir, name):
 
 
 def _sorted_selected(selected, trace_coverage):
-    """Return selected pairs sorted by trace count descending."""
-    return sorted(selected, key=lambda p: (-trace_coverage.get(p, 0), str(p)))
+    """The selected pairs in the order `generate` resolved them.
+
+    That order is the class's canonical one: activity-major, so an activity's
+    Model and Log moves are adjacent. It used to sort by trace count here, which
+    put "Ship Order (Model Move)" at the top of the table and its Log Move nine
+    rows below — while this task's own bar chart and matrix, being two
+    dimensional, showed them side by side. One task ordered the same data two
+    ways depending on the idiom.
+    """
+    return list(selected)
 
 
 # ── Idiom 1: Bar Chart — trace count per predefined violation ─────────────────
 
-def task11_bar_chart(selected, trace_coverage, n_traces, output_dir):
+def task11_bar_chart(selected, trace_coverage, n_traces, output_dir, *,
+                     filename="task11_bar_chart.svg", title_prefix=_TITLE_PREFIX):
     """Vertical grouped bar chart: one Model Move bar and one Log Move bar per activity.
 
     Activities are sorted by combined (Model Move + Log Move) trace count,
@@ -239,7 +270,7 @@ def task11_bar_chart(selected, trace_coverage, n_traces, output_dir):
     ax.set_xticklabels(labels, rotation=30, ha="right", fontsize=FONT_ANNOT)
     ax.set_ylabel("Number of traces containing this violation", fontsize=FONT_LABEL)
     ax.set_title(
-        f"Predefined Violation Frequency by Activity  ({n} activit{'y' if n == 1 else 'ies'})",
+        f"{title_prefix} by Activity  ({n} activit{'y' if n == 1 else 'ies'})",
         fontsize=FONT_TITLE,
     )
     ax.spines[["top", "right"]].set_visible(False)
@@ -249,12 +280,13 @@ def task11_bar_chart(selected, trace_coverage, n_traces, output_dir):
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=2,
               frameon=False, fontsize=FONT_ANNOT)
     fig.tight_layout(rect=[0, 0.06, 1, 1])
-    save_svg(fig, os.path.join(output_dir, "task11_bar_chart.svg"))
+    save_svg(fig, os.path.join(output_dir, filename))
 
 
 # ── Idiom 2: Matrix — activity × type for selected violations ─────────────────
 
-def task11_matrix(selected, trace_coverage, n_traces, output_dir):
+def task11_matrix(selected, trace_coverage, n_traces, output_dir, *,
+                  filename="task11_matrix.svg", title_prefix=_TITLE_PREFIX):
     """Activity × violation-type grid restricted to the selected violations.
 
     Rows = distinct activities in the selection (ordered by descending total
@@ -316,7 +348,7 @@ def task11_matrix(selected, trace_coverage, n_traces, output_dir):
     ax.set_yticklabels([_short_label(a, 30) for a in selected_acts], fontsize=FONT_ANNOT)
 
     ax.set_title(
-        "Predefined Violation Frequency: Activity × Type",
+        f"{title_prefix}: Activity × Type",
         fontsize=FONT_TITLE,
     )
     ax.tick_params(axis="both", length=0)
@@ -324,12 +356,13 @@ def task11_matrix(selected, trace_coverage, n_traces, output_dir):
         spine.set_visible(False)
 
     fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task11_matrix.svg"))
+    save_svg(fig, os.path.join(output_dir, filename))
 
 
 # ── Idiom 3: Table — violations ranked by trace frequency ─────────────────────
 
-def task11_table(selected, trace_coverage, n_traces, output_dir):
+def task11_table(selected, trace_coverage, n_traces, output_dir, *,
+                 filename="task11_table.svg", title_prefix=_TITLE_PREFIX):
     """Ranked table: Activity | Type | Number of Traces | Percentage of All.
 
     Rows correspond 1-to-1 to the selected violations, sorted descending by
@@ -367,16 +400,18 @@ def task11_table(selected, trace_coverage, n_traces, output_dir):
         cell_pad=0.09,
     )
     ax.set_title(
-        f"Predefined Violation Frequency  ({n_rows} violation{'s' if n_rows != 1 else ''})",
+        f"{title_prefix}  ({n_rows} violation{'s' if n_rows != 1 else ''})",
         fontsize=FONT_TITLE, pad=14,
     )
     fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task11_table.svg"))
+    save_svg(fig, os.path.join(output_dir, filename))
 
 
 # ── Idiom 4: Table & Bar Chart ────────────────────────────────────────────────
 
-def task11_table_bar_chart(selected, trace_coverage, n_traces, output_dir):
+def task11_table_bar_chart(selected, trace_coverage, n_traces, output_dir, *,
+                           filename="task11_table_bar_chart.svg",
+                           title_prefix=_TITLE_PREFIX):
     """Left: compact violation table. Right: gradient horizontal bars by trace count."""
     if not selected:
         _no_violations(output_dir, "table_bar_chart")
@@ -435,12 +470,12 @@ def task11_table_bar_chart(selected, trace_coverage, n_traces, output_dir):
     ax_bar.set_xlim(0, max_c * 1.38)
 
     fig.suptitle(
-        f"Predefined Violation Frequency  ({n} violation{'s' if n != 1 else ''})"
+        f"{title_prefix}  ({n} violation{'s' if n != 1 else ''})"
         f"  ·  {n_traces:,} total traces",
         fontsize=FONT_TITLE + 1, y=1.01,
     )
     fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task11_table_bar_chart.svg"))
+    save_svg(fig, os.path.join(output_dir, filename))
 
 
 # ── BPMN helpers ──────────────────────────────────────────────────────────────
@@ -531,7 +566,8 @@ def task11_flow_chart_elaborate(selected, trace_coverage, n_traces,
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
-def generate(log, alignments, output_dir, model_path=None, target_violations=None):
+def generate(log, alignments, output_dir, model_path=None, target_violations=None,
+             activities=None):
     """Generate all Task 11 SVGs into output_dir.
 
     target_violations: list of 'activity|move_type' strings (the predefined set
@@ -554,9 +590,26 @@ def generate(log, alignments, output_dir, model_path=None, target_violations=Non
                         "No guideline violations found in this log.")
         return
 
+    # An activity selection narrows to that activity's violations, keeping both
+    # move types. Empty — the default — keeps every activity, which is what the
+    # tuned screenshots show and what the comparison question needs.
+    if activities:
+        wanted = {str(a).strip() for a in activities}
+        trace_coverage = Counter({pair: n for pair, n in trace_coverage.items()
+                                  if pair[0] in wanted})
+        if not trace_coverage:
+            logger.error("task11: none of the selected activities carry violations: %s",
+                         sorted(wanted))
+            for name in IDIOMS:
+                _save_empty(output_dir, f"task11_{name}.svg",
+                            "None of the selected activities carry violations.")
+            return
+
     # Resolve the predefined set.
     if target_violations:
-        selected = _resolve_violations(target_violations, trace_coverage)
+        resolved = set(_resolve_violations(target_violations, trace_coverage))
+        selected = [p for p in violation_profile.ordered_pairs(alignments)
+                    if p in resolved]
         if not selected:
             logger.error(
                 "task11: none of the specified violations were found in the log. "
@@ -574,8 +627,9 @@ def generate(log, alignments, output_dir, model_path=None, target_violations=Non
         if dropped:
             logger.warning("task11: unresolved violation specs (ignored): %s", dropped)
     else:
-        # Fallback: show all violations sorted by trace count
-        selected = [pair for pair, _ in most_common_stable(trace_coverage)]
+        # Every violation, in the class's canonical order.
+        selected = [p for p in violation_profile.ordered_pairs(alignments)
+                    if p in trace_coverage]
         logger.info("task11: no violations specified — showing all %d distinct violations.",
                     len(selected))
 

@@ -25,6 +25,28 @@ logger = logging.getLogger(__name__)
 IDIOMS = ["bar_chart", "stacked_bar", "boxplot", "table",
           "table_bar_chart", "matrix", "heatmap", "parallel_sets"]
 
+
+def _param_spec():
+    """The Violation-profile class's parameters, plus this task's own cut.
+
+    task32 exposed nothing before: the sub-log attribute came from upstream
+    auto-detection, so an admin could not say what "sub-process" meant for
+    their study.
+    """
+    import violation_profile
+    return [
+        violation_profile.SPLIT_ATTRIBUTE_PARAM,
+        violation_profile.GROUPING_STRATEGY_PARAM,
+        *violation_profile.SELECTION_PARAMS,
+        violation_profile.prominence_threshold_param(
+            "Minimum share of all violations for a violation to count as 'main' (%)",
+            "Below this, a violation is long tail and is left out of the ranking",
+        ),
+    ]
+
+
+PARAM_SPEC = _param_spec()
+
 import os
 import numpy as np
 import pandas as pd
@@ -448,11 +470,16 @@ _ALL_FNAMES_TITLES = [
 
 
 def generate(log, alignments, output_dir: str,
-             compare_attribute: str = "AMOUNT_REQ"):
+             compare_attribute: str = "AMOUNT_REQ",
+             split_attribute: str = "", grouping_strategy: str = "pattern",
+             selection=None, prominence_threshold: float = None):
     """Generate all Task ID 32 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 32 visualizations ---")
 
+    # split_attribute is the class's own key; compare_attribute is what upstream
+    # auto-detection supplies when the admin has not chosen.
+    compare_attribute = split_attribute or compare_attribute
     groups, assignment, meta = split_by_attribute(log, compare_attribute)
     if groups is None:
         available = _available_case_attributes(log)
@@ -476,10 +503,29 @@ def generate(log, alignments, output_dir: str,
         logger.warning(f"      task32: {meta['n_missing']} traces without "
                        f"'{compare_attribute}' value — excluded.")
 
-    viol_df = _build_violation_df(alignments, assignment)
+    viol_df = _build_violation_df(alignments, assignment,
+                                  grouping_strategy=grouping_strategy,
+                                  selection=selection)
     agg_df = _aggregate_frequency(viol_df, groups)
-    logger.info(f"      -> {len(viol_df)} violation rows; "
-                f"top-{len(agg_df)} patterns by frequency.")
+    logger.info(f"      -> {len(viol_df)} violation rows ({grouping_strategy} units); "
+                f"top-{len(agg_df)} by frequency.")
+
+    # "Main violations" is the task's own question, so the long tail is cut here
+    # rather than left for the reader to judge off a Pareto curve. The share is
+    # of every violation occurrence, which is what cum_pct is built from.
+    if prominence_threshold:
+        total = float(viol_df.shape[0])
+        if total:
+            keep = agg_df["total"] / total * 100 >= float(prominence_threshold)
+            dropped = int((~keep).sum())
+            if keep.any():
+                agg_df = agg_df[keep].reset_index(drop=True)
+                logger.info(f"      -> {dropped} below the {prominence_threshold:g}% "
+                            f"'main violation' cut, {len(agg_df)} kept.")
+            else:
+                logger.warning(
+                    f"      task32: no violation reaches {prominence_threshold:g}% of all "
+                    f"occurrences — the cut is ignored so the figures are not empty.")
     for _, row in agg_df.iterrows():
         pat_ascii = str(row["pattern"]).encode("ascii", "replace").decode()
         logger.info(f"         {pat_ascii:<40} total={int(row['total']):>6}  "

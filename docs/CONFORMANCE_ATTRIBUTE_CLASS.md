@@ -54,6 +54,37 @@ task10's bin presets are down to two, Standard and High-fitness focus; the
 "Study-defined categories" preset is gone. Standard is the default and what the
 frozen screenshots show, so they are unaffected.
 
+task03's compared attribute is now a parameter rather than throughput time
+fixed in code — `response_attribute`, `slot: response`, drawing its options from
+the same `log.candidate_attributes` the Attribute → Violation class uses, and
+multi-select as that class is. Empty keeps throughput time.
+
+It is still not that class's `attribute_set`, because the slot differs: here the
+attribute is what gets **measured**, there it is what the log is **split** by.
+Sharing one key across both would defeat the slot mechanism, whose whole job is
+to stop two parameters deciding the same thing.
+
+Each attribute becomes one panel, and its own renderers draw them — task03's
+figure is rows × 2 series, which the shared panel kernel has no shape for. The
+frozen screenshots are the one-attribute case, so that case has to come out
+untouched: `plt.subplots(1, 1, squeeze=False)` renders identically to the bare
+`plt.subplots()` it replaces (checked), the figure size keeps its historical
+value at N=1 rather than a formula that happens to agree, and a panel is titled
+only when there is more than one — with one, the figure title already names it.
+All five task03 idioms come out byte-identical on the default.
+
+An attribute with too little variance to bucket keeps its panel and says so
+inside it, rather than removing the panel or blanking the figure; only when
+*every* attribute fails does the whole figure become an empty state, which is
+what the single-attribute case did before.
+
+The value reaches `trace_features.split` with the registry's own value type
+rather than one guessed from the values. Guessing coerced attributes to float,
+which turned a resource id into a number: `resource::dominant` is 94% one
+resource, so its quantiles collapsed to a single bucket and the task drew an
+empty chart instead of the comparison — non-conformant traces are in fact 4.7×
+likelier to be handled by a resource other than the dominant one.
+
 Each swap was checked by computing both ways and comparing: task03's durations
 agreed to the last float over 13,087 traces, and task19's pattern sets agreed on
 every one of them.
@@ -187,5 +218,6 @@ which covers their three whichever they are.
   patterns directly rather than going through `split_feature`, and `violates::`
   features were not added: only one task in the class splits by violation, so
   the registry entry would have had a single consumer.
-* The pink tasks have no `slot` metadata on their parameters yet, unlike the
-  Attribute → Violation class.
+* The pink tasks are only partly slotted: task03's `response_attribute` carries
+  `slot: response`, but `conformant_threshold` and `conformance_bins` still
+  carry none, unlike the Attribute → Violation class.

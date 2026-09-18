@@ -5,6 +5,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { hasKnowledgeQuestions } from "../../utils/knowledgeStep";
+
 import HeaderLogos from "../../components/General/HeaderLogos";
 
 // ── Design tokens (from test.html color palette)
@@ -223,7 +225,11 @@ export default function PrequestionnaireComponent() {
         setError("Submission failed. Please try again.");
         return;
       }
-      router.push("/knowledgequestion");
+      // The admin may have deselected every knowledge question, in which
+      // case that step does not exist and the journey continues past it.
+      router.push(
+        (await hasKnowledgeQuestions()) ? "/knowledgequestion" : "/conformance-terms"
+      );
     } catch {
       setError("Network error. Please check your connection and try again.");
     } finally {

@@ -16,6 +16,23 @@ logger = logging.getLogger(__name__)
 
 IDIOMS = ["bar_chart", "heatmap", "network_diagram"]
 
+
+def _param_spec():
+    """The Violation-profile class's parameters, plus this task's own cut."""
+    import violation_profile
+    return [
+        violation_profile.GROUPING_STRATEGY_PARAM,
+        *violation_profile.SELECTION_PARAMS,
+        violation_profile.prominence_threshold_param(
+            "Minimum share of all violations for a violation to count as "
+            "'predominant' (%)",
+            "The same cut task32 calls 'main', on the same number",
+        ),
+    ]
+
+
+PARAM_SPEC = _param_spec()
+
 import os
 import numpy as np
 import matplotlib
@@ -25,7 +42,7 @@ import matplotlib.patches as mpatches
 import warnings
 warnings.filterwarnings("ignore")
 
-from shared import save_svg, FONT_TITLE, FONT_LABEL, FONT_ANNOT, make_table, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS
+from shared import save_svg, render_empty_state_svg, FONT_TITLE, FONT_LABEL, FONT_ANNOT, make_table, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS
 from matplotlib.colors import to_hex
 
 # ── Palette ──────────────────────────────────────────────────────────────────
@@ -82,124 +99,82 @@ def _text_color(bg_hex: str) -> str:
 
 # ── Data extraction ───────────────────────────────────────────────────────────
 
-def _extract_data(log) -> dict:
-    """Discover Declare model and compute per-constraint conformance rates."""
-    import pm4py
-    from collections import defaultdict
+def _extract_data(log, alignments=None, grouping_strategy: str = "pattern",
+                  selection=None, prominence_threshold: float = None) -> dict:
+    """Per-violation conformance rates, from the alignment.
+
+    **This is a redefinition.** The task used to discover a Declare model and
+    compute per-constraint conformance with pm4py — it took `alignments` and
+    never read them. "Conformance per rule" was therefore a different kind of
+    conformance from the one every other task in this study reports, and the
+    two could disagree about the same log without either being wrong.
+
+    A "rule" is now a violation group from the shared kernel, and its
+    conformance rate is the share of traces that do **not** carry it. The
+    predominant violations are the ones a `prominence_threshold` keeps — the
+    same cut task32 calls "main", on the same number.
+
+    `binary` stays empty: the heatmap and the network diagram draw
+    activity-pair constraints, and an alignment violation is not a pair. Those
+    two idioms need a redesign before they can show this data, and say so
+    rather than drawing something that is not there.
+    """
+    import violation_profile
 
     n_traces = len(log)
+    empty = {"constraints": [], "binary": [], "n_traces": n_traces, "activities": []}
+    if not alignments:
+        logger.warning("Task36: no alignments provided.")
+        return empty
 
-    try:
-        dm = pm4py.discover_declare(
-            log,
-            allowed_templates=_ALLOWED_TEMPLATES,
-            min_support_ratio=0.3,
-            min_confidence_ratio=0.3,
-        )
-    except Exception as e:
-        logger.warning(f"Task36: discover_declare failed: {e}")
-        return {"constraints": [], "binary": [], "n_traces": n_traces, "activities": []}
+    profile = violation_profile.profile(alignments, grouping_strategy,
+                                        selection=selection, n_traces=n_traces)
+    if profile.empty:
+        return empty
 
-    if not dm:
-        return {"constraints": [], "binary": [], "n_traces": n_traces, "activities": []}
-
-    try:
-        results = pm4py.conformance_declare(log, dm)
-    except Exception as e:
-        logger.warning(f"Task36: conformance_declare failed: {e}")
-        results = []
-
-    # Count violations per (template, activities)
-    violation_count = defaultdict(int)
-    for r in results:
-        for dev in r.get("deviations", []):
-            violation_count[(dev[0], dev[1])] += 1
-
-    # Build raw constraint list
-    raw = []
-    all_activities = set()
-    for tmpl, pairs in dm.items():
-        if tmpl not in _ALLOWED_TEMPLATES:
-            continue
-        for activities, stats in pairs.items():
-            viols = violation_count.get((tmpl, activities), 0)
-            conf_rate = 1.0 - viols / n_traces
-            is_binary = isinstance(activities, tuple)
-            if is_binary:
-                all_activities.update(activities)
-            else:
-                all_activities.add(activities)
-            raw.append({
-                "template": tmpl,
-                "activities": activities,
-                "is_binary": is_binary,
-                "conf_rate": conf_rate,
-                "violations": viols,
-                "support": stats.get("support", n_traces),
-            })
-
-    # Deduplicate: keep one per (activities key), lowest priority = most specific template
-    best = {}
-    for c in raw:
-        key = c["activities"]
-        prio = _TEMPLATE_PRIORITY.get(c["template"], 99)
-        if key not in best or prio < _TEMPLATE_PRIORITY.get(best[key]["template"], 99):
-            best[key] = c
+    if prominence_threshold:
+        kept = violation_profile.prominent(profile, prominence_threshold)
+        if kept.empty:
+            logger.warning(
+                "Task36: no violation reaches %g%% of all occurrences — the "
+                "predominance cut is ignored so the figures are not empty.",
+                prominence_threshold)
+        else:
+            dropped = len(profile) - len(kept)
+            profile = kept
+            logger.info("Task36: %d below the %g%% predominance cut, %d kept.",
+                        dropped, prominence_threshold, len(profile))
 
     constraints = []
-    for key, c in best.items():
-        tmpl = c["template"]
-        acts = c["activities"]
-        conf_rate = c["conf_rate"]
-        is_binary = c["is_binary"]
-
-        if is_binary:
-            a, b = acts
-            act_label = f"{_short(a)} → {_short(b)}"
-        else:
-            act_label = _short(acts) if isinstance(acts, str) else _short(str(acts))
-
-        tmpl_label = _TEMPLATE_LABELS.get(tmpl, tmpl)
-        full_label = f"{tmpl_label}: {act_label}"
-
+    for _, row in profile.iterrows():
+        label = str(row["group"])
+        if row["series"]:
+            label = f'{label} ({row["series"]})'
+        conf_rate = 1.0 - (row["traces"] / n_traces if n_traces else 0.0)
         constraints.append({
-            "template": tmpl,
-            "template_label": tmpl_label,
-            "activities": acts,
-            "act_label": act_label,
-            "label": full_label,
-            "is_binary": is_binary,
+            "label": label,
             "conf_rate": conf_rate,
-            "violations": c["violations"],
-            "support": c.get("support", n_traces),
-            "n_traces": n_traces,
+            "violations": int(row["traces"]),
             "color": _conf_gray(conf_rate),
         })
+    # Least conformant first: the question asks which violations are
+    # predominant, so the worst rule leads.
+    constraints.sort(key=lambda c: (c["conf_rate"], c["label"]))
 
-    constraints.sort(key=lambda x: (x["conf_rate"], str(x.get("label", x))))
+    activities = [a for a, _, _ in violation_profile.activity_coverage(alignments, n_traces)]
+    logger.info("Task36: %d violation group(s) over %d traces.",
+                len(constraints), n_traces)
+    return {"constraints": constraints, "binary": [], "n_traces": n_traces,
+            "activities": activities}
 
-    # Binary only (for heatmap + flow)
-    binary = [c for c in constraints if c["is_binary"]]
-    # Limit binary to most interesting (exclude perfect 100% if too many)
-    if len(binary) > 20:
-        non_perfect = [c for c in binary if c["conf_rate"] < 0.999]
-        perfect = [c for c in binary if c["conf_rate"] >= 0.999]
-        binary = non_perfect[:15] + perfect[:5]
-
-    return {
-        "constraints": constraints[:25],
-        "binary": binary,
-        "n_traces": n_traces,
-        "activities": sorted(all_activities),
-    }
-
-
-# ── Idiom 1: Bar Chart ────────────────────────────────────────────────────────
 
 def task36_bar_chart(data: dict, output_dir: str):
     constraints = data["constraints"]
     if not constraints:
-        logger.warning("Task36 bar_chart: no constraints.")
+        logger.warning("Task36 bar_chart: no violations to rank.")
+        render_empty_state_svg(
+            os.path.join(output_dir, "task36_bar_chart.svg"),
+            "Conformance per Rule", "No violations found in this log.")
         return
 
     items = constraints[:20]
@@ -266,7 +241,12 @@ def task36_heatmap(data: dict, output_dir: str):
     activities = data["activities"]
 
     if not binary or not activities:
-        logger.warning("Task36 heatmap: no binary constraints.")
+        logger.warning("Task36 heatmap: no pairwise constraints to draw.")
+        render_empty_state_svg(
+            os.path.join(output_dir, "task36_heatmap.svg"),
+            "Conformance per Rule",
+            "This idiom draws activity-pair constraints; alignment violations are "
+            "not pairs. It awaits a redesign.")
         return
 
     acts = sorted(activities)
@@ -345,7 +325,12 @@ def task36_network_diagram(data: dict, output_dir: str):
     n_traces = data["n_traces"]
 
     if not binary:
-        logger.warning("Task36 network_diagram: no binary constraints.")
+        logger.warning("Task36 network_diagram: no pairwise constraints to draw.")
+        render_empty_state_svg(
+            os.path.join(output_dir, "task36_network_diagram.svg"),
+            "Conformance per Rule",
+            "This idiom draws activity-pair constraints; alignment violations are "
+            "not pairs. It awaits a redesign.")
         return
 
     # ── Build directed graph (one edge per pair – worst conformance) ──────────
@@ -495,13 +480,20 @@ def task36_network_diagram(data: dict, output_dir: str):
 
 # ── Entry point ──────────────────────────────────────────────────────────────
 
-def generate(log, alignments, output_dir: str, model_path: str = None):
+def generate(log, alignments, output_dir: str, model_path: str = None,
+             grouping_strategy: str = "pattern", selection=None,
+             prominence_threshold: float = None):
     logger.info("\n--- Generating Task 36 visualizations (Declare constraint conformance) ---")
     logger.info("      Extracting Declare conformance data…")
-    data = _extract_data(log)
+    data = _extract_data(log, alignments, grouping_strategy, selection,
+                         prominence_threshold)
 
     if not data["constraints"]:
-        logger.warning("Task36: no constraints discovered — skipping all idioms.")
+        logger.warning("Task36: no violations found — emitting empty states.")
+        for name in IDIOMS:
+            render_empty_state_svg(
+                os.path.join(output_dir, f"task36_{name}.svg"),
+                "Conformance per Rule", "No violations found in this log.")
         return
 
     n = data["n_traces"]

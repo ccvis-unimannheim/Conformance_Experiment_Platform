@@ -3,6 +3,8 @@
 import React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+
+import { hasKnowledgeQuestions } from "../../utils/knowledgeStep";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 
 import ProcessModelDiagram from "../../public/images/order_to_cash_model.svg";
@@ -112,6 +114,15 @@ function ImageLightbox({ children, onClose }) {
 export default function ConformanceTermsPage() {
   const router = useRouter();
   const [imageZoomOpen, setImageZoomOpen] = React.useState(false);
+
+  // Going back to a step the admin emptied would land on a page that
+  // immediately forwards here again, so Back would look broken. Skip to the
+  // step before it instead.
+  const handleBack = async () => {
+    router.push(
+      (await hasKnowledgeQuestions()) ? "/knowledgequestion" : "/prequestionnaire"
+    );
+  };
 
   return (
     <div style={{ backgroundColor: C.surface, color: C.onSurface, minHeight: "100vh", fontFamily: "'Inter', Arial, sans-serif" }}>
@@ -383,7 +394,7 @@ export default function ConformanceTermsPage() {
             }}>
               <button
                 type="button"
-                onClick={() => router.push("/knowledgequestion")}
+                onClick={handleBack}
                 style={{
                   padding: "0.75rem 2rem", borderRadius: "0.5rem", border: "none",
                   backgroundColor: "transparent", color: C.onVariant,

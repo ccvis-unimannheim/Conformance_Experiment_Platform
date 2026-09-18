@@ -65,14 +65,28 @@ export default function KnowledgeQuestionPage() {
   const [answers, setAnswers] = useState({});
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [skipping, setSkipping] = useState(false);
 
   useEffect(() => {
     fetch("/api/participant/knowledge-questions", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then((data) => setQuestions(data.questions ?? []))
+      .then((data) => {
+        const qs = data.questions ?? [];
+        // The admin deselected every question, so there is nothing to ask.
+        // Reached directly (a bookmark, a refresh), this page would otherwise
+        // sit on an empty form whose Continue button can never enable.
+        // replace() rather than push() so it leaves no history entry to
+        // bounce back into.
+        if (qs.length === 0) {
+          setSkipping(true);
+          router.replace("/conformance-terms");
+          return;
+        }
+        setQuestions(qs);
+      })
       .catch(() => setError("Failed to load knowledge questions. Please refresh the page."))
       .finally(() => setLoadingQs(false));
-  }, []);
+  }, [router]);
 
   const isValid = questions.length > 0 && questions.every((q) => answers[q._id] != null);
 
@@ -164,7 +178,7 @@ export default function KnowledgeQuestionPage() {
             </p>
           </header>
 
-          {loadingQs ? (
+          {loadingQs || skipping ? (
             <div style={{ textAlign: "center", padding: "4rem", color: C.onVariant }}>Loading questions…</div>
           ) : error && questions.length === 0 ? (
             <div style={{

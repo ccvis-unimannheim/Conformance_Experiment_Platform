@@ -22,7 +22,17 @@ IDIOMS = [
 ]
 
 
-PARAM_SPEC = []
+def _param_spec():
+    """Which violations the study counts (empty = all).
+
+    Fixed to the pattern unit: the question names concrete violations —
+    "Log Move on Ship Order" — not a move type or an activity.
+    """
+    import violation_profile
+    return [violation_profile.selection_param_for("pattern")]
+
+
+PARAM_SPEC = _param_spec()
 
 
 import os
@@ -33,8 +43,21 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+from matplotlib import gridspec
 
 from shared import save_svg, make_table, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
+
+def _wrap(text, width=22):
+    """Break a long violation label so a tile does not overflow its box."""
+    words, lines, cur = str(text).split(), [], ""
+    for w in words:
+        cur = f"{cur} {w}".strip()
+        if len(cur) > width:
+            lines.append(cur); cur = ""
+    if cur:
+        lines.append(cur)
+    return "\n".join(lines) or str(text)
+
 
 # ── Cividis palette ───────────────────────────────────────────────────────────
 _C_DARK   = GREY_DARK
@@ -63,52 +86,81 @@ _CAT_ORDER = ["conformant", "mom_only", "mol_only", "mm_only", "mixed"]
 
 # ── Data extraction ───────────────────────────────────────────────────────────
 
-def _extract_data(alignments):
+def _extract_data(alignments, violation_patterns=None):
+    """Trace coverage per violation, plus the log's overall conformance.
+
+    Returns n_total / n_conformant / n_deviating / pct_conformant /
+    pct_deviating, and ``violations``: one row per violation with
+
+        label       "Ship Order (Model Move)"
+        traces      distinct traces containing it
+        pct_traces  those traces as a share of the whole log
+        pct_count   its share of all violation occurrences
+        move_type   for colour
+
+    **The two percentages have different denominators, and the difference
+    matters here.** ``pct_traces`` answers the task's question — in what
+    percentage of traces does this violation occur — but the column does not
+    sum to 100: one trace can carry several violations and is counted under
+    each. On the order_to_cash log it sums to 38.2% while 28.4% of traces
+    deviate at all. So part-of-whole idioms (the pie, the 100% stacked bar)
+    cannot draw it without lying about the whole, and use ``pct_count``, which
+    does sum to 100, saying so in their titles.
+
+    ``violation_patterns`` narrows what counts as a violation: with a selection
+    a trace carrying only unselected deviations counts as conformant. Empty
+    counts every violation.
     """
-    Classify each trace into one of 5 categories:
-      conformant / mom_only / mol_only / mm_only / mixed
+    import violation_profile
 
-    Returns dict with n_total, n_conformant, n_deviating,
-    pct_conformant, pct_deviating, categories (Counter).
-    """
-    n_total    = len(alignments)
-    categories = Counter()
+    n_total = len(alignments)
+    profile = violation_profile.profile(alignments, "pattern",
+                                        selection=violation_patterns,
+                                        n_traces=n_total)
+    violations = [
+        {
+            "label": str(r["group"]),
+            "traces": int(r["traces"]),
+            "pct_traces": float(r["pct_traces"]),
+            "pct_count": float(r["pct_count"]),
+            "move_type": (violation_profile.parse_pattern(r["group"]) or ("", ""))[1],
+        }
+        for _, r in profile.iterrows()
+    ]
 
-    for aln in alignments:
-        vtypes = set()
-        for step in aln.get("alignment", []):
-            if not isinstance(step, (list, tuple)) or len(step) < 2:
-                continue
-            _, vtype = _classify_step(step[0], step[1])
-            if vtype is not None:
-                vtypes.add(vtype)
-
-        if not vtypes:
-            categories["conformant"] += 1
-        elif len(vtypes) == 1:
-            vt = next(iter(vtypes))
-            if vt == "Model Move":
-                categories["mom_only"] += 1
-            elif vt == "Log Move":
-                categories["mol_only"] += 1
-            else:
-                categories["mm_only"] += 1
-        else:
-            categories["mixed"] += 1
-
-    n_conformant = categories["conformant"]
-    n_deviating  = n_total - n_conformant
-    pct_c = n_conformant / n_total * 100 if n_total > 0 else 0.0
-    pct_d = n_deviating  / n_total * 100 if n_total > 0 else 0.0
+    # Distinct traces carrying at least one of the selected violations — not the
+    # sum of the rows above, which double-counts a trace deviating more than
+    # once.
+    rows = violation_profile.labelled_rows(alignments, "pattern", violation_patterns)
+    deviating = {int(i) for i in rows["trace_index"]} if not rows.empty else set()
+    n_deviating = len(deviating)
+    n_conformant = n_total - n_deviating
 
     return {
         "n_total":        n_total,
         "n_conformant":   n_conformant,
         "n_deviating":    n_deviating,
-        "pct_conformant": pct_c,
-        "pct_deviating":  pct_d,
-        "categories":     categories,
+        "pct_conformant": n_conformant / n_total * 100 if n_total else 0.0,
+        "pct_deviating":  n_deviating / n_total * 100 if n_total else 0.0,
+        "violations":     violations,
     }
+
+
+#: Colour per move type, so one violation keeps its colour across all six idioms.
+_MOVE_COLORS = {
+    "Model Move": GREY_DARK,
+    "Log Move": GREY_MED,
+    "Mismatch Move": GREY_LIGHT,
+}
+
+
+def _violation_colors(violations):
+    return [_MOVE_COLORS.get(v["move_type"], GREY_LIGHTER) for v in violations]
+
+
+def _top(violations, n=12):
+    """The n most widespread violations; the rest would be unreadable rows."""
+    return violations[:n]
 
 
 def _save_empty(output_dir, filename, message="No data available"):
@@ -126,344 +178,185 @@ def _no_data(output_dir, name):
 # ── Idiom 1: Tile Metric ──────────────────────────────────────────────────────
 
 def task12_tile_metric(stats, output_dir):
-    """Two large KPI tiles: % conformant and % deviating."""
-    if stats["n_total"] == 0:
-        _no_data(output_dir, "tile_metric")
-        return
+    """KPI tiles: the log's deviating share, then the most widespread violations."""
+    vio = _top(stats["violations"], 5)
+    tiles = [("Traces with any violation", f"{stats['pct_deviating']:.1f}%",
+              f"{stats['n_deviating']} of {stats['n_total']}", GREY_DARK)]
+    for v in vio:
+        tiles.append((v["label"], f"{v['pct_traces']:.1f}%",
+                      f"{v['traces']} traces", _MOVE_COLORS.get(v["move_type"], GREY_LIGHTER)))
 
-    pct_c = stats["pct_conformant"]
-    pct_d = stats["pct_deviating"]
-    n_c   = stats["n_conformant"]
-    n_d   = stats["n_deviating"]
-    n_t   = stats["n_total"]
-
-    fig, axes = plt.subplots(1, 2, figsize=(11, 3.8))
-
-    tile_data = [
-        (axes[0], f"{pct_c:.1f}%", "Conformant Traces",
-         f"{n_c:,} of {n_t:,} traces", "#f5f5f5", _C_DARK),
-        (axes[1], f"{pct_d:.1f}%", "Deviating Traces",
-         f"{n_d:,} of {n_t:,} traces", _C_DARK, "white"),
-    ]
-
-    for ax, big, label, sub, bg, fg in tile_data:
-        ax.set_facecolor(bg)
-        for spine in ax.spines.values():
-            spine.set_edgecolor(_C_LIGHT)
-            spine.set_linewidth(1.2)
-        ax.set_xticks([])
-        ax.set_yticks([])
-        ax.text(0.5, 0.58, big, ha="center", va="center",
-                fontsize=38, fontweight="bold", color=fg,
-                transform=ax.transAxes)
-        ax.text(0.5, 0.30, label, ha="center", va="center",
-                fontsize=FONT_LABEL + 1, color=fg,
-                transform=ax.transAxes)
-        ax.text(0.5, 0.14, sub, ha="center", va="center",
-                fontsize=FONT_ANNOT, color=fg if bg == _C_DARK else _C_MED,
-                transform=ax.transAxes)
-
-    fig.suptitle("Process Conformance Summary", fontsize=FONT_TITLE + 1, y=1.02)
-    fig.tight_layout(pad=1.2)
+    n = len(tiles)
+    fig, axes = plt.subplots(1, n, figsize=(max(8.0, n * 2.4), 3.4), squeeze=False)
+    for ax, (label, big, small, color) in zip(axes[0], tiles):
+        ax.axis("off")
+        ax.add_patch(plt.Rectangle((0.02, 0.06), 0.96, 0.88, facecolor=color,
+                                   edgecolor="white", linewidth=1.5,
+                                   transform=ax.transAxes))
+        txt = "white" if color in (GREY_DARK, GREY_MED) else "#222222"
+        ax.text(0.5, 0.63, big, ha="center", va="center", transform=ax.transAxes,
+                fontsize=19, fontweight="bold", color=txt)
+        ax.text(0.5, 0.40, small, ha="center", va="center", transform=ax.transAxes,
+                fontsize=FONT_ANNOT - 1, color=txt)
+        ax.text(0.5, 0.22, _wrap(label), ha="center", va="center", transform=ax.transAxes,
+                fontsize=FONT_ANNOT - 1, color=txt)
+    fig.suptitle("Traces Containing Each Violation", fontsize=FONT_TITLE)
+    fig.tight_layout(rect=[0, 0, 1, 0.92])
     save_svg(fig, os.path.join(output_dir, "task12_tile_metric.svg"))
 
 
-# ── Idiom 2: Pie Chart ────────────────────────────────────────────────────────
-
 def task12_pie_chart(stats, output_dir):
-    """2-slice pie: conformant (light) vs deviating (dark).
-    Small slices (< 5%) get outside labels with a leader line."""
-    if stats["n_total"] == 0:
-        _no_data(output_dir, "pie_chart")
+    """Share of all violation *occurrences* per violation.
+
+    Deliberately not the share of traces: a pie must partition a whole, and the
+    per-violation trace shares overlap (one trace can carry several), so they
+    sum past the share of traces that deviate at all. The title names the
+    denominator so the two are not read as the same number.
+    """
+    vio = _top(stats["violations"], 10)
+    if not vio:
+        _save_empty(output_dir, "task12_pie_chart.svg", "No violations in this log.")
         return
+    rest = 100.0 - sum(v["pct_count"] for v in vio)
+    labels = [v["label"] for v in vio]
+    sizes = [v["pct_count"] for v in vio]
+    colors = _violation_colors(vio)
+    if rest > 0.05:
+        labels.append("Other violations"); sizes.append(rest); colors.append(GREY_LIGHTER)
 
-    n_c, n_d, n_t = stats["n_conformant"], stats["n_deviating"], stats["n_total"]
-    pct_c, pct_d  = stats["pct_conformant"], stats["pct_deviating"]
-
-    slice_data = [
-        (n_c, pct_c, _CAT_COLORS["conformant"], "Conformant"),
-        (n_d, pct_d, "#333333",                 "Deviating"),
-    ]
-
-    def _autopct(pct):
-        cnt = int(round(pct / 100 * n_t))
-        return f"{pct:.1f}%\n({cnt:,})"
-
-    fig, ax = plt.subplots(figsize=(8, 6))
-    wedges, _texts, autotexts = ax.pie(
-        [n_c, n_d],
-        labels=None,
-        colors=[d[2] for d in slice_data],
-        autopct=_autopct,
-        startangle=90,
-        pctdistance=0.68,
-        wedgeprops={"edgecolor": "white", "linewidth": 2},
-        textprops=dict(fontsize=FONT_ANNOT),
-    )
-    for atext, (_, _, clr, _) in zip(autotexts, slice_data):
-        r_in = int(clr[1:3], 16)
-        atext.set_color("white" if r_in < 150 else _C_DARK)
-
-    ax.legend(
-        wedges,
-        [f"Conformant  ({n_c:,} traces, {pct_c:.1f}%)",
-         f"Deviating  ({n_d:,} traces, {pct_d:.1f}%)"],
-        loc="lower center",
-        bbox_to_anchor=(0.5, -0.06),
-        fontsize=FONT_ANNOT,
-        frameon=True, framealpha=0.9,
-        ncol=2,
-    )
-    ax.set_title("Conformant vs Deviating Traces", fontsize=FONT_TITLE, pad=16)
-    fig.tight_layout(pad=1.2)
+    fig, ax = plt.subplots(figsize=(8.5, 6))
+    wedges, _ = ax.pie(sizes, colors=colors, startangle=90, counterclock=False,
+                       wedgeprops={"edgecolor": "white", "linewidth": 1.2})
+    ax.axis("equal")
+    ax.legend(wedges, [f"{l}  ({s:.1f}%)" for l, s in zip(labels, sizes)],
+              loc="center left", bbox_to_anchor=(1.0, 0.5), frameon=False,
+              fontsize=FONT_ANNOT - 1)
+    ax.set_title("Share of All Violation Occurrences", fontsize=FONT_TITLE)
+    fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task12_pie_chart.svg"))
 
 
-# ── Idiom 3: Bar Chart ────────────────────────────────────────────────────────
-
 def task12_bar_chart(stats, output_dir):
-    """2 horizontal bars: conformant / deviating, with counts + %."""
-    if stats["n_total"] == 0:
-        _no_data(output_dir, "bar_chart")
+    """One bar per violation: the percentage of traces that contain it."""
+    vio = _top(stats["violations"])
+    if not vio:
+        _save_empty(output_dir, "task12_bar_chart.svg", "No violations in this log.")
         return
+    labels = [v["label"] for v in vio]
+    pct = [v["pct_traces"] for v in vio]
+    y = np.arange(len(labels))
 
-    n_c, n_d, n_t = stats["n_conformant"], stats["n_deviating"], stats["n_total"]
-    pct_c, pct_d  = stats["pct_conformant"], stats["pct_deviating"]
-
-    labels = ["Conformant", "Deviating"]
-    counts = [n_c, n_d]
-    pcts   = [pct_c, pct_d]
-    colors = [_CAT_COLORS["conformant"], _C_DARK]
-
-    fig, ax = plt.subplots(figsize=(10, 3.2))
-    ax.set_facecolor("#fafbfc")
-
-    for i, (cnt, pct, clr) in enumerate(zip(counts, pcts, colors)):
-        ax.barh(i, cnt, color=clr, edgecolor="white", linewidth=0.8, height=0.55)
-        txt_color = "white" if int(clr[1:3], 16) < 150 else _C_DARK
-        label = f"{pct:.1f}%\n({cnt:,})"
-        if cnt / n_t > 0.12:
-            ax.text(cnt * 0.5, i, label,
-                    ha="center", va="center",
-                    fontsize=FONT_ANNOT, color=txt_color, linespacing=1.4)
-        else:
-            ax.text(cnt + n_t * 0.01, i, label,
-                    ha="left", va="center",
-                    fontsize=FONT_ANNOT, color=_C_DARK, linespacing=1.4)
-
-    ax.set_yticks([0, 1])
-    ax.set_yticklabels(labels, fontsize=FONT_LABEL)
-    ax.set_xlabel("Number of traces", fontsize=FONT_LABEL)
-    ax.set_title(
-        f"Conformant vs Deviating Traces  ·  {n_t:,} total",
-        fontsize=FONT_TITLE,
-    )
+    fig, ax = plt.subplots(figsize=(9, max(3.5, len(labels) * 0.44 + 1.8)))
+    ax.barh(y, pct, color=_violation_colors(vio), edgecolor="white")
+    for yi, (p_, v) in enumerate(zip(pct, vio)):
+        ax.text(p_ + max(pct) * 0.012, yi, f"{p_:.1f}%  ({v['traces']})",
+                va="center", fontsize=FONT_ANNOT - 1, color="#333333")
+    ax.set_yticks(y); ax.set_yticklabels(labels, fontsize=FONT_ANNOT - 1)
+    ax.invert_yaxis()
+    ax.set_xlim(0, max(pct) * 1.22)
+    ax.set_xlabel("% of all traces containing this violation", fontsize=FONT_LABEL)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
-    ax.set_axisbelow(True)
-    ax.set_xlim(0, n_t * 1.22)
-
-    fig.tight_layout(pad=1.2)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.5); ax.set_axisbelow(True)
+    ax.set_title(f"Traces Containing Each Violation  "
+                 f"({stats['pct_deviating']:.1f}% deviate at all)", fontsize=FONT_TITLE)
+    fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task12_bar_chart.svg"))
 
 
-# ── Idiom 4: Stacked Bar ─────────────────────────────────────────────────────
-
 def task12_stacked_bar(stats, output_dir):
-    """Two-row stacked bar:
-    Row 1 (top):    All traces    — Conformant | Deviating          (100% of n_total)
-    Row 2 (bottom): Deviating     — MoM | MoL | MM | Mixed          (100% of n_deviating)
+    """One 100% bar of all violation occurrences, segmented by violation.
+
+    Occurrences, not traces, for the same reason as the pie: the trace shares
+    overlap and would not fill the bar.
     """
-    if stats["n_total"] == 0:
-        _no_data(output_dir, "stacked_bar")
+    vio = _top(stats["violations"], 10)
+    if not vio:
+        _save_empty(output_dir, "task12_stacked_bar.svg", "No violations in this log.")
         return
+    rest = 100.0 - sum(v["pct_count"] for v in vio)
+    segs = [(v["label"], v["pct_count"], c) for v, c in zip(vio, _violation_colors(vio))]
+    if rest > 0.05:
+        segs.append(("Other violations", rest, GREY_LIGHTER))
 
-    n_t  = stats["n_total"]
-    n_d  = stats["n_deviating"]
-    cats = stats["categories"]
-
-    n_c = cats.get("conformant", 0)
-
-    # Row 1: conformant vs deviating (% of all)
-    row1 = [
-        (n_c / n_t * 100,  n_c, _CAT_COLORS["conformant"], "Conformant"),
-        (n_d / n_t * 100,  n_d, _C_DARK,                   "Deviating"),
-    ]
-
-    fig, ax = plt.subplots(figsize=(13, 2.8))
-    ax.set_facecolor("#fafbfc")
-
-    bar_h = 0.45
+    fig, ax = plt.subplots(figsize=(10, 3.2))
     left = 0.0
-    for frac, cnt, clr, _ in row1:
-        ax.barh(0, frac, left=left, color=clr,
-                edgecolor="white", linewidth=1.2, height=bar_h)
-        if frac > 5:
-            txt_color = "white" if int(clr[1:3], 16) < 150 else _C_DARK
-            ax.text(left + frac / 2, 0, f"{frac:.1f}%\n({cnt:,})",
-                    ha="center", va="center",
-                    fontsize=FONT_ANNOT, color=txt_color, linespacing=1.4)
-        left += frac
-
-    patches = [
-        mpatches.Patch(color=_CAT_COLORS["conformant"], label=f"Conformant  ({n_c:,})"),
-        mpatches.Patch(color=_C_DARK,                   label=f"Deviating  ({n_d:,})"),
-    ]
-
-    ax.set_xlim(0, 100)
-    ax.set_xlabel("Proportion (%)", fontsize=FONT_LABEL)
-    ax.set_yticks([0])
-    ax.set_yticklabels([f"All traces\n({n_t:,})"], fontsize=FONT_LABEL)
-    ax.set_title(
-        f"Trace Conformance Profile  ·  {n_t:,} total traces",
-        fontsize=FONT_TITLE,
-    )
+    for label, width, color in segs:
+        ax.barh(0, width, left=left, height=0.55, color=color,
+                edgecolor="white", linewidth=1.2, label=label)
+        if width >= 4:
+            ax.text(left + width / 2, 0, f"{width:.0f}%", ha="center", va="center",
+                    fontsize=FONT_ANNOT - 1,
+                    color="white" if color in (GREY_DARK, GREY_MED) else "#222222")
+        left += width
+    ax.set_xlim(0, 100); ax.set_ylim(-0.5, 0.5)
+    ax.set_yticks([]); ax.set_xlabel("% of all violation occurrences", fontsize=FONT_LABEL)
     ax.spines[["top", "right", "left"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
-    ax.set_axisbelow(True)
-    ax.legend(
-        handles=patches,
-        loc="lower center",
-        bbox_to_anchor=(0.5, -0.35),
-        ncol=2,
-        fontsize=FONT_ANNOT,
-        frameon=True, framealpha=0.9,
-    )
-
-    fig.tight_layout(pad=1.2)
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.35), ncol=3,
+              frameon=False, fontsize=FONT_ANNOT - 2)
+    ax.set_title("Composition of All Violation Occurrences", fontsize=FONT_TITLE)
+    fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task12_stacked_bar.svg"))
 
 
-# ── Idiom 5: Table ────────────────────────────────────────────────────────────
+def _violation_rows(stats):
+    rows = [[v["label"], str(v["traces"]), f"{v['pct_traces']:.1f}%", f"{v['pct_count']:.1f}%"]
+            for v in _top(stats["violations"])]
+    if not rows:
+        rows = [["(no violations)", "—", "—", "—"]]
+    rows.append(["Any violation", str(stats["n_deviating"]),
+                 f"{stats['pct_deviating']:.1f}%", "100.0%"])
+    return rows
+
+
+_TABLE_COLS = ["Violation", "Traces", "% of traces", "% of occurrences"]
+
 
 def task12_table(stats, output_dir):
-    """Breakdown table: conformant row + 4 deviating subcategory rows + totals."""
-    if stats["n_total"] == 0:
-        _no_data(output_dir, "table")
-        return
-
-    n_t  = stats["n_total"]
-    cats = stats["categories"]
-    n_d  = stats["n_deviating"]
-
-    rows = []
-    # Conformant row
-    n_c  = cats.get("conformant", 0)
-    rows.append(["Conformant", f"{n_c:,}", f"{n_c / n_t * 100:.1f}%", "—"])
-
-    # Deviating subtotal
-    rows.append(["Deviating  (subtotal)", f"{n_d:,}", f"{n_d / n_t * 100:.1f}%", "100%"])
-
-    # Subcategories (indented labels)
-    sub_defs = [
-        ("mom_only", "  └ Skipped only (MoM)"),
-        ("mol_only", "  └ Extra only (MoL)"),
-        ("mm_only",  "  └ Mismatch only (MM)"),
-        ("mixed",    "  └ Mixed violation types"),
-    ]
-    for key, label in sub_defs:
-        cnt = cats.get(key, 0)
-        pct_total = cnt / n_t * 100 if n_t > 0 else 0
-        pct_dev   = cnt / n_d * 100 if n_d > 0 else 0
-        rows.append([label, f"{cnt:,}", f"{pct_total:.1f}%", f"{pct_dev:.1f}%"])
-
-    # Total
-    rows.append(["Total", f"{n_t:,}", "100%", "—"])
-
-    col_headers = ["Category", "Traces", "% of All Traces", "% of Deviating"]
-    col_widths  = [0.46, 0.16, 0.21, 0.17]
-
-    n_rows = len(rows)
-    fig_h  = max(3.5, n_rows * 0.55 + 2.0)
-    fig, ax = plt.subplots(figsize=(12, fig_h))
-    ax.axis("off")
-    make_table(
-        ax,
-        cell_text=rows,
-        col_labels=col_headers,
-        bbox=[0.02, 0.06, 0.96, 0.86],
-        col_widths=col_widths,
-        font_size=FONT_ANNOT,
-        scale_xy=(1, 1.8),
-        zebra=True,
-        highlight_last_row=True,
-    )
-
-    ax.set_title(
-        f"Process Conformance Breakdown  ·  {n_t:,} total traces",
-        fontsize=FONT_TITLE, pad=14,
-    )
-    fig.tight_layout(pad=1.2)
+    """One row per violation: traces containing it, as a share of the log and of
+    all violation occurrences."""
+    rows = _violation_rows(stats)
+    fig_h = max(3.4, 1.5 + len(rows) * 0.42)
+    fig = plt.figure(figsize=(9.5, fig_h))
+    ax = fig.add_subplot(111); ax.axis("off")
+    make_table(ax, cell_text=rows, col_labels=_TABLE_COLS,
+               bbox=[0.03, 0.02, 0.94, 0.86], font_size=9.5, cell_pad=0.09)
+    fig.suptitle("Traces Containing Each Violation", fontsize=FONT_TITLE, y=0.99)
     save_svg(fig, os.path.join(output_dir, "task12_table.svg"))
 
 
-# ── Idiom 6: Table & Bar Chart ────────────────────────────────────────────────
-
 def task12_table_bar_chart(stats, output_dir):
-    """Left: compact conformance table. Right: horizontal bars per category."""
-    if stats["n_total"] == 0:
-        _no_data(output_dir, "table_bar_chart")
-        return
+    """Left: the same table. Right: the trace share as bars."""
+    rows = _violation_rows(stats)
+    vio = _top(stats["violations"])
+    fig_h = max(3.8, 1.6 + len(rows) * 0.42)
+    fig = plt.figure(figsize=(15, fig_h))
+    gs = gridspec.GridSpec(1, 2, width_ratios=[1.25, 1.0], wspace=0.22)
 
-    n_t  = stats["n_total"]
-    cats = stats["categories"]
+    ax_t = fig.add_subplot(gs[0]); ax_t.axis("off")
+    make_table(ax_t, cell_text=rows, col_labels=_TABLE_COLS,
+               bbox=[0.02, 0.03, 0.96, 0.84], font_size=9, cell_pad=0.08)
 
-    cat_labels  = [_CAT_LABELS[c] for c in _CAT_ORDER]
-    cat_counts  = [cats.get(c, 0) for c in _CAT_ORDER]
-    cat_pcts    = [cnt / n_t * 100 for cnt in cat_counts]
-    cat_colors  = [_CAT_COLORS[c] for c in _CAT_ORDER]
+    ax_b = fig.add_subplot(gs[1])
+    if vio:
+        y = np.arange(len(vio))
+        pct = [v["pct_traces"] for v in vio]
+        ax_b.barh(y, pct, color=_violation_colors(vio), edgecolor="white")
+        ax_b.set_yticks(y)
+        ax_b.set_yticklabels([v["label"] for v in vio], fontsize=FONT_ANNOT - 2)
+        ax_b.invert_yaxis()
+        ax_b.set_xlabel("% of all traces", fontsize=FONT_LABEL)
+    else:
+        ax_b.text(0.5, 0.5, "No violations", ha="center", va="center",
+                  transform=ax_b.transAxes, fontsize=FONT_ANNOT)
+    ax_b.spines[["top", "right"]].set_visible(False)
+    ax_b.xaxis.grid(True, linestyle="--", alpha=0.5); ax_b.set_axisbelow(True)
 
-    n = len(_CAT_ORDER)
-    fig, (ax_tbl, ax_bar) = plt.subplots(
-        1, 2, figsize=(16, max(3.8, n * 0.72 + 2.2)),
-        gridspec_kw={"width_ratios": [3, 4]},
-    )
-
-    # ── Left: table ──────────────────────────────────────────────────────────
-    ax_tbl.axis("off")
-    col_headers = ["Category", "Traces", "% of All"]
-    col_widths  = [0.58, 0.22, 0.20]
-    tbl_rows = [[lbl, f"{cnt:,}", f"{pct:.1f}%"]
-                for lbl, cnt, pct in zip(cat_labels, cat_counts, cat_pcts)]
-    make_table(
-        ax_tbl,
-        cell_text=tbl_rows,
-        col_labels=col_headers,
-        bbox=[0.015, 0.04, 0.97, 0.90],
-        col_widths=col_widths,
-        font_size=FONT_ANNOT,
-        scale_xy=(1, 1.8),
-        zebra=True,
-    )
-
-    # ── Right: horizontal bars ────────────────────────────────────────────────
-    ax_bar.set_facecolor("#fafbfc")
-    for i, (cnt, clr) in enumerate(zip(cat_counts, cat_colors)):
-        ax_bar.barh(i, cnt, color=clr, edgecolor="white", linewidth=0.6, height=0.6)
-        ax_bar.text(cnt + n_t * 0.01, i, f"{cnt:,}",
-                    va="center", fontsize=FONT_ANNOT, color=_C_DARK)
-
-    ax_bar.set_yticks(range(n))
-    ax_bar.set_yticklabels(cat_labels, fontsize=FONT_ANNOT)
-    ax_bar.invert_yaxis()
-    ax_bar.set_xlabel("Number of traces", fontsize=FONT_LABEL)
-    ax_bar.set_title("Trace count per category", fontsize=FONT_TITLE)
-    ax_bar.spines[["top", "right"]].set_visible(False)
-    ax_bar.xaxis.grid(True, linestyle="--", alpha=0.3)
-    ax_bar.set_axisbelow(True)
-    ax_bar.set_xlim(0, n_t * 1.25)
-
-    fig.suptitle(
-        f"Process Conformance Breakdown  ·  {n_t:,} total traces",
-        fontsize=FONT_TITLE + 1, y=1.01,
-    )
-    fig.tight_layout(pad=1.2)
+    fig.suptitle("Traces Containing Each Violation", fontsize=FONT_TITLE, y=0.99)
+    fig.tight_layout(rect=[0, 0, 1, 0.94])
     save_svg(fig, os.path.join(output_dir, "task12_table_bar_chart.svg"))
 
 
-# ── Public entry point ────────────────────────────────────────────────────────
-
-def generate(log, alignments, output_dir, **kwargs):
+def generate(log, alignments, output_dir, violation_patterns=None, **kwargs):
     """Generate all Task 12 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 12 visualizations (Summarize process conformance) ---")
@@ -474,7 +367,7 @@ def generate(log, alignments, output_dir, **kwargs):
             _save_empty(output_dir, f"task12_{name}.svg", "No alignment data available.")
         return
 
-    stats = _extract_data(alignments)
+    stats = _extract_data(alignments, violation_patterns)
 
     task12_tile_metric(stats, output_dir)
     task12_pie_chart(stats, output_dir)

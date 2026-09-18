@@ -62,6 +62,7 @@ import tasks.task08 as task08
 import tasks.task09 as task09
 import tasks.task10 as task10
 import tasks.task11 as task11
+import violation_profile
 import tasks.task12 as task12
 import tasks.task13 as task13
 import tasks.task14 as task14
@@ -354,16 +355,25 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
     return {
         "task01": lambda d: task01.generate(log, fitness_df, d, outcome_activity=outcome_activity()),
         "task02": lambda d: task02.generate(fitness_df, d, predominant_threshold=predominant_threshold()),
-        "task03": lambda d: task03.generate(log, fitness_df, d, conformant_threshold=conformant_threshold()),
+        "task03": lambda d: task03.generate(log, fitness_df, d,
+                                            conformant_threshold=conformant_threshold(),
+                                            response_attribute=(p.get("response_attribute") or [])),
         "task04": lambda d: task04.generate(log, fitness_df, d, trace_ids=(p.get("trace_ids") or None), alignments=alignments, model_path=model_path),
-        "task05": lambda d: task05.generate(log, alignments, d, outcome_activity=outcome_activity()),
+        "task05": lambda d: task05.generate(
+            log, alignments, d,
+            split_attribute=(p.get("split_attribute") or cmp_attr() or ""),
+            grouping_strategy=(p.get("grouping_strategy") or "pattern"),
+            selection=(p.get(violation_profile.STRATEGY_SELECTION_KEY.get(
+                p.get("grouping_strategy") or "pattern", "")) or None)),
         "task06": lambda d: task06.generate(fitness_df, d, log=log, alignments=alignments, model_path=model_path),
         "task07": lambda d: task07.generate(log, fitness_df, d, time_granularity=time_granularity()),
         "task08": lambda d: task08.generate(log, alignments, d),
         "task09": lambda d: task09.generate(log, alignments, d, model_path=model_path),
         "task10": lambda d: task10.generate(fitness_df, d, log=log, conformance_bins=conformance_bins()),
-        "task11": lambda d: task11.generate(log, alignments, d, model_path=model_path),
-        "task12": lambda d: task12.generate(log, alignments, d),
+        "task11": lambda d: task11.generate(log, alignments, d, model_path=model_path,
+                                            activities=(p.get("activities") or None)),
+        "task12": lambda d: task12.generate(log, alignments, d,
+                                            violation_patterns=(p.get("violation_patterns") or None)),
         "task13": lambda d: task13.generate(log, alignments, model_path, d,
                                             candidate_attributes=(p.get("attribute_set") or None)),
         "task14": lambda d: task14.generate(alignments, model_path, d),
@@ -387,27 +397,42 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
                                             attribute_set=(p.get("attribute_set") or None),
                                             split_strategy=(p.get("split_strategy") or None),
                                             group_cap=(int(p["group_cap"]) if p.get("group_cap") else None)),
-        "task23": lambda d: task23.generate(alignments, d, log=log),
+        "task23": lambda d: task23.generate(alignments, d, log=log,
+                                            activities=(p.get("activities") or None)),
         "task24": lambda d: task24.generate(log, model_path, d),
         "task25": lambda d: task25.generate(log, fitness_df, d, model_path=model_path),
         "task26": lambda d: task26.generate(alignments, d, model_path=model_path),
         "task27": lambda d: task27.generate(log, fitness_df, alignments, d, model_path=model_path),
         "task28": lambda d: task28.generate(alignments, model_path, d),
-        "task29": lambda d: task29.generate(alignments, d),
+        "task29": lambda d: task29.generate(
+            alignments, d,
+            grouping_strategy=(p.get("grouping_strategy") or "move_type"),
+            selection=(p.get(violation_profile.STRATEGY_SELECTION_KEY.get(
+                p.get("grouping_strategy") or "move_type", "")) or None)),
         "task30": lambda d: task30.generate(log, fitness_df, alignments, d, compare_attribute=cmp_attr()),
         # Not outcome_activity(): that falls back to the "contains" heuristic,
         # and this task asks which activity a trace *ends* on. Passing None
         # lets it reach for the terminal-activity heuristic instead.
         "task31": lambda d: task31.generate(log, alignments, d,
                                             outcome_activity=(p.get("outcome_activity") or None)),
-        "task32": lambda d: task32.generate(log, alignments, d, compare_attribute=cmp_attr()),
+        "task32": lambda d: task32.generate(
+            log, alignments, d, compare_attribute=cmp_attr(),
+            split_attribute=(p.get("split_attribute") or ""),
+            grouping_strategy=(p.get("grouping_strategy") or "pattern"),
+            selection=(p.get(violation_profile.STRATEGY_SELECTION_KEY.get(
+                p.get("grouping_strategy") or "pattern", "")) or None),
+            prominence_threshold=p.get("prominence_threshold")),
         "task33": lambda d: task33.generate(log, fitness_df, d, alignments=alignments,
                                             attribute_set=(p.get("attribute_set") or None),
                                             split_strategy=(p.get("split_strategy") or None),
                                             group_cap=(int(p["group_cap"]) if p.get("group_cap") else None)),
         "task34": lambda d: task34.generate(log, alignments, d, model_path=model_path, violated_activity=violated_activity()),
         "task35": lambda d: task35.generate(log, alignments, d, model_path=model_path),
-        "task36": lambda d: task36.generate(log, alignments, d, model_path=model_path),
+        "task36": lambda d: task36.generate(log, alignments, d, model_path=model_path,
+            grouping_strategy=(p.get("grouping_strategy") or "pattern"),
+            selection=(p.get(violation_profile.STRATEGY_SELECTION_KEY.get(
+                p.get("grouping_strategy") or "pattern", "")) or None),
+            prominence_threshold=p.get("prominence_threshold")),
         "task37": lambda d: task37.generate(log, alignments, d, model_path=model_path),
     }
 
@@ -707,6 +732,22 @@ def get_log_candidate_attributes(dataset_dir: str) -> list[dict]:
     return [feature.as_option()
             for feature in trace_features.discover_features(log)
             if feature.value_type in trace_features.BUCKETABLE_TYPES]
+
+
+def get_log_violation_activities(dataset_dir: str) -> list[dict]:
+    """Activities carrying at least one violation, most traces first.
+
+    Powers the Violation-profile class's "activities" selection. Distinct from
+    `log.activities`, which lists every activity in the log: offering one with
+    no violations would put an empty group on the chart.
+    """
+    import violation_profile
+
+    alignments = get_or_compute_alignments(dataset_dir)
+    return [
+        {"value": activity, "label": f"{activity}  ({traces} traces, {pct:.1f}%)"}
+        for activity, traces, pct in violation_profile.activity_coverage(alignments)
+    ]
 
 
 def get_log_violated_activities_task34(dataset_dir: str) -> list[dict]:
