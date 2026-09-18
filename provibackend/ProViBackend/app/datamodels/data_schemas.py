@@ -61,6 +61,16 @@ class PrequestionnaireSections(BaseModel):
     sections: List[str]  # e.g. ["personal_info", "academic_profile", "technical_expertise", "tool_experience"]
     current_step: Optional[str] = None
 
+class IntroPageSections(BaseModel):
+    concept_sections: List[str]    # Key Concepts page (/conformance-terms); empty = page skipped
+    taskintro_sections: List[str]  # Before You Begin page (/taskintro); empty = page skipped
+    # Per-page citation at the bottom of the page. Text None/blank = the default Carmona et al. (2018) reference.
+    concept_citation_enabled: bool = True
+    concept_citation_text: Optional[str] = None
+    taskintro_citation_enabled: bool = True
+    taskintro_citation_text: Optional[str] = None
+    current_step: Optional[str] = None
+
 class FeedbackAnswersRequest(BaseModel):
     ratings:  dict        # {mentalDemand, physicalDemand, temporalDemand, performance, effort, frustration}
     feedback: str | None = None
@@ -247,6 +257,13 @@ class Experiment(BaseModel):
     knowledge_question_ids: List[str] = []
     knowledge_questions_configured: bool = False
     prequestionnaire_sections: List[str] = ["personal_info", "academic_profile", "technical_expertise", "tool_experience"]  # enabled sections
+    concept_sections: List[str] = ["process_model", "event_log", "attribute", "guideline"]  # Key Concepts page; empty = page skipped
+    taskintro_sections: List[str] = ["the_process", "what_to_expect", "alignment", "violation", "conformant_traces", "fitness"]  # Before You Begin page; empty = page skipped
+    concept_citation_enabled: bool = True
+    concept_citation_text: Optional[str] = None     # None = default Carmona et al. (2018) reference
+    taskintro_citation_enabled: bool = True
+    taskintro_citation_text: Optional[str] = None   # None = default Carmona et al. (2018) reference
+    process_model_ext: Optional[str] = None  # extension of the uploaded process model image; None = bundled order-to-cash diagram
     current_step: Optional[str] = None  # wizard route slug the admin last reached, e.g. "task", "specify"
     # Tasks an admin added for this experiment only (see POST
     # /admin/experiments/{id}/custom-tasks). Same shape as a Task document, but

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import HeaderLogos from "../../components/General/HeaderLogos";
+import { DEFAULT_INTRO_PAGES, fetchIntroPages, pageAfterKnowledge } from "../../utils/introPages";
 
 const C = {
   primary:       "#00305e",
@@ -66,6 +67,18 @@ export default function KnowledgeQuestionPage() {
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [skipping, setSkipping] = useState(false);
+  // Which page follows depends on which intro pages the admin enabled.
+  const [introPages, setIntroPages] = useState(null);
+
+  useEffect(() => {
+    fetchIntroPages().then(setIntroPages);
+  }, []);
+
+  const nextPage = pageAfterKnowledge(introPages ?? DEFAULT_INTRO_PAGES);
+  const nextLabel = {
+    "/conformance-terms": "Next: Key Concept",
+    "/taskintro": "Next: Before You Begin",
+  }[nextPage] ?? "Next: Start Tasks";
 
   useEffect(() => {
     fetch("/api/participant/knowledge-questions", { credentials: "include" })
@@ -79,7 +92,7 @@ export default function KnowledgeQuestionPage() {
         // bounce back into.
         if (qs.length === 0) {
           setSkipping(true);
-          router.replace("/conformance-terms");
+          fetchIntroPages().then((cfg) => router.replace(pageAfterKnowledge(cfg)));
           return;
         }
         setQuestions(qs);
@@ -108,7 +121,7 @@ export default function KnowledgeQuestionPage() {
         setError("Submission failed. Please try again.");
         return;
       }
-      router.push("/conformance-terms");
+      router.push(pageAfterKnowledge(introPages ?? await fetchIntroPages()));
     } catch {
       setError("Network error. Please check your connection and try again.");
     } finally {
@@ -271,7 +284,7 @@ export default function KnowledgeQuestionPage() {
                     transition: "all 0.15s ease",
                   }}
                 >
-                  {submitting ? "Submitting…" : "Next: Key Concept"}
+                  {submitting ? "Submitting…" : nextLabel}
                   <span className="material-symbols-outlined" style={{ fontSize: "1.1rem" }}>arrow_forward</span>
                 </button>
               </div>

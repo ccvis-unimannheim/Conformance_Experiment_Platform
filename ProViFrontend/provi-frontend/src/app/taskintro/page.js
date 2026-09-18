@@ -5,8 +5,17 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 
-import ProcessModelDiagram from "../../public/images/order_to_cash_model.svg";
 import HeaderLogos from "../../components/General/HeaderLogos";
+import ProcessModelImage from "../../components/General/ProcessModelImage";
+import IntroCitation from "../../components/General/IntroCitation";
+import {
+  fetchIntroPages,
+  pageBeforeTaskintro,
+  showsCitation,
+  TASKINTRO_DEFINITION_SECTIONS,
+  TASKINTRO_SECTIONS,
+} from "../../utils/introPages";
+import { hasKnowledgeQuestions } from "../../utils/knowledgeStep";
 
 const C = {
   primary:       "#00305e",
@@ -112,6 +121,38 @@ function ImageLightbox({ children, onClose }) {
 export default function TaskIntroPage() {
   const router = useRouter();
   const [imageZoomOpen, setImageZoomOpen] = React.useState(false);
+  const [cfg, setCfg] = React.useState(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetchIntroPages().then((c) => {
+      if (cancelled) return;
+      // The admin switched this page off: go straight to the tasks.
+      if (c.taskintro_sections.length === 0) {
+        router.replace("/taskexecution");
+        return;
+      }
+      setCfg(c);
+    });
+    return () => { cancelled = true; };
+  }, [router]);
+
+  const shown = new Set(cfg?.taskintro_sections ?? []);
+  const modelUrl = cfg?.process_model_url ?? null;
+  const firstShown = TASKINTRO_SECTIONS.find((s) => shown.has(s.key))?.key;
+  // Divider above every visible section except the first one.
+  const divider = (key) => key === firstShown
+    ? null
+    : <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />;
+  // "What to Expect" only promises the explanations this page actually shows.
+  const explainedTerms = [
+    shown.has("alignment") && "alignment, model move, log move",
+    shown.has("violation") && "guideline violation",
+    shown.has("fitness") && "fitness",
+  ].filter(Boolean);
+  const explainedList = explainedTerms.length > 1
+    ? `${explainedTerms.slice(0, -1).join(", ")}, and ${explainedTerms[explainedTerms.length - 1]}`
+    : explainedTerms[0];
 
   return (
     <div style={{ backgroundColor: C.surface, color: C.onSurface, minHeight: "100vh", fontFamily: "'Inter', Arial, sans-serif" }}>
@@ -151,7 +192,10 @@ export default function TaskIntroPage() {
             </p>
           </header>
 
-          {/* Content card */}
+          {!cfg ? (
+            <p style={{ textAlign: "center", fontSize: "0.875rem", color: C.onVariant }}>Loading…</p>
+          ) : (
+          /* Content card */
           <div style={{
             backgroundColor: C.white,
             border: `1px solid ${C.containerHigh}`,
@@ -162,6 +206,8 @@ export default function TaskIntroPage() {
             <div style={{ padding: "2.5rem 3rem", display: "flex", flexDirection: "column", gap: "1.75rem" }}>
 
               {/* ── 1. The process */}
+              {shown.has("the_process") && (<>
+              {divider("the_process")}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>hub</span>
@@ -170,8 +216,9 @@ export default function TaskIntroPage() {
                   </h2>
                 </div>
                 <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: "0 0 1rem" }}>
-                  All of the tasks that follow are about the same order-to-cash process you saw on the previous
-                  page. Click the diagram to enlarge it at any time.
+                  All of the tasks that follow are about the same {modelUrl ? "" : "order-to-cash "}process
+                  {cfg.concept_sections.includes("process_model") ? " you saw on the previous page" : " shown below"}.
+                  Click the diagram to enlarge it at any time.
                 </p>
                 <button
                   type="button"
@@ -182,9 +229,8 @@ export default function TaskIntroPage() {
                     overflowX: "auto",
                   }}
                 >
-                  <ProcessModelDiagram
-                    role="img"
-                    aria-label="Order-to-cash process model (BPMN): Receive Order, Check Credit, Confirm Order, Prepare Shipment, Issue Invoice, Ship Order, Receive Payment, Cancel Order"
+                  <ProcessModelImage
+                    url={modelUrl}
                     style={{ width: "100%", height: "auto", borderRadius: "0.5rem" }}
                   />
                 </button>
@@ -192,17 +238,17 @@ export default function TaskIntroPage() {
 
               {imageZoomOpen && (
                 <ImageLightbox onClose={() => setImageZoomOpen(false)}>
-                  <ProcessModelDiagram
-                    role="img"
-                    aria-label="Order-to-cash process model (BPMN): Receive Order, Check Credit, Confirm Order, Prepare Shipment, Issue Invoice, Ship Order, Receive Payment, Cancel Order"
+                  <ProcessModelImage
+                    url={modelUrl}
                     style={{ maxWidth: "85vw", maxHeight: "80vh", borderRadius: "0.5rem" }}
                   />
                 </ImageLightbox>
               )}
-
-              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+              </>)}
 
               {/* ── 2. What to expect */}
+              {shown.has("what_to_expect") && (<>
+              {divider("what_to_expect")}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>quiz</span>
@@ -214,15 +260,15 @@ export default function TaskIntroPage() {
                   You will now answer a series of questions about the conformance of this process. Each
                   question is paired with a chart or diagram visualising the relevant data — use it to work
                   out your answer. If you need a reminder of a term, the &ldquo;Key Terms&rdquo; chips above
-                  each question link back to short definitions. Below, we explain alignment, model move, log
-                  move, guideline violation, and fitness in detail — these are the terms most of the tasks
-                  will ask you about.
+                  each question link back to short definitions.
+                  {explainedList && ` Below, we explain ${explainedList} in detail — these are the terms most of the tasks will ask you about.`}
                 </p>
               </section>
-
-              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+              </>)}
 
               {/* ── 3. Alignment & Move Types */}
+              {shown.has("alignment") && (<>
+              {divider("alignment")}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>compare_arrows</span>
@@ -309,10 +355,11 @@ export default function TaskIntroPage() {
                   ))}
                 </div>
               </section>
-
-              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+              </>)}
 
               {/* ── 4. Guideline Violation */}
+              {shown.has("violation") && (<>
+              {divider("violation")}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>warning</span>
@@ -329,10 +376,11 @@ export default function TaskIntroPage() {
                   violation occurs (e.g. &ldquo;Model move on Ship Order&rdquo;).
                 </p>
               </section>
-
-              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+              </>)}
 
               {/* ── 5. Conformant / Nonconformant Traces */}
+              {shown.has("conformant_traces") && (<>
+              {divider("conformant_traces")}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>route</span>
@@ -369,10 +417,11 @@ export default function TaskIntroPage() {
                   </div>
                 </Collapsible>
               </section>
-
-              <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+              </>)}
 
               {/* ── 6. Degree of Conformance / Fitness */}
+              {shown.has("fitness") && (<>
+              {divider("fitness")}
               <section>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                   <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>speed</span>
@@ -421,28 +470,15 @@ export default function TaskIntroPage() {
                   </div>
                 </Collapsible>
               </section>
+              </>)}
 
+              {showsCitation(cfg.taskintro_citation, shown, TASKINTRO_DEFINITION_SECTIONS) && (<>
               <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
 
-              {/* Citation */}
               <section>
-                <div style={{
-                  display: "flex", alignItems: "flex-start", gap: "0.75rem",
-                  padding: "0.875rem 1rem",
-                  backgroundColor: C.containerLow,
-                  borderRadius: "0.5rem",
-                  borderLeft: `3px solid ${C.outlineVar}`,
-                }}>
-                  <span className="material-symbols-outlined" style={{ color: C.outlineVar, fontSize: "1.1rem", flexShrink: 0, marginTop: "0.1rem" }}>menu_book</span>
-                  <p style={{ margin: 0, fontSize: "0.8125rem", color: C.onVariant, lineHeight: 1.65 }}>
-                    Definitions adapted from: Carmona, J., van Dongen, B., Solti, A., &amp; Weidlich, M. (2018).{" "}
-                    <em>Conformance Checking: Relating Processes and Models</em>. Springer.{" "}
-                    <span style={{ fontFamily: "monospace", fontSize: "0.75rem" }}>
-                      ISBN 978-3-319-99413-0 · DOI 10.1007/978-3-319-99414-7
-                    </span>
-                  </p>
-                </div>
+                <IntroCitation text={cfg.taskintro_citation.text} />
               </section>
+              </>)}
 
             </div>
 
@@ -455,7 +491,7 @@ export default function TaskIntroPage() {
             }}>
               <button
                 type="button"
-                onClick={() => router.push("/conformance-terms")}
+                onClick={async () => router.push(pageBeforeTaskintro(cfg, await hasKnowledgeQuestions()))}
                 style={{
                   padding: "0.75rem 2rem", borderRadius: "0.5rem", border: "none",
                   backgroundColor: "transparent", color: C.onVariant,
@@ -489,6 +525,7 @@ export default function TaskIntroPage() {
               </button>
             </div>
           </div>
+          )}
 
         </div>
       </main>

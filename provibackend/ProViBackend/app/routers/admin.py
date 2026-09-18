@@ -94,6 +94,10 @@ GUIDELINE_FILENAME = "Guideline.bpmn"
 ALLOWED_IDIOM_IMAGE_EXTENSIONS = {".svg", ".png", ".jpg", ".jpeg"}
 CUSTOM_IDIOM_DIRECTORY = config.CUSTOM_IDIOM_DIRECTORY
 
+ALLOWED_PROCESS_MODEL_EXTENSIONS = {".svg", ".png", ".jpg", ".jpeg"}
+PROCESS_MODEL_DIRECTORY = config.PROCESS_MODEL_DIRECTORY
+MAX_PROCESS_MODEL_BYTES = 10 * 1024 * 1024
+
 # Cache of distinct activity names per dataset, so /specify's param-spec
 # candidate enumeration doesn't reload the event log on every page render
 # (see docs/ADMIN_EXPERIMENT_SETUP.md). Keyed by dataset_id.
@@ -1207,6 +1211,7 @@ async def delete_experiment(experiment_id: str, force: bool = False):
     # Its custom tasks go with the experiment document; drop the custom idioms
     # that were only scoped to them.
     _remove_custom_task_idioms([t["task_key"] for t in exp.get("custom_tasks") or []])
+    _remove_process_model_file(exp)
 
     # Remove the generated idiom SVGs for this experiment so they don't pile up as
     # orphaned files on disk (mirrors dataset deletion's shutil.rmtree cleanup).
@@ -1982,3 +1987,92 @@ async def update_experiment_prequestionnaire_sections(experiment_id: str, body: 
     if not updated:
         raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
     return JSONResponse(content={"message": "Pre-questionnaire sections updated."})
+
+
+# ---------------------------------------------------------------------------
+# Participant intro pages (Key Concepts + Before You Begin) and process model
+# ---------------------------------------------------------------------------
+
+@router.patch("/experiments/{experiment_id}/intro-pages", tags=["admin"])
+async def update_experiment_intro_pages(experiment_id: str, body: ds.IntroPageSections):
+    set_fields = {
+        "concept_sections": body.concept_sections,
+        "taskintro_sections": body.taskintro_sections,
+        "concept_citation_enabled": body.concept_citation_enabled,
+        # Blank text means "use the default reference", stored as None.
+        "concept_citation_text": (body.concept_citation_text or "").strip() or None,
+        "taskintro_citation_enabled": body.taskintro_citation_enabled,
+        "taskintro_citation_text": (body.taskintro_citation_text or "").strip() or None,
+    }
+    if body.current_step is not None:
+        set_fields["current_step"] = body.current_step
+    updated = dbc.update_document(
+        "Experiment",
+        query={"_id": experiment_id},
+        update={"$set": set_fields},
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
+    return JSONResponse(content={"message": "Intro pages updated."})
+
+
+def _remove_process_model_file(exp: dict) -> None:
+    ext = exp.get("process_model_ext")
+    if ext:
+        (PROCESS_MODEL_DIRECTORY / f"{exp['_id']}{ext}").unlink(missing_ok=True)
+
+
+@router.post("/experiments/{experiment_id}/process-model", tags=["admin"])
+async def upload_experiment_process_model(experiment_id: str, file: UploadFile):
+    """Replace the bundled order-to-cash diagram on the participant intro pages
+    with an admin-uploaded image (SVG/PNG/JPG) for this experiment."""
+    try:
+        exp = dbc.get_document("Experiment", {"_id": experiment_id})
+        if not exp:
+            raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
+        ext = _validate_extension(file.filename, ALLOWED_PROCESS_MODEL_EXTENSIONS, "Process model image")
+        content = await file.read()
+        if not content:
+            raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+        if len(content) > MAX_PROCESS_MODEL_BYTES:
+            raise HTTPException(status_code=400, detail="Process model image must be 10 MB or smaller.")
+
+        PROCESS_MODEL_DIRECTORY.mkdir(parents=True, exist_ok=True)
+        _remove_process_model_file(exp)
+        (PROCESS_MODEL_DIRECTORY / f"{experiment_id}{ext}").write_bytes(content)
+        dbc.update_document(
+            "Experiment",
+            query={"_id": experiment_id},
+            update={"$set": {"process_model_ext": ext}},
+        )
+        return JSONResponse(content={"message": "Process model uploaded.", "process_model_ext": ext}, status_code=201)
+    finally:
+        await file.close()
+
+
+@router.delete("/experiments/{experiment_id}/process-model", tags=["admin"])
+async def delete_experiment_process_model(experiment_id: str):
+    """Drop the uploaded process model; the intro pages fall back to the bundled diagram."""
+    exp = dbc.get_document("Experiment", {"_id": experiment_id})
+    if not exp:
+        raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
+    _remove_process_model_file(exp)
+    dbc.update_document(
+        "Experiment",
+        query={"_id": experiment_id},
+        update={"$set": {"process_model_ext": None}},
+    )
+    return JSONResponse(content={"message": "Process model reset to default."})
+
+
+@router.get("/experiments/{experiment_id}/process-model", tags=["admin"])
+async def get_experiment_process_model(experiment_id: str):
+    """Serve the experiment's uploaded process model image (admin preview)."""
+    exp = dbc.get_document("Experiment", {"_id": experiment_id})
+    if not exp:
+        raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
+    path = utils.process_model_path(exp)
+    if path is None:
+        raise HTTPException(status_code=404, detail="No uploaded process model for this experiment.")
+    from fastapi.responses import FileResponse as _FileResponse
+    return _FileResponse(str(path), media_type=utils.image_media_type(path.suffix))

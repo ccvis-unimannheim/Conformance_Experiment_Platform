@@ -25,3 +25,24 @@ def get_file_checksum(file_path: pl.Path) -> str:
 def get_current_datetime():
     # get current datetime
     return str(datetime.datetime.now())
+
+
+def process_model_path(exp: dict) -> pl.Path | None:
+    """Path of the experiment's uploaded process model image, or None when it
+    uses the bundled order-to-cash diagram (or the file has gone missing)."""
+    from ProViBackend.utils import config
+
+    ext = exp.get("process_model_ext")
+    if not ext:
+        return None
+    path = config.PROCESS_MODEL_DIRECTORY / f"{exp['_id']}{ext}"
+    return path if path.exists() else None
+
+
+def image_media_type(ext: str) -> str:
+    return {
+        ".svg": "image/svg+xml",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+    }.get(ext.lower(), "application/octet-stream")
