@@ -2,9 +2,10 @@
 tasks/task31.py – Task 6: Conformance degree vs. positive process outcome.
 
 Public API:
-    generate(log, alignments, outcome_activity, output_dir)
-        outcome_activity  – activity name that constitutes a positive outcome
-                            (default: "Activate Care" for BPIC12-A)
+    generate(log, alignments, output_dir, outcome_activity="")
+        outcome_activity  – activity name that constitutes a positive outcome;
+                            empty = inferred from the log by
+                            shared.infer_terminal_activity
 """
 
 import logging

@@ -12,17 +12,28 @@ no idiom exposes more information than another (information equivalence):
     * table_bar_chart  – Trace | Fitness table + adjacent per-trace fitness bars
     * matrix           – trace × Fitness grid, colour + numeric annotation
     * heatmap          – trace × Fitness grid, continuous colour (no annotation)
+    * flow_chart_basic     – one chevron strip per trace, each activity coloured
+                             by its alignment move type (needs alignments)
+    * flow_chart_elaborate – the BPMN model drawn once per trace, coloured the
+                             same way (needs alignments and the model)
 
 Fitness is rounded to 3 decimals in every idiom; there is no #Traces column, no
 conformant/non-conformant colour coding, and no pre-computed differences — the
-participant derives the conformance assessment from the fitness values.
+participant derives the conformance assessment from the fitness values (the flow
+charts colour individual moves, not whole traces).
 
 Public API:
-    generate(log, fitness_df, output_dir, trace_ids=None)
+    generate(log, fitness_df, output_dir, trace_ids=None, alignments=None,
+             model_path=None)
         log        – PM4Py EventLog
         fitness_df – per-trace fitness DataFrame from io_helpers.fitness_summary_dataframe
         output_dir – directory where SVGs are written
-        trace_ids  – optional list of case-id strings to show (default: first 10)
+        trace_ids  – optional list of case-id strings to show; empty = the two
+                     traces with the largest violation-count gap (needs
+                     alignments, else the first SAMPLE_N traces in log order)
+        alignments – raw alignment results; needed for the default trace choice
+                     and the flow-chart idioms
+        model_path – reference BPMN, for the model-based idioms
 """
 
 import logging
@@ -638,9 +649,10 @@ def generate(log, fitness_df, output_dir: str, trace_ids=None, alignments=None, 
     """Generate all Task ID 4 SVGs into output_dir.
 
     ``trace_ids`` is the admin-configured list of case-id strings (from
-    PARAM_SPEC "trace_ids"). When empty/None the first ``SAMPLE_N`` traces in log
-    order are shown. Every idiom renders the same traces so the views are
-    directly comparable.
+    PARAM_SPEC "trace_ids"). When empty/None the two traces with the largest
+    violation-count gap are shown, or — without alignments — the first
+    ``SAMPLE_N`` traces in log order. Every idiom renders the same traces so the
+    views are directly comparable.
 
     ``alignments`` (optional) enables the trace-level flow-chart idioms, which
     compare the alignment (conformance) patterns of two traces side by side.

@@ -9,6 +9,11 @@ import { UITrackingProvider } from "../../utils/usertracking";
 
 import HeaderLogos from "../../components/General/HeaderLogos";
 
+// Regroups the assignment's trial sequence so each task's trials run
+// consecutively: tasks in the order their first trial appears, idioms in their
+// sequence order. A shuffled sequence therefore still randomises task order and
+// idiom order within a task, but never interleaves tasks (see the note in
+// provibackend/ProViBackend/utils/database/assignment.py).
 function groupTrialsByTask(trials) {
   const groups = [];
   const seen = new Map();

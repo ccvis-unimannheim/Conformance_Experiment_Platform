@@ -1,10 +1,19 @@
 """
 shared.py – Cross-task utilities for the CC Visualization Pipeline.
 
-Contains: color constants, save_svg, wrap_text, table helpers,
-draw_decision_tree, tree position layout, and alignment parsing helpers
-(_extract_alignment_label, alignment_pairs_to_rows, classify_step,
-_task4_format_threshold).
+Sections, in file order:
+    * palette, colour and typography constants; save_svg; text and table helpers
+    * alignment parsing (alignment_pairs_to_rows, classify_step) and the shared
+      move-type names
+    * decision-tree layout and renderer; tile metrics; empty-state SVGs;
+      scatter label placement
+    * variant and violation-pattern aggregation; group-comparison renderers
+    * conformance category buckets (the single source of the fitness ranges),
+      fitness time series and conformance-over-time charts
+    * calendar heatmaps, Gantt strips
+    * BPMN parsing and annotated/composed model renderers; chevron strips
+    * parallel sets
+    * dataset-agnostic outcome / terminal activity inference
 
 All task modules import from here; this file must NOT import from any task module.
 """
@@ -191,13 +200,11 @@ def auto_col_widths(col_labels, cell_text, header_weight: float = 1.15,
 #   classify_step(obs_raw, exp_raw) -> (activity, type) | (None, None)
 #       Low-level primitive.  Returns the activity name + one of:
 #       "Model Move" / "Log Move" / "Mismatch Move".
-#       Used by task09, task11, task12, task34, task35.
 #
 #   alignment_pairs_to_rows(alignment) -> list[dict]
 #       High-level parser producing display rows with step/log_move/model_move/
 #       status/moveType fields.  moveType adds "Synchronous Move" to the same
 #       three names.
-#       Used by task05, task19, task20, task22, task23, task27, task28, task29, task30.
 #
 # The two used to disagree — classify_step said "Move on Model" where this said
 # "Model Move" — and both names reached participants: task09 showed one, task11
@@ -298,7 +305,7 @@ def most_common_stable(counter, n=None):
 def classify_step(observed_raw, expected_raw):
     """Classify one PM4Py alignment step into (activity, violation_type) or (None, None).
 
-    Naming convention used by task09, task11, task12, task34, task35:
+    Naming convention:
         "Model Move"  – activity required by the model but absent in the trace
         "Log Move"    – extra activity present in the trace but not in the model
         "Mismatch Move"  – both present but with different labels
@@ -321,7 +328,7 @@ def classify_step(observed_raw, expected_raw):
 
 
 # ---------------------------------------------------------------------------
-# Shared number formatter (used by task20 and task31)
+# Shared number formatter
 # ---------------------------------------------------------------------------
 
 def format_threshold(threshold: float) -> str:
@@ -549,7 +556,7 @@ def draw_decision_tree(
         ax.legend(handles=legend_items, **legend_kwargs)
 
 # ---------------------------------------------------------------------------
-# Shared Tile Metric renderer  (used by task02, task06 and task25)
+# Shared Tile Metric renderers
 # ---------------------------------------------------------------------------
 
 def _draw_tile_box(ax):
@@ -664,7 +671,7 @@ def render_distribution_tile_metric(rows, out_path: str, title: str = "Distribut
     save_svg(fig, out_path)
 
 # ---------------------------------------------------------------------------
-# Shared zero-state renderer  (used by task23-style empty outputs)
+# Shared zero-state renderer  (for idioms with nothing to draw)
 # ---------------------------------------------------------------------------
 
 def render_empty_state_svg(out_path: str, title: str, message: str = "No data available."):
@@ -686,8 +693,7 @@ def place_scatter_labels(ax, points, *, x_margin: float = 0.16, y_margin: float 
     x proximity); within a cluster the labels are spread monotonically into the
     emptier vertical direction so the leader lines never cross and never swap a
     label onto the wrong dot. Labels for points in the right half are placed to the
-    left (and vice versa) so they don't run off the canvas. Used by task18/task19's
-    scatter idioms.
+    left (and vice versa) so they don't run off the canvas.
     """
     pts = [p for p in points if p is not None]
     if not pts:
@@ -743,7 +749,7 @@ def place_scatter_labels(ax, points, *, x_margin: float = 0.16, y_margin: float 
             )
 
 # ---------------------------------------------------------------------------
-# Shared variant aggregation  (used by task04, task25 and task27)
+# Shared variant aggregation
 # ---------------------------------------------------------------------------
 
 def build_variant_df(log, fitness_df, warn_prefix: str = "shared"):
@@ -842,7 +848,7 @@ def variant_table_data(vdf, top_n: int, include_length: bool = False,
     return cell_text, col_labels, col_widths
 
 # ---------------------------------------------------------------------------
-# Shared violation pattern aggregation  (used by task23 and task26)
+# Shared violation pattern aggregation
 # ---------------------------------------------------------------------------
 
 def build_violation_pattern_df(alignments):
@@ -888,7 +894,7 @@ def build_violation_pattern_df(alignments):
     return agg
 
 # ---------------------------------------------------------------------------
-# Shared group-comparison renderers  (factored out of task05; also used by task30)
+# Shared group-comparison renderers  (factored out of task05)
 # ---------------------------------------------------------------------------
 
 # Cividis shades used for pattern segments in composition stacked bars
@@ -1039,7 +1045,7 @@ def draw_grouped_box_plot(ax, data, labels, colors, *, ylabel: str = "",
     return boxes
 
 # ---------------------------------------------------------------------------
-# Shared time-series builder  (factored out of task07; also used by task01/04)
+# Shared time-series builder  (factored out of task07)
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
@@ -1138,7 +1144,7 @@ def build_fitness_time_series(log, fitness_df):
 
 
 # ---------------------------------------------------------------------------
-# Shared conformance-over-time renderers (used by task07 and task10)
+# Shared conformance-over-time renderers
 # ---------------------------------------------------------------------------
 
 # Time-bin granularity -> pandas period frequency. All three share one code path
@@ -1477,7 +1483,7 @@ def draw_gantt_strips(ax, rows, *, min_frac: float = 0.012):
     ax.spines[["top", "right", "left"]].set_visible(False)
 
 # ---------------------------------------------------------------------------
-# Shared BPMN parse + annotated renderer  (factored out of task24; used by task25/26)
+# Shared BPMN parse + annotated renderer  (factored out of task24)
 # ---------------------------------------------------------------------------
 
 _BPMN_NS = {
@@ -2088,7 +2094,7 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
     logger.debug(f"      Saved: {out_path}")
 
 # ---------------------------------------------------------------------------
-# Shared chevron strip primitives  (factored out of task28; also used by task27)
+# Shared chevron strip primitives  (factored out of task28)
 # ---------------------------------------------------------------------------
 
 CHEVRON_HEIGHT     = 1.65
@@ -2234,7 +2240,7 @@ def alignment_violation_node_style(rep_rows):
     return _style
 
 # ---------------------------------------------------------------------------
-# Shared Parallel Sets renderer  (used by task01, task03, task05, …)
+# Shared Parallel Sets renderer
 # ---------------------------------------------------------------------------
 
 def draw_parallel_sets(

@@ -2,12 +2,20 @@
 tasks/task33.py – Task ID 33: Present / Compare / Process conformance (attribute sub-logs).
 
 How does the overall degree of conformance differ between traces with a certain
-data attribute value? Numeric attribute → median split; categorical → one sub-log
-per distinct value (top-4 + "Other"). Shows fitness distributions, ranges, and
-summaries across sub-logs. No alignment data required.
+data attribute value? Each chosen attribute is cut into sub-logs by its own type
+unless a split strategy is set (see trace_features). Shows fitness distributions,
+ranges, and summaries across sub-logs. Every reported number comes from fitness;
+alignments are only used to discover the default attribute set.
 
 Public API:
-    generate(log, fitness_df, output_dir, compare_attribute="AMOUNT_REQ")
+    generate(log, fitness_df, output_dir, alignments=None,
+             attribute_set=None, split_strategy=None, group_cap=None)
+        alignments     – optional; only used to discover the default attributes
+        attribute_set  – attributes to compare; empty = the discovered default
+                         set. The distribution idioms use only the first one.
+        split_strategy – "binary" | "nominal_n" | "ordered_bins"; None picks
+                         by each attribute's type
+        group_cap      – most groups named before the rest become "Other"
 """
 
 import logging

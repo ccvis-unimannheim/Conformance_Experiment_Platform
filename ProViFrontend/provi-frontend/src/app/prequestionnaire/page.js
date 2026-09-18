@@ -9,7 +9,7 @@ import { hasKnowledgeQuestions } from "../../utils/knowledgeStep";
 
 import HeaderLogos from "../../components/General/HeaderLogos";
 
-// ── Design tokens (from test.html color palette)
+// ── Design tokens (the same palette as the other participant pages)
 const C = {
   primary:       "#00305e",
   primaryDim:    "#002345",

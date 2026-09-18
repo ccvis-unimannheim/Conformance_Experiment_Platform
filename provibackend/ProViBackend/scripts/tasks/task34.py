@@ -84,7 +84,7 @@ from shared import (
     trace_activities, write_traces_sidecar,
 )
 
-# ── Palette (cividis — PALETTE_GUIDE.md) ─────────────────────────────────────
+# ── Palette (cividis, from shared.py) ───────────────────────────────────────
 CAT_STRONG = to_hex(CIVIDIS(0.15))   # dark accent / text  (#243c6e)
 CAT_MID    = to_hex(CIVIDIS(0.50))   # Log Move            (#7d7c78 grey)
 CAT_SOFT   = to_hex(CIVIDIS(0.20))   # Model Move          (#35456c navy blue)
@@ -920,9 +920,6 @@ def _pick_ctx(ctxs, params):
                    for r in ctx["rows"]):
                 return ctx
     return ctxs[0]
-
-
-# ── Ground truth ─────────────────────────────────────────────────────────────
 
 
 # ── Public API ────────────────────────────────────────────────────────────────

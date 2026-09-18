@@ -9,29 +9,32 @@ Designed for the dataset-folder convention used on the server:
             EventLog.xes               (or EventLog.csv)
             Guideline.bpmn
         output/
-            task06/  task06_bar_chart.svg, task06_table.svg, ...
-            task28/  ...
-            ...
+            {experiment_id}/           (per-experiment runs; without an id the
+                task06/  bar_chart.svg, table.svg, ...     task folders sit
+                task28/  ...                               directly in output/)
+                ...
 
-Two ways to run:
+Each task writes "taskNN_<idiom>.svg"; _postprocess_task_dir then renames the
+files to their canonical "<idiom_key>.svg".
 
-1) CLI (local testing / manual server runs):
+Two entry points:
+
+1) Backend: generate_for_task_instances(dataset_dir, experiment_id, instances)
+   renders only an experiment's tasks, each with its admin-chosen parameters.
+   This is what POST /admin/experiments/{id}/generate and the previews run.
+
+2) CLI (local testing / manual server runs) — run_pipeline() renders every
+   task with one shared set of defaults:
 
        python create_all_visualizations.py \
            --dataset-dir data/abc123 \
-           [--outcome-activity A_ACTIVATED]
+           [--outcome-activity "Activate Care"]
 
    The script auto-detects EventLog.xes / EventLog.csv inside <dataset-dir>/input/
-   alongside Guideline.bpmn, and writes SVGs to <dataset-dir>/output/.
+   alongside Guideline.bpmn.
 
-2) Programmatic (called by the FastAPI BackgroundTask):
-
-       from create_all_visualizations import run_pipeline
-       run_pipeline(dataset_dir="data/abc123",
-                    outcome_activity="Activate Care")
-
-Both paths share the same `run_pipeline()` function, so behaviour stays
-identical whether run from CLI or from the backend.
+Both go through make_task_generators, which is the single place that maps
+parameters onto each task's generate() call.
 """
 
 import logging
@@ -96,10 +99,9 @@ import tasks.task37 as task37
 #
 # Server-side dataset layout (root: data/<pair_id>/):
 #     input/
-#         <any filename>.xes  (or .csv)  ← event log
-#         <any filename>.bpmn            ← process model
-#     output/
-#         task06/  task28/  task29/  task20/  task10/  task31/
+#         <any filename>.xes  (or .csv)  ← event log   (uploads are saved as EventLog.*)
+#         <any filename>.bpmn            ← process model (uploads: Guideline.bpmn)
+#     output/[{experiment_id}/]taskNN/   ← one folder per task in TASK_DIRS
 # ---------------------------------------------------------------------------
 
 INPUT_SUBDIR  = "input"
@@ -840,24 +842,34 @@ def run_pipeline(dataset_dir: str, experiment_id: str | None = None,
                  predominant_threshold: float = 0.8,
                  time_granularity: str = "month",
                  conformance_bins: list | None = None) -> str:
-    """Run the full visualization pipeline for one dataset directory.
+    """Render every task for one dataset directory with one shared set of
+    defaults — the CLI path. The backend renders per experiment through
+    generate_for_task_instances instead, with each task's own parameters.
 
-    Parameters
+    Parameters (which tasks read each one: see make_task_generators)
     ----------
     dataset_dir : str
-        Path to the dataset folder (must contain input/EventLog.{xes|csv}
-        and input/Guideline.bpmn).
+        Path to the dataset folder (must contain an event log (.xes/.csv) and a
+        .bpmn model under input/).
     experiment_id : str, optional
         When given, SVGs are written to ``<dataset_dir>/output/{experiment_id}/``
         instead of ``<dataset_dir>/output/`` (see docs/ADMIN_EXPERIMENT_SETUP.md).
     outcome_activity : str
-        Activity name that marks a positive process outcome (used by Task 6).
+        Activity name that marks a positive process outcome (task01, task19,
+        task31).
     compare_attribute : str
-        Case-level data attribute used by Task 30 to split the log into
-        sub-logs (numeric → median split, categorical → value groups).
+        Case-level data attribute that splits the log into sub-logs (numeric →
+        median split, categorical → value groups) for task30, task32 and, when
+        no split attribute is given, task05. Replaced by an auto-detected
+        attribute if the log does not carry it.
     predominant_threshold : float
-        Fitness level (0–1) above which Task 2 considers the overall behaviour
-        to "predominantly" follow the desired executions in the model.
+        Fitness level (0–1) task02 draws as the "predominantly follows the
+        model" reference.
+    time_granularity : str
+        "year" | "month" | "day" — task07's time-axis aggregation.
+    conformance_bins : list, optional
+        Conformance interval boundaries for task10; None uses the canonical
+        bins in shared.py.
     Returns
     -------
     str
@@ -931,7 +943,8 @@ def parse_args():
     )
     parser.add_argument(
         "--dataset-dir", required=True,
-        help="Path to the dataset folder containing EventLog.{xes|csv} and Model.bpmn",
+        help="Path to the dataset folder whose input/ holds the event log "
+             "(.xes/.csv) and the .bpmn model",
     )
     parser.add_argument(
         "--experiment-id", default=None,
@@ -941,17 +954,18 @@ def parse_args():
     )
     parser.add_argument(
         "--outcome-activity", default="Activate Care",
-        help="Activity name that marks a positive outcome (Task 6). Default: CARE_ACTIVATED",
+        help="Activity name that marks a positive outcome. Default: 'Activate Care'",
     )
     parser.add_argument(
         "--compare-attribute", default="AMOUNT_REQ",
-        help="Case attribute used by Task 30 to split the log into sub-logs "
-             "(numeric: median split, categorical: value groups). Default: AMOUNT_REQ",
+        help="Case attribute that splits the log into sub-logs for tasks 30 and 32 "
+             "(and task 5 when it has no split attribute); numeric: median split, "
+             "categorical: value groups. Default: AMOUNT_REQ",
     )
     parser.add_argument(
         "--predominant-threshold", type=float, default=0.8,
-        help="Fitness level (0–1) above which Task 2 reports the behaviour as "
-             "predominantly following the model. Default: 0.8",
+        help="Fitness level (0–1) Task 2 draws as the 'predominantly follows the "
+             "model' reference line. Default: 0.8",
     )
     parser.add_argument(
         "--time-granularity", choices=["year", "month", "day"], default="month",

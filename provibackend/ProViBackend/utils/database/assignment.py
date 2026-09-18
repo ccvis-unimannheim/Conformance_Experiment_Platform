@@ -7,6 +7,14 @@ chosen (random tiebreak), keeping the distribution across idioms equal over time
 Within-subjects: every participant receives all idioms for every task; the full
 trial list is shuffled when within_sequence_mode == "random".
 
+What the participant actually sees is regrouped by the frontend
+(taskexecution/page.js, groupTrialsByTask): all trials of one task are shown
+consecutively, tasks in the order their first trial appears in the sequence,
+and each task's idioms in their sequence order. So the shuffle randomises task
+order and idiom order within a task, but trials of different tasks are never
+interleaved. `trial_index` keeps the stored (shuffled) position, not the
+position shown.
+
 Note on concurrency: if two participants call this simultaneously in between
 mode, both may read the same counts and land on the same idiom. For typical
 research experiment sizes (<200 participants) this slight skew is acceptable.
@@ -82,7 +90,9 @@ def assign_participant_to_experiment(user_id: str, experiment_id: str) -> dict:
       (random tiebreak). group_id is set to the sorted assigned idiom_ids.
     - Within-subjects: all idioms for every task are included; every participant
       sees the full set. group_id is set to "within".
-    - Trial order is shuffled when within_sequence_mode == "random".
+    - Trial order is shuffled when within_sequence_mode == "random" — in both
+      designs, despite the name. The frontend then regroups trials by task (see
+      the module docstring).
 
     Returns the UserAssignment document dict (including '_id').
     Raises ValueError when the experiment is missing or has no task_configs.

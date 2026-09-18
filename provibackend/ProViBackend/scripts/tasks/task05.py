@@ -8,11 +8,16 @@ for. Counting is shared with the rest of the Violation-profile class; see
 docs/VIOLATION_PROFILE_CLASS.md.
 
 Public API:
-    generate(log, alignments, output_dir, split_attribute="")
-        log              – PM4Py EventLog
-        alignments       – raw alignment results from io_helpers.run_alignments
-        output_dir       – directory where SVGs are written
-        split_attribute  – case attribute whose two groups are compared
+    generate(log, alignments, output_dir, split_attribute="",
+             grouping_strategy="pattern", selection=None)
+        log               – PM4Py EventLog
+        alignments        – raw alignment results from io_helpers.run_alignments
+        output_dir        – directory where SVGs are written
+        split_attribute   – case attribute whose two groups are compared
+        grouping_strategy – what a violation is counted as: "move_type",
+                            "activity" or "pattern" (see violation_profile)
+        selection         – which groups to show, in the units of the strategy;
+                            empty = all
 """
 
 import logging

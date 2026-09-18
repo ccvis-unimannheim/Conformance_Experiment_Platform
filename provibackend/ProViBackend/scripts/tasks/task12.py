@@ -4,7 +4,7 @@ Goal: Describe · Means: Summarize · Characteristics: Process conformance
 
 Question: In what percentage of traces do violations occur?
 
-Visualizations (all SVG, white-grey-black palette):
+Visualizations (all SVG, cividis palette from shared.py):
   tile_metric     – KPI tiles: % conformant · % deviating
   pie_chart       – 2-slice: conformant vs deviating
   bar_chart       – 2 horizontal bars with counts + %

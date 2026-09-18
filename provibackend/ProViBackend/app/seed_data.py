@@ -1,8 +1,9 @@
 """
 Canonical Task and Idiom catalogs.
 
-Inserted into MongoDB on application startup if the corresponding
-collections are empty (see main.py lifespan).
+Upserted into MongoDB on every startup (main.py _seed_collection), so edits
+here reach existing documents. Documents an admin has edited through the API
+(flagged `_admin_edited`) are skipped.
 """
 
 CANONICAL_TASKS = [

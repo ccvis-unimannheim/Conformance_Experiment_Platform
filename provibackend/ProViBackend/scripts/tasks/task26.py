@@ -7,7 +7,8 @@ classification is reused from task29 (via shared.build_violation_pattern_df);
 no alignments are re-run.
 
 Public API:
-    generate(alignments, output_dir)
+    generate(alignments, output_dir, model_path=None)
+        model_path – reference BPMN; without it the flow-chart idioms are skipped
 """
 
 import logging

@@ -72,7 +72,8 @@ def run_alignments(log, net, im, fm):
 
 
 def fitness_summary_dataframe(alignments):
-    """Build per-trace fitness DataFrame from raw alignment results (used by Task 6 & Task 10)."""
+    """Build per-trace fitness DataFrame from raw alignment results — the
+    `fitness_df` the central run hands to every task that needs fitness."""
     rows = []
     for i, result in enumerate(alignments):
         fitness = result["fitness"]

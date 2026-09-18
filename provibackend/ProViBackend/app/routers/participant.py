@@ -265,8 +265,9 @@ async def get_experiment_knowledge_questions(experiment_id: str):
 async def get_active_experiment():
     """Return the trial list for the currently active experiment.
 
-    Each trial contains task/idiom metadata and the svg_path the frontend
-    uses to call GET /participant/vis/{dataset_id}/{task_id}/{idiom_id}.
+    Each trial contains task/idiom metadata, the ids the frontend passes to
+    GET /participant/vis/{dataset_id}/{task_id}/{idiom_id}, and `svg_available`
+    (whether that image exists yet).
     """
     experiments = dbc.get_query_db("Experiment", {"status": {"$in": ["active", "published"]}})
     if not experiments:
@@ -475,6 +476,8 @@ async def mark_experiment_complete(provi_user_id: Annotated[str | None, Cookie()
     if not assignment:
         raise HTTPException(status_code=404, detail="No assignment found for this user.")
 
+    # current_trial_index is never advanced per trial; this jump to the end is the
+    # only write, so it doubles as the "completed" flag the admin stats read.
     total = len(assignment.get("trial_sequence", []))
     db["UserAssignment"].update_one(
         {"_id": assignment["_id"]},

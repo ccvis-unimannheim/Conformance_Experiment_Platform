@@ -4,12 +4,12 @@ Goal: Describe · Means: Summarize · Characteristics: Guideline violations
 
 Question: How often did predefined guideline violation(s) occur?
 
-Visualizations (all SVG, white-grey-black palette):
-  bar_chart                     – trace count per predefined violation
-  heatmap                       – activity × type grid for selected violations
-  table                         – violations ranked by trace frequency
-  table_bar_chart               – table + gradient bar chart
-  flow_chart_elaborate     – BPMN process view with violation details in nodes
+Visualizations (all SVG, cividis palette from shared.py):
+  bar_chart            – trace count per predefined violation
+  matrix               – activity × type grid for selected violations
+  table                – violations ranked by trace frequency
+  table_bar_chart      – table + gradient bar chart
+  flow_chart_elaborate – BPMN process view with violation details in nodes
 """
 
 import logging

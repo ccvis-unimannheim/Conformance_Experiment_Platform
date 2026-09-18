@@ -8,11 +8,12 @@ task04); Conformant = fitness == 1.0. Encodings are status-centric
 group comparison). Reuses the centrally computed alignments — nothing re-run.
 
 Public API:
-    generate(log, fitness_df, alignments, output_dir)
+    generate(log, fitness_df, alignments, output_dir, model_path=None)
         log        – PM4Py EventLog
         fitness_df – per-trace fitness DataFrame from io_helpers.fitness_summary_dataframe
         alignments – raw alignment results from io_helpers.run_alignments
         output_dir – directory where SVGs are written
+        model_path – reference BPMN; without it flow_chart_elaborate_table is skipped
 """
 
 import logging

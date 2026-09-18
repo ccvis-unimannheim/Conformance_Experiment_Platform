@@ -2,7 +2,11 @@
 tasks/task29.py – Task 3: Violation type summaries across all traces.
 
 Public API:
-    generate(alignments, output_dir)
+    generate(alignments, output_dir, grouping_strategy="move_type", selection=None)
+        grouping_strategy – what a violation is counted as: "move_type",
+                            "activity" or "pattern" (see violation_profile)
+        selection         – which groups to show, in the units of the strategy;
+                            empty = all
 """
 
 import logging

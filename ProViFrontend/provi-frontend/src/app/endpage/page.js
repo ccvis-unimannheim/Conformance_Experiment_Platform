@@ -27,7 +27,8 @@ const LIKERT_BG     = "#e8eef5";
 // NASA-TLX also wording: "the task" -> "the tasks", since this is asked once
 // at the end covering the whole multi-task session) are deliberate and should
 // be reported as "adapted from" the source in the methods write-up.
-// NASA-TLX Likert questions (1–6) temporarily removed from the end page.
+// NASA-TLX Likert questions 1–6 (each on a 7-point scale) temporarily removed
+// from the end page.
 // Kept here so they can be restored: move the definitions back into QUESTIONS
 // and un-comment the survey render block in the JSX below.
 // const QUESTIONS = [
