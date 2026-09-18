@@ -10,7 +10,7 @@ from pydantic import BaseModel
 import ProViBackend.app.answer_formats as afmt
 import ProViBackend.utils.config as config
 import ProViBackend.utils.database.connection as dbc
-from ProViBackend.utils import utils
+from ProViBackend.utils import idiom_files, utils
 from ProViBackend.scripts.tasks import task_registry
 from ProViBackend.app.label_overrides import resolve_idiom_label
 from ProViBackend.utils.database.assignment import (
@@ -109,12 +109,11 @@ def _build_param_hints(task_key: str, parameters: dict) -> list[dict]:
 
 
 def _resolve_svg_path(task_id: str, idiom_id: str, dataset_id: str, experiment_id: str | None = None):
-    """Resolve DB IDs to a filesystem SVG path.
+    """Resolve DB IDs to the image file shown for this task/idiom.
 
-    If `experiment_id` is given and the per-experiment SVG exists at
-    data/{dataset_id}/output/{experiment_id}/{task_key}/{idiom_key}.svg
-    (see docs/ADMIN_EXPERIMENT_SETUP.md), that path is returned. Otherwise
-    falls back to the legacy shared path data/{dataset_id}/output/{task_key}/{idiom_key}.svg.
+    An image the admin uploaded or imported for this experiment wins, then a
+    custom idiom's fixed asset, then the per-experiment generated SVG, then the
+    legacy shared path — see utils/idiom_files.resolve_idiom_image.
 
     Returns (path, error_message). On success error_message is None.
     """
@@ -128,37 +127,16 @@ def _resolve_svg_path(task_id: str, idiom_id: str, dataset_id: str, experiment_i
     if not dataset_id:
         return None, "dataset_id is required"
 
-    task_key  = task["task_key"]    # e.g. "task1"
-    idiom_key = idiom["idiom_key"]  # e.g. "bar_chart"
-
-    # Custom (admin-uploaded) idioms are fixed assets, not per-dataset
-    # generated — served straight from CUSTOM_IDIOM_DIRECTORY instead.
-    if idiom.get("is_custom"):
-        ext = idiom.get("asset_ext") or ".svg"
-        return config.CUSTOM_IDIOM_DIRECTORY / f"{idiom_key}{ext}", None
-
-    output_dir = config.BASE_DIRECTORY / "data" / dataset_id / "output"
-
-    if experiment_id:
-        per_experiment_path = output_dir / experiment_id / task_key / f"{idiom_key}.svg"
-        if per_experiment_path.exists():
-            return per_experiment_path, None
-
-    legacy_path = output_dir / task_key / f"{idiom_key}.svg"
-    return legacy_path, None
+    path, _ = idiom_files.resolve_idiom_image(dataset_id, experiment_id, task["task_key"], idiom)
+    return path, None
 
 
 def _resolve_traces_path(task_key: str, dataset_id: str, experiment_id: str | None = None):
     """Resolve to this task's traces.json (shared by every idiom of the task —
-    written once per generate() call, alongside the SVGs). Mirrors
-    _resolve_svg_path's per-experiment / legacy fallback, minus the idiom_key.
+    written once per generate() call, alongside the SVGs, or imported with
+    them). See utils/idiom_files.resolve_traces.
     """
-    output_dir = config.BASE_DIRECTORY / "data" / dataset_id / "output"
-    if experiment_id:
-        per_experiment_path = output_dir / experiment_id / task_key / "traces.json"
-        if per_experiment_path.exists():
-            return per_experiment_path
-    return output_dir / task_key / "traces.json"
+    return idiom_files.resolve_traces(dataset_id, experiment_id, task_key)
 
 
 def _load_display_traces(task_key: str, dataset_id: str, experiment_id: str | None = None) -> list:
@@ -166,7 +144,7 @@ def _load_display_traces(task_key: str, dataset_id: str, experiment_id: str | No
     (most tasks don't — only ones whose question refers to "the given trace(s)",
     e.g. Task 34 / Task 4)."""
     path = _resolve_traces_path(task_key, dataset_id, experiment_id)
-    if not path.exists():
+    if path is None or not path.exists():
         return []
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -361,9 +339,7 @@ async def get_visualization(dataset_id: str, task_id: str, idiom_id: str, experi
             status_code=404,
             detail=f"SVG not found on disk: {svg_path.relative_to(config.BASE_DIRECTORY)}",
         )
-    ext = svg_path.suffix.lower()
-    media_type = "image/svg+xml" if ext == ".svg" else f"image/{ext.lstrip('.')}"
-    return FileResponse(str(svg_path), media_type=media_type)
+    return FileResponse(str(svg_path), media_type=utils.image_media_type(svg_path.suffix))
 
 
 # ---------------------------------------------------------------------------

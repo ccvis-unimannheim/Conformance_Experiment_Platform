@@ -158,18 +158,22 @@ mounted path at all. Two consequences:
 - The shared host path is inert for `dfg-service`, so the two services do **not**
   in fact share a data directory — even though the compose file reads as if they
   do, which is misleading in exactly the direction that matters here.
-- Nothing `dfg-service` generates survives container recreation — and
-  `.github/workflows/deploy.yml` force-removes the `dfgbackend` container
-  (`docker rm -f … dfgbackend dfgfrontend`) on **every** deploy to `develop`.
-  So each deploy wipes every DFG dataset and SVG; an admin has to re-upload and
-  re-activate, and any participant mid-study gets 404s on their visualization.
-  (`mongo` is removed too but keeps its named volume, and `provibackend`'s data
-  lives on the `/srv/provi-data` host path, so only DFG loses state.)
+- Nothing `dfg-service` generates survives container recreation. Until
+  `b7345e0` (2026-09-15) that meant **every** deploy to `develop`, because
+  `.github/workflows/deploy.yml` force-removed the containers
+  (`docker rm -f … dfgbackend dfgfrontend`) before building. That step is gone;
+  `docker compose up -d` recreates a container only when its image or config
+  actually changed. DFG datasets and SVGs therefore survive a deploy that leaves
+  `dfg-service` untouched, but any deploy that rebuilds `dfgbackend` into a new
+  image still wipes them: an admin has to re-upload and re-activate, and a
+  participant mid-study gets 404s on their visualization. (`mongo` keeps its
+  named volume and `provibackend`'s data lives on the `/srv/provi-data` host
+  path, so only DFG loses state.)
 
 Deliberately not fixed: the damage is confined to the DFG tool and never reaches
-ProCon's data, so an admin re-uploading after a deploy is the accepted cost. The
-one-line fix, should the DFG study ever start collecting real participant data:
-point `dfgbackend`'s volume at `output/` instead of `data/`.
+ProCon's data, so an admin re-uploading after a `dfg-service` change is the
+accepted cost. The one-line fix, should the DFG study ever start collecting real
+participant data: point `dfgbackend`'s volume at `output/` instead of `data/`.
 
 ## Rough edges from the extraction (fixed, but a checklist for next time)
 
@@ -188,6 +192,18 @@ modules the same way:
 Recorded retroactively in `CHANGES.md` under
 *Session: DFG Study Extracted Into a Standalone Service (2026-09-10)*, since
 every other cross-cutting change in this repo has an entry there.
+
+Two leftovers outlived Phase 2 and were only removed on 2026-09-15, both
+duplicates that `dfg-service` now owns alone:
+
+- `7d75695` — `provibackend`'s `routers/vis.py`. Phase 2 kept its one CC-only
+  route, which then went unused when generated SVGs moved to
+  `output/{experiment_id}/{task_key}/`; participants read visualizations
+  through `/participant/vis` and the admin panel through
+  `/admin/experiments/{id}/vis`. The `/dfg/api/vis` hits go to
+  `dfg-service`'s own copy and are unaffected.
+- `d50cb3a` — `provibackend`'s `scripts/cleaner.py`, imported by nothing since
+  the extraction gave `dfg-service` its own copy.
 
 ## Open follow-ups
 

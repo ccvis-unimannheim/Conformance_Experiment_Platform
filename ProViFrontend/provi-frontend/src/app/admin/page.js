@@ -503,6 +503,14 @@ export default function AdminPage() {
                                 Download Data
                               </a>
                             )}
+                            {(status === "published" || status === "finished") && (
+                              <a href={`/api/admin/experiments/${encodeURIComponent(expId)}/idioms/export`}
+                                title="The images participants saw, with a manifest of how they were produced"
+                                className="text-xs border border-border-subtle text-on-surface-variant px-3 py-1.5 rounded hover:bg-surface-container transition-colors flex items-center gap-1">
+                                <span className="material-symbols-outlined text-sm">image</span>
+                                Download Idioms
+                              </a>
+                            )}
                           </div>
                         )}
                       </div>

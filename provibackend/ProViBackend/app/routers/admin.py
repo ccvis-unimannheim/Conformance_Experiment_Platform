@@ -59,7 +59,7 @@ except ImportError:
     # empty mapping (which makes the admin UI show every idiom for every task).
     _logger.exception("Failed to import task modules required for /task-idioms")
     raise
-from ProViBackend.utils import config, utils
+from ProViBackend.utils import config, idiom_files, utils
 from ProViBackend.app.datamodels import data_schemas as ds
 import ProViBackend.app.answer_formats as afmt
 import pathlib as pl
@@ -767,9 +767,8 @@ async def get_custom_idiom_asset(idiom_key: str):
     asset_path = CUSTOM_IDIOM_DIRECTORY / f"{idiom_key}{ext}"
     if not asset_path.exists():
         raise HTTPException(status_code=404, detail="Idiom asset file missing.")
-    media_type = "image/svg+xml" if ext == ".svg" else f"image/{ext.lstrip('.')}"
     from fastapi.responses import FileResponse as _FileResponse
-    return _FileResponse(str(asset_path), media_type=media_type)
+    return _FileResponse(str(asset_path), media_type=utils.image_media_type(ext))
 
 
 # ---------------------------------------------------------------------------
@@ -1212,6 +1211,7 @@ async def delete_experiment(experiment_id: str, force: bool = False):
     # that were only scoped to them.
     _remove_custom_task_idioms([t["task_key"] for t in exp.get("custom_tasks") or []])
     _remove_process_model_file(exp)
+    idiom_files.remove_all_overrides(experiment_id)
 
     # Remove the generated idiom SVGs for this experiment so they don't pile up as
     # orphaned files on disk (mirrors dataset deletion's shutil.rmtree cleanup).
@@ -1704,14 +1704,15 @@ async def get_preview_svg(
 
 @router.get("/experiments/{experiment_id}/vis/{task_key}/{idiom_key}", tags=["admin"])
 async def get_generated_vis_svg(experiment_id: str, task_key: str, idiom_key: str):
-    """Serve the actual generated SVG for the admin overview preview.
+    """Serve the image participants will see for this task/idiom, for the admin
+    overview preview: an uploaded/imported replacement if there is one, else the
+    custom idiom's asset, else the generated SVG (see utils/idiom_files).
+    Returns 404 if nothing has been generated or uploaded yet."""
+    override = idiom_files.find_override(experiment_id, task_key, idiom_key)
+    if override:
+        from fastapi.responses import FileResponse as _FileResponse
+        return _FileResponse(str(override), media_type=utils.image_media_type(override.suffix))
 
-    Reads from DATA_DIRECTORY/{dataset_id}/output/{experiment_id}/{task_key}/{idiom_key}.svg.
-    Returns 404 if generation has not been run yet.
-
-    Custom (admin-uploaded) idioms are fixed assets, not per-dataset generated —
-    they're served straight from CUSTOM_IDIOM_DIRECTORY instead.
-    """
     custom_docs = dbc.get_query_db("Idiom", query={"idiom_key": idiom_key, "is_custom": True})
     if custom_docs:
         return await get_custom_idiom_asset(idiom_key)
