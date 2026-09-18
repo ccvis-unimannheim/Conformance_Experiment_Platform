@@ -434,7 +434,7 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
         "task23": lambda d: task23.generate(alignments, d, log=log,
                                             activities=(p.get("activities") or None)),
         "task24": lambda d: task24.generate(log, model_path, d),
-        "task25": lambda d: task25.generate(log, fitness_df, d, model_path=model_path),
+        "task25": lambda d: task25.generate(log, alignments, d, model_path=model_path),
         "task26": lambda d: task26.generate(alignments, d, model_path=model_path),
         "task27": lambda d: task27.generate(
             log, fitness_df, alignments, d, model_path=model_path,
