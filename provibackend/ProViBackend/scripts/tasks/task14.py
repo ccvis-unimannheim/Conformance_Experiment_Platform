@@ -16,7 +16,8 @@ logger = logging.getLogger(__name__)
 IDIOMS = [
     "table", "bar_chart",
     "flow_chart_table",
-    # "flow_chart_elaborate",  # commented out
+    # "flow_chart_elaborate" was taken out of the set in 193e659 (no reason
+    # recorded); its renderer is still defined but no longer called, see generate().
     "flow_chart_elaborate_table",
     "table_bar_chart", "parallel_sets",
 ]
@@ -603,7 +604,7 @@ def generate(alignments, model_path: str, output_dir: str):
     task14_table(ctx, output_dir)
     task14_bar_chart(ctx, output_dir)
     task14_flow_chart_and_table(ctx, output_dir)
-    # task14_flow_chart_elaborate(ctx, model_path, output_dir)  # commented out
+    # task14_flow_chart_elaborate(ctx, model_path, output_dir)  # dropped from IDIOMS, see above
     task14_flow_chart_elaborate_table(ctx, model_path, output_dir)
     task14_table_bar_chart(ctx, output_dir)
     task14_parallel_sets(ctx, output_dir)

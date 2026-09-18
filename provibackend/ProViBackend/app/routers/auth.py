@@ -46,7 +46,11 @@ async def auth(body: ds.PreliminaryAnswersRequest):
     return response
 
 
-# Todo: Clear routes once testing is done
+# Cookie test routes from early development, still mounted. The cookies they
+# set carry the literal user id "test cookie user id", which has no User
+# document, so every endpoint that checks dbc.user_exists rejects them with 401.
+# Safe to delete; nothing in the frontend calls them.
+#
 # This route can be called from every site as long as it is called via https
 @router.get("/test_cookie_ssl", tags=["auth"])
 async def test_cookie_ssl():
@@ -64,6 +68,9 @@ async def test_cookie_strict():
     response.set_cookie(key="provi_user_id", value="test cookie user id", expires=get_expiry(), samesite="strict")
     return response
 
+# Same Python name as the route above (a copy-paste slip). FastAPI registers
+# both routes at decoration time, so both still work; only the module-level
+# name is shadowed.
 @router.get("/test_cookie_lax", tags=["auth"])
 async def test_cookie_strict():
     response = JSONResponse(
@@ -75,14 +82,14 @@ async def test_cookie_strict():
 async def check_for_cookie(provi_user_id: Annotated[str | None, Cookie()] = None):
     content = {"message": "Cookie detected."}
     if provi_user_id is None:
-        content = {"message": "No cookie detected! Please call GET /auth to receive a cookie"}
+        content = {"message": "No cookie detected! Please call POST /auth to receive a cookie"}
     response = JSONResponse(content=content)
     return response
 
 @router.post("/knowledge", tags=["auth"])
 async def knowledge_answers(body: ds.KnowledgeAnswersRequest, provi_user_id: Annotated[str | None, Cookie()] = None):
     if provi_user_id is None:
-        return JSONResponse(content={"message": "No cookie detected! Please call GET /auth to receive a cookie"}, status_code=401)
+        return JSONResponse(content={"message": "No cookie detected! Please call POST /auth to receive a cookie"}, status_code=401)
     if not dbc.user_exists(provi_user_id):
         return JSONResponse(content={"message": "Unknown user cookie."}, status_code=401)
 
@@ -96,6 +103,12 @@ async def knowledge_answers(body: ds.KnowledgeAnswersRequest, provi_user_id: Ann
         if q.get("correct_option_index") is not None
         and body.answers.get(q["_id"]) == q["correct_option_index"]
     )
+    # 1 = Beginner, 2 = Intermediate, 3 = Advanced (labels in the admin export).
+    # Absolute cut-offs set when every participant got the same 12 system
+    # questions (0–3 / 4–7 / 8–12). The admin can now choose how many questions
+    # an experiment asks, and the cut-offs do not scale with that: with 3
+    # questions everyone is a Beginner. The per-question columns in the export
+    # are the reliable measure.
     level = 1 if score <= 3 else (2 if score <= 7 else 3)
 
     notes_dict = {qid: opt_idx for qid, opt_idx in body.answers.items()}

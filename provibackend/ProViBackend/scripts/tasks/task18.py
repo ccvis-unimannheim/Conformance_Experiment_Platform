@@ -28,7 +28,8 @@ Design (settled):
     per responsible activity. Omitted gracefully when no attributes are present.
   * Top-N responsible activities by responsibility share (TOP_N).
 
-Scope = the 7 "High" idioms. Stems → canonical slug after the pipeline rename:
+Scope = the 7 "High" idioms (Priority column of docs/TASK_IDIOM_MAPPING.md).
+Stems → canonical slug after the pipeline rename:
     task18_flow_chart_elaborate_bpmn_table.svg → flow_chart_elaborate_table  (LEAD: model + responsibility)
     task18_flow_chart_and_table.svg            → flow_chart_table            (chevron + responsibility table)
     task18_bar_chart.svg                       → bar_chart

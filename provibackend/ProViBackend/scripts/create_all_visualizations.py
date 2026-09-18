@@ -123,7 +123,10 @@ _FILE_RENAME = {
 }
 
 # Per-task idiom keys that must NOT go through _FILE_RENAME.
-# These tasks use scatter_plot (SVG) which is distinct from scatterplot (echarts).
+# The Idiom collection holds two different scatter idioms: "scatterplot"
+# (Scatterplot / Dotted Chart, trace level) and "scatter_plot" (plain Scatter
+# Plot, log level). _FILE_RENAME maps the file stem scatter_plot to the former;
+# these tasks draw the latter, so their files keep the name scatter_plot.
 _TASK_RENAME_SKIP: dict[str, set[str]] = {
     "task13": {"scatter_plot"},
     "task14": {"scatter_plot"},

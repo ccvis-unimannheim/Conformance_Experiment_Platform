@@ -198,6 +198,12 @@ _DEFAULT_TASKINTRO_SECTIONS = [
 ]
 
 
+# "The active experiment", as every participant endpoint here finds it (the
+# others repeat this query inline). The admin only ever sets draft / published /
+# finished; "active" is a status from the first version of the platform that
+# nothing writes any more, kept in the filter so old documents still match.
+# Publishing finishes any other published experiment first, so the newest match
+# is normally the only one.
 def _latest_active_experiment() -> dict | None:
     experiments = dbc.get_query_db("Experiment", {"status": {"$in": ["active", "published"]}})
     if not experiments:

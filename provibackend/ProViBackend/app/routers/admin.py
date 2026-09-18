@@ -1387,6 +1387,9 @@ def _validate_task_instances(exp: dict) -> list[str]:
         # Task-specific semantic validation (e.g. the condition must split the log).
         validate = task_registry.get_validate_params(task_key)
         if validate is not None and dataset_id:
+            # SystemExit too: io_helpers.load_event_log exits on a log it cannot
+            # read (it was written for the CLI), and uncaught that would take
+            # the request down instead of reporting a validation error.
             if dataset_id not in log_cache:
                 try:
                     log_cache[dataset_id] = _load_dataset_log(dataset_id)

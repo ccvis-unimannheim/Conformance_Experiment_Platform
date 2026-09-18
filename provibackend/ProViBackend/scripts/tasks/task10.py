@@ -2,7 +2,9 @@
 tasks/task10.py – Task ID 10: Describe / Present / Conformance distribution
 (which percentage of traces fall into which conformance category).
 
-Validated idiom mapping (11 idioms = 6 High + 5 Medium):
+Validated idiom mapping (11 idioms = 6 High + 5 Medium — the Priority column of
+docs/TASK_IDIOM_MAPPING.md; the "HIGH:" prefixes on renderer docstrings below
+refer to the same rating):
     HIGH:   stacked_bar, line_graph, horizon_chart, boxplot, heatmap, calendar
     MEDIUM: bar_chart, scatter_plot, table, table_bar_chart, pie_chart
 

@@ -38,6 +38,10 @@ import numpy as np
 # ---------------------------------------------------------------------------
 # Cividis palette  – perceptually uniform, used throughout all visualizations.
 # Named by semantic role; cividis runs dark-navy (0.0) → yellow-green (1.0).
+#
+# The GREY_* names are historical: the charts were greyscale before they moved
+# to cividis, and the names were kept so no task had to change. They mean
+# "darkest → lightest step", not grey.
 # ---------------------------------------------------------------------------
 CIVIDIS   = matplotlib.colormaps["cividis"]
 CIVIDIS_R = matplotlib.colormaps["cividis_r"]  # reversed: 0=yellow, high=dark
