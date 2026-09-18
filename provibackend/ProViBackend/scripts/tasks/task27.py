@@ -10,7 +10,7 @@ group comparison). Reuses the centrally computed alignments — nothing re-run.
 Public API:
     generate(log, fitness_df, alignments, output_dir, model_path=None,
              conformant_threshold=CONFORMANT_DEFAULT, trace_ids=None,
-             trace_pick_rule="conformant_vs_non", trace_count=1)
+             trace_count=1)
         log                  – PM4Py EventLog
         fitness_df           – per-trace fitness DataFrame from io_helpers.fitness_summary_dataframe
         alignments           – raw alignment results from io_helpers.run_alignments
@@ -18,9 +18,10 @@ Public API:
         model_path           – reference BPMN; without it flow_chart_elaborate_table is skipped
         conformant_threshold – fitness at or above which a variant is conformant
         trace_ids,
-        trace_pick_rule,
-        trace_count          – which variants the chevron and BPMN idioms show
-                               (see trace_alignment.PICK_RULES); the aggregate
+        trace_count          – which variants the chevron, BPMN and table idioms
+                               show. There is no pick rule: the question is the
+                               contrast, so the count is per status — 2 means 2
+                               conformant and 2 non-conformant. The aggregate
                                idioms keep showing the top-N variants
 """
 

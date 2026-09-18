@@ -5,8 +5,10 @@ Trace-level: shows violations for one or few traces simultaneously,
 with clear attribution of which violations belong to which activities.
 
 Which traces: trace_ids, else trace_pick_rule / trace_count (1–4, see
-trace_alignment), with violated_activity narrowing the worst-fitness rule.
-"The trace" below is the first one chosen.
+trace_alignment), among the traces violating violation_pattern when one is set.
+(violated_activity is its superseded, activity-only form, still honoured for
+experiments specified before it existed.) "The trace" below is the first one
+chosen.
 
 IDIOMS:
     bar_chart                  – violation count per activity of the trace
