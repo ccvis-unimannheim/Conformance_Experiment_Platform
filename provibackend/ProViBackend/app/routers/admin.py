@@ -384,6 +384,22 @@ async def upload_dataset_pair(
         log_path.write_bytes(await log.read())
         guideline_path.write_bytes(await guideline.read())
 
+        # A CSV whose case / activity / timestamp columns cannot be identified
+        # would only fail later, at generation, so turn it away here with the
+        # reason. Only the header is read.
+        if log_ext == ".csv":
+            import pandas as pd
+            from io_helpers import EventLogFormatError, detect_csv_columns
+            try:
+                header = pd.read_csv(log_path, nrows=0).columns
+            except (ValueError, pd.errors.ParserError) as e:
+                raise HTTPException(status_code=400,
+                                    detail=f"The event log CSV could not be parsed: {e}")
+            try:
+                detect_csv_columns(header)
+            except EventLogFormatError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+
         dataset_pair = ds.DatasetPair(
             dataset_id=pair_id,
             dataset_title=dataset_title or pl.Path(log.filename).stem,
@@ -406,8 +422,11 @@ async def upload_dataset_pair(
 
         return {"dataset_id": pair_id}
     except HTTPException:
+        # Rejected before any DatasetPair was stored: leave nothing on disk.
+        shutil.rmtree(pair_dir, ignore_errors=True)
         raise
     except Exception as e:
+        shutil.rmtree(pair_dir, ignore_errors=True)
         raise HTTPException(status_code=500, detail=f"Failed to upload dataset pair: {str(e)}")
     finally:
         await log.close()
@@ -576,25 +595,34 @@ async def download_experiment_answers(experiment_id: str):
         })
 
     # ── Sheet 3: end-page survey ratings ──────────────────────────────────
-    RATING_KEYS = [
-        ("priorKnowledge", "Prior Knowledge"),
-        ("clarity",        "Clarity of Instructions"),
-        ("readability",    "Readability of Visualizations"),
-        ("helpfulness",    "Helpfulness of Tooltips"),
-        ("usefulness",     "Usefulness of Visualizations"),
-        ("difficulty",     "Difficulty of Tasks"),
-        ("effort",         "Time & Effort Required"),
-    ]
-    survey_rows = []
+    # Keys are whatever the endpage's QUESTIONS submit (the NASA-TLX items,
+    # 7-point scales). Known keys get a readable column in this order; any
+    # other key found in the data is exported under its own name rather than
+    # dropped, so a changed questionnaire can never silently empty the sheet.
+    RATING_LABELS = {
+        "mentalDemand":   "Mental Demand (1-7)",
+        "physicalDemand": "Physical Demand (1-7)",
+        "temporalDemand": "Temporal Demand (1-7)",
+        # NASA-TLX runs this one the other way round: 1 = very good.
+        "performance":    "Performance (1-7, 1 = very good)",
+        "effort":         "Effort (1-7)",
+        "frustration":    "Frustration (1-7)",
+    }
+    feedback_by_user = {}
     for uid in (list({a["user_id"] for a in answers}) if answers else []):
         user = dbc.get_document("User", {"user_id": uid})
         if not user or not user.get("feedback_id"):
             continue
-        fb = dbc.get_document("FeedbackAnswers", {"_id": user["feedback_id"]}) or {}
+        feedback_by_user[uid] = dbc.get_document("FeedbackAnswers", {"_id": user["feedback_id"]}) or {}
+    seen_keys = {k for fb in feedback_by_user.values() for k in (fb.get("ratings") or {})}
+    rating_keys = [k for k in RATING_LABELS if k in seen_keys] + sorted(seen_keys - RATING_LABELS.keys())
+
+    survey_rows = []
+    for uid, fb in feedback_by_user.items():
         ratings = fb.get("ratings") or {}
         row = {"user_id": uid}
-        for key, col in RATING_KEYS:
-            row[col] = ratings.get(key)
+        for key in rating_keys:
+            row[RATING_LABELS.get(key, key)] = ratings.get(key)
         row["Additional Feedback"] = fb.get("feedback")
         survey_rows.append(row)
     df_survey = pd.DataFrame(survey_rows) if survey_rows else pd.DataFrame()
@@ -1212,8 +1240,8 @@ async def get_experiment_stats(experiment_id: str):
     if not exp:
         raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
 
-    task_configs = exp.get("task_configs", [])
-    total_tasks = len(task_configs)
+    # task_configs has one row per task × idiom, so count distinct tasks.
+    total_tasks = len({tc.get("task_id") for tc in exp.get("task_configs", []) if tc.get("task_id")})
     assignments = list(db["UserAssignment"].find({"experiment_id": experiment_id}))
     participants = len(assignments)
 
@@ -1439,13 +1467,10 @@ def _validate_task_instances(exp: dict) -> list[str]:
         # Task-specific semantic validation (e.g. the condition must split the log).
         validate = task_registry.get_validate_params(task_key)
         if validate is not None and dataset_id:
-            # SystemExit too: io_helpers.load_event_log exits on a log it cannot
-            # read (it was written for the CLI), and uncaught that would take
-            # the request down instead of reporting a validation error.
             if dataset_id not in log_cache:
                 try:
                     log_cache[dataset_id] = _load_dataset_log(dataset_id)
-                except (Exception, SystemExit) as e:
+                except Exception as e:
                     log_cache[dataset_id] = None
                     errors.append(f"{task_key}: could not load event log for validation ({e}).")
             log = log_cache.get(dataset_id)
@@ -1453,7 +1478,7 @@ def _validate_task_instances(exp: dict) -> list[str]:
                 try:
                     for msg in (validate(log, params) or []):
                         errors.append(f"{task_key}: {msg}")
-                except (Exception, SystemExit) as e:
+                except Exception as e:
                     errors.append(f"{task_key}: parameter validation error ({e}).")
     return errors
 

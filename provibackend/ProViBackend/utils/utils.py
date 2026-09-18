@@ -19,9 +19,10 @@ def convert_path_to_str(path: pl.Path) -> str:
 
 
 def get_file_checksum(file_path: pl.Path) -> str:
+    """MD5 hex digest of the file. (Datasets uploaded before this returned the
+    digest itself carry "<md5 _hashlib.HASH object @ …>" instead.)"""
     with open(file_path, "rb") as file:
-        md5_checksum = hashlib.file_digest(file, "md5")
-        return str(md5_checksum)
+        return hashlib.file_digest(file, "md5").hexdigest()
 
 
 def get_current_datetime():
