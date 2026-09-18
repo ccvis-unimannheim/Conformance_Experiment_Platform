@@ -5,7 +5,10 @@ tasks whose figures are the alignment of individual traces rather than an
 aggregate over the log — plus **task35**, which annotates the same violations on
 the model and is trimmed to that one idiom. The third class document, after
 [TRACE_FEATURE_REGISTRY.md](TRACE_FEATURE_REGISTRY.md) (Attribute → Violation)
-and [VIOLATION_PROFILE_CLASS.md](VIOLATION_PROFILE_CLASS.md).
+and [VIOLATION_PROFILE_CLASS.md](VIOLATION_PROFILE_CLASS.md). What each
+parameter means and how they interact is
+[TRACE_ALIGNMENT_PARAMETERS.md](TRACE_ALIGNMENT_PARAMETERS.md); this file is why
+the class exists and what changed.
 
 ---
 

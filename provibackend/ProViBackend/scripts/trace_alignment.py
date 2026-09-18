@@ -41,11 +41,14 @@ logger = logging.getLogger(__name__)
 
 #: How the traces are picked when the admin names none. Each entry is the rule
 #: one task already applied in code; the label is what /specify shows.
+#:
+#: There is no "conformant and non-conformant in equal number" rule: that is
+#: task27's whole question rather than one way of answering it, so task27 has no
+#: rule picker and splits by `conformant_threshold` itself.
 PICK_RULES: dict[str, str] = {
     "violation_gap":          "Traces spread across the violation counts (most- and least-violating first)",
     "worst_fitness":          "The worst-fitness trace(s)",
     "first_nonconformant":    "The first trace that violates the guideline",
-    "conformant_vs_non":      "Conformant and non-conformant traces in equal number",
     "most_frequent_variants": "The most frequent trace variants",
 }
 
