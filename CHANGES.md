@@ -2,6 +2,81 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: Configurable Intro Pages, Idiom Image Export/Import (2026-09-18)
+
+### Problem solved
+
+- **The intro pages were hard-coded.** *Key Concepts* (`/conformance-terms`)
+  and *Before You Begin* (`/taskintro`) were fixed JSX tied to the
+  order-to-cash dataset, with a fixed citation. An experiment on another
+  process showed participants the wrong diagram and definitions, and the only
+  way out was editing code.
+- **Stimuli were not reproducible.** Idiom images existed only as generator
+  output on the server. Regenerating after the generator code changed (as the
+  violation-profile refactor did to seven tasks) silently changed what
+  participants saw, and there was no way to archive the images a study used or
+  load them into another experiment.
+- **Custom idiom assets did not survive a deploy.** They were written to
+  `app/static/custom_idioms`, inside the container rather than on the
+  `/srv/provi-data` volume, so every redeploy that rebuilt `provibackend` lost
+  them while their `Idiom` records stayed. (Checked on the server before this
+  change: the directory did not exist and no custom `Idiom` records existed, so
+  nothing had been lost yet.)
+
+### Backend (`provibackend/`)
+
+| File | Change |
+|------|--------|
+| `ProViBackend/app/datamodels/data_schemas.py` | `Experiment` gains `concept_sections`, `taskintro_sections`, per-page `*_citation_enabled` / `*_citation_text`, and `process_model_ext`; defaults reproduce the old pages. New `IntroPageSections` request model. |
+| `ProViBackend/app/routers/admin.py` | `PATCH /experiments/{id}/intro-pages`; `POST`/`DELETE`/`GET /experiments/{id}/process-model`. The overview preview (`/experiments/{id}/vis/…`) shows an uploaded image first. Deleting an experiment removes its process model image and idiom overrides. Custom idiom assets served as `image/jpeg` instead of the invalid `image/jpg`. |
+| `ProViBackend/app/routers/idiom_bundle.py` | **New.** Export an experiment's images as a zip with a manifest; import one into any draft experiment, matched by `task_key`/`idiom_key`; replace or revert a single image; list and revert all overrides. |
+| `ProViBackend/app/routers/participant.py` | `GET /participant/intro-pages` and `/participant/process-model` for the active experiment. Image and `traces.json` resolution goes through `utils/idiom_files`, so uploaded images win. |
+| `ProViBackend/utils/idiom_files.py` | **New.** The one place deciding which file is shown for an idiom (upload → custom asset → generated → legacy); override storage; moves custom idiom assets out of the old location at startup. |
+| `ProViBackend/utils/config.py` | `CUSTOM_IDIOM_DIRECTORY` moves to `data/_custom_idioms`; new `IDIOM_OVERRIDE_DIRECTORY` and `PROCESS_MODEL_DIRECTORY`, all on the volume. |
+| `ProViBackend/utils/utils.py` | `process_model_path`, `image_media_type`. |
+| `ProViBackend/app/main.py` | Registers `idiom_bundle`; runs the custom idiom move at startup. |
+
+### Frontend (`ProViFrontend/`)
+
+| File | Change |
+|------|--------|
+| `src/app/admin/experiments/concepts/page.js` | **New wizard step** (after `/knowledge`): sections of both intro pages, per-page citation toggle and text, process model upload. Shows the participant flow and marks pages that will be skipped. |
+| `src/utils/introPages.js` | **New.** Section lists, defaults, fetching the config, and where each intro page leads when its neighbour is skipped. |
+| `src/components/General/ProcessModelImage.js`, `IntroCitation.js` | **New.** The diagram (uploaded image via `<img>`, so scripts in an SVG never run) and the citation box, shared by both pages and the admin preview. |
+| `src/app/conformance-terms/page.js`, `src/app/taskintro/page.js` | Render only the configured sections; skip themselves when empty; text that pointed at another section or at order-to-cash follows what is actually shown. |
+| `src/app/knowledgequestion/page.js` | Goes on to the first intro page that is enabled; the button names it. Combined with develop's "no knowledge questions" skip. |
+| `src/app/admin/experiments/overview/page.js` | *Idiom Images* panel (download, import, revert all, import report); per-idiom replace/revert and an "Uploaded" badge. |
+| `src/app/admin/experiments/specify/page.js` | Confirms before generating when uploaded images exist, since they stay in place. |
+| `src/app/admin/page.js` | `concepts` in `WIZARD_STEPS`; idiom download link on published/finished experiments. |
+| `src/app/admin/experiments/knowledge/page.js` | Next leads to `/concepts`. |
+
+### Docs
+
+`docs/ADMIN_EXPERIMENT_SETUP.md` (workflow, *Idiom images*, *Intro pages*),
+`docs/PARTICIPANT_TRIAL_CONTRACT.md` (*SVG resolution*).
+
+### Verification
+
+- `py_compile` over the changed Python files; `@babel/parser` and `eslint` over
+  the changed JS files — clean apart from pre-existing
+  `react/no-unescaped-entities` errors in `admin/page.js` and
+  `overview/page.js` that this change did not touch.
+- **Not verified end to end:** no endpoint or page was run locally; testing
+  happens on the `develop` deployment.
+
+### Known gaps
+
+- Imported images are pinned: regenerating does not replace them until the
+  admin reverts them. Intended, but a surprise if the /specify warning is
+  dismissed.
+- The manifest's `git_commit` is `null` until the deploy sets `GIT_COMMIT` for
+  the backend.
+- Custom tasks and custom idioms only match on import within the experiment
+  and server they came from, since their keys are random.
+- `.bpmn` files are not accepted as process models; only images.
+
+---
+
 ## Session: DFG / Main-App Data Isolation (2026-09-14)
 
 ### Problem solved

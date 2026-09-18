@@ -17,13 +17,23 @@
 
 ### SVG resolution (`/vis`)
 
-`experiment_id` is an **optional** query parameter. SVGs are generated
-per-experiment via `POST /admin/experiments/{id}/generate`, which writes to
-`data/{dataset_id}/output/{experiment_id}/{task_key}/{idiom_key}.svg`. When
-`experiment_id` is given and that file exists, it is served; otherwise the
-endpoint falls back to the legacy shared path
-`data/{dataset_id}/output/{task_key}/{idiom_key}.svg` (older datasets generated
-before per-experiment paths existed). The frontend should always pass the
+`experiment_id` is an **optional** query parameter. The first of these that
+exists is served (`utils/idiom_files.resolve_idiom_image`):
+
+1. an image the admin uploaded or imported for this experiment —
+   `data/_idiom_overrides/{experiment_id}/{task_key}/{idiom_key}.{svg,png,jpg,jpeg}`
+   (see [Idiom images](ADMIN_EXPERIMENT_SETUP.md#idiom-images-export-import-replace));
+2. a custom idiom's fixed asset — `data/_custom_idioms/{idiom_key}{ext}`;
+3. the per-experiment generated SVG, written by
+   `POST /admin/experiments/{id}/generate` —
+   `data/{dataset_id}/output/{experiment_id}/{task_key}/{idiom_key}.svg`;
+4. the legacy shared path `data/{dataset_id}/output/{task_key}/{idiom_key}.svg`
+   (older datasets generated before per-experiment paths existed).
+
+1 and 3 need `experiment_id`. So the served file may be a PNG or JPG, despite
+the `svg_available` / `svgUrl` names; the frontend renders it with `<img>`,
+which handles all four types. A task's "given traces" (`traces.json`) resolve
+the same way, an imported one first. The frontend should always pass the
 `experiment_id` from the trial response (`experiment_id` field on
 `/experiment/active`, or the `{experiment_id}` path segment on
 `/assignment/{experiment_id}/trials`).

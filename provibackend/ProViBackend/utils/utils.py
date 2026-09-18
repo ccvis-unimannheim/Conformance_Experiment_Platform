@@ -3,6 +3,8 @@ import os
 import pathlib as pl
 import hashlib
 
+from ProViBackend.utils import config
+
 
 def extract_filename_from_path(file_path: str) -> str:
     assert os.path.isfile(file_path)
@@ -30,8 +32,6 @@ def get_current_datetime():
 def process_model_path(exp: dict) -> pl.Path | None:
     """Path of the experiment's uploaded process model image, or None when it
     uses the bundled order-to-cash diagram (or the file has gone missing)."""
-    from ProViBackend.utils import config
-
     ext = exp.get("process_model_ext")
     if not ext:
         return None

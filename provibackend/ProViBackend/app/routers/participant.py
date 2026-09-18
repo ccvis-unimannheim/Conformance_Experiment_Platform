@@ -109,7 +109,9 @@ def _build_param_hints(task_key: str, parameters: dict) -> list[dict]:
 
 
 def _resolve_svg_path(task_id: str, idiom_id: str, dataset_id: str, experiment_id: str | None = None):
-    """Resolve DB IDs to the image file shown for this task/idiom.
+    """Resolve DB IDs to the image file shown for this task/idiom. Kept its
+    "svg" name (as did the trials' `svg_available` field, part of the wire
+    format) though uploaded images may be PNG or JPG.
 
     An image the admin uploaded or imported for this experiment wins, then a
     custom idiom's fixed asset, then the per-experiment generated SVG, then the
@@ -325,11 +327,13 @@ async def get_active_experiment():
 
 @router.get("/vis/{dataset_id}/{task_id}/{idiom_id}", tags=["participant"])
 async def get_visualization(dataset_id: str, task_id: str, idiom_id: str, experiment_id: str | None = None):
-    """Return the SVG file for a specific task/idiom/dataset combination.
+    """Return the image shown for a specific task/idiom/dataset combination.
 
-    `experiment_id` is optional; if given and a per-experiment SVG exists at
-    data/{dataset_id}/output/{experiment_id}/{task_key}/{idiom_key}.svg it is
-    served, otherwise the legacy shared path is used (see _resolve_svg_path).
+    Despite the "svg" names used around it, the file may also be a PNG or JPG:
+    an image the admin uploaded or imported for this experiment wins, then a
+    custom idiom's asset, then the per-experiment generated SVG, then the legacy
+    shared SVG (see utils/idiom_files.resolve_idiom_image). `experiment_id` is
+    optional, but without it only the last two are considered.
     """
     svg_path, err = _resolve_svg_path(task_id, idiom_id, dataset_id, experiment_id)
     if err:
