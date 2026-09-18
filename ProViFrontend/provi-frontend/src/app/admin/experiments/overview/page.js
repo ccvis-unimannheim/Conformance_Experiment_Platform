@@ -9,7 +9,7 @@ import EditTaskModal from "../../../../components/Admin/EditTaskModal";
 import { resolveIdiomLabel } from "../../../../utils/idiomLabels";
 import { saveWizardStep } from "../../../../utils/wizardSave";
 
-function IdiomPreviewModal({ experimentId, taskKey, idiomKey, idiomLabel, datasetTitle, paramsSummary, onClose }) {
+function IdiomPreviewModal({ experimentId, taskKey, idiomKey, idiomLabel, datasetTitle, paramsSummary, version, onClose }) {
   const [status, setStatus] = useState("loading");
   const [enlarged, setEnlarged] = useState(false);
 
@@ -19,7 +19,8 @@ function IdiomPreviewModal({ experimentId, taskKey, idiomKey, idiomLabel, datase
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const svgSrc = `/api/admin/experiments/${experimentId}/vis/${taskKey}/${idiomKey}`;
+  // version busts the browser cache after an image is replaced or reverted.
+  const svgSrc = `/api/admin/experiments/${experimentId}/vis/${taskKey}/${idiomKey}?v=${version}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
@@ -77,6 +78,156 @@ function IdiomPreviewModal({ experimentId, taskKey, idiomKey, idiomLabel, datase
 
 function getId(obj) {
   return obj._id || obj.id;
+}
+
+async function errorMessage(res) {
+  const body = await res.json().catch(() => null);
+  const detail = body?.detail;
+  if (typeof detail === "string") return detail;
+  if (detail?.message) return detail.message;
+  return `HTTP ${res.status}`;
+}
+
+function formatDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? "" : d.toLocaleString();
+}
+
+// Export / import of the experiment's idiom images (see backend routers/idiom_bundle.py).
+function IdiomFilesPanel({ experimentId, editable, overrides, importInfo, onChanged, showToast }) {
+  const inputRef = useRef(null);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null); // { imported: [], skipped: [] }
+
+  async function handleImport(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setBusy(true);
+    setResult(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch(`/api/admin/experiments/${encodeURIComponent(experimentId)}/idioms/import`, {
+        method: "POST",
+        body: form,
+      });
+      if (!res.ok) {
+        const body = await res.clone().json().catch(() => null);
+        if (Array.isArray(body?.detail?.skipped)) setResult({ imported: [], skipped: body.detail.skipped });
+        throw new Error(await errorMessage(res));
+      }
+      const data = await res.json();
+      setResult({ imported: data.imported || [], skipped: data.skipped || [] });
+      showToast(data.message || "Images imported.");
+      await onChanged();
+    } catch (err) {
+      showToast(`Import failed: ${err.message}`, true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRevertAll() {
+    if (!window.confirm("Revert all uploaded and imported images? The generated images will be shown again.")) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/experiments/${encodeURIComponent(experimentId)}/idioms/overrides`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error(await errorMessage(res));
+      setResult(null);
+      showToast("Reverted to the generated images.");
+      await onChanged();
+    } catch (err) {
+      showToast(`Revert failed: ${err.message}`, true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const from = importInfo?.from;
+  return (
+    <div className="bg-white border border-border-subtle rounded-lg p-5 flex flex-col gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="max-w-xl">
+          <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Idiom Images</p>
+          <p className="text-xs text-on-surface-variant">
+            Download the exact images participants see (with a manifest of how they were produced) to archive
+            them or reproduce the study. Importing a downloaded zip — into this or another experiment with the
+            same tasks and idioms — keeps those images fixed, even if the experiment is regenerated.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <a
+            href={`/api/admin/experiments/${encodeURIComponent(experimentId)}/idioms/export`}
+            className="flex items-center gap-1 text-xs font-semibold border border-primary text-primary px-3 py-2 rounded-lg hover:bg-primary/5 transition-colors"
+          >
+            <span className="material-symbols-outlined text-sm">download</span>
+            Download Idioms
+          </a>
+          {editable && (
+            <>
+              <input ref={inputRef} type="file" accept=".zip,application/zip" onChange={handleImport} className="hidden" />
+              <button
+                type="button"
+                onClick={() => inputRef.current?.click()}
+                disabled={busy}
+                className="flex items-center gap-1 text-xs font-semibold border border-border-subtle text-on-surface-variant px-3 py-2 rounded-lg hover:bg-surface-container transition-colors disabled:opacity-40"
+              >
+                <span className="material-symbols-outlined text-sm">upload</span>
+                {busy ? "Working…" : "Import Idioms"}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {overrides.size > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+          <p className="text-xs text-amber-800">
+            <span className="font-semibold">{overrides.size} image{overrides.size !== 1 ? "s" : ""}</span> come from
+            uploaded files rather than the generator
+            {importInfo?.at && (
+              <>
+                {" "}— imported {formatDate(importInfo.at)}
+                {from?.experiment_name ? ` from "${from.experiment_name}"` : from?.file ? ` from ${from.file}` : ""}
+              </>
+            )}
+            . They stay in place when the experiment is regenerated.
+          </p>
+          {editable && (
+            <button
+              type="button"
+              onClick={handleRevertAll}
+              disabled={busy}
+              className="flex items-center gap-1 text-xs font-semibold text-amber-800 hover:underline disabled:opacity-40"
+            >
+              <span className="material-symbols-outlined text-sm">restart_alt</span>
+              Revert all
+            </button>
+          )}
+        </div>
+      )}
+
+      {result && (
+        <div className="text-xs text-on-surface-variant border border-border-subtle rounded-lg px-4 py-3">
+          <p className="font-semibold text-on-surface mb-1">
+            Imported {result.imported.length} file{result.imported.length !== 1 ? "s" : ""}
+            {result.skipped.length > 0 && `, skipped ${result.skipped.length}`}
+          </p>
+          {result.skipped.length > 0 && (
+            <ul className="list-disc pl-5 space-y-0.5 max-h-40 overflow-y-auto">
+              {result.skipped.map((s, i) => (
+                <li key={i}><span className="font-mono">{s.file}</span> — {s.reason}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 const STATUS_STYLES = {
@@ -146,6 +297,13 @@ function ExperimentOverviewContent() {
 
   const [previewModal, setPreviewModal] = useState(null); // { taskKey, idiomKey, idiomLabel }
   const [editingTask, setEditingTask] = useState(null);
+
+  // Images uploaded/imported in place of generated ones, as "task_key/idiom_key".
+  const [overrides, setOverrides] = useState(new Set());
+  const [importInfo, setImportInfo] = useState(null); // { at, from }
+  const [imageVersion, setImageVersion] = useState(0);
+  const replaceInputRef = useRef(null);
+  const replaceTargetRef = useRef(null); // { taskKey, idiomKey }
 
   const [toast, setToast] = useState({ visible: false, message: "", isError: false });
   const showToast = useCallback((message, isError = false) => {
@@ -232,10 +390,73 @@ function ExperimentOverviewContent() {
           idiomIds: idiomsByTask[tid] || [],
         }))
       );
+      await loadOverrides();
     } catch (e) {
       showToast(`Could not load experiment: ${e.message}`, true);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadOverrides() {
+    const res = await fetch(`/api/admin/experiments/${encodeURIComponent(experimentId)}/idioms/overrides`);
+    if (!res.ok) return;
+    const data = await res.json();
+    setOverrides(new Set((data.overrides || []).map((o) => `${o.task_key}/${o.idiom_key}`)));
+    setImportInfo(data.imported_at ? { at: data.imported_at, from: data.imported_from } : null);
+  }
+
+  // After images change: new previews, override badges, and generation
+  // statuses (the backend marks tasks ready once every idiom has an image).
+  async function refreshImages() {
+    setImageVersion((v) => v + 1);
+    await loadOverrides();
+    const res = await fetch(`/api/admin/experiments`);
+    if (!res.ok) return;
+    const exp = (await res.json()).find((e) => getId(e) === experimentId);
+    if (!exp) return;
+    setExperiment(exp);
+    const tiMap = {};
+    (exp.task_instances || []).forEach((ti) => { tiMap[ti.task_id] = ti; });
+    setTaskInstancesByTask(tiMap);
+  }
+
+  function pickReplacement(taskKey, idiomKey) {
+    replaceTargetRef.current = { taskKey, idiomKey };
+    replaceInputRef.current?.click();
+  }
+
+  async function handleReplaceFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    const target = replaceTargetRef.current;
+    if (!file || !target) return;
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch(
+        `/api/admin/experiments/${encodeURIComponent(experimentId)}/idioms/${encodeURIComponent(target.taskKey)}/${encodeURIComponent(target.idiomKey)}`,
+        { method: "POST", body: form }
+      );
+      if (!res.ok) throw new Error(await errorMessage(res));
+      showToast(`Replaced ${target.taskKey} / ${target.idiomKey}.`);
+      await refreshImages();
+    } catch (err) {
+      showToast(`Replace failed: ${err.message}`, true);
+    }
+  }
+
+  async function revertImage(taskKey, idiomKey) {
+    try {
+      const res = await fetch(
+        `/api/admin/experiments/${encodeURIComponent(experimentId)}/idioms/${encodeURIComponent(taskKey)}/${encodeURIComponent(idiomKey)}`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) throw new Error(await errorMessage(res));
+      showToast(`${taskKey} / ${idiomKey} shows the generated image again.`);
+      await refreshImages();
+    } catch (err) {
+      showToast(`Revert failed: ${err.message}`, true);
     }
   }
 
@@ -406,6 +627,24 @@ function ExperimentOverviewContent() {
           </div>
         )}
 
+        {experiment && (
+          <IdiomFilesPanel
+            experimentId={experimentId}
+            editable={status === "draft"}
+            overrides={overrides}
+            importInfo={importInfo}
+            onChanged={refreshImages}
+            showToast={showToast}
+          />
+        )}
+        <input
+          ref={replaceInputRef}
+          type="file"
+          accept=".svg,.png,.jpg,.jpeg,image/svg+xml,image/png,image/jpeg"
+          onChange={handleReplaceFile}
+          className="hidden"
+        />
+
         {/* Task cards */}
         {loading ? (
           <div className="text-center text-on-surface-variant text-sm py-10 border-2 border-dashed border-outline-variant rounded-lg">
@@ -509,6 +748,32 @@ function ExperimentOverviewContent() {
                                     </p>
                                   )}
                                 </div>
+                                {idiom && overrides.has(`${task.task_key}/${idiom.idiom_key}`) && (
+                                  <span
+                                    title="This image was uploaded or imported, not generated"
+                                    className="text-[10px] font-semibold uppercase tracking-wider bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded flex-shrink-0"
+                                  >
+                                    Uploaded
+                                  </span>
+                                )}
+                                {idiom && status === "draft" && (
+                                  <button
+                                    onClick={() => pickReplacement(task.task_key, idiom.idiom_key)}
+                                    title="Replace this image with a file from your computer"
+                                    className="text-on-surface-variant hover:text-primary transition-colors p-0.5 rounded flex-shrink-0"
+                                  >
+                                    <span className="material-symbols-outlined text-[16px]">upload</span>
+                                  </button>
+                                )}
+                                {idiom && status === "draft" && overrides.has(`${task.task_key}/${idiom.idiom_key}`) && (
+                                  <button
+                                    onClick={() => revertImage(task.task_key, idiom.idiom_key)}
+                                    title="Revert to the generated image"
+                                    className="text-on-surface-variant hover:text-primary transition-colors p-0.5 rounded flex-shrink-0"
+                                  >
+                                    <span className="material-symbols-outlined text-[16px]">restart_alt</span>
+                                  </button>
+                                )}
                                 {idiom && (
                                   <button
                                     onClick={() => setPreviewModal({
@@ -696,6 +961,7 @@ function ExperimentOverviewContent() {
           idiomLabel={previewModal.idiomLabel}
           datasetTitle={previewModal.datasetTitle}
           paramsSummary={previewModal.paramsSummary}
+          version={imageVersion}
           onClose={() => setPreviewModal(null)}
         />
       )}

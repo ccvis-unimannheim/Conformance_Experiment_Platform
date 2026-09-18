@@ -15,6 +15,8 @@ from .routers import admin
 from .routers import auth
 from .routers import ui_tracking
 from .routers import participant
+from .routers import idiom_bundle
+from ProViBackend.utils.idiom_files import migrate_legacy_custom_idioms
 
 
 _SEED_NAMESPACE = uuid.UUID("00000000-0000-0000-0000-000000000001")
@@ -58,6 +60,10 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.exception("task_instances migration failed; continuing startup")
     try:
+        migrate_legacy_custom_idioms()
+    except Exception:
+        logger.exception("Moving custom idiom assets to the data volume failed; continuing startup")
+    try:
         from ProViBackend.scripts.generate_sample_data import generate as _gen_sample
         _gen_sample()
     except Exception:
@@ -100,6 +106,7 @@ app.include_router(admin.router)
 app.include_router(auth.router)
 app.include_router(ui_tracking.router)
 app.include_router(participant.router)
+app.include_router(idiom_bundle.router)
 
 
 @app.get("/")

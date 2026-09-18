@@ -407,6 +407,21 @@ function SpecifyContent() {
       return;
     }
 
+    // Uploaded/imported images take precedence over generated ones and survive
+    // regeneration; say so, or the admin would wonder why nothing changed.
+    try {
+      const res = await fetch(`/api/admin/experiments/${encodeURIComponent(experimentId)}/idioms/overrides`);
+      const count = res.ok ? ((await res.json()).overrides || []).length : 0;
+      if (count > 0 && !window.confirm(
+        `${count} image${count !== 1 ? "s were" : " was"} uploaded or imported for this experiment. ` +
+        "They will keep being shown instead of the regenerated ones until you revert them on the Overview page. Generate anyway?"
+      )) {
+        return;
+      }
+    } catch {
+      // Couldn't check — generating is still safe, the uploads just stay in place.
+    }
+
     setGenerating(true);
     try {
       const updatedInstances = taskInstances.map((ti) => ({
