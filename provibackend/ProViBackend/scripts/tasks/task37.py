@@ -24,6 +24,69 @@ IDIOMS = [
     "heatmap", "table", "table_bar_chart", "stacked_bar",
 ]
 
+#: The bands the fitness axis is cut into — the heatmap's two axes, the stacked
+#: bar's segments and the bucket bar chart. Same parameter as task10's, because
+#: it is the same choice about the same number; the presets differ because the
+#: two tasks read different parts of the range.
+#:
+#: **The two techniques are not a parameter.** The task's wording ("two
+#: different techniques") suggests one, but only two techniques produce a
+#: fitness *per trace*, which is what every idiom here plots: alignments and
+#: token-based replay. pm4py's third, footprints, is log-level only
+#: (`fitness_footprints` returns perc_fit_traces and log_fitness), and the
+#: alignment variants — Dijkstra, A*, less-memory — are algorithms for the same
+#: optimum and return the same numbers. A picker over a set with exactly one
+#: legal pair decides nothing, so there is none.
+PARAM_SPEC = [
+    {
+        "key": "conformance_bins",
+        "label": "Fitness bands the comparison is read in",
+        # The bands are printed on the axes → repeating them in the question
+        # tells the participant nothing new.
+        "hide_hint": True,
+        "widget": "select-one",
+        "options": [
+            {"label": "Quarters (0–25 %, 25–50 %, 50–75 %, 75–100 %)",
+             "value": "0.0,0.25,0.5,0.75,1.01"},
+            {"label": "Fifths (0–20 %, 20–40 %, 40–60 %, 60–80 %, 80–100 %)",
+             "value": "0.0,0.2,0.4,0.6,0.8,1.01"},
+            {"label": "High-fitness focus (80–85 %, 85–90 %, 90–95 %, 95–<100 %, 100 %)",
+             "value": "0.80,0.85,0.90,0.95,1.0,1.01"},
+        ],
+        "default": "0.0,0.25,0.5,0.75,1.01",
+        "required": False,
+    },
+]
+
+
+def _parse_bins(raw) -> list | None:
+    """Comma-separated boundaries from the param string, or None."""
+    if not raw:
+        return None
+    if isinstance(raw, (list, tuple)):
+        try:
+            return [float(x) for x in raw]
+        except (TypeError, ValueError):
+            return None
+    try:
+        return [float(x.strip()) for x in str(raw).split(",") if x.strip()]
+    except (ValueError, TypeError):
+        return None
+
+
+def validate_params(log, params) -> list:
+    raw = (params or {}).get("conformance_bins", "")
+    if not raw:
+        return []
+    bins = _parse_bins(raw)
+    if bins is None or len(bins) < 3:
+        return ["Fitness bands need at least 3 comma-separated numbers (2 bands)."]
+    if bins != sorted(bins) or len(set(bins)) != len(bins):
+        return ["Fitness band boundaries must be in strictly ascending order."]
+    if bins[0] < 0.0 or bins[-1] > 1.01:
+        return ["Fitness band boundaries must lie between 0.0 and 1.01."]
+    return []
+
 import os
 import numpy as np
 import pandas as pd
@@ -32,6 +95,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.ticker as mticker
+
+from matplotlib.colors import to_hex
 
 from shared import save_svg, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS, FONT_TITLE, FONT_LABEL, FONT_ANNOT
 
@@ -44,22 +109,60 @@ _HDR_BG   = GREY_DARK
 _C_T1     = GREY_DARK    # Alignment-based (dark navy)
 _C_T2     = GREY_MED     # Token-based Replay (olive-grey)
 
-# Fitness bucket definitions (4 bands)
+# Default fitness bands (4), overridden per experiment by `conformance_bins`.
+_DEFAULT_EDGES = [0.0, 0.25, 0.5, 0.75, 1.01]
 _BUCKETS       = [(0.0, 0.25), (0.25, 0.5), (0.5, 0.75), (0.75, 1.01)]
 _BUCKET_LABELS = ["[0, 0.25)", "[0.25, 0.5)", "[0.5, 0.75)", "[0.75, 1.0]"]
-_BUCKET_COLORS = [GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER]
+#: Dark → light across however many bands there are, so the ramp reads the same
+#: at four bands as at five.
+_BUCKET_RAMP   = [GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER]
+_BUCKET_COLORS = list(_BUCKET_RAMP)
 
 
-def _bucket_idx(v: float) -> int:
-    for i, (lo, hi) in enumerate(_BUCKETS):
+def _bands_from_edges(edges):
+    """(bands, labels, colors) from ascending boundaries.
+
+    The last band is closed — a fitness of exactly 1.0 belongs in the top band
+    rather than falling off the end — which is why the presets end at 1.01.
+    """
+    edges = list(edges or _DEFAULT_EDGES)
+    if len(edges) < 3:
+        edges = list(_DEFAULT_EDGES)
+    bands = list(zip(edges, edges[1:]))
+    labels = []
+    for i, (lo, hi) in enumerate(bands):
+        last = i == len(bands) - 1
+        hi_shown = min(hi, 1.0)
+        # A full 1.0 keeps its decimal — "[0.75, 1.0]" is how this axis has
+        # always been labelled, and %g would print it as "1".
+        def _fmt(v):
+            return "1.0" if abs(v - 1.0) < 1e-9 else f"{v:g}"
+        lo_text, hi_text = _fmt(lo), _fmt(hi_shown)
+        # A band holding only perfectly fitting traces is that one value, not an
+        # interval from it to itself ("[1.0, 1.0]").
+        labels.append(hi_text if lo_text == hi_text
+                      else f"[{lo_text}, {hi_text}{']' if last else ')'}")
+    n = len(bands)
+    if n <= len(_BUCKET_RAMP):
+        colors = _BUCKET_RAMP[:n]
+    else:
+        # Snapping more bands onto four fixed greys gave two adjacent bands the
+        # same colour; sampling the ramp's own colormap keeps them distinct.
+        colors = [to_hex(CIVIDIS(0.12 + 0.76 * i / (n - 1))) for i in range(n)]
+    return bands, labels, colors
+
+
+def _bucket_idx(v: float, buckets=None) -> int:
+    buckets = buckets or _BUCKETS
+    for i, (lo, hi) in enumerate(buckets):
         if lo <= v < hi:
             return i
-    return len(_BUCKETS) - 1
+    return len(buckets) - 1
 
 
-def _fitness_stats(vals):
+def _fitness_stats(vals, buckets_def=None):
     a = np.array(vals, dtype=float)
-    buckets = [int(np.sum((a >= lo) & (a < hi))) for lo, hi in _BUCKETS]
+    buckets = [int(np.sum((a >= lo) & (a < hi))) for lo, hi in (buckets_def or _BUCKETS)]
     return {
         "mean":    float(np.mean(a)),
         "median":  float(np.median(a)),
@@ -115,8 +218,9 @@ def _compute_log_fitness_aln(log, model_path):
         return None
 
 
-def _extract_data(log, alignments, model_path=None):
+def _extract_data(log, alignments, model_path=None, conformance_bins=None):
     n = len(alignments)
+    buckets, bucket_labels, bucket_colors = _bands_from_edges(_parse_bins(conformance_bins))
 
     # T1: alignment-based (trace-level)
     t1 = [float(aln.get("fitness", 0.0)) for aln in alignments]
@@ -149,8 +253,11 @@ def _extract_data(log, alignments, model_path=None):
         "t1":             t1,
         "t2":             t2,
         "delta":          delta,
-        "t1_stats":       _fitness_stats(t1),
-        "t2_stats":       _fitness_stats(t2) if t2 is not None else None,
+        "t1_stats":       _fitness_stats(t1, buckets),
+        "t2_stats":       _fitness_stats(t2, buckets) if t2 is not None else None,
+        "buckets":        buckets,
+        "bucket_labels":  bucket_labels,
+        "bucket_colors":  bucket_colors,
         "t1_name":        "Alignment-based",
         "t2_name":        "Token-based Replay",
         "t1_perc_fit":    t1_perc_fit,
@@ -382,11 +489,11 @@ def task37_heatmap(data, output_dir):
     t1 = data["t1"]
     t2 = data["t2"]
     n  = data["n_traces"]
-    nb = len(_BUCKETS)
+    nb = len(data.get("buckets") or _BUCKETS)
 
     mat = np.zeros((nb, nb), dtype=int)
     for v1, v2 in zip(t1, t2):
-        mat[_bucket_idx(v1), _bucket_idx(v2)] += 1
+        mat[_bucket_idx(v1, data.get("buckets")), _bucket_idx(v2, data.get("buckets"))] += 1
 
     fig, ax = plt.subplots(figsize=(9, 7.5))
     ax.imshow(mat, cmap=CIVIDIS, aspect="auto", vmin=0, vmax=max(int(mat.max()), 1))
@@ -407,8 +514,9 @@ def task37_heatmap(data, output_dir):
             fill=False, edgecolor=_C_MED, linewidth=2.0,
         ))
 
-    ax.set_xticks(range(nb)); ax.set_xticklabels(_BUCKET_LABELS, fontsize=FONT_ANNOT)
-    ax.set_yticks(range(nb)); ax.set_yticklabels(_BUCKET_LABELS, fontsize=FONT_ANNOT)
+    labels = data.get("bucket_labels") or _BUCKET_LABELS
+    ax.set_xticks(range(nb)); ax.set_xticklabels(labels, fontsize=FONT_ANNOT)
+    ax.set_yticks(range(nb)); ax.set_yticklabels(labels, fontsize=FONT_ANNOT)
     ax.set_xlabel(f"{data['t1_name']} fitness bucket", fontsize=FONT_LABEL)
     ax.set_ylabel(f"{data['t2_name']} fitness bucket", fontsize=FONT_LABEL)
     ax.set_title(
@@ -604,7 +712,7 @@ def task37_table_bar_chart(data, output_dir):
 
     # ── Right: fitness bucket grouped bar ────────────────────────────────────
     ax_bar.set_facecolor("#fafbfc")
-    nb = len(_BUCKETS)
+    nb = len(data.get("buckets") or _BUCKETS)
     xb = np.arange(nb)
     w  = 0.35 if has_t2 else 0.5
 
@@ -628,7 +736,7 @@ def task37_table_bar_chart(data, output_dir):
                             fontsize=FONT_ANNOT - 1, color=_C_DARK)
 
     ax_bar.set_xticks(xb)
-    ax_bar.set_xticklabels(_BUCKET_LABELS, fontsize=FONT_ANNOT)
+    ax_bar.set_xticklabels(data.get("bucket_labels") or _BUCKET_LABELS, fontsize=FONT_ANNOT)
     ax_bar.set_ylabel("% of traces", fontsize=FONT_LABEL)
     ax_bar.set_title("Fitness Bucket Distribution", fontsize=FONT_TITLE)
     ax_bar.spines[["top", "right"]].set_visible(False)
@@ -658,20 +766,21 @@ def task37_stacked_bar(data, output_dir):
     if has_t2:
         rows.append((data["t2_name"], data["t2_stats"]))
 
-    nb = len(_BUCKETS)
+    nb = len(data.get("buckets") or _BUCKETS)
 
     fig, ax = plt.subplots(figsize=(13, 2.8 + 1.2 * len(rows)))
     ax.set_facecolor("#fafbfc")
 
     patches = [mpatches.Patch(color=c, label=l)
-               for c, l in zip(_BUCKET_COLORS, _BUCKET_LABELS)]
+               for c, l in zip(data.get("bucket_colors") or _BUCKET_COLORS,
+                               data.get("bucket_labels") or _BUCKET_LABELS)]
 
     for y_pos, (label, stats) in enumerate(rows):
         left = 0.0
         for bi in range(nb):
             frac = stats["buckets"][bi] / n * 100
             cnt  = stats["buckets"][bi]
-            clr  = _BUCKET_COLORS[bi]
+            clr  = (data.get("bucket_colors") or _BUCKET_COLORS)[bi]
             ax.barh(y_pos, frac, left=left, color=clr,
                     edgecolor="white", linewidth=1.0, height=0.5)
             if frac > 5:
@@ -703,7 +812,8 @@ def task37_stacked_bar(data, output_dir):
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
-def generate(log, alignments, output_dir, model_path=None, **kwargs):
+def generate(log, alignments, output_dir, model_path=None, conformance_bins=None,
+             **kwargs):
     """Generate all Task 37 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 37 visualizations (Present fitness technique comparison) ---")
@@ -714,7 +824,8 @@ def generate(log, alignments, output_dir, model_path=None, **kwargs):
             _save_empty(output_dir, f"task37_{name}.svg", "No alignment data available.")
         return
 
-    data = _extract_data(log, alignments, model_path)
+    data = _extract_data(log, alignments, model_path, conformance_bins)
+    logger.info(f"      -> Fitness bands: {', '.join(data['bucket_labels'])}")
 
     task37_bar_chart(data, output_dir)
     task37_boxplot(data, output_dir)

@@ -483,7 +483,8 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
             selection=(p.get(violation_profile.STRATEGY_SELECTION_KEY.get(
                 p.get("grouping_strategy") or "pattern", "")) or None),
             prominence_threshold=p.get("prominence_threshold")),
-        "task37": lambda d: task37.generate(log, alignments, d, model_path=model_path),
+        "task37": lambda d: task37.generate(log, alignments, d, model_path=model_path,
+                                            conformance_bins=conformance_bins()),
     }
 
 
