@@ -74,7 +74,6 @@ PARAM_SPEC = [
         rules=["violation_gap", "worst_fitness", "most_frequent_variants"],
         default_rule="violation_gap",
         count_default=2, count_min=2, count_max=4,
-        unit=True,
         only_when={"analysis_level": "trace"},
     ),
 ]
@@ -225,29 +224,16 @@ def _task04_trace_violations(alignments, i):
     return rows, viol
 
 
-def _task04_pick_by_rule(log, alignments, fitness_df, n: int, rule: str,
-                         unit: str) -> list:
-    """Trace indices for a rule other than the frozen two-trace default.
-
-    Kept separate from the default below so that path stays literally the code
-    that rendered the experiment's stimuli: a rule the admin never changes must
-    not pick differently because the picker grew more options.
-    """
-    return trace_alignment.pick_indices(log, alignments, fitness_df, n, rule, unit)
-
-
 def _task04_select_compare_traces(log, alignments, fitness_df, trace_ids=None, n=2,
-                                  rule="violation_gap", unit="trace"):
+                                  rule="violation_gap"):
     """Pick the traces to compare, as a list of dicts
     {label, case_id, fitness, rows, violations}.
 
-    Admin-selected ``trace_ids`` are used in order when given. Otherwise two
-    "complete" traces (those covering the most distinct activities, so the chevron
-    strips are substantial rather than trivially short) are chosen such that their
-    fitness differs as much as possible — one clearly more conformant than the
-    other — making the comparison meaningful. That default is
-    ``violation_gap`` at two traces; any other rule or count goes through
-    ``_task04_pick_by_rule``.
+    Admin-selected ``trace_ids`` are used in order when given; otherwise the
+    class's rule picks them. The rule used to live here and had two faults the
+    shared one fixes: it could pick a trace with fitness 1.0 — nothing to
+    compare against the other trace's deviations — and at three traces or more
+    it could return the same activity sequence twice.
     """
     n_traces = min(len(log), len(alignments), len(fitness_df))
     if n_traces == 0:
@@ -256,31 +242,15 @@ def _task04_select_compare_traces(log, alignments, fitness_df, trace_ids=None, n
     def _info(i, label):
         rows, viol = _task04_trace_violations(alignments, i)
         return {"label": label, "case_id": str(log[i].attributes.get("concept:name", i)),
+                "trace_index": i,
                 "fitness": round(float(fitness_df.iloc[i]["fitness"]), 3),
                 "rows": rows, "violations": viol}
 
     if trace_ids:
         by_id = _task04_case_index(log)
         chosen = [by_id[str(t)] for t in trace_ids if str(t) in by_id][:max(n, len(trace_ids))]
-    elif rule != "violation_gap" or n != 2 or unit != "trace":
-        chosen = _task04_pick_by_rule(log, alignments, fitness_df, n, rule, unit)
     else:
-        # Activity coverage (distinct activities) and fitness per trace.
-        coverage = [len({str(e.get("concept:name", "")) for e in log[i]}) for i in range(n_traces)]
-        fitness  = [float(fitness_df.iloc[i]["fitness"]) for i in range(n_traces)]
-        by_coverage = sorted(range(n_traces), key=lambda i: coverage[i], reverse=True)
-
-        # Grow the pool from the most-complete traces until it spans a fitness gap,
-        # then take the highest- and lowest-fitness trace in that pool. This keeps
-        # both chosen traces long/complete while maximising the conformance contrast.
-        chosen = by_coverage[:2]
-        for k in range(2, n_traces + 1):
-            pool = by_coverage[:k]
-            hi = max(pool, key=lambda i: fitness[i])
-            lo = min(pool, key=lambda i: fitness[i])
-            if hi != lo and fitness[hi] - fitness[lo] > 1e-9:
-                chosen = sorted({lo, hi}, key=lambda i: fitness[i], reverse=True)
-                break
+        chosen = trace_alignment.pick_indices(log, alignments, fitness_df, n, rule)
 
     return [_info(idx, f"Trace {k + 1}") for k, idx in enumerate(chosen)]
 
@@ -705,7 +675,7 @@ def task04_heatmap(selected, model_path, output_dir):
 
 def generate(log, fitness_df, output_dir: str, trace_ids=None, alignments=None, model_path=None,
              analysis_level="trace", trace_pick_rule="violation_gap", trace_count=SAMPLE_N,
-             trace_unit="trace", outcome_activity=""):
+             outcome_activity=""):
     """Generate all Task ID 4 SVGs into output_dir.
 
     ``analysis_level`` routes the whole task: "log" answers the question's
@@ -716,8 +686,8 @@ def generate(log, fitness_df, output_dir: str, trace_ids=None, alignments=None, 
     ``trace_ids`` is the admin-configured list of case-id strings (from
     PARAM_SPEC "trace_ids"). When empty/None the traces are chosen by
     ``trace_pick_rule`` (see trace_alignment.PICK_RULES), ``trace_count`` of
-    them, over individual traces or one per variant per ``trace_unit``. Every
-    idiom renders the same traces so the views are directly comparable.
+    them. Every idiom renders the same traces so the views are directly
+    comparable.
 
     ``alignments`` (optional) enables the trace-level flow-chart idioms, which
     compare the alignment (conformance) patterns of the traces side by side.
@@ -738,7 +708,7 @@ def generate(log, fitness_df, output_dir: str, trace_ids=None, alignments=None, 
     # alignments; without them we fall back to the first SAMPLE_N in log order.
     selected = _task04_select_compare_traces(
         log, alignments, fitness_df, trace_ids=trace_ids,
-        n=trace_count, rule=trace_pick_rule, unit=trace_unit,
+        n=trace_count, rule=trace_pick_rule,
     ) if alignments else []
     if selected:
         tdf = pd.DataFrame([{"case_id": t["case_id"], "fitness": t["fitness"], "label": t["label"]}

@@ -39,7 +39,6 @@ PARAM_SPEC = [
         rules=["worst_fitness", "first_nonconformant", "most_frequent_variants"],
         default_rule="worst_fitness",
         count_default=1, count_min=1, count_max=4,
-        unit=True,
     ),
     {
         "key":      "violated_activity",
@@ -940,14 +939,15 @@ def _pick_ctx(ctxs, params):
     return ctxs[0]
 
 
-def _select_ctxs(ctxs, log, *, trace_ids=None, rule="worst_fitness", count=1,
-                 unit="trace", violated_activity=None):
+def _select_ctxs(ctxs, log, alignments, *, trace_ids=None, rule="worst_fitness",
+                 count=1, violated_activity=None):
     """The contexts to show, in display order.
 
-    ``ctxs`` arrives sorted worst-first (most violations, then lowest fitness),
-    which *is* the worst_fitness rule — so the single-trace default returns
-    exactly what ``_pick_ctx`` always returned, and the frozen figures below
-    keep rendering from the same trace.
+    Selection is the class's (trace_alignment.pick_indices): one context per
+    distinct activity sequence, and only traces that actually violate — task34
+    presents violations, so a conformant trace answers nothing. Its own
+    ``violated_activity`` narrows that further to the traces violating one
+    activity.
     """
     if not ctxs:
         return []
@@ -962,32 +962,25 @@ def _select_ctxs(ctxs, log, *, trace_ids=None, rule="worst_fitness", count=1,
         # Every named trace is fully conformant (so has no context): fall through
         # to the rule rather than rendering nothing at all.
 
-    if unit == "variant":
-        seen, pool = set(), []
-        for i in trace_alignment.variant_order(log, len(log)):
-            ctx = by_index.get(i)
-            if ctx is None:
-                continue
-            key = tuple(r["activity"] for r in ctx["rows"])
-            if key not in seen:
-                seen.add(key)
-                pool.append(ctx)
-    else:
-        pool = list(ctxs)
-
-    if rule == "first_nonconformant":
-        pool = sorted(pool, key=lambda c: c["trace_index"])
-    elif rule == "most_frequent_variants":
-        order = {i: rank for rank, i in enumerate(trace_alignment.variant_order(log, len(log)))}
-        pool = sorted(pool, key=lambda c: order.get(c["trace_index"], len(order)))
-    elif violated_activity:
-        # worst_fitness narrowed to the traces violating one activity.
-        narrowed = [c for c in pool
+    if violated_activity and rule == "worst_fitness":
+        narrowed = [c for c in ctxs
                     if any(r["activity"] == violated_activity and _is_violation(r)
                            for r in c["rows"])]
-        pool = narrowed or pool
+        if narrowed:
+            seen, pool = set(), []
+            for ctx in narrowed:
+                key = trace_alignment.sequence_of(log, ctx["trace_index"])
+                if key not in seen:
+                    seen.add(key)
+                    pool.append(ctx)
+            return pool[:count]
 
-    return pool[:count]
+    import pandas as pd
+    n_traces = min(len(log), len(alignments))
+    fitness_df = pd.DataFrame(
+        [{"fitness": float(a.get("fitness", 1.0))} for a in alignments[:n_traces]])
+    indices = trace_alignment.pick_indices(log, alignments, fitness_df, count, rule)
+    return [by_index[i] for i in indices if i in by_index]
 
 
 def _multi_trace_alignment_figures(log, alignments, shown, model_path, output_dir):
@@ -1020,8 +1013,7 @@ def _multi_trace_alignment_figures(log, alignments, shown, model_path, output_di
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def generate(log, alignments, output_dir, model_path=None, violated_activity=None,
-             trace_ids=None, trace_pick_rule="worst_fitness", trace_count=1,
-             trace_unit="trace"):
+             trace_ids=None, trace_pick_rule="worst_fitness", trace_count=1):
     """Generate all Task 34 SVGs into output_dir.
 
     The task presents "one trace or few traces simultaneously". With one trace —
@@ -1053,8 +1045,8 @@ def generate(log, alignments, output_dir, model_path=None, violated_activity=Non
             _no_violations(output_dir, k)
         return
 
-    shown = _select_ctxs(ctxs, log, trace_ids=trace_ids, rule=trace_pick_rule,
-                         count=trace_count, unit=trace_unit,
+    shown = _select_ctxs(ctxs, log, alignments, trace_ids=trace_ids,
+                         rule=trace_pick_rule, count=trace_count,
                          violated_activity=violated_activity)
     worst = shown[0] if shown else _pick_ctx(ctxs, {"violated_activity": violated_activity})
     log_act  = _log_activity_violations(alignments)

@@ -38,7 +38,6 @@ PARAM_SPEC = [
                "most_frequent_variants"],
         default_rule="violation_gap",
         count_default=2, count_min=1, count_max=4,
-        unit=True,
     ),
     trace_alignment.DATA_ATTRIBUTE_PARAM,
     trace_alignment.CONFORMANT_VALUES_PARAM,
@@ -1267,7 +1266,7 @@ def alignment_figures(output_dir, model_path, *, view, records, attribute,
 
 def generate(log, alignments, output_dir, model_path=None,
              perspective="control-flow", trace_ids=None,
-             trace_pick_rule="violation_gap", trace_count=2, trace_unit="trace",
+             trace_pick_rule="violation_gap", trace_count=2,
              data_attribute="", conformant_values=(), conformant_resources=(),
              scoped_activity=""):
     """Generate all Task 9 SVGs into output_dir.
@@ -1296,7 +1295,7 @@ def generate(log, alignments, output_dir, model_path=None,
     task09_matrix(activity_type, activity_totals, output_dir)
     records = trace_alignment.select_records(
         log, alignments, view=perspective, trace_ids=trace_ids,
-        rule=trace_pick_rule, count=trace_count, unit=trace_unit,
+        rule=trace_pick_rule, count=trace_count,
         attribute=data_attribute, conformant_values=conformant_values,
         resources=conformant_resources, scoped_activity=scoped_activity)
     if records:

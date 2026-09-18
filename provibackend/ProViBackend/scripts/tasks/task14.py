@@ -111,25 +111,25 @@ def _pick_representative_trace(alignments, log=None, trace_ids=None,
                                rule="worst_fitness"):
     """Index of the one trace to annotate.
 
-    ``worst_fitness`` — the default — is the highest-alignment-cost trace this
-    task has always used; cost and fitness rank the same traces, cost being the
-    un-normalised form.
+    Delegates to the class's picker so "the worst-fitness trace" means the same
+    trace here as in task04 and task34 — and so the trace shown actually
+    violates something, which is what this task asks the participant to
+    classify. Falls back to the highest-alignment-cost trace when there is no
+    log to pick from (cost and fitness rank the same traces).
     """
-    if trace_ids and log is not None:
-        index_of = trace_alignment.case_index(log)
-        for tid in trace_ids:
-            if str(tid) in index_of and index_of[str(tid)] < len(alignments):
-                return index_of[str(tid)]
-
-    if rule == "first_nonconformant":
-        for i, result in enumerate(alignments):
-            if float(result.get("fitness", 1.0)) < 1.0 - 1e-9:
-                return i
-        return 0
-
-    if rule == "most_frequent_variants" and log is not None:
-        for i in trace_alignment.variant_order(log, min(len(log), len(alignments))):
-            return i
+    if log is not None:
+        if trace_ids:
+            index_of = trace_alignment.case_index(log)
+            for tid in trace_ids:
+                if str(tid) in index_of and index_of[str(tid)] < len(alignments):
+                    return index_of[str(tid)]
+        import pandas as pd
+        n_traces = min(len(log), len(alignments))
+        fitness_df = pd.DataFrame(
+            [{"fitness": float(a.get("fitness", 1.0))} for a in alignments[:n_traces]])
+        picked = trace_alignment.pick_indices(log, alignments, fitness_df, 1, rule)
+        if picked:
+            return picked[0]
 
     best_idx, best_cost = 0, -1.0
     for i, result in enumerate(alignments):

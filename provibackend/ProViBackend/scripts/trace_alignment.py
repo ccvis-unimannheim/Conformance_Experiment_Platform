@@ -105,18 +105,10 @@ TRACE_IDS_PARAM = {
     "visible_if": {"trace_selection_mode": "manual"},
 }
 
-TRACE_UNIT_PARAM = {
-    "key": "trace_unit",
-    "label": "Unit shown",
-    "hide_hint": True,
-    "widget": "select-one",
-    "options": [
-        {"value": "trace",   "label": "Individual traces"},
-        {"value": "variant", "label": "Trace variants (distinct activity sequences)"},
-    ],
-    "default": "trace",
-    "required": False,
-}
+#: There is no "trace or variant" parameter. Every rule below already keeps one
+#: representative per distinct activity sequence — two identical chevron strips
+#: side by side compare nothing — so picking "variants" instead of "traces"
+#: changed no figure, and "the most frequent variants" is a rule of its own.
 
 # --- data / resource branch ------------------------------------------------
 
@@ -214,7 +206,7 @@ def trace_count_param(default: int, minimum: int = 1, maximum: int = 4) -> dict:
 
 def selection_params(rules: list, default_rule: str, count_default: int,
                      count_min: int = 1, count_max: int = 4,
-                     unit: bool = False, only_when: Optional[dict] = None) -> list:
+                     only_when: Optional[dict] = None) -> list:
     """The full trace-selection block for one task, in display order.
 
     ``only_when`` is merged into every entry's ``visible_if`` — task04 shows the
@@ -232,8 +224,6 @@ def selection_params(rules: list, default_rule: str, count_default: int,
     # choice that isn't there.
     if count_max > 1:
         params.append(trace_count_param(count_default, count_min, count_max))
-    if unit:
-        params.insert(0, dict(TRACE_UNIT_PARAM))
     if only_when:
         for entry in params:
             entry["visible_if"] = {**entry.get("visible_if", {}), **only_when}
@@ -332,58 +322,104 @@ def variant_order(log, n_traces: int) -> list:
     return [i for _seq, i in order]
 
 
-def pick_indices(log, alignments, fitness_df, n: int, rule: str, unit: str) -> list:
-    """Trace indices for one pick rule.
+def sequence_of(log, i: int) -> tuple:
+    """The trace's activity sequence — its variant key."""
+    return tuple(str(e.get("concept:name", "")) for e in log[i])
 
-    task04's frozen two-trace default does NOT come through here — it keeps its
-    own code so the experiment's stimuli cannot move. Everything else does, so
-    "the worst-fitness trace" means the same thing in every task of the class.
+
+def violation_count(log, alignments, i: int, view: str = "control-flow",
+                    **rule) -> int:
+    """How many steps of this trace violate **the guideline being asked about**.
+
+    The perspective decides, and this is the whole point: a rule that always
+    counted alignment moves would hand a data-perspective task the trace with
+    the most control-flow deviations, which may satisfy the data rule perfectly
+    — a figure whose answer is "no violations here" to a question asking where
+    the violations are.
+    """
+    from shared import alignment_pairs_to_rows
+
+    rows = alignment_pairs_to_rows(alignments[i].get("alignment", []))
+    if view == "control-flow":
+        return sum(1 for r in rows if r["moveType"] != "Synchronous Move")
+    steps = value_steps(log[i], {"rows": rows}, view, **rule)
+    return sum(1 for s in steps if s["verdict"] == "violation")
+
+
+def pick_indices(log, alignments, fitness_df, n: int, rule: str, *,
+                 view: str = "control-flow", require_violation: bool = True,
+                 **rule_kwargs) -> list:
+    """Trace indices for one pick rule, in display order.
+
+    Two filters apply before any rule does, because every rule was picking
+    traces with nothing to show:
+
+    * **one trace per distinct activity sequence** — the worst-fitness rule used
+      to return the same strip two or three times over, since identical traces
+      have identical fitness;
+    * **only traces that violate the guideline in ``view``** — otherwise the
+      figure answers a question the task did not ask. ``require_violation``
+      turns this off for task27, whose question needs a conformant trace too.
+
+    If nothing violates, the filter lifts rather than leaving the figure empty:
+    a fully conformant log is a finding, not a failure.
     """
     n_traces = min(len(log), len(alignments), len(fitness_df))
-    candidates = (variant_order(log, n_traces) if unit == "variant"
-                  else list(range(n_traces)))
-    if not candidates:
+    if not n_traces:
         return []
 
+    order = (variant_order(log, n_traces) if rule == "most_frequent_variants"
+             else range(n_traces))
+    seen, candidates = set(), []
+    for i in order:
+        seq = sequence_of(log, i)
+        if seq in seen:
+            continue
+        seen.add(seq)
+        candidates.append(i)
+
     fitness = {i: float(fitness_df.iloc[i]["fitness"]) for i in candidates}
+    violations = {i: violation_count(log, alignments, i, view, **rule_kwargs)
+                  for i in candidates}
+
+    pool = [i for i in candidates if violations[i] > 0] if require_violation else candidates
+    if not pool:
+        logger.warning(
+            "trace_alignment: no trace violates the guideline in the %s "
+            "perspective — showing conformant traces instead", view)
+        pool = candidates
 
     if rule == "most_frequent_variants":
-        # `candidates` is already frequency-ordered under unit="variant"; under
-        # unit="trace" the log order is the closest thing to it.
-        return candidates[:n]
+        return pool[:n]
 
     if rule == "first_nonconformant":
-        deviating = [i for i in sorted(candidates) if fitness[i] < 1.0 - 1e-9]
-        return (deviating or sorted(candidates))[:n]
+        return sorted(pool)[:n]
 
     if rule == "worst_fitness":
-        violations = {i: _violation_count(alignments, i) for i in candidates}
-        return sorted(candidates, key=lambda i: (fitness[i], -violations[i], i))[:n]
+        # Most violations first, then lowest fitness: in a value perspective
+        # every trace has the same fitness, so the violation count is what
+        # ranks them at all.
+        return sorted(pool, key=lambda i: (-violations[i], fitness[i], i))[:n]
 
-    # violation_gap at a count the frozen default does not cover: anchor on the
-    # extremes so the contrast survives, then fill from the most complete traces
-    # in between rather than from whatever sits next in log order.
-    by_fitness = sorted(candidates, key=lambda i: (fitness[i], i))
-    chosen = [by_fitness[0]]
-    if len(by_fitness) > 1:
-        chosen.append(by_fitness[-1])
-    coverage = {i: len({str(e.get("concept:name", "")) for e in log[i]}) for i in candidates}
-    for i in sorted(candidates, key=lambda i: (-coverage[i], i)):
+    # violation_gap: the widest contrast the pool allows, both ends violating.
+    # Ties on the violation count fall back to fitness, and the filling of a
+    # count above two prefers the traces that touch the most activities, so the
+    # strips stay substantial rather than trivially short.
+    coverage = {i: len(set(sequence_of(log, i))) for i in candidates}
+    ranked = sorted(pool, key=lambda i: (violations[i], fitness[i], i))
+    chosen = [ranked[-1]]
+    if len(ranked) > 1:
+        chosen.append(ranked[0])
+    for i in sorted(pool, key=lambda i: (-coverage[i], i)):
         if len(chosen) >= n:
             break
         if i not in chosen:
             chosen.append(i)
-    return sorted(chosen[:n], key=lambda i: (-fitness[i], i))
-
-
-def _violation_count(alignments, i: int) -> int:
-    from shared import alignment_pairs_to_rows
-    rows = alignment_pairs_to_rows(alignments[i].get("alignment", []))
-    return sum(1 for r in rows if r["moveType"] != "Synchronous Move")
+    return sorted(chosen[:n], key=lambda i: (-violations[i], fitness[i], i))
 
 
 def select_records(log, alignments, *, view="control-flow", trace_ids=None,
-                   rule="violation_gap", count=2, unit="trace", attribute="",
+                   rule="violation_gap", count=2, attribute="",
                    conformant_values=(), resources=(), scoped_activity="") -> list:
     """The traces a task09-shaped task shows, annotated for its perspective."""
     import pandas as pd
@@ -399,7 +435,10 @@ def select_records(log, alignments, *, view="control-flow", trace_ids=None,
     else:
         fitness_df = pd.DataFrame(
             [{"fitness": float(a.get("fitness", 1.0))} for a in alignments[:n_traces]])
-        indices = pick_indices(log, alignments, fitness_df, count, rule, unit)
+        indices = pick_indices(
+            log, alignments, fitness_df, count, rule, view=view,
+            attribute=attribute, conformant_values=conformant_values,
+            resources=resources, scoped_activity=scoped_activity)
 
     records = trace_records(log, alignments, indices)
     if view != "control-flow":

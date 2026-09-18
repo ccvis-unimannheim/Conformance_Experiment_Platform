@@ -40,7 +40,6 @@ ever answer the control-flow half.
 | `trace_ids` | which traces (manual mode) | all six |
 | `trace_pick_rule` | which rule (auto mode) | all six |
 | `trace_count` | how many the rule picks | all but task14 |
-| `trace_unit` | individual traces, or one per variant | task04, task09, task27, task28, task34 |
 | `analysis_level` | log level vs trace level | task04 only |
 | `perspective` | control-flow / data / resource | task09, task28 |
 | `data_attribute`, `conformant_values` | the data rule | task09, task28 |
@@ -68,6 +67,32 @@ task27's threshold is threaded as an explicit argument through the eleven
 renderers that read it. A module-level default would have been one line, but
 generation can run for two experiments at once and a mutable module global would
 let one experiment's threshold decide the other's figures.
+
+## Picking traces that have something to show
+
+Every rule applies two filters before it ranks anything, because without them
+each rule could select a trace that answers nothing:
+
+1. **One trace per distinct activity sequence.** `worst_fitness` returned the
+   same strip two and three times over — identical traces have identical
+   fitness, so they sort adjacent.
+2. **Only traces that violate the guideline in the current perspective.**
+   `violation_gap` picked a trace with fitness 1.0 and no deviation at all as
+   one of its two; `first_nonconformant` and `worst_fitness` ranked by
+   *control-flow* deviation even when the task was asking about a data or
+   resource rule, so task09 in the data perspective could show two traces whose
+   attribute value was perfectly conformant. `trace_alignment.violation_count`
+   counts violations **in `view`**, and the rules rank on that.
+
+The exception is task27's `conformant_vs_non`, whose question needs a
+conformant trace — it passes `require_violation=False` and splits by status
+itself. If nothing violates at all, the filter lifts rather than leaving the
+figure empty: a fully conformant log is a finding, not a failure.
+
+**There is no "trace or variant" unit parameter.** With the deduplication above,
+picking "variants" instead of "traces" changed no figure — each rule already
+returns one representative per activity sequence — and "the most frequent
+variants" is a rule of its own. It was a control that decided nothing.
 
 ## The three figures
 
@@ -102,25 +127,35 @@ known, and render empty. So `log.attribute_values` enumerates every
 that spans two attributes. Making /specify re-fetch dependent options is the real
 fix and is not done here.
 
-## The frozen figures
+## The pictures in Context_0209 are not this pipeline's output
 
-Six figures are experiment stimuli and must not move: task04's and task34's
-chevron, BPMN and table (`Context_0209/Picture 13–15` and `22–24`). Two rules kept
-them still, and both are load-bearing:
+`Context_0209/Picture 13–15` and `22–24` were treated as frozen stimuli that no
+change may move. They are not what the pipeline emits: Picture 13's Trace 1 is a
+four-step trace whose `Confirm Order` is a log move, while the code selected a
+seven-step trace with fitness 1.0 and no deviation at all. Both of Picture 13's
+sequences do exist in this log (17 traces at fitness 0.857, and index 55 at
+0.571), so the figure came from this dataset — under a selection rule the code no
+longer contains.
 
-1. **The default path is never rewritten.** task04's two-trace `violation_gap`
-   selection and task34's single-trace rendering keep their original code;
-   another rule or count branches *around* them (`_task04_pick_by_rule`,
-   `_select_ctxs` / `_multi_trace_alignment_figures`). Byte-identity on the
-   default is then a property of the code not having been touched, not of a
-   test having passed.
-2. **Shared renderers only gain keyword arguments whose defaults are the current
+Published stimuli are pinned outside the pipeline instead, by downloading the
+generated idiom image and uploading it back as a fixed asset. That is what makes
+a stimulus stable; byte-identical regeneration never could, for the reason in the
+next section.
+
+The rules below still hold — a change should not move a figure *by accident* —
+but they are no longer a reason to keep a defect:
+
+1. **Shared renderers only gain keyword arguments whose defaults are the current
    behaviour** (`filename=`, `title=`, `threshold=`).
+2. **Every step is checked by regenerating the whole dataset and comparing all
+   262 SVGs against a baseline**, so a difference is always a deliberate one
+   that can be named.
 
-Every step was checked by regenerating the whole dataset and comparing all 262
-SVGs against a baseline. The final state differs in exactly six files — task09's
-and task28's chevron, BPMN and table, which move from log-aggregate to
-trace-level by design.
+Against the baseline the class now differs in fifteen files, all accounted for:
+task04's eight, because its selection no longer includes a conformant trace;
+task09's and task28's chevron, BPMN and table, which move from log-aggregate to
+trace-level; and task27's table, which now shows the traces it selected rather
+than the top fifteen variants.
 
 ### Comparing SVGs needs normalising first
 
@@ -159,9 +194,11 @@ one process already disagree), and pm4py exposes no deterministic tie-break. So:
   rather than growing a second copy of it.
 * **task14** is fixed at one trace by its own wording ("a given trace"), so it
   offers no count, and it gained the chevron and BPMN it was missing.
-* **task27** picks conformant and non-conformant variants in equal number by
-  default, so the contrast the question asks about is always on screen even when
-  one side is rare.
+* **task27**'s table is the class's activity × trace table. It used to list the
+  top fifteen variants regardless of the selection, so an admin asking for one
+  conformant and one non-conformant variant got a table contradicting the two
+  strips beside it. The aggregate variant view remains as `bar_chart` and
+  `table_bar_chart`.
 * **task28** is task09 explored rather than presented. Same parameters, same
   figures; the difference is `HIGHLIGHT_VIOLATIONS = False`, a task property
   rather than an admin choice.

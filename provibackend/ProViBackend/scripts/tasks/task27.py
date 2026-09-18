@@ -163,32 +163,6 @@ def task27_scatter_plot(fitness_df: pd.DataFrame, output_dir: str):
     save_svg(fig, os.path.join(output_dir, "task27_scatter_plot.svg"))
 
 
-def task27_table(vdf: pd.DataFrame, output_dir: str):
-    """Table: Rank | #Traces | Coverage % | Fitness | Status for top-N variants."""
-    cell_text, col_labels, col_widths = variant_table_data(
-        vdf, TOP_N, include_status=True, rank_header="Rank",
-    )
-    fig_h = max(3.5, 1.3 + len(cell_text) * 0.46)
-    fig, ax = plt.subplots(figsize=(11, fig_h))
-    ax.axis("off")
-    make_table(
-        ax,
-        cell_text=cell_text,
-        col_labels=col_labels,
-        bbox=[0.03, 0.05, 0.94, 0.92],
-        col_widths=col_widths,
-        font_size=10.5,
-        scale_xy=(1, 1.75),
-        cell_pad=0.11,
-    )
-    ax.set_title(
-        f"Conformance Status of the Top-{len(cell_text)} Variants (of {len(vdf)} total)",
-        fontsize=FONT_TITLE, pad=3,
-    )
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task27_table.svg"))
-
-
 def task27_table_and_bar_chart(vdf: pd.DataFrame, output_dir: str,
                                threshold: float = CONFORMANT_DEFAULT):
     """Composite: status table (left) + status-coloured frequency bars (right)."""
@@ -727,11 +701,13 @@ def _task27_alignment_figures(log, alignments, vdf, model_path, output_dir, *,
         indices = [index_of[str(t)] for t in trace_ids if str(t) in index_of]
     else:
         conform, nonconf = _split_by_status(vdf, threshold)
-        if rule == "worst_fitness":
-            ordered = vdf.sort_values(["fitness", "rank"])
-            indices = [int(r) for r in ordered["rep_trace_index"].head(count * 2)]
-        elif rule == "most_frequent_variants":
-            indices = [int(r) for r in vdf["rep_trace_index"].head(count * 2)]
+        if rule in ("worst_fitness", "most_frequent_variants", "violation_gap"):
+            import pandas as pd
+            n_traces = min(len(log), len(alignments))
+            fitness_df = pd.DataFrame(
+                [{"fitness": float(a.get("fitness", 1.0))} for a in alignments[:n_traces]])
+            indices = trace_alignment.pick_indices(
+                log, alignments, fitness_df, count * 2, rule)
         else:
             # conformant_vs_non: `count` of each, so the figure always shows the
             # contrast the task asks about even when one side is rarer.
@@ -750,6 +726,14 @@ def _task27_alignment_figures(log, alignments, vdf, model_path, output_dir, *,
             records, model_path, output_dir,
             filename="task27_flow_chart_elaborate.svg",
             title="Conformant and Non-Conformant Traces on the Process Model")
+        # The table shows the traces the other two show. It used to list the
+        # top-15 variants regardless of the selection, so an admin asking for one
+        # conformant and one non-conformant variant got a table contradicting the
+        # two strips beside it.
+        task04.task04_table(
+            records, model_path, output_dir,
+            filename="task27_table.svg",
+            title="Move Type by Activity — Conformant vs Non-Conformant")
 
 
 def generate(log, fitness_df, alignments, output_dir: str, model_path: str = None,
@@ -793,7 +777,6 @@ def generate(log, fitness_df, alignments, output_dir: str, model_path: str = Non
 
     task27_bar_chart(vdf, output_dir, conformant_threshold)
     task27_scatter_plot(fitness_df, output_dir)
-    task27_table(vdf, output_dir)
     task27_table_and_bar_chart(vdf, output_dir, conformant_threshold)
     task27_parallel_sets(vdf, output_dir, conformant_threshold)
     task27_matrix(vdf, alignments, output_dir, conformant_threshold)
