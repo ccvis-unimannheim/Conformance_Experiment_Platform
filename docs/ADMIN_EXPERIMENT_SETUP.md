@@ -13,8 +13,12 @@ workflow the platform no longer has).
 ## Workflow
 
 ```
-/new → /knowledge → /task → /idiom → /specify → /answer-format → /overview → publish
+/new → /prequestionnaire → /knowledge → /concepts → /task → /idiom → /specify → /answer-format → /overview → publish
 ```
+
+`/prequestionnaire`, `/knowledge` and `/concepts` configure what participants
+see before the tasks (see [Intro pages](#intro-pages) for `/concepts`); the
+table below covers the task steps.
 
 | Step | Page | What the admin does | Stored on the task instance |
 |---|---|---|---|
@@ -152,6 +156,56 @@ alignments are non-deterministic, so the cache is what keeps /specify's
 violation enumeration and the rendered idioms consistent.
 
 Generation only draws. It computes nothing about answers.
+
+Images the admin uploaded or imported for the experiment (next section) are
+stored apart from this output and take precedence over it, so regenerating
+never replaces them. /specify warns before generating when there are any.
+
+## Idiom images: export, import, replace
+
+For reproducibility, the images participants see can be taken out of the
+platform and put back in (`app/routers/idiom_bundle.py`, paths in
+`utils/idiom_files.py`):
+
+- **Download** (`GET /admin/experiments/{id}/idioms/export`; the overview page,
+  and the experiment list once published) — a zip of every image participants
+  see, laid out as `<task_key>/<idiom_key>.<ext>`, plus each task's
+  `traces.json` and a `manifest.json` recording the experiment, each task's
+  dataset and parameters, and where every image came from (`generated`,
+  `uploaded`, `custom`, `legacy`). `git_commit` is filled from the backend's
+  `GIT_COMMIT` environment variable, which the deploy does not set yet.
+- **Import** (`POST …/idioms/import`) — puts such a zip into this experiment or
+  any other with the same tasks and idioms. Files are matched by `task_key` and
+  `idiom_key`, never by experiment id; ones that match nothing are listed back
+  with the reason. Custom tasks and custom idioms get random keys, so they only
+  match within the experiment and server they were exported from.
+- **Replace one image** (`POST`/`DELETE …/idioms/{task_key}/{idiom_key}`) — an
+  SVG/PNG/JPG from the admin's computer in place of one generated image, and
+  back.
+
+Uploaded and imported images live in
+`data/_idiom_overrides/{experiment_id}/` and win over generated ones (see
+`PARTICIPANT_TRIAL_CONTRACT.md`, *SVG resolution*). After an import or
+replacement, a task whose selected idioms all have an image is marked
+`ready`, so an imported experiment can be published without generating.
+Import, replace and revert are refused unless the experiment is a draft, so the
+stimuli cannot change under participants mid-study; download always works.
+
+## Intro pages
+
+`/concepts` configures the two pages participants see between the knowledge
+questions and the tasks: *Key Concepts* (`/conformance-terms`) and *Before You
+Begin* (`/taskintro`). Per experiment (fields on `Experiment`):
+
+- `concept_sections` / `taskintro_sections` — which sections each page shows.
+  An empty list skips that page; the participant pages route around it
+  (`utils/introPages.js`). Experiments without the fields show every section.
+- `concept_citation_*` / `taskintro_citation_*` — whether each page shows its
+  citation, and its text (`null` = the default Carmona et al. reference). A
+  citation only appears when the page shows at least one definition section.
+- `process_model_ext` — set when the admin uploaded an image of their own
+  process model, stored at `data/_process_models/{experiment_id}{ext}` and
+  shown on both pages instead of the bundled order-to-cash diagram.
 
 ## Adding a task
 
