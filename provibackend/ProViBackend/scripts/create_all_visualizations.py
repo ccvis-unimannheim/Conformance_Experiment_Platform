@@ -435,7 +435,9 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
                                             group_cap=(int(p["group_cap"]) if p.get("group_cap") else None)),
         "task23": lambda d: task23.generate(alignments, d, log=log,
                                             activities=(p.get("activities") or None)),
-        "task24": lambda d: task24.generate(log, model_path, d),
+        "task24": lambda d: task24.generate(
+            log, model_path, d, trace_ids=trace_ids(),
+            trace_count=trace_alignment.trace_count(p, task24.DEFAULT_VARIANTS)),
         "task25": lambda d: task25.generate(log, alignments, d, model_path=model_path),
         "task26": lambda d: task26.generate(alignments, d, model_path=model_path),
         "task27": lambda d: task27.generate(
