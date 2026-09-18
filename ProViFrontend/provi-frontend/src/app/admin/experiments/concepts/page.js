@@ -262,7 +262,7 @@ export default function IntroPagesSetupPage() {
                     <FlowStep
                       key={page.field}
                       label={`Page ${page.number}: ${page.title}`}
-                      sub={skipped ? "skipped" : `${enabled[page.field].size} section${enabled[page.field].size !== 1 ? "s" : ""}`}
+                      sub={skipped ? "skipped" : null}
                       skipped={skipped}
                     />,
                   ];
