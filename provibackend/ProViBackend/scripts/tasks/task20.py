@@ -36,18 +36,12 @@ RESPONSE_MEASURE = "violation_rate"
 SPLIT_STRATEGY = None  # admin chooses
 import trace_features
 
+def validate_params(log, params) -> list:
+    return trace_features.validate_attribute_class(params, multi=True)
+
+
 PARAM_SPEC = [
-    {
-        "key": "attribute_set",
-        "slot": "split",
-        "label": "Attributes to analyse (empty = every attribute of this log that can be grouped, except the executing resource)",
-        # Internal to reading the chart — the participant sees the analysed attributes directly.
-        "hide_hint": True,
-        "widget": "select-many",
-        "source": "log.candidate_attributes",
-        "default": [],
-        "required": False,
-    },
+    *trace_features.attribute_params(),
     *trace_features.split_params_for(),
 ]
 
@@ -847,15 +841,26 @@ _ATTR_SUPTITLE = "Guideline-Violation Rate by Candidate Attribute"
 # identifier (not a magnitude): its buckets add no interpretable root-cause signal
 # here, so the default shows only AMOUNT_REQ and Throughput time. The admin can
 # override the shown attributes via the `attribute_set` param.
-_EXCLUDE_ATTRIBUTES = {"org:resource"}
+#: Nothing is excluded here any more. `org:resource` used to be, as a
+#: "non-magnitude identifier", but the generic identifier filter in
+#: discover_candidate_attributes already drops a categorical with too many
+#: distinct values — so this only ever removed the resource when there were few
+#: enough of them to be worth analysing. It also split the class in two: the
+#: same picker, the same log and the same empty selection gave task13 and task21
+#: a default set containing the resource and task15/16/20/22 one without it (on
+#: BPIC12, 61 resources over 13 087 traces, kept by the generic filter).
+_EXCLUDE_ATTRIBUTES: set = set()
 
 
 def _default_attributes(log, feat=None):
-    """The out-of-the-box attribute set, discovered from THIS log (dataset-
-    independent), minus non-magnitude identifiers (org:resource)."""
+    """The out-of-the-box attribute set, discovered from THIS log.
+
+    Now exactly `discover_candidate_attributes`; kept as the name four tasks
+    call so the class has one entry point, and because a future exclusion would
+    belong here rather than in each caller.
+    """
     import tasks.task13 as task13
-    return [a for a in task13.discover_candidate_attributes(log, feat)
-            if a not in _EXCLUDE_ATTRIBUTES]
+    return task13.discover_candidate_attributes(log, feat)
 
 
 def _task20_attribute_panels(log, alignments, attributes=None):

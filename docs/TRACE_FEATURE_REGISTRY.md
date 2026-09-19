@@ -1,8 +1,9 @@
 # Attribute → Violation: parameter specification
 
 Scope: the **Attribute → Violation** task class — task01, 07, 13, 15, 16, 20, 21,
-22, 30, 33. (task18 was dropped from the class; its event-level unit needed an
-`(activity, resource, timestamp)` identity that Model Moves cannot carry.)
+22, 30, 33, and task18, which shares the attribute picker below even though its
+event-level unit kept it out of the split/response framing (a Model Move carries
+no `(activity, resource, timestamp)` identity).
 
 Every task in the class is one configuration of
 
@@ -89,6 +90,105 @@ is worse on every one:
 A typo'd `compare_attribute` makes `split_by_attribute` return
 `group_labels = None`, which renders an empty-state SVG with no error. The merged
 slot keeps `attribute_set`'s behaviour; single-attribute tasks pass a list of one.
+
+### The picker has three classes, and only one applies at a time
+
+An attribute is selectable at three levels, and they are different analyses
+rather than three lists to merge. `trace_features.attribute_params()` declares
+the selector and one picker per class; `selected_keys(params, log)` resolves
+whichever is active into feature keys, and `validate_attribute_class` refuses a
+selection that spans two.
+
+| class | what it offers | source | groups traces by |
+|---|---|---|---|
+| **trace** | one value per case — a case attribute, or an event-level one aggregated | `log.candidate_attributes` | a case-wide value |
+| **event** | "at activity X, attribute Y = Z", as yes/no per trace | `log.event_conditions` | what happened at one named step |
+| **log** | one value for the whole log | `log.log_attributes` | nothing — every trace lands in one group |
+
+The **event** class exists because the cross product of activities, attributes
+and values is a catalogue, not a feature set: enumerating it as trace features
+would add hundreds of entries nobody asked for. The candidates instead come from
+the log ranked by trace coverage, the admin names the ones worth asking about,
+and each becomes an ordinary boolean feature (`at::Check Credit|decision|rejected`)
+that the existing panels draw like `contains::X`. Conditions every trace
+satisfies, or none does, are left out — on BPIC12 that removes the four most
+frequent ones, all variants of "A_SUBMITTED was executed by resource 112".
+
+The **log** class groups nothing by construction. It is offered because a log
+*can* carry a meaningful attribute, and a task selecting one is asking for the
+log as a single annotated group; most logs carry only export metadata, and then
+the picker is empty and the page says so.
+
+### One canonical reading per attribute
+
+One raw column yields several features — an amount has a final value, a mean, a
+maximum and a sum — and a picker listing them all equally makes the admin choose
+an aggregation before they have chosen an attribute. Each family marks one
+`Feature.primary`: the picker lists it first and an empty selection falls back to
+exactly those (`default_keys`).
+
+| attribute | canonical | also offered |
+|---|---|---|
+| event-level numeric (amount, score, cost) | `::last` — the value the process left behind | `::mean` `::max` `::sum` |
+| event-level categorical (decision, result) | `::last` | `::mode` |
+| `org:resource` | `resource::dominant` — who did most of the case | `resource::first` `resource::last` `resource::n_distinct` |
+| activity | `contains::X` — did it happen | `count::X`, first/last activity |
+| timestamp | `__throughput_hours__` | `__start_time__` |
+| constant within every trace | the attribute itself, no suffix | — |
+
+`::last` rather than `::mean` for numbers is deliberate: an event-level number is
+usually a state the process rewrites, and a mean over rewrites answers no
+question anyone asks. `::sum` is there for the additive ones (cost), which no
+rule can tell apart from the state-like ones by name.
+
+### The split strategy is a preference, not an instruction
+
+`split_strategy` is one parameter over a selection of attributes whose types
+differ, so it cannot be right for all of them: "cut at the median" means nothing
+for `contains::X` (Yes/No) or for a region. Choosing it used to produce **no
+groups at all** for those attributes — a blank panel whose only clue was the
+figure's own "no candidate attribute could be bucketed" state — and calling
+`split` with a raw `boolean` value type raised a numpy TypeError outright, even
+though `BUCKETABLE_TYPES` advertises boolean.
+
+Both are fixed in `split`: a boolean is normalised to Yes/No first, and a
+strategy that does not fit an attribute falls back to the one its type deserves,
+with a log line. The options now say which types they apply to.
+
+| strategy | numbers, dates | categories, Yes/No |
+|---|---|---|
+| `ordered_bins` (default for numbers and dates) | quantile bands / calendar periods | falls back to `nominal_n` |
+| `binary` | above and below the median | falls back to `nominal_n` |
+| `nominal_n` (default otherwise) | each distinct value its own group | most frequent values, rest as "Other" |
+
+This became reachable from the defaults when `contains::` features entered the
+default set: before that, no boolean was ever bucketed by an admin-chosen
+strategy.
+
+### What the picker refuses to offer
+
+The registry's own rule is that cardinality never gates *availability* — a
+61-value resource is a feature and the split strategy deals with it. A picker is
+a different question, so `trace_features.offerable` filters two kinds of entry
+that cannot answer "how does this relate to violations":
+
+* **one distinct value** — every trace in one group;
+* **a categorical with about one value per trace** — an identifier, whose buckets
+  are singletons plus a huge "Other". Numeric and ordinal features are exempt:
+  quantiles and calendar periods cope with any number of values, and throughput
+  time (one value per trace) is the most useful feature in the set.
+
+The same rule applies to the flattened value candidates: BPIC12's `REG_DATE`
+turned `log.attribute_values` into **148 503 checkboxes** before it was applied.
+Numeric attributes are left out of that list too — a data rule over a number is a
+range ("amount ≤ 10000"), which a conformant *set* cannot express. That is an
+open gap, not a decision: BPIC12's only data attribute is numeric, so its data
+perspective now correctly offers nothing at all.
+
+Long lists are a UI problem as well as a data one. The `select-many` widget
+renders one checkbox per candidate in a scroll box, so it gained a filter field
+(shown past 12 options, selected entries always visible); candidate lists are
+capped at `MAX_PICKER_CANDIDATES = 200`, ranked by trace coverage.
 
 ---
 
@@ -181,6 +281,36 @@ the sampling unit — drawing two members into one study shows a participant the
 same chart twice.
 
 ---
+
+## Defect: the default set read the first event as the case value
+
+`task13.discover_candidate_attributes` scanned raw log keys and asked
+`task30._trace_attribute_value` for each trace's value. That helper tolerates
+"case attribute replicated onto every event" by falling back to `trace[0][key]` —
+and cannot tell that apart from an attribute that genuinely varies within the
+trace. So for **every** event-level attribute it returned the first event's
+value and called it the case value.
+
+On BPIC12 that made `org:resource` look constant at 112 — the automatic
+submitter of the first event — in all 13 087 traces. The column had no variance,
+so it was dropped, and the log's 61 executors were never analysed by any task in
+the class. The documented fallback ("otherwise the event-level values are
+aggregated per trace — numeric by mean, categorical by mode") was unreachable for
+any attribute present on the first event.
+
+`discover_candidate_attributes` now delegates to `trace_features.default_keys`,
+which decides case-level vs event-level by constancy and derives named features
+for the ones that vary. The default set on BPIC12 went from `['AMOUNT_REQ']` to
+`AMOUNT_REQ`, `resource::dominant`, `__throughput_hours__` and eight
+`contains::` features. `task20._EXCLUDE_ATTRIBUTES`, which dropped `org:resource`
+from four of the nine tasks and not the other five, is gone with it: the same
+picker, the same log and the same empty selection now give every task the same
+default set.
+
+`label_for` was carrying a stray copy of `extract`'s conformance branch — it
+referenced arguments the function does not have, so `label_for(CONFORMANCE_KEY)`
+raised NameError instead of returning a label. It is a pure key → string
+function again.
 
 ## Defects addressed
 

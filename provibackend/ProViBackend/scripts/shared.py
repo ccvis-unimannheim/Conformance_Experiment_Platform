@@ -63,6 +63,14 @@ GREY_LIGHTER = to_hex(_CIV(0.90))  # yellow-green (conformant / Synchronous)
 # Continuous scales (heatmaps, matrices) keep the full cividis ramp. Grey stays
 # fine for what encodes no data: axes, gridlines, borders, text, reference lines
 # (a mean or a threshold) and the background of empty cells.
+#
+# Where colour has a direction it follows the heatmaps (CIVIDIS_R): yellow is
+# less / low / conformant, navy is more / high / deviating — hence MOVE_SYNC is
+# yellow and categorical_colors runs dark → light. Two unordered groups have no
+# direction, so PAIR_COLORS only tells them apart; and a figure that colours
+# its categories (e.g. a parallel sets' right axis) should not colour its
+# groups as well, or the two read as one matching scale. (The frozen task03
+# and task19 paint their non-conformant group yellow; they stay as they are.)
 # ---------------------------------------------------------------------------
 # Two groups compared with each other: blue vs yellow, as task03/19/20 draw them.
 PAIR_COLORS = (GREY_DARK, GREY_LIGHTER)
@@ -2313,6 +2321,9 @@ def draw_parallel_sets(
     wrap_labels: bool = True,
     left_label_fontsize: float = None,
     emphasize_left_head: bool = False,
+    ribbon_colors_by: str = "left",
+    ribbon_alpha: float = 0.35,
+    left_edgecolor: str = "white",
 ):
     """Draw a two-dimension Parallel Sets chart onto *ax*.
 
@@ -2330,6 +2341,10 @@ def draw_parallel_sets(
     emphasize_left_head : bold the part of each left label before the wrapped
     "  (...)" suffix (e.g. the bucket name), so it stands out from the metric
     that follows it.
+    ribbon_colors_by : "left" (default) or "right" — which axis's colours the
+    ribbons take. With "right", pass white left_colors and a dark
+    left_edgecolor so colour means only the right-hand categories.
+    ribbon_alpha / left_edgecolor : ribbon opacity and left bar outline.
     """
     import numpy as _np
     from matplotlib.patches import PathPatch as _PP
@@ -2378,7 +2393,8 @@ def draw_parallel_sets(
     for label, color, h, bot in zip(left_labels, left_colors, g_hts, g_bots):
         ax.add_patch(plt.Rectangle(
             (x_left - bar_w / 2, bot), bar_w, h,
-            facecolor=color, edgecolor="white", linewidth=0.8, zorder=3,
+            facecolor=color, edgecolor=left_edgecolor,
+            linewidth=0.8 if left_edgecolor == "white" else 1.0, zorder=3,
         ))
         if h > label_min_frac:
             left_texts.append(ax.text(
@@ -2400,8 +2416,9 @@ def draw_parallel_sets(
     # Bezier ribbons
     g_fill = g_bots.copy()
     c_fill = c_bots.copy()
-    for gi, color in enumerate(left_colors):
+    for gi, left_color in enumerate(left_colors):
         for ci in range(len(right_labels)):
+            color = right_colors[ci] if ribbon_colors_by == "right" else left_color
             count = matrix[gi, ci]
             if count == 0:
                 continue
@@ -2426,7 +2443,7 @@ def draw_parallel_sets(
             ]
             ax.add_patch(_PP(
                 _Path(verts, codes),
-                facecolor=color, edgecolor="none", alpha=0.35, zorder=2,
+                facecolor=color, edgecolor="none", alpha=ribbon_alpha, zorder=2,
             ))
 
     # Column titles

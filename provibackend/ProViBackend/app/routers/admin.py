@@ -32,6 +32,8 @@ try:
         get_log_data_attributes,
         get_log_attribute_values,
         get_log_resource_values,
+        get_log_event_conditions,
+        get_log_log_attributes,
         get_log_time_bins,
         _FILE_RENAME,
         _TASK_RENAME_SKIP,
@@ -54,6 +56,8 @@ except ImportError:
     get_log_data_attributes = None
     get_log_attribute_values = None
     get_log_resource_values = None
+    get_log_event_conditions = None
+    get_log_log_attributes = None
     get_log_time_bins = None
     _FILE_RENAME = {}
     _TASK_RENAME_SKIP = {}
@@ -129,6 +133,8 @@ _LOG_VIOLATED_ACTS_TASK34_CACHE: dict[str, list[dict]] = {}
 _LOG_DATA_ATTRS_CACHE: dict[str, list[dict]] = {}
 _LOG_ATTR_VALUES_CACHE: dict[str, list[dict]] = {}
 _LOG_RESOURCE_VALUES_CACHE: dict[str, list[dict]] = {}
+_LOG_EVENT_CONDITIONS_CACHE: dict[str, list[dict]] = {}
+_LOG_LOG_ATTRIBUTES_CACHE: dict[str, list[dict]] = {}
 
 
 def _dataset_data_attributes(dataset_id: str) -> list[dict]:
@@ -151,6 +157,28 @@ def _dataset_attribute_values(dataset_id: str) -> list[dict]:
     values = get_log_attribute_values(str(DATA_DIRECTORY / dataset_id))
     _LOG_ATTR_VALUES_CACHE[dataset_id] = values
     return values
+
+
+def _dataset_log_attributes(dataset_id: str) -> list[dict]:
+    """Log-level attributes (the log class of the attribute picker, cached)."""
+    if dataset_id in _LOG_LOG_ATTRIBUTES_CACHE:
+        return _LOG_LOG_ATTRIBUTES_CACHE[dataset_id]
+    if get_log_log_attributes is None:
+        return []
+    rows = get_log_log_attributes(str(DATA_DIRECTORY / dataset_id))
+    _LOG_LOG_ATTRIBUTES_CACHE[dataset_id] = rows
+    return rows
+
+
+def _dataset_event_conditions(dataset_id: str) -> list[dict]:
+    """"At activity X, attribute Y = Z" conditions (the event class, cached)."""
+    if dataset_id in _LOG_EVENT_CONDITIONS_CACHE:
+        return _LOG_EVENT_CONDITIONS_CACHE[dataset_id]
+    if get_log_event_conditions is None:
+        return []
+    rows = get_log_event_conditions(str(DATA_DIRECTORY / dataset_id))
+    _LOG_EVENT_CONDITIONS_CACHE[dataset_id] = rows
+    return rows
 
 
 def _dataset_resource_values(dataset_id: str) -> list[dict]:
@@ -293,6 +321,8 @@ OPTION_SOURCES: list[dict] = [
     {"source": "log.data_attributes",      "label": "Data attributes"},
     {"source": "log.attribute_values",     "label": "Attribute values (attribute = value)"},
     {"source": "log.resource_values",      "label": "Resources"},
+    {"source": "log.event_conditions",     "label": "Event conditions (activity · attribute = value)"},
+    {"source": "log.log_attributes",       "label": "Log-level attributes"},
 ]
 
 
@@ -320,6 +350,10 @@ def _param_candidates(source: str, dataset_id: str) -> list:
         return _dataset_attribute_values(dataset_id)
     if source == "log.resource_values":
         return _dataset_resource_values(dataset_id)
+    if source == "log.event_conditions":
+        return _dataset_event_conditions(dataset_id)
+    if source == "log.log_attributes":
+        return _dataset_log_attributes(dataset_id)
     return []
 
 
@@ -764,16 +798,21 @@ async def get_idioms():
 
 
 @router.post("/idioms/upload", tags=["admin"])
-async def upload_custom_idiom(file: UploadFile, label: str = Form(...), task_keys: str = Form(...)):
-    """Admin-uploaded static image/SVG idiom, scoped to specific task(s).
+async def upload_custom_idiom(file: UploadFile, label: str = Form(...), task_keys: str = Form(...),
+                              experiment_id: str = Form(...)):
+    """Admin-uploaded static image/SVG idiom, scoped to one experiment and
+    specific task(s) in it.
 
     Unlike code-generated idioms (rendered per task+dataset by a task script's
     Python function, see /task-idioms), a custom idiom is a single fixed asset
     stored once and served as-is via GET /idioms/{idiom_key}/asset. `task_keys`
     is a comma-separated list of task keys (e.g. "task01,task05") — the idiom
-    is only selectable on /admin/experiments/idiom for those tasks (see
-    /task-idioms); at least one is required.
+    is only selectable on /admin/experiments/idiom for those tasks of
+    `experiment_id` (see /task-idioms); at least one is required. Other
+    experiments never offer it, so one study's uploads do not turn up in the next.
     """
+    if not dbc.get_document("Experiment", {"_id": experiment_id}):
+        raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
     ext = _validate_extension(file.filename, ALLOWED_IDIOM_IMAGE_EXTENSIONS, "Idiom image")
     keys = [k.strip() for k in task_keys.split(",") if k.strip()]
     if not keys:
@@ -799,6 +838,7 @@ async def upload_custom_idiom(file: UploadFile, label: str = Form(...), task_key
             is_custom=True,
             asset_ext=ext,
             task_keys=keys,
+            experiment_id=experiment_id,
         )
         dbc.create_document("Idiom", idiom.model_dump(by_alias=True))
         return JSONResponse(
@@ -1002,16 +1042,34 @@ async def get_task_idioms(experiment_id: str | None = None):
     Custom (admin-uploaded, see POST /idioms/upload) idioms are fixed static
     assets rather than code-generated per task; each one is scoped to the
     specific task(s) the admin picked at upload time (its `task_keys` field),
-    so it's only appended to those tasks' lists here — not every task.
+    so it's only appended to those tasks' lists here — not every task. They are
+    offered only to `experiment_id`: the ones uploaded in it, plus any older
+    upload (no `experiment_id` recorded) it has already selected, so that no
+    experiment loses an idiom it uses. Without `experiment_id`, none are listed.
 
     With `experiment_id`, that experiment's custom tasks are included too; they
     have no code-generated idioms, only the custom idioms scoped to them.
     """
-    custom_idioms = dbc.get_query_db("Idiom", query={"is_custom": True})
+    custom_idioms = []
+    exp = {}
+    if experiment_id:
+        exp = dbc.get_document("Experiment", {"_id": experiment_id}) or {}
+        selected = {tc.get("idiom_id") for tc in exp.get("task_configs") or []}
+        for ti in exp.get("task_instances") or []:
+            selected.update(ti.get("idiom_ids") or [])
+        # Custom task keys exist in one experiment only, so an older upload
+        # bound to one of them belongs to this experiment too.
+        own_task_keys = {t["task_key"] for t in exp.get("custom_tasks") or []}
+
+        def offered(doc: dict) -> bool:
+            if doc.get("experiment_id"):
+                return doc["experiment_id"] == experiment_id
+            return doc.get("_id") in selected or bool(own_task_keys & set(doc.get("task_keys") or []))
+
+        custom_idioms = [doc for doc in dbc.get_query_db("Idiom", query={"is_custom": True}) if offered(doc)]
 
     result = {}
     if experiment_id:
-        exp = dbc.get_document("Experiment", {"_id": experiment_id}) or {}
         for task in exp.get("custom_tasks") or []:
             result[task["task_key"]] = [
                 doc["idiom_key"] for doc in custom_idioms
@@ -1292,8 +1350,12 @@ async def delete_experiment(experiment_id: str, force: bool = False):
     db["UILogging"].delete_many({"experiment_id": experiment_id})
     db["Experiment"].delete_one({"_id": experiment_id})
     # Its custom tasks go with the experiment document; drop the custom idioms
-    # that were only scoped to them.
+    # that were only scoped to them, and those uploaded in it, which no other
+    # experiment is offered (see /task-idioms).
     _remove_custom_task_idioms([t["task_key"] for t in exp.get("custom_tasks") or []])
+    for idiom in dbc.get_query_db("Idiom", query={"is_custom": True, "experiment_id": experiment_id}):
+        dbc.delete_document("Idiom", {"_id": idiom["_id"]})
+        (CUSTOM_IDIOM_DIRECTORY / f"{idiom['idiom_key']}{idiom.get('asset_ext') or '.svg'}").unlink(missing_ok=True)
     _remove_process_model_file(exp)
     idiom_files.remove_all_overrides(experiment_id)
 

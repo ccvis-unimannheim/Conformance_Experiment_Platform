@@ -165,6 +165,18 @@ A task whose every selected idiom has such an image is skipped by generation
 altogether (`_fully_uploaded_task_ids` in `app/routers/admin.py`): its status
 stays `ready` and its parameters are not validated.
 
+## Custom idioms
+
+*Upload Custom Idiom* on /idiom (`POST /admin/idioms/upload`) adds an `Idiom`
+document with `is_custom: true`, a fixed image in `data/_custom_idioms/`, the
+tasks it applies to (`task_keys`) and the experiment it was uploaded in
+(`experiment_id`). `/admin/task-idioms?experiment_id=…` offers it to that
+experiment only, so one study's uploads do not turn up in the next. Custom
+idioms uploaded before `experiment_id` was recorded are offered only to
+experiments that already select them or that own the custom task they are bound
+to. Participants and the overview resolve idioms by id, so neither depends on
+what is offered. Deleting an experiment deletes the custom idioms uploaded in it.
+
 ## Idiom previews on /idiom
 
 The preview on the idiom step (`POST`/`GET /admin/idiom-preview/{task_key}…`)

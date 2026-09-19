@@ -95,6 +95,30 @@ function formatDate(iso) {
   return isNaN(d.getTime()) ? "" : d.toLocaleString();
 }
 
+// Where the image participants will see for this idiom comes from, in the
+// order participants get it (see backend utils/idiom_files.resolve_idiom_image).
+function imageSourceNote(idiom, ti, uploaded, datasetTitle) {
+  const muted = "text-on-surface-variant";
+  if (uploaded) {
+    const from = ti?.images_imported_from?.experiment_name;
+    return {
+      text: from ? `Imported from "${from}"` : "Uploaded image",
+      className: "text-amber-800 font-semibold",
+    };
+  }
+  if (idiom.is_custom) return { text: "Custom idiom · uploaded image", className: muted };
+  switch (ti?.generation_status) {
+    case "ready":
+      return { text: datasetTitle ? `Generated from ${datasetTitle}` : "Generated", className: muted };
+    case "running":
+      return { text: "Generating…", className: muted };
+    case "failed":
+      return { text: "Generation failed", className: "text-error font-semibold" };
+    default:
+      return { text: "Not generated yet", className: "text-amber-800" };
+  }
+}
+
 // Export / import of the experiment's idiom images (see backend routers/idiom_bundle.py).
 // Import here keeps this experiment's parameters: a task whose zip parameters
 // differ is rejected. Importing images together with their parameters happens
@@ -722,20 +746,15 @@ function ExperimentOverviewContent() {
                                       ? resolveIdiomLabel(task.task_key, idiom.idiom_key, idiom.label)
                                       : iid}
                                   </p>
-                                  {idiom && (
-                                    <p className="text-[10px] text-on-surface-variant">
-                                      {idiom.granularity} · {idiom.renderer_type}
-                                    </p>
-                                  )}
+                                  {idiom && (() => {
+                                    const note = imageSourceNote(
+                                      idiom, ti,
+                                      overrides.has(`${task.task_key}/${idiom.idiom_key}`),
+                                      datasetTitleById[ti?.dataset_id],
+                                    );
+                                    return <p className={`text-[10px] ${note.className}`}>{note.text}</p>;
+                                  })()}
                                 </div>
-                                {idiom && overrides.has(`${task.task_key}/${idiom.idiom_key}`) && (
-                                  <span
-                                    title="This image was uploaded or imported, not generated"
-                                    className="text-[10px] font-semibold uppercase tracking-wider bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded flex-shrink-0"
-                                  >
-                                    Uploaded
-                                  </span>
-                                )}
                                 {idiom && status === "draft" && (
                                   <button
                                     onClick={() => pickReplacement(task.task_key, idiom.idiom_key)}

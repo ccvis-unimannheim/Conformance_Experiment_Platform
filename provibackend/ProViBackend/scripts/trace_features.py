@@ -42,6 +42,16 @@ DURATION_KEY = "__throughput_hours__"
 START_TIME_KEY = "__start_time__"
 
 # Namespaced keys for the activity- and resource-derived features.
+#: "Did this trace ever execute <activity> with <attribute> = <value>" — the
+#: event class of the attribute picker. Not enumerated by discover_features: the
+#: cross product of activities, attributes and values is a catalogue, not a
+#: feature set, so the candidates come from the log (get_log_event_conditions)
+#: and the admin names the ones worth asking about.
+AT_PREFIX = "at::"
+#: A log-level attribute. Constant for every trace by definition, so it groups
+#: nothing — it describes the whole log, and a task that selects one is asking
+#: for the log as a single group.
+LOG_PREFIX = "log::"
 CONTAINS_PREFIX = "contains::"
 COUNT_PREFIX = "count::"
 FIRST_ACTIVITY_KEY = "__first_activity__"
@@ -106,6 +116,12 @@ class Feature:
     role: str = "predictor"
     cardinality: Optional[int] = None
     coverage: float = 1.0
+    #: The canonical reading of its raw attribute. One raw column yields several
+    #: features — an amount has a final value, a mean and a maximum — and a
+    #: picker that lists them all equally makes the admin choose an aggregation
+    #: before they have chosen an attribute. The primary is the one the default
+    #: set takes and the picker lists first; the others stay selectable.
+    primary: bool = False
     meta: dict = field(default_factory=dict)
 
     def as_option(self) -> dict:
@@ -121,6 +137,7 @@ class Feature:
             "value_type": self.value_type,
             "cardinality": self.cardinality,
             "coverage": round(self.coverage, 4),
+            "primary": self.primary,
         }
 
 
@@ -311,6 +328,10 @@ def _control_flow_features(log, activity_cap: Optional[int]) -> list[Feature]:
             value_type="boolean",
             cardinality=1 if containment[activity] in (0, n_traces) else 2,
             coverage=1.0,
+            # "Did it happen" is the canonical question about an activity; "how
+            # many times" is the follow-up, and on most logs it answers the same
+            # thing with more buckets.
+            primary=True,
             meta={"activity": activity, "n_traces_containing": containment[activity]},
         ))
 
@@ -387,33 +408,51 @@ def _data_features(log) -> list[Feature]:
             out.append(Feature(
                 key=str(key), label=str(key), perspective="data", source="raw",
                 value_type=kind, cardinality=cardinality, coverage=coverage,
-                meta={"granularity": "case"},
+                primary=True, meta={"granularity": "case"},
             ))
             continue
 
         if kind == "numeric":
-            for suffix, label_suffix in (("mean", "mean"), ("max", "max")):
+            # `last` is the canonical reading: an event-level number is usually a
+            # state the process rewrites (the amount after the last adjustment),
+            # and a mean over rewrites answers no question anyone asks. `sum` is
+            # offered for the additive ones (cost), which no rule can tell apart
+            # from the state-like ones by name.
+            for suffix, label_suffix in (("last", "final value"), ("mean", "mean"),
+                                         ("max", "max"), ("sum", "sum")):
                 values = _aggregate_numeric(per_trace, suffix)
                 cardinality, coverage = _stats(values)
                 out.append(Feature(
                     key=f"{key}::{suffix}", label=f"{key} ({label_suffix})",
                     perspective="data", source="derived", value_type="numeric",
                     cardinality=cardinality, coverage=coverage,
+                    primary=(suffix == "last"),
                     meta={"granularity": "event", "attribute": str(key)},
                 ))
         else:
-            values = [_mode([str(v) for v in vs]) if vs else None for vs in per_trace]
-            cardinality, coverage = _stats(values)
-            out.append(Feature(
-                key=f"{key}::mode", label=f"{key} (most frequent)",
-                perspective="data", source="derived", value_type="categorical",
-                cardinality=cardinality, coverage=coverage,
-                meta={"granularity": "event", "attribute": str(key)},
-            ))
+            for suffix, label_suffix in (("last", "final value"), ("mode", "most frequent")):
+                if suffix == "last":
+                    values = [str(vs[-1]) if vs else None for vs in per_trace]
+                else:
+                    values = [_mode([str(v) for v in vs]) if vs else None for vs in per_trace]
+                cardinality, coverage = _stats(values)
+                out.append(Feature(
+                    key=f"{key}::{suffix}", label=f"{key} ({label_suffix})",
+                    perspective="data", source="derived", value_type="categorical",
+                    cardinality=cardinality, coverage=coverage,
+                    primary=(suffix == "last"),
+                    meta={"granularity": "event", "attribute": str(key)},
+                ))
     return out
 
 
 def _aggregate_numeric(per_trace: list[list], how: str) -> list:
+    """Collapse each trace's event values to one number.
+
+    ``last`` is the value the process left behind, ``sum`` the total it
+    accumulated, ``max`` the worst it reached, ``mean`` the typical one. Four
+    different questions; the caller names which.
+    """
     out = []
     for values in per_trace:
         numbers = [f for f in (_as_float(v) for v in values) if f is not None]
@@ -421,6 +460,10 @@ def _aggregate_numeric(per_trace: list[list], how: str) -> list:
             out.append(None)
         elif how == "max":
             out.append(max(numbers))
+        elif how == "sum":
+            out.append(sum(numbers))
+        elif how == "last":
+            out.append(numbers[-1])
         else:
             out.append(sum(numbers) / len(numbers))
     return out
@@ -438,6 +481,9 @@ def _resource_features(log) -> list[Feature]:
 
     out: list[Feature] = []
     for key, label, values, value_type in (
+        # Who did most of the case is the canonical "who owns this"; the others
+        # answer different questions (who started it, who closed it, how many
+        # hands it passed through) and stay selectable.
         (RESOURCE_DOMINANT_KEY, "Executor (most frequent)", dominant, "categorical"),
         (RESOURCE_FIRST_KEY, "Executor (first event)", firsts, "categorical"),
         (RESOURCE_LAST_KEY, "Executor (last event)", lasts, "categorical"),
@@ -447,6 +493,7 @@ def _resource_features(log) -> list[Feature]:
         out.append(Feature(
             key=key, label=label, perspective="resource", source="derived",
             value_type=value_type, cardinality=cardinality, coverage=coverage,
+            primary=(key == RESOURCE_DOMINANT_KEY),
         ))
     return out
 
@@ -468,7 +515,7 @@ def _time_features(log) -> list[Feature]:
     out.append(Feature(
         key=DURATION_KEY, label="Throughput time (h)", perspective="time",
         source="derived", value_type="numeric",
-        cardinality=cardinality, coverage=coverage,
+        cardinality=cardinality, coverage=coverage, primary=True,
     ))
     cardinality, coverage = _stats([str(s) for s in starts])
     out.append(Feature(
@@ -489,14 +536,18 @@ def label_for(key: str) -> str:
 
     Callers that hold only the key (a saved ``attribute_set``, say) get the same
     wording the picker showed, instead of falling back to the raw key.
-    """
-    if key == CONFORMANCE_KEY:
-        if fitness_per_trace is None:
-            raise KeyError(
-                f"'{key}' is alignment-derived — pass fitness_per_trace to read it."
-            )
-        return ([None if _is_missing(v) else float(v) for v in fitness_per_trace], "numeric")
 
+    Pure key -> string: it must work from a stored parameter value alone, so
+    nothing here touches a log. (It used to open with a copy of ``extract``'s
+    conformance branch, which referenced arguments this function does not have
+    and raised NameError for that one key.)
+    """
+    if key.startswith(AT_PREFIX):
+        activity, _, rest = key[len(AT_PREFIX):].partition("|")
+        attribute, _, value = rest.partition("|")
+        return f"At '{activity}': {attribute} = {value}"
+    if key.startswith(LOG_PREFIX):
+        return f"{key[len(LOG_PREFIX):]} (log level)"
     if key.startswith(CONTAINS_PREFIX):
         return f"Contains '{key[len(CONTAINS_PREFIX):]}'"
     if key.startswith(COUNT_PREFIX):
@@ -514,7 +565,8 @@ def label_for(key: str) -> str:
     }
     if key in fixed:
         return fixed[key]
-    for suffix, wording in (("::mean", "mean"), ("::max", "max"), ("::mode", "most frequent")):
+    for suffix, wording in (("::mean", "mean"), ("::max", "max"), ("::sum", "sum"),
+                            ("::last", "final value"), ("::mode", "most frequent")):
         if key.endswith(suffix):
             return f"{key[: -len(suffix)]} ({wording})"
     return key
@@ -555,10 +607,23 @@ SPLIT_PARAMS = [
     {
         "key": "split_strategy",
         "slot": "split",
-        "label": "How the chosen attribute is cut into groups (empty = by its own type)",
-        "hint": "Leave empty to cut by the attribute's own type",
+        "label": "How each attribute is cut into groups "
+                 "(empty = ranges for numbers and dates, one group per value otherwise)",
+        # Participant-facing: which groups the figure compares, not how the
+        # platform arrived at them.
+        "hint": "Groups compared",
         "widget": "select-one",
-        "options": ["binary", "nominal_n", "ordered_bins"],
+        # A strategy that does not fit an attribute falls back to the one its
+        # type deserves (see `split`), so these read as preferences rather than
+        # instructions — "two halves" cannot mean anything for Yes/No.
+        "options": [
+            {"value": "ordered_bins",
+             "label": "Ranges — numbers into quantile bands, dates into calendar periods"},
+            {"value": "binary",
+             "label": "Two halves — above and below the median (numbers and dates only)"},
+            {"value": "nominal_n",
+             "label": "One group per value — the most frequent, the rest as “Other”"},
+        ],
         "default": "",
         "required": False,
     },
@@ -609,6 +674,49 @@ class Split:
         return bool(self.labels)
 
 
+def is_identifier_like(cardinality: int, n_traces: int) -> bool:
+    """A categorical with about one value per trace names cases, not groups."""
+    return cardinality > max(5, n_traces * 0.5)
+
+
+def offerable(log, features=None) -> list:
+    """The features worth putting in front of an admin, in picker order.
+
+    The registry's own rule is that cardinality never gates *availability* —
+    a 61-value resource is a feature, and the split strategy deals with it. But
+    a picker is a different question: a feature with one distinct value puts
+    every trace in one group, and a categorical one with a value per trace is an
+    identifier whose buckets are singletons plus a huge "Other". Neither can
+    answer "how does this relate to violations". Numeric and ordinal features
+    are exempt — quantiles and calendar periods cope with any number of values,
+    and throughput time (one value per trace) is the most useful feature here.
+
+    Canonical readings come first, so the admin meets "amount" before "amount
+    (mean) / (max) / (sum)".
+    """
+    n_traces = len(log)
+    features = discover_features(log) if features is None else features
+    out = []
+    for f in features:
+        if f.value_type not in BUCKETABLE_TYPES or (f.cardinality or 0) <= 1:
+            continue
+        if f.value_type == "categorical" and is_identifier_like(f.cardinality, n_traces):
+            continue
+        out.append(f)
+    out.sort(key=lambda f: (not f.primary, f.perspective, f.key))
+    return out
+
+
+def default_keys(log, features=None) -> list:
+    """What an empty attribute selection falls back to: the canonical features.
+
+    The same list the picker shows first, so "leave it empty" and "take the
+    obvious ones" agree — they used to be two different rules, and the picker
+    offered features the default set could never produce.
+    """
+    return [f.key for f in offerable(log, features) if f.primary]
+
+
 def default_strategy(value_type: str) -> str:
     """The strategy a value type gets when the admin picks none."""
     if value_type == "numeric":
@@ -652,6 +760,25 @@ def split(values, value_type: str, strategy: Optional[str] = None,
     strategy = strategy or default_strategy(value_type)
     if strategy not in STRATEGIES:
         raise ValueError(f"Unknown split strategy '{strategy}'.")
+
+    # A boolean is two groups already; asking for a median of True/False raises
+    # inside numpy, and the value is offered as bucketable, so normalise here
+    # rather than at each of the call sites that remembered to.
+    if value_type == "boolean":
+        values, value_type = as_bucketable(list(values), value_type)
+
+    # The strategy is one parameter over a selection of attributes whose types
+    # differ, so it cannot be right for all of them: "cut at the median" means
+    # nothing for `contains::X` (Yes/No) or for a region. It used to produce no
+    # groups at all there — a silently blank panel, with the figure's own
+    # "no candidate attribute could be bucketed" state as the only clue. An
+    # attribute the strategy does not fit now falls back to the one its type
+    # deserves.
+    if strategy in ("binary", "ordered_bins") and value_type == "categorical":
+        logger.info(
+            "trace_features: '%s' does not apply to a categorical attribute — "
+            "grouping by value instead", strategy)
+        strategy = "nominal_n"
 
     values = list(values)
     n_missing = sum(1 for v in values if _is_missing(v))
@@ -828,6 +955,24 @@ def extract(log, key: str, fitness_per_trace=None) -> tuple[list, str]:
             )
         return ([None if _is_missing(v) else float(v) for v in fitness_per_trace], "numeric")
 
+    if key.startswith(AT_PREFIX):
+        activity, _, rest = key[len(AT_PREFIX):].partition("|")
+        attribute, _, wanted = rest.partition("|")
+        values = []
+        for trace in log:
+            hit = any(str(ev.get(_ACTIVITY_ATTR, "")) == activity
+                      and attribute in ev and str(ev[attribute]) == wanted
+                      for ev in trace)
+            values.append(hit)
+        return (values, "boolean")
+
+    if key.startswith(LOG_PREFIX):
+        attribute = key[len(LOG_PREFIX):]
+        attrs = getattr(log, "attributes", {}) or {}
+        if attribute not in attrs:
+            raise KeyError(f"'{attribute}' is not a log-level attribute of this log.")
+        return ([str(attrs[attribute])] * len(log), "categorical")
+
     if key.startswith(CONTAINS_PREFIX):
         activity = key[len(CONTAINS_PREFIX):]
         return ([activity in {str(ev[_ACTIVITY_ATTR]) for ev in trace if _ACTIVITY_ATTR in ev}
@@ -866,7 +1011,7 @@ def extract(log, key: str, fitness_per_trace=None) -> tuple[list, str]:
                 values.append((max(stamps) - min(stamps)).total_seconds() / 3600.0)
         return (values, "numeric" if key == DURATION_KEY else "ordinal")
 
-    for suffix in ("::mean", "::max", "::mode"):
+    for suffix in ("::mean", "::max", "::sum", "::last", "::mode"):
         if key.endswith(suffix):
             attribute = key[: -len(suffix)]
             per_trace, kind, _constant = _collect(log, attribute)
@@ -875,6 +1020,8 @@ def extract(log, key: str, fitness_per_trace=None) -> tuple[list, str]:
             if suffix == "::mode":
                 return ([_mode([str(v) for v in vs]) if vs else None for vs in per_trace],
                         "categorical")
+            if suffix == "::last" and kind != "numeric":
+                return ([str(vs[-1]) if vs else None for vs in per_trace], "categorical")
             return (_aggregate_numeric(per_trace, suffix[2:]), "numeric")
 
     per_trace, kind, constant = _collect(log, key)
@@ -890,3 +1037,126 @@ def extract(log, key: str, fitness_per_trace=None) -> tuple[list, str]:
             f"trace value — use {suffixes}."
         )
     return ([vs[0] if vs else None for vs in per_trace], kind)
+
+# ---------------------------------------------------------------------------
+# The attribute picker: three classes, one selection
+#
+# An attribute is selectable at three levels, and they are different analyses
+# rather than three lists to mix:
+#
+#   trace  one value per case — a case attribute, or an event-level one
+#          aggregated (see _data_features). Groups traces, which is what every
+#          task in this family draws.
+#   event  "at activity X, attribute Y = Z" — a question about one step, asked
+#          of every trace as yes/no. Also groups traces, but by what happened at
+#          a named step rather than by a case-wide value.
+#   log    one value for the whole log. Groups nothing: every trace lands in the
+#          same bucket, so a task selecting one is asking for the log as a
+#          single group. Most logs carry only export metadata here and the
+#          picker is empty, which the page says.
+#
+# Only one class applies at a time: mixing a case attribute with a step
+# condition would put two different questions on one axis.
+# ---------------------------------------------------------------------------
+
+ATTRIBUTE_CLASS_PARAM = {
+    "key": "attribute_class",
+    "slot": "attribute_class",
+    "label": "Level the attributes are taken from",
+    "hint": "Whether the traces are grouped by a case-level value or by what happened at one step",
+    "widget": "select-one",
+    "options": [
+        {"value": "trace", "label": "Trace level — one value per case"},
+        {"value": "event", "label": "Event level — at activity X, attribute Y = Z"},
+        {"value": "log",   "label": "Log level — one value for the whole log"},
+    ],
+    "default": "trace",
+    "required": False,
+}
+
+
+def _picker(key: str, label: str, source: str, klass: str, multi: bool) -> dict:
+    return {
+        "key": key,
+        "slot": "attribute",
+        "label": label,
+        "hint": "Attributes analysed",
+        "widget": "select-many" if multi else "select-one",
+        "source": source,
+        "default": [] if multi else "",
+        "required": False,
+        "visible_if": {"attribute_class": klass},
+    }
+
+
+def attribute_params(multi: bool = True) -> list:
+    """The class selector plus one picker per class.
+
+    ``multi`` is False for a task that splits by a single attribute (task30).
+    """
+    return [
+        dict(ATTRIBUTE_CLASS_PARAM),
+        _picker("attribute_set" if multi else "compare_attribute",
+                "Attributes to analyse (empty = every attribute of this log that can be grouped)"
+                if multi else "Case attribute used to split traces into sub-logs",
+                "log.candidate_attributes", "trace", multi),
+        _picker("event_conditions" if multi else "compare_event_condition",
+                "Event conditions to analyse" if multi else
+                "Event condition used to split traces into sub-logs",
+                "log.event_conditions", "event", multi),
+        _picker("log_attributes" if multi else "compare_log_attribute",
+                "Log-level attributes" if multi else "Log-level attribute",
+                "log.log_attributes", "log", multi),
+    ]
+
+
+def selected_keys(params: dict, log=None) -> list:
+    """The feature keys the admin's selection resolves to.
+
+    An empty *trace* selection falls back to the canonical set (`default_keys`);
+    an empty event or log selection does not, because there is nothing canonical
+    about one step condition out of hundreds — validate_attribute_class rejects
+    it instead.
+    """
+    params = params or {}
+    klass = params.get("attribute_class") or "trace"
+    if klass == "event":
+        return [str(k) for k in (params.get("event_conditions") or [])]
+    if klass == "log":
+        return [str(k) for k in (params.get("log_attributes") or [])]
+    chosen = [str(k) for k in (params.get("attribute_set") or [])]
+    if chosen:
+        return chosen
+    return default_keys(log) if log is not None else []
+
+
+def selected_key(params: dict) -> str:
+    """The single key a split-by-one task resolves to (task30)."""
+    params = params or {}
+    klass = params.get("attribute_class") or "trace"
+    if klass == "event":
+        return str(params.get("compare_event_condition") or "")
+    if klass == "log":
+        return str(params.get("compare_log_attribute") or "")
+    return str(params.get("compare_attribute") or "")
+
+
+def validate_attribute_class(params: dict, *, multi: bool = True) -> list:
+    """Errors in the attribute block: one class only, and it must say something."""
+    params = params or {}
+    klass = params.get("attribute_class") or "trace"
+    fields = (("trace", "attribute_set" if multi else "compare_attribute"),
+              ("event", "event_conditions" if multi else "compare_event_condition"),
+              ("log", "log_attributes" if multi else "compare_log_attribute"))
+    filled = [name for cls, name in fields if params.get(name)]
+    errors = []
+    if len(filled) > 1:
+        errors.append(
+            "Attributes are selected from one level at a time — clear "
+            + " and ".join(n for n in filled if n != dict(fields)[klass])
+            + " or switch the level."
+        )
+    own = dict((cls, name) for cls, name in fields)[klass]
+    if klass in ("event", "log") and not params.get(own):
+        errors.append(f"Select at least one {klass}-level attribute, or switch the level.")
+    return errors

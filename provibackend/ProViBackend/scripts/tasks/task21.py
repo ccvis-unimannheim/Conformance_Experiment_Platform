@@ -58,19 +58,12 @@ SPLIT_STRATEGY = None  # admin chooses
 
 import trace_features
 
+def validate_params(log, params) -> list:
+    return trace_features.validate_attribute_class(params, multi=True)
+
+
 PARAM_SPEC = [
-    {
-        "key": "attribute_set",
-        "slot": "split",
-        "label": "Attributes to analyse (empty = every attribute of this log that can be grouped)",
-        # Participant-facing: the admin's fallback wording is plumbing, and
-        # the hint is only ever shown next to an actual selection.
-        "hint": "Attributes analysed",
-        "widget": "select-many",
-        "source": "log.candidate_attributes",
-        "default": [],
-        "required": False,
-    },
+    *trace_features.attribute_params(),
     *trace_features.split_params_for(),
 ]
 import os
