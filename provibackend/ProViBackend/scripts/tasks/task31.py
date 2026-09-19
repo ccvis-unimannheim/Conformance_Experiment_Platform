@@ -271,13 +271,17 @@ def task31_bar_chart(df: pd.DataFrame, output_dir: str):
         rate = row["rate"]
         if n == 0 or np.isnan(rate):
             continue
-        label = f"{rate:.1f}%  (n={n})"
         if rate > 93:
-            ax.text(i, rate - 2.0, label, ha="center", va="top",
-                    fontsize=FONT_ANNOT, color="#ffffff", zorder=4)
+            # Inside the bar, because above it would leave the 0-100 axis.
+            # On one line the label is wider than the bar, so its ends would
+            # be white on the white background; stacked, it stays on navy.
+            ax.text(i, rate - 3.0, f"{rate:.1f}%\n(n={n})",
+                    ha="center", va="top", fontsize=FONT_ANNOT - 1,
+                    color="#ffffff", linespacing=1.5, zorder=4)
         else:
-            ax.text(i, rate + 2.0, label, ha="center", va="bottom",
-                    fontsize=FONT_ANNOT, color="#222222")
+            ax.text(i, rate + 2.0, f"{rate:.1f}%  (n={n})",
+                    ha="center", va="bottom", fontsize=FONT_ANNOT,
+                    color="#222222")
 
     # A rate cannot pass 100, and a headroom factor that lets the axis run to
     # 120 makes the tallest bar look short of a ceiling that does not exist.
@@ -302,7 +306,13 @@ def task31_bar_chart(df: pd.DataFrame, output_dir: str):
 # ---------------------------------------------------------------------------
 
 def task31_stacked_bar(df: pd.DataFrame, output_dir: str):
-    """100%-stacked bar: positive vs negative outcome proportion per conformance band."""
+    """100%-stacked bar: positive vs negative outcome share per conformance category.
+
+    Every category keeps its slot, empty ones included — they carry NaN, so no
+    bar is drawn and none is annotated. Dropping them would give this idiom a
+    different x axis from the other four, which show the same empty categories
+    as a blank cell or a "—".
+    """
     out_path = os.path.join(output_dir, "task31_stacked_bar.svg")
     if df.empty:
         render_empty_state_svg(out_path, "Outcome Composition by Conformance Category")
@@ -313,23 +323,21 @@ def task31_stacked_bar(df: pd.DataFrame, output_dir: str):
     for label in _FITNESS_BIN_LABELS_EXACT:
         mask = bands == label
         n = int(mask.sum())
-        if n == 0:
-            continue
-        n_pos = int(df.loc[mask, "positive_outcome"].sum())
-        prop_pos = n_pos / n
-        prop_neg = 1.0 - prop_pos
-        band_data.append({"band": label, "n": n, "prop_pos": prop_pos, "prop_neg": prop_neg})
+        n_pos = int(df.loc[mask, "positive_outcome"].sum()) if n else 0
+        prop_pos = (n_pos / n) if n else float("nan")
+        band_data.append({"band": label, "n": n, "prop_pos": prop_pos,
+                          "prop_neg": 1.0 - prop_pos})
 
-    if not band_data:
+    if all(d["n"] == 0 for d in band_data):
         render_empty_state_svg(out_path, "Outcome Composition by Conformance Category")
         return
 
-    n_nonempty = len(band_data)
-    fig_w = max(6.5, min(11.0, 1.3 * n_nonempty + 2.0))
+    n_cats = len(band_data)
+    fig_w = max(6.5, min(11.0, 1.3 * n_cats + 2.0))
     fig, ax = plt.subplots(figsize=(fig_w, 5.2))
     ax.set_facecolor("#fafbfc")
 
-    x = np.arange(n_nonempty)
+    x = np.arange(n_cats)
     # Encode n= into x-tick labels (avoids below-axis collision)
     band_labels = [f"{d['band']}\n(n={d['n']})" for d in band_data]
     prop_pos_arr = np.array([d["prop_pos"] for d in band_data])
@@ -346,7 +354,7 @@ def task31_stacked_bar(df: pd.DataFrame, output_dir: str):
            edgecolor="white", label="Negative outcome")
 
     # Annotate segments
-    for i in range(n_nonempty):
+    for i in range(n_cats):
         # Positive segment
         if prop_pos_arr[i] >= 0.08:
             ax.text(i, prop_pos_arr[i] / 2, f"{prop_pos_arr[i] * 100:.0f}%",
@@ -362,7 +370,7 @@ def task31_stacked_bar(df: pd.DataFrame, output_dir: str):
     ax.set_xticklabels(band_labels, fontsize=FONT_ANNOT)
     ax.set_xlabel("Conformance Category", fontsize=FONT_LABEL)
     ax.set_ylabel("Proportion of Cases", fontsize=FONT_LABEL)
-    ax.set_xlim(-0.6, n_nonempty - 0.4)
+    ax.set_xlim(-0.6, n_cats - 0.4)
     ax.set_ylim(0, 1.0)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
@@ -408,10 +416,12 @@ def _band_outcome_rates(df: pd.DataFrame):
         counts[i, 0] = n - n_pos   # negative
         counts[i, 1] = n_pos       # positive
     totals = counts.sum(axis=1)
-    rates = np.where(totals[:, np.newaxis] > 0,
-                     counts / np.where(totals[:, np.newaxis] == 0, 1,
-                                       totals[:, np.newaxis]) * 100,
-                     0.0)
+    safe = np.where(totals[:, np.newaxis] == 0, 1, totals[:, np.newaxis])
+    # NaN, not 0.0, for a category no trace falls into. A zero would read as
+    # "none of these traces had a positive outcome", which is a finding; there
+    # are no traces. The matrix prints such a row as "—" and the heatmap leaves
+    # its cells blank.
+    rates = np.where(totals[:, np.newaxis] > 0, counts / safe * 100, np.nan)
     return counts, rates, totals
 
 
@@ -491,7 +501,7 @@ def task31_heatmap(df: pd.DataFrame, output_dir: str):
 
     draw_value_heatmap(
         fig, ax,
-        data=np.nan_to_num(rate_matrix, nan=0.0),
+        data=rate_matrix,   # NaN rows stay blank rather than reading as 0%
         row_labels=_FITNESS_BIN_LABELS_EXACT,
         col_labels=["Negative Outcome", "Positive Outcome"],
         xlabel="Outcome Category",
