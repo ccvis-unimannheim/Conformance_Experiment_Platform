@@ -16,7 +16,8 @@ Public API:
              attribute_set=None, split_strategy=None, group_cap=None,
              missing_policy="drop")
         attribute_set  – attributes the split idioms cut the log by; empty =
-                         the discovered default set
+                         every groupable attribute of
+                         this log (task20._default_attributes), minus org:resource
         split_strategy – "binary" | "nominal_n" | "ordered_bins"; None picks
                          by each attribute's type (see trace_features)
         group_cap      – most groups named before the rest become "Other"
@@ -48,7 +49,10 @@ PARAM_SPEC = [
     {
         "key": "attribute_set",
         "slot": "split",
-        "label": "Attributes to analyse (empty = the discovered default set)",
+        "label": "Attributes to analyse (empty = every attribute of this log that can be grouped, except the executing resource)",
+        # Participant-facing: the admin's fallback wording is plumbing, and
+        # the hint is only ever shown next to an actual selection.
+        "hint": "Attributes analysed",
         "widget": "select-many",
         "source": "log.candidate_attributes",
         "default": [],

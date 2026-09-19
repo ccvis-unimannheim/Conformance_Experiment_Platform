@@ -62,7 +62,10 @@ PARAM_SPEC = [
     {
         "key": "attribute_set",
         "slot": "split",
-        "label": "Attributes to analyse (empty = the discovered default set)",
+        "label": "Attributes to analyse (empty = every attribute of this log that can be grouped)",
+        # Participant-facing: the admin's fallback wording is plumbing, and
+        # the hint is only ever shown next to an actual selection.
+        "hint": "Attributes analysed",
         "widget": "select-many",
         "source": "log.candidate_attributes",
         "default": [],

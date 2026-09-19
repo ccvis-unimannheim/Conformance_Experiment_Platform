@@ -40,7 +40,7 @@ PARAM_SPEC = [
     {
         "key": "attribute_set",
         "slot": "split",
-        "label": "Attributes to analyse (select the case / event attributes to show; empty = default set)",
+        "label": "Attributes to analyse (empty = every attribute of this log that can be grouped, except the executing resource)",
         # Internal to reading the chart — the participant sees the analysed attributes directly.
         "hide_hint": True,
         "widget": "select-many",
