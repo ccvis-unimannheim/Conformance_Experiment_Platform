@@ -30,9 +30,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 IDIOMS = [
-    "table", "bar_chart", "scatter_plot",
-    "flow_chart_elaborate", "flow_chart_elaborate_table",
-    "table_bar_chart", "parallel_sets",
+    "table", "bar_chart", "parallel_sets",
+    # "scatter_plot",
+    # "flow_chart_elaborate",
+    # "flow_chart_elaborate_table",
+    # "table_bar_chart",
 ]
 
 
@@ -358,7 +360,7 @@ def generate(log, fitness_df, alignments, output_dir: str, model_path: str = Non
     logger.info("\n--- Generating Task 15 visualizations ---")
 
     viol_df = _build_violation_df(alignments)
-    act_totals = _activity_total_violations(viol_df)
+    # act_totals = _activity_total_violations(viol_df)  # only flow_chart_elaborate needed this
     s = _overall_stats(fitness_df, viol_df)
     logger.info(f"      -> {_stats_line(s)}")
 
@@ -377,11 +379,11 @@ def generate(log, fitness_df, alignments, output_dir: str, model_path: str = Non
                value_fmt="{:.3f}", value_max=1.0)
     task20.task20_table(panels, output_dir, filename="task15_table.svg", **fmt)
     task20.task20_bar_chart(panels, output_dir, filename="task15_bar_chart.svg", **fmt)
-    task20.task20_table_bar_chart(panels, output_dir,
-                                  filename="task15_table_bar_chart.svg", **fmt)
+    # task20.task20_table_bar_chart(panels, output_dir,
+    #                               filename="task15_table_bar_chart.svg", **fmt)
     task20.task20_parallel_sets(panels, output_dir,
                                 filename="task15_parallel_sets.svg", **fmt)
 
-    task15_scatter_plot(fitness_df, s, output_dir)
-    task15_flow_chart_elaborate(act_totals, s, model_path, output_dir)
-    task15_flow_chart_elaborate_table(act_totals, viol_df, s, model_path, output_dir)
+    # task15_scatter_plot(fitness_df, s, output_dir)
+    # task15_flow_chart_elaborate(act_totals, s, model_path, output_dir)
+    # task15_flow_chart_elaborate_table(act_totals, viol_df, s, model_path, output_dir)

@@ -98,7 +98,7 @@ from matplotlib.colors import LinearSegmentedColormap
 
 from shared import (
     save_svg, make_table, render_empty_state_svg, build_fitness_time_series,
-    calendar_heatmap, draw_value_heatmap,
+    calendar_heatmap,
     render_conformance_line_graph, render_conformance_horizon_chart,
     conformance_category_series, conformance_category_counts,
     make_conformance_labels,
@@ -141,6 +141,13 @@ def _task10_color_list(n: int):
     if n <= len(RANGE_COLORS):
         return RANGE_COLORS[:n]
     return [to_hex(CIVIDIS(i / max(n - 1, 1))) for i in range(n)]
+
+
+def _category_rank_colors(n: int):
+    """Colour by conformance rank, low → high category: yellow → dark blue
+    (CIVIDIS_R). The pie chart's convention, shared with stacked_bar and the
+    matrix so all three read identically."""
+    return [to_hex(CIVIDIS_R(i / max(n - 1, 1))) for i in range(n)]
 
 
 def _build_high_fitness_range_df(fitness: pd.Series) -> pd.DataFrame:
@@ -294,12 +301,10 @@ def task10_pie_chart(range_df: pd.DataFrame, output_dir: str):
     its correct rank colour in the legend. Percentage labels sit outside the
     pie with a leader line to their wedge, since thin/small slices make inside
     labels overlap."""
-    # Colour by conformance rank (low → high category), matching the bar chart
-    # and heatmap's CIVIDIS_R convention: low conformance = yellow, high = blue.
-    # Applied uniformly regardless of count, so a category's colour never
-    # depends on how much data happens to be in it this run.
-    n = len(range_df)
-    colors = [to_hex(CIVIDIS_R(i / max(n - 1, 1))) for i in range(n)]
+    # Colour by conformance rank (low → high category). Applied uniformly
+    # regardless of count, so a category's colour never depends on how much
+    # data happens to be in it this run.
+    colors = _category_rank_colors(len(range_df))
 
     fig, ax = plt.subplots(figsize=(9, 7))
     wedges, _texts = ax.pie(
@@ -387,31 +392,51 @@ def task10_table(range_df: pd.DataFrame, output_dir: str):
 # ---------------------------------------------------------------------------
 
 def task10_stacked_bar(range_df: pd.DataFrame, output_dir: str):
-    """HIGH: one bar for the whole log, segments = conformance categories."""
+    """HIGH: one bar for the whole log, segments = conformance categories.
+
+    Colour and legend match the pie chart's convention (low = yellow, high =
+    dark blue; legend titled "Conformance Category" underneath). Every
+    category segment that's actually drawn gets its percentage labelled —
+    inside the segment when there's room, otherwise above it on a leader
+    line so thin segments stay readable.
+    """
     path = os.path.join(output_dir, "task10_stacked_bar.svg")
-    colors = _task10_color_list(len(range_df))
-    fig, ax = plt.subplots(figsize=(10, 3.0))
+    colors = _category_rank_colors(len(range_df))
+
+    fig, ax = plt.subplots(figsize=(10, 4.2))
     left = 0.0
+    outside_labels = []  # (x_center, pct) for segments too thin for an inside label
     for (_, row), color in zip(range_df.iterrows(), colors):
         pct = float(row["percentage"])
         if pct <= 0:
             continue
         ax.barh(0, pct, left=left, color=color, edgecolor="white", height=0.55)
-        if pct >= 5:
-            tc = contrasting_text_color(color) if isinstance(color, str) else "#222222"
-            ax.text(left + pct / 2, 0, f"{pct:.1f}%", ha="center", va="center",
+        cx = left + pct / 2
+        if pct >= 6:
+            tc = contrasting_text_color(color)
+            ax.text(cx, 0, f"{pct:.1f}%", ha="center", va="center",
                     fontsize=FONT_ANNOT - 1, color=tc)
+        else:
+            outside_labels.append((cx, pct))
         left += pct
+
+    for i, (cx, pct) in enumerate(outside_labels):
+        y_label = 0.62 if i % 2 == 0 else 0.88
+        ax.plot([cx, cx], [0.275, y_label - 0.05], color=GREY_MED, linewidth=0.8)
+        ax.text(cx, y_label, f"{pct:.1f}%", ha="center", va="bottom",
+                fontsize=FONT_ANNOT - 1, color=GREY_DARK)
+
     ax.set_xlim(0, 100)
-    ax.set_ylim(-0.5, 0.5)
+    ax.set_ylim(-0.5, 1.1 if outside_labels else 0.5)
     ax.set_yticks([])
     ax.set_xlabel("Percentage of traces (%)", fontsize=FONT_LABEL)
-    ax.set_title("Conformance Distribution (whole log)", fontsize=FONT_TITLE)
+    ax.set_title("Conformance Category Distribution", fontsize=FONT_TITLE)
     ax.spines[["top", "right", "left"]].set_visible(False)
     ax.legend(handles=[mpatches.Patch(color=c, label=l)
                        for c, l in zip(colors, range_df["range"])],
-              loc="lower center", bbox_to_anchor=(0.5, -0.30),
-              ncol=min(len(range_df), 5), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
+              loc="lower center", bbox_to_anchor=(0.5, -0.48),
+              ncol=len(range_df), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT,
+              title="Conformance Category")
     fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
@@ -457,20 +482,45 @@ def task10_box_plot(fitness_df: pd.DataFrame, output_dir: str):
 
 
 def task10_heatmap(range_df: pd.DataFrame, output_dir: str):
-    """Single-row heatmap: colour intensity = percentage of traces per conformance category.
+    """MATRIX (displayed as "Matrix" — see utils/idiomLabels.js / label_overrides.py):
+    one annotated cell per conformance category.
 
-    Encodes the same 5 category percentages as the bar chart and table; only the
-    visual encoding mechanism differs (colour intensity instead of bar length / table cell).
+    Cell colour is by category rank, matching stacked_bar / pie_chart's
+    convention (low = yellow, high = dark blue) rather than by the cell's own
+    value — so, unlike a true value-scaled heatmap, there's no colour-bar. An
+    empty (0%) category gets a shared neutral grey instead of its rank
+    colour, so it doesn't read as data where there is none. No separate
+    colour legend either — each cell already carries its own category label
+    on the x-axis directly below it.
     """
     path = os.path.join(output_dir, "task10_heatmap.svg")
-    data = np.array([range_df["percentage"].values], dtype=float)
+    n = len(range_df)
+    rank_colors = _category_rank_colors(n)
     col_labels = list(range_df["range"])
-    row_labels = ["Percentage\nof Traces"]
-    fig, ax = plt.subplots(figsize=(max(8, len(col_labels) * 1.6), 2.8))
-    draw_value_heatmap(fig, ax, data, row_labels, col_labels,
-                       xlabel="Conformance Category",
-                       cbar_label="Percentage of Traces (%)",
-                       cell_fmt="{:.1f}%", annotate=True)
+    percentages = list(range_df["percentage"])
+    # GREY_LIGHT(ER) etc. are cividis tones, not neutral greys, so they'd still
+    # blend into the rank palette — an actual neutral grey is what reads as
+    # "no data" against a yellow-to-blue ramp.
+    empty_fill, empty_text = "#dcdcdc", "#8a8a8a"
+    colors = [rank_colors[i] if percentages[i] > 0 else empty_fill for i in range(n)]
+
+    fig, ax = plt.subplots(figsize=(max(8, n * 1.6), 2.8))
+    for i, (color, pct) in enumerate(zip(colors, percentages)):
+        ax.add_patch(plt.Rectangle((i, 0), 1, 1, facecolor=color,
+                                   edgecolor="white", linewidth=1.5))
+        tc = contrasting_text_color(color) if pct > 0 else empty_text
+        ax.text(i + 0.5, 0.5, f"{pct:.1f}%", ha="center", va="center",
+                fontsize=FONT_ANNOT, color=tc)
+    ax.set_xlim(0, n)
+    ax.set_ylim(0, 1)
+    ax.set_xticks([i + 0.5 for i in range(n)])
+    ax.set_xticklabels(col_labels, fontsize=FONT_ANNOT)
+    ax.set_yticks([0.5])
+    ax.set_yticklabels(["Percentage\nof Traces"], fontsize=FONT_ANNOT - 1)
+    ax.set_xlabel("Conformance Category", fontsize=FONT_LABEL)
+    ax.tick_params(length=0)
+    for spine in ax.spines.values():
+        spine.set_visible(False)
     ax.set_title("Conformance Category Distribution", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, path)

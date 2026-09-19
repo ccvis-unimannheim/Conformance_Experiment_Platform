@@ -6,10 +6,12 @@ Question: In what percentage of traces do violations occur?
 
 Visualizations (all SVG, cividis palette from shared.py):
   tile_metric     – KPI tiles: % conformant · % deviating
-  pie_chart       – 2-slice: conformant vs deviating
   bar_chart       – 2 horizontal bars with counts + %
   stacked_bar     – single 100% bar subdivided into 5 violation-profile categories
   table           – detailed breakdown: conformant + deviating sub-categories
+
+  Commented out of IDIOMS/generate() for now:
+  pie_chart       – 2-slice: conformant vs deviating
   table_bar_chart – compact table (left) + horizontal bars (right)
 """
 
@@ -17,8 +19,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 IDIOMS = [
-    "tile_metric", "pie_chart", "bar_chart",
-    "stacked_bar", "table", "table_bar_chart",
+    "tile_metric", "bar_chart", "stacked_bar", "table",
+    # "pie_chart",
+    # "table_bar_chart",
 ]
 
 
@@ -257,8 +260,7 @@ def task12_bar_chart(stats, output_dir):
     ax.set_xlabel("% of all traces containing this violation", fontsize=FONT_LABEL)
     ax.spines[["top", "right"]].set_visible(False)
     ax.xaxis.grid(True, linestyle="--", alpha=0.5); ax.set_axisbelow(True)
-    ax.set_title(f"Traces Containing Each Violation  "
-                 f"({stats['pct_deviating']:.1f}% deviate at all)", fontsize=FONT_TITLE)
+    ax.set_title("Traces Containing Each Violation", fontsize=FONT_TITLE)
     fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task12_bar_chart.svg"))
 
@@ -370,8 +372,8 @@ def generate(log, alignments, output_dir, violation_patterns=None, **kwargs):
     stats = _extract_data(alignments, violation_patterns)
 
     task12_tile_metric(stats, output_dir)
-    task12_pie_chart(stats, output_dir)
+    # task12_pie_chart(stats, output_dir)
     task12_bar_chart(stats, output_dir)
     task12_stacked_bar(stats, output_dir)
     task12_table(stats, output_dir)
-    task12_table_bar_chart(stats, output_dir)
+    # task12_table_bar_chart(stats, output_dir)
