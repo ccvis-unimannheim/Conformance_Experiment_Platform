@@ -10,16 +10,14 @@ task01's idioms showed different data: the bar chart only each group's mean
 fitness, the table counts, % conformant and the mean, the matrix, stacked bar
 and parallel sets counts per fitness category. Participants given different
 idioms were given different information, not the same information drawn
-differently. Counts also made the larger group look better, and the category
-colours ran the wrong way — Conformant (the highest fitness) was yellow, which
-elsewhere means low.
+differently. Counts also made the larger group look better.
 
 ### Changes
 
 | File | Change |
 |------|--------|
-| `provibackend/ProViBackend/scripts/tasks/task01.py` | One kernel, `_task01_category_counts`: per group, traces in Major (<0.8) / Minor (0.8–<1.0) / Conformant (=1.0). Every idiom but the box plot draws its within-group shares, with `n` in the group label. Bar chart → grouped bars per category; table and table + bar chart → `count (share%)` per category (mean fitness dropped); stacked bar → 100% stacked; parallel sets → equal-height groups; matrix → row shares on a fixed 0–100% scale. Category colours reversed: Major yellow, Conformant navy. `_task01_group_stats` removed. |
-| `provibackend/ProViBackend/scripts/shared.py` | The colour-direction comment: yellow is the low end of what is encoded, so fitness categories run yellow → navy. |
+| `provibackend/ProViBackend/scripts/tasks/task01.py` | One kernel, `_task01_category_counts`: per group, traces in Major (<0.8) / Minor (0.8–<1.0) / Conformant (=1.0). Every idiom but the box plot draws its within-group shares, with `n` in the group label. Bar chart → grouped bars per category; table and table + bar chart → `count (share%)` per category (mean fitness dropped); stacked bar → 100% stacked; parallel sets → equal-height groups; matrix → row shares on a fixed 0–100% scale. Category colours: Major yellow, Minor ochre, Conformant navy — yellow is low fitness, and both deviation categories stay on cividis's yellow end so deviating vs conformant reads as yellow vs blue (the slate blue `categorical_colors(3)` gives Minor drew a log without major deviations all blue). `_task01_group_stats` removed. |
+| `provibackend/ProViBackend/scripts/shared.py` | The colour-direction comment: yellow is the low end of what is encoded, so fitness categories run yellow (deviating) → navy (conformant). |
 
 The box plot is unchanged and cannot show this: it draws quantiles, and with
 most fitness values at exactly 1.0 its boxes collapse. It stays in `IDIOMS`.

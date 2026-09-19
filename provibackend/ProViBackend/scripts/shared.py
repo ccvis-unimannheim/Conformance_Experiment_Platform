@@ -66,10 +66,10 @@ GREY_LIGHTER = to_hex(_CIV(0.90))  # yellow-green (conformant / Synchronous)
 #
 # Where colour has a direction it follows the heatmaps (CIVIDIS_R): yellow is
 # the low end of whatever the figure encodes, navy the high end — a low count, a
-# low share, a low fitness. Categories that bin a value take that value's
-# direction: fitness categories run yellow (major deviation) → navy
-# (conformant), i.e. categorical_colors(n)[::-1] for categories listed low →
-# high. Move types are not a scale; their colours only tell them apart.
+# low share, a low fitness. Categories that bin fitness therefore run yellow
+# (deviating) → navy (conformant); keep the deviating ones on the yellow end so
+# they never read as blue next to navy (task01's _CAT_COLORS). Move types are
+# not a scale; their colours only tell them apart.
 # Two unordered groups have no direction either, so PAIR_COLORS only tells them
 # apart; and a figure that colours
 # its categories (e.g. a parallel sets' right axis) should not colour its
