@@ -141,6 +141,30 @@ usually a state the process rewrites, and a mean over rewrites answers no
 question anyone asks. `::sum` is there for the additive ones (cost), which no
 rule can tell apart from the state-like ones by name.
 
+### The split strategy is a preference, not an instruction
+
+`split_strategy` is one parameter over a selection of attributes whose types
+differ, so it cannot be right for all of them: "cut at the median" means nothing
+for `contains::X` (Yes/No) or for a region. Choosing it used to produce **no
+groups at all** for those attributes — a blank panel whose only clue was the
+figure's own "no candidate attribute could be bucketed" state — and calling
+`split` with a raw `boolean` value type raised a numpy TypeError outright, even
+though `BUCKETABLE_TYPES` advertises boolean.
+
+Both are fixed in `split`: a boolean is normalised to Yes/No first, and a
+strategy that does not fit an attribute falls back to the one its type deserves,
+with a log line. The options now say which types they apply to.
+
+| strategy | numbers, dates | categories, Yes/No |
+|---|---|---|
+| `ordered_bins` (default for numbers and dates) | quantile bands / calendar periods | falls back to `nominal_n` |
+| `binary` | above and below the median | falls back to `nominal_n` |
+| `nominal_n` (default otherwise) | each distinct value its own group | most frequent values, rest as "Other" |
+
+This became reachable from the defaults when `contains::` features entered the
+default set: before that, no boolean was ever bucketed by an admin-chosen
+strategy.
+
 ### What the picker refuses to offer
 
 The registry's own rule is that cardinality never gates *availability* — a

@@ -607,10 +607,23 @@ SPLIT_PARAMS = [
     {
         "key": "split_strategy",
         "slot": "split",
-        "label": "How the chosen attribute is cut into groups (empty = by its own type)",
-        "hint": "Leave empty to cut by the attribute's own type",
+        "label": "How each attribute is cut into groups "
+                 "(empty = ranges for numbers and dates, one group per value otherwise)",
+        # Participant-facing: which groups the figure compares, not how the
+        # platform arrived at them.
+        "hint": "Groups compared",
         "widget": "select-one",
-        "options": ["binary", "nominal_n", "ordered_bins"],
+        # A strategy that does not fit an attribute falls back to the one its
+        # type deserves (see `split`), so these read as preferences rather than
+        # instructions — "two halves" cannot mean anything for Yes/No.
+        "options": [
+            {"value": "ordered_bins",
+             "label": "Ranges — numbers into quantile bands, dates into calendar periods"},
+            {"value": "binary",
+             "label": "Two halves — above and below the median (numbers and dates only)"},
+            {"value": "nominal_n",
+             "label": "One group per value — the most frequent, the rest as “Other”"},
+        ],
         "default": "",
         "required": False,
     },
@@ -747,6 +760,25 @@ def split(values, value_type: str, strategy: Optional[str] = None,
     strategy = strategy or default_strategy(value_type)
     if strategy not in STRATEGIES:
         raise ValueError(f"Unknown split strategy '{strategy}'.")
+
+    # A boolean is two groups already; asking for a median of True/False raises
+    # inside numpy, and the value is offered as bucketable, so normalise here
+    # rather than at each of the call sites that remembered to.
+    if value_type == "boolean":
+        values, value_type = as_bucketable(list(values), value_type)
+
+    # The strategy is one parameter over a selection of attributes whose types
+    # differ, so it cannot be right for all of them: "cut at the median" means
+    # nothing for `contains::X` (Yes/No) or for a region. It used to produce no
+    # groups at all there — a silently blank panel, with the figure's own
+    # "no candidate attribute could be bucketed" state as the only clue. An
+    # attribute the strategy does not fit now falls back to the one its type
+    # deserves.
+    if strategy in ("binary", "ordered_bins") and value_type == "categorical":
+        logger.info(
+            "trace_features: '%s' does not apply to a categorical attribute — "
+            "grouping by value instead", strategy)
+        strategy = "nominal_n"
 
     values = list(values)
     n_missing = sum(1 for v in values if _is_missing(v))
