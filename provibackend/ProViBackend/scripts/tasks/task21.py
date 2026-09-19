@@ -47,8 +47,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "scatter_plot", "table", "table_bar_chart",
-          "parallel_sets", "flow_chart_table", "flow_chart_elaborate_table"]
+IDIOMS = [
+    "bar_chart", "table", "table_bar_chart",
+    "parallel_sets", "flow_chart_table", "flow_chart_elaborate_table",
+]
 
 
 # What this task measures per group, and how it cuts the log — task
@@ -468,7 +470,6 @@ def generate(log, alignments, model_path, output_dir: str, candidate_attributes=
     ctx = build_task28_context(alignments)
 
     task21_bar_chart(candidates, output_dir)
-    task21_scatter_plot(attr_meta, evidence_df, output_dir)
     task21_table(candidates, output_dir)
     task21_table_and_bar_chart(candidates, output_dir)
     task21_parallel_sets(candidates, evidence_df, attr_meta, resp, output_dir)

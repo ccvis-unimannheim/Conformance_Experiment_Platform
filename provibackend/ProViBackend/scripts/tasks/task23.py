@@ -16,7 +16,7 @@ Public API:
 import logging
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "stacked_bar", "table", "table_and_bar_chart", "matrix",
+IDIOMS = ["bar_chart", "stacked_bar", "table", "matrix",
           "parallel_sets"]
 
 
@@ -254,7 +254,6 @@ def generate(alignments, output_dir: str, log=None, activities=None):
             ("task23_bar_chart.svg",          "Top-N Violation Patterns"),
             ("task23_stacked_bar.svg",         "Violation Composition per Activity"),
             ("task23_table.svg",               "Violation Patterns"),
-            ("task23_table_and_bar_chart.svg", "Violation Patterns"),
             ("task23_matrix.svg",              "Violation Count Matrix"),
             ("task23_parallel_sets.svg",       "Move Type vs. Activity"),
         ]:
@@ -269,9 +268,6 @@ def generate(alignments, output_dir: str, log=None, activities=None):
                          filename="task23_matrix.svg", title_prefix=_TITLE_PREFIX)
     task11.task11_table(selected, coverage, n_traces, output_dir,
                         filename="task23_table.svg", title_prefix=_TITLE_PREFIX)
-    task11.task11_table_bar_chart(selected, coverage, n_traces, output_dir,
-                                  filename="task23_table_and_bar_chart.svg",
-                                  title_prefix=_TITLE_PREFIX)
 
     pat_df = _task23_build_pattern_df(alignments, activities=activities)
     task23_stacked_bar(pat_df, output_dir)
