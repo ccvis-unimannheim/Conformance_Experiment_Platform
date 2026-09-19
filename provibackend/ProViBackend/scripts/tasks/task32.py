@@ -33,7 +33,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "stacked_bar", "boxplot", "table", "matrix",
+IDIOMS = ["bar_chart", "stacked_bar", "table", "matrix",
           "heatmap", "parallel_sets"]
 
 
@@ -82,13 +82,14 @@ import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.colors import to_hex
 
 from shared import (
     save_svg, make_table, draw_parallel_sets,
-    draw_value_heatmap, draw_rate_matrix, draw_grouped_box_plot,
-    draw_grouped_rate_bars,
+    draw_value_heatmap, draw_rate_matrix,
+    draw_grouped_rate_bars, contrasting_text_color,
     render_empty_state_svg, format_threshold,
-    GREY_MED, GREY_LIGHT, GREY_DARK, GREY_LIGHTER, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    CIVIDIS_R, PAIR_COLORS, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 # Reuse the proven sub-log split + violation classification from task30.
@@ -98,7 +99,16 @@ from tasks.task30 import (
 )
 
 TOP_N = 10
-_GROUP_PALETTE = [GREY_MED, GREY_LIGHT, GREY_DARK, GREY_LIGHTER]
+#: Width the grouped bars share, kept here so the value labels can be placed on
+#: the same geometry ``draw_grouped_rate_bars`` lays out.
+_BAR_WIDTH_TOTAL = 0.76
+#: Navy and cividis's bright yellow first — `PAIR_COLORS`, the palette's pair for
+#: two unordered groups, the same task31 uses. The old stops started in cividis's
+#: olive-grey middle, which reads as a muted third category rather than as two
+#: sub-processes told apart. Further stops only matter when a log splits into
+#: more than two.
+_GROUP_PALETTE = [*PAIR_COLORS,
+                  to_hex(CIVIDIS_R(0.40)), to_hex(CIVIDIS_R(0.62))]
 def _group_colors(groups: list) -> list:
     return [_GROUP_PALETTE[i % len(_GROUP_PALETTE)] for i in range(len(groups))]
 
@@ -124,11 +134,18 @@ def _aggregate_frequency(viol_df: pd.DataFrame, groups: list,
                          top_n: int = TOP_N) -> pd.DataFrame:
     """Top-N violation patterns by TOTAL occurrence count, descending.
 
-    Columns: pattern, total, cum_pct, and one "<group>__count" per sub-log.
-    cum_pct is the running share of ALL violations (over every pattern, not just
-    the top-N) so the Pareto curve stays honest.
+    Columns: pattern, total, cum_pct, n_all_patterns, and one "<group>__count"
+    per sub-log. cum_pct is the running share of ALL violations (over every
+    pattern, not just the top-N) so the Pareto curve stays honest.
+
+    n_all_patterns is how many distinct patterns the log holds before the cut.
+    It rides along on every row so it survives the prominence filter, and lets a
+    figure say "top 5 of 23" — or say nothing, when the cut removed nothing.
+    Under the move_type strategy there are only ever two patterns, and a title
+    reading "Top 2" claimed a ranking where the figure shows the whole set.
     """
-    cols = ["pattern", "total", "cum_pct"] + [f"{g}__count" for g in groups]
+    cols = (["pattern", "total", "cum_pct", "n_all_patterns"]
+            + [f"{g}__count" for g in groups])
     if viol_df.empty:
         return pd.DataFrame(columns=cols)
 
@@ -146,6 +163,7 @@ def _aggregate_frequency(viol_df: pd.DataFrame, groups: list,
             "pattern": pat,
             "total": int(totals[pat]),
             "cum_pct": running / grand_total * 100 if grand_total else 0.0,
+            "n_all_patterns": int(len(totals)),
         }
         for g in groups:
             row[f"{g}__count"] = int(by_pg.get((pat, g), 0))
@@ -160,19 +178,6 @@ def _counts(agg_df: pd.DataFrame, groups: list) -> np.ndarray:
     return agg_df[[f"{g}__count" for g in groups]].values.astype(float)
 
 
-def _violations_per_trace(viol_df: pd.DataFrame, assignment: list,
-                          groups: list) -> dict:
-    """group -> np.array of per-trace violation counts (includes 0 for clean traces)."""
-    per_trace_counts = (viol_df.groupby("trace_index").size()
-                        if not viol_df.empty else pd.Series(dtype=int))
-    out = {g: [] for g in groups}
-    for i, g in enumerate(assignment):
-        if g is None or g not in out:
-            continue
-        out[g].append(int(per_trace_counts.get(i, 0)))
-    return {g: np.asarray(v, dtype=float) for g, v in out.items()}
-
-
 # ---------------------------------------------------------------------------
 # Idiom 1: bar_chart — Pareto of total violation frequency (whole-log ranking)
 # ---------------------------------------------------------------------------
@@ -183,8 +188,9 @@ def task32_bar_chart(agg_df, groups, attr, output_dir):
 
     Consistent with task30/task13, the bar chart breaks the metric down across the
     sub-process split rather than collapsing to a single whole-log total — so the
-    compare attribute (AMOUNT_REQ) is actually visible. The total per pattern is
-    annotated above each cluster to preserve the Pareto ranking read.
+    compare attribute (AMOUNT_REQ) is actually visible. Each bar carries its own
+    count; the per-cluster total is not drawn, because only this idiom and the
+    table ever had one.
     """
     if agg_df.empty:
         render_empty_state_svg(os.path.join(output_dir, "task32_bar_chart.svg"),
@@ -192,29 +198,50 @@ def task32_bar_chart(agg_df, groups, attr, output_dir):
         return
     patterns = agg_df["pattern"].tolist()
     counts = _counts(agg_df, groups)        # (n_patterns × n_groups)
-    totals = agg_df["total"].values
+    colors = _group_colors(groups)
 
     fig, ax = plt.subplots(figsize=(max(10, len(patterns) * 1.6), 5.8))
-    x = draw_grouped_rate_bars(ax, len(patterns), groups, counts, _group_colors(groups))
+    x = draw_grouped_rate_bars(ax, len(patterns), groups, counts, colors,
+                               width_total=_BAR_WIDTH_TOTAL)
 
-    # Total per pattern above each cluster (keeps the frequency-ranking read).
+    # The count in each bar, on the same geometry draw_grouped_rate_bars uses.
+    # A bar too short to hold its label gets it just above instead.
     ymax = counts.max() if counts.size else 1.0
-    for xi, t in zip(x, totals):
-        ax.text(xi, ymax * 1.04, f"Σ {int(t)}", ha="center", va="bottom",
-                fontsize=FONT_ANNOT - 1, color="#444444")
+    bw = _BAR_WIDTH_TOTAL / max(len(groups), 1)
+    offsets = (np.arange(len(groups)) - (len(groups) - 1) / 2.0) * bw
+    for gi, color in enumerate(colors):
+        for ci in range(len(patterns)):
+            val = counts[ci, gi]
+            if val <= 0:
+                continue
+            if val >= ymax * 0.12:
+                ax.text(x[ci] + offsets[gi], val / 2, f"{int(val)}",
+                        ha="center", va="center", fontsize=FONT_ANNOT - 2,
+                        color=contrasting_text_color(color), rotation=90)
+            else:
+                ax.text(x[ci] + offsets[gi], val + ymax * 0.015, f"{int(val)}",
+                        ha="center", va="bottom", fontsize=FONT_ANNOT - 2,
+                        color=GREY_DARK)
 
     ax.set_xticks(x)
     ax.set_xticklabels([_wrap_pattern(p) for p in patterns],
                        rotation=0, ha="center", fontsize=FONT_ANNOT - 2)
     ax.set_ylabel("Occurrences", fontsize=FONT_LABEL)
-    ax.set_ylim(0, max(ymax * 1.18, 1.0))
+    ax.set_ylim(0, max(ymax * 1.08, 1.0))
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
     ax.legend(frameon=False, fontsize=FONT_ANNOT - 1, title=f"Sub-process ({attr})",
               title_fontsize=FONT_ANNOT)
 
-    ax.set_title(f"Main Violations — Frequency by Sub-process ({attr}, top {len(patterns)})",
+    # Name a cut only where there is one. "top N" also counts violations, not
+    # sub-processes: with two violations on the x axis and three bars in each
+    # cluster, "top 2" read as if it meant the bars.
+    n_all = int(agg_df["n_all_patterns"].iloc[0]) if "n_all_patterns" in agg_df \
+        else len(patterns)
+    scope = (f"Top {len(patterns)} of {n_all} Violations"
+             if len(patterns) < n_all else "Violations")
+    ax.set_title(f"{scope} — Frequency by Sub-process ({attr})",
                  fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task32_bar_chart.svg"))
@@ -262,53 +289,30 @@ def task32_stacked_bar(agg_df, groups, attr, output_dir):
 
 
 # ---------------------------------------------------------------------------
-# Idiom 3: boxplot — violations-per-trace distribution per sub-process
-# ---------------------------------------------------------------------------
-
-def task32_boxplot(viol_df, assignment, groups, attr, output_dir):
-    """How many violations does a typical trace carry, and does that differ by sub-process?"""
-    per_group = _violations_per_trace(viol_df, assignment, groups)
-    data = [per_group[g] for g in groups]
-    colors = _group_colors(groups)
-
-    if all(arr.size == 0 for arr in data):
-        render_empty_state_svg(os.path.join(output_dir, "task32_boxplot.svg"),
-                               "Violations per Trace by Sub-process",
-                               "No traces in any sub-process.")
-        return
-
-    vmax = max((arr.max() for arr in data if arr.size), default=1.0)
-    fig, ax = plt.subplots(figsize=(_grid_fig_width(groups), 6))
-    draw_grouped_box_plot(ax, data, groups, colors,
-                          ylabel="Violations per trace",
-                          ylim=(-0.3, vmax + 1))
-    ax.tick_params(axis="x", labelrotation=0)
-    ax.set_title(f"Violations per Trace by Sub-process ({attr})", fontsize=FONT_TITLE)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task32_boxplot.svg"))
-
-
-# ---------------------------------------------------------------------------
 # Table data shared by Idioms 4 & 5
 # ---------------------------------------------------------------------------
 
 def _freq_table_data(agg_df, groups):
-    """(cell_text, col_labels, col_widths): pattern | per-sub-process count | Total | Cum %."""
-    col_labels = ["Violation Pattern"] + groups + ["Total", "Cum %"]
-    w_pat, w_tot, w_cum = 0.34, 0.09, 0.09
-    w_grp = (1.0 - w_pat - w_tot - w_cum) / max(len(groups), 1)
-    col_widths = [w_pat] + [w_grp] * len(groups) + [w_tot, w_cum]
-    cell_text = []
-    for _, row in agg_df.iterrows():
-        cells = [row["pattern"]]
-        cells += [str(int(row[f"{g}__count"])) for g in groups]
-        cells += [str(int(row["total"])), f"{row['cum_pct']:.0f}%"]
-        cell_text.append(cells)
+    """(cell_text, col_labels, col_widths): pattern | count per sub-process.
+
+    No Total and no Cum % column. The cumulative share is a Pareto reading no
+    other idiom of this task supports, and the row total is a number only this
+    table and the bar chart's cluster label ever carried — the rows are already
+    ranked by it, which is what the ranking is for.
+    """
+    col_labels = ["Violation Pattern"] + groups
+    w_pat = 0.40
+    w_grp = (1.0 - w_pat) / max(len(groups), 1)
+    col_widths = [w_pat] + [w_grp] * len(groups)
+    cell_text = [
+        [row["pattern"]] + [str(int(row[f"{g}__count"])) for g in groups]
+        for _, row in agg_df.iterrows()
+    ]
     return cell_text, col_labels, col_widths
 
 
 # ---------------------------------------------------------------------------
-# Idiom 4: table — frequency table, ranked, with cumulative %
+# Idiom 3: table — frequency table, ranked
 # ---------------------------------------------------------------------------
 
 def task32_table(agg_df, attr, output_dir):
@@ -338,7 +342,7 @@ def task32_table(agg_df, attr, output_dir):
 
 
 # ---------------------------------------------------------------------------
-# Idiom 5: matrix — violation (rows, ranked) × sub-process, annotated counts
+# Idiom 4: matrix — violation (rows, ranked) × sub-process, annotated counts
 # ---------------------------------------------------------------------------
 
 def task32_matrix(agg_df, groups, attr, output_dir):
@@ -353,14 +357,14 @@ def task32_matrix(agg_df, groups, attr, output_dir):
     fig, ax = plt.subplots(figsize=(_grid_fig_width(groups), fig_h))
     draw_rate_matrix(fig, ax, data, patterns, groups,
                      xlabel=f"Sub-process ({attr})",
-                     cbar_label="Occurrences", cell_fmt="{:.0f}")
+                     cell_fmt="{:.0f}", colorless=True)
     ax.set_title("Violation Frequency Matrix (counts)", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task32_matrix.svg"))
 
 
 # ---------------------------------------------------------------------------
-# Idiom 6: heatmap — same as matrix, continuous intensity
+# Idiom 5: heatmap — same as matrix, continuous intensity
 # ---------------------------------------------------------------------------
 
 def task32_heatmap(agg_df, groups, attr, output_dir):
@@ -382,7 +386,7 @@ def task32_heatmap(agg_df, groups, attr, output_dir):
 
 
 # ---------------------------------------------------------------------------
-# Idiom 7: parallel_sets — sub-process → violation type (ribbon = count)
+# Idiom 6: parallel_sets — sub-process → violation type (ribbon = count)
 # ---------------------------------------------------------------------------
 
 def task32_parallel_sets(agg_df, viol_df, groups, attr, output_dir):
@@ -432,7 +436,6 @@ def task32_parallel_sets(agg_df, viol_df, groups, attr, output_dir):
 _ALL_FNAMES_TITLES = [
     ("task32_bar_chart.svg",       "Main Violations (Pareto)"),
     ("task32_stacked_bar.svg",     "Violation Frequency by Sub-process"),
-    ("task32_boxplot.svg",         "Violations per Trace by Sub-process"),
     ("task32_table.svg",           "Main Violations by Sub-process"),
     ("task32_matrix.svg",          "Violation Frequency Matrix"),
     ("task32_heatmap.svg",         "Violation Frequency Heatmap"),
@@ -504,7 +507,6 @@ def generate(log, alignments, output_dir: str,
 
     task32_bar_chart(agg_df, groups, compare_attribute, output_dir)
     task32_stacked_bar(agg_df, groups, compare_attribute, output_dir)
-    task32_boxplot(viol_df, assignment, groups, compare_attribute, output_dir)
     task32_table(agg_df, compare_attribute, output_dir)
     task32_matrix(agg_df, groups, compare_attribute, output_dir)
     task32_heatmap(agg_df, groups, compare_attribute, output_dir)
