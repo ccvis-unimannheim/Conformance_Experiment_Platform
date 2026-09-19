@@ -5,10 +5,23 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../../components/Admin/Toast";
+import { IdiomImportButton, IdiomImportResult } from "../../../../components/Admin/IdiomImport";
 import { saveWizardStep } from "../../../../utils/wizardSave";
 
 function getId(obj) {
   return obj._id || obj.id;
+}
+
+// A task whose images came from an idiom bundle import. Its parameters are the
+// ones those images were drawn with, and the backend keeps them fixed.
+function isImported(ti) {
+  return !!ti?.images_imported_from;
+}
+
+function formatDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? "" : d.toLocaleDateString();
 }
 
 const STATUS_STYLES = {
@@ -241,6 +254,8 @@ function SpecifyContent() {
   const [paramValues, setParamValues] = useState({}); // task_id -> { [key]: value }
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [importResult, setImportResult] = useState(null); // see IdiomImportResult
+  const [discarding, setDiscarding] = useState(false);
 
   const pollRef = useRef(null);
 
@@ -328,7 +343,8 @@ function SpecifyContent() {
           if (vals[entry.key] === undefined) vals[entry.key] = entry.default ?? emptyDefault;
           // If the entry has dataset-backed candidates and the stored value is no longer
           // valid for the current dataset, drop the stale value(s) so the user re-selects.
-          if (entry.options?.length > 0) {
+          // Not for imported tasks: their values are what the images were drawn with.
+          if (!isImported(ti) && entry.options?.length > 0) {
             const validValues = entry.options.map((o) => (typeof o === "string" ? o : o.value));
             if (Array.isArray(vals[entry.key])) {
               vals[entry.key] = vals[entry.key].filter((v) => validValues.includes(v));
@@ -349,7 +365,7 @@ function SpecifyContent() {
       const next = { ...prev, [taskId]: { ...(prev[taskId] || {}), [key]: value } };
       const updatedInstances = taskInstances.map((ti) => ({
         ...ti,
-        parameters: next[ti.task_id] || {},
+        parameters: isImported(ti) ? ti.parameters || {} : next[ti.task_id] || {},
       }));
       saveWizardStep(experimentId, "specify", { task_instances: updatedInstances })
         .catch((e) => showToast(`Failed to save parameters: ${e.message}`, true));
@@ -360,6 +376,7 @@ function SpecifyContent() {
   function requiredParamsMissing() {
     const missing = [];
     for (const ti of taskInstances) {
+      if (isImported(ti)) continue; // locked, and not what Generate draws
       const spec = paramSpecs[ti.task_id] || [];
       const vals = paramValues[ti.task_id] || {};
       for (const entry of spec) {
@@ -407,13 +424,19 @@ function SpecifyContent() {
       return;
     }
 
-    // Uploaded/imported images take precedence over generated ones and survive
+    // Uploaded images take precedence over generated ones and survive
     // regeneration; say so, or the admin would wonder why nothing changed.
+    // Imported tasks are left out: their lock notice already says it.
     try {
+      const importedKeys = new Set(
+        taskInstances.filter(isImported).map((ti) => tasksById[ti.task_id]?.task_key)
+      );
       const res = await fetch(`/api/admin/experiments/${encodeURIComponent(experimentId)}/idioms/overrides`);
-      const count = res.ok ? ((await res.json()).overrides || []).length : 0;
+      const count = res.ok
+        ? ((await res.json()).overrides || []).filter((o) => !importedKeys.has(o.task_key)).length
+        : 0;
       if (count > 0 && !window.confirm(
-        `${count} image${count !== 1 ? "s were" : " was"} uploaded or imported for this experiment. ` +
+        `${count} image${count !== 1 ? "s were" : " was"} uploaded for this experiment. ` +
         "They will keep being shown instead of the regenerated ones until you revert them on the Overview page. Generate anyway?"
       )) {
         return;
@@ -424,9 +447,10 @@ function SpecifyContent() {
 
     setGenerating(true);
     try {
+      // Imported tasks' parameters are sent as they are; the backend keeps them anyway.
       const updatedInstances = taskInstances.map((ti) => ({
         ...ti,
-        parameters: paramValues[ti.task_id] || {},
+        parameters: isImported(ti) ? ti.parameters || {} : paramValues[ti.task_id] || {},
       }));
 
       await saveWizardStep(experimentId, "specify", { task_instances: updatedInstances });
@@ -450,7 +474,12 @@ function SpecifyContent() {
       }
 
       // Reflect the "running" status immediately, then poll for completion.
-      setTaskInstances(updatedInstances.map((ti) => ({ ...ti, generation_status: "running", generation_error: null })));
+      // Imported tasks that already have every image are not regenerated.
+      setTaskInstances(updatedInstances.map((ti) => (
+        isImported(ti) && ti.generation_status === "ready"
+          ? ti
+          : { ...ti, generation_status: "running", generation_error: null }
+      )));
       startPolling();
     } catch (e) {
       setGenerating(false);
@@ -458,7 +487,35 @@ function SpecifyContent() {
     }
   }
 
+  async function handleDiscardImport() {
+    if (!window.confirm(
+      "Discard the imported images? Every uploaded and imported image of this experiment is removed, " +
+      "the parameters become editable again, and the affected tasks have to be generated."
+    )) return;
+    setDiscarding(true);
+    try {
+      const res = await fetch(`/api/admin/experiments/${encodeURIComponent(experimentId)}/idioms/overrides`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(typeof body?.detail === "string" ? body.detail : `HTTP ${res.status}`);
+      }
+      setImportResult(null);
+      showToast("Import discarded. Set the parameters and generate the visualizations.");
+      await init();
+    } catch (e) {
+      showToast(`Could not discard the import: ${e.message}`, true);
+    } finally {
+      setDiscarding(false);
+    }
+  }
+
   const allReady = taskInstances.length > 0 && taskInstances.every((ti) => ti.generation_status === "ready");
+  const importedCount = taskInstances.filter(isImported).length;
+  // Nothing left for Generate to draw once every task shows its imported images.
+  const nothingToGenerate = taskInstances.length > 0
+    && taskInstances.every((ti) => isImported(ti) && ti.generation_status === "ready");
 
   function handleNext() {
     if (!allReady) {
@@ -480,9 +537,60 @@ function SpecifyContent() {
           </div>
           <p className="font-body-lg text-body-lg text-secondary max-w-2xl">
             Set any task-specific hyperparameters, then generate the visualizations for the
-            selected idioms. Tasks with no parameters are ready to generate immediately.
+            selected idioms. Tasks with no parameters are ready to generate immediately. To reuse
+            the exact images of an earlier experiment instead, import them below.
           </p>
         </div>
+
+        {/* Import: the images of an earlier experiment, with their parameters */}
+        {!loading && taskInstances.length > 0 && (
+          <div className="bg-white rounded-lg border border-border-subtle shadow-sm p-5 flex flex-col gap-4">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="max-w-2xl">
+                <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">
+                  Images from an earlier experiment
+                </p>
+                <p className="text-xs text-on-surface-variant">
+                  Import the zip downloaded from an earlier experiment&apos;s Overview page to show participants
+                  exactly its images. Each task takes the parameters its images were drawn with, and those
+                  parameters are then locked. A task whose images come from a different dataset than this
+                  experiment&apos;s is rejected. Tasks not in the zip are generated as usual.
+                </p>
+              </div>
+              <IdiomImportButton
+                experimentId={experimentId}
+                mode="specify"
+                label="Import from a previous export"
+                disabled={generating || discarding}
+                onImported={init}
+                onResult={setImportResult}
+                showToast={showToast}
+              />
+            </div>
+
+            {importedCount > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+                <p className="text-xs text-amber-800">
+                  <span className="font-semibold">
+                    {importedCount} task{importedCount !== 1 ? "s use" : " uses"} imported images
+                  </span>{" "}
+                  — their parameters are locked below.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleDiscardImport}
+                  disabled={discarding || generating}
+                  className="flex items-center gap-1 text-xs font-semibold text-amber-800 hover:underline disabled:opacity-40"
+                >
+                  <span className="material-symbols-outlined text-sm">restart_alt</span>
+                  {discarding ? "Discarding…" : "Discard import"}
+                </button>
+              </div>
+            )}
+
+            <IdiomImportResult result={importResult} mode="specify" />
+          </div>
+        )}
 
 
 
@@ -535,12 +643,33 @@ function SpecifyContent() {
                     <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-3">
                       Parameters
                     </p>
+                    {isImported(ti) && (
+                      <div className="flex items-start gap-2 text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+                        <span className="material-symbols-outlined text-sm">lock</span>
+                        <p>
+                          These parameters come from the imported images
+                          {ti.images_imported_from.experiment_name
+                            ? ` ("${ti.images_imported_from.experiment_name}"`
+                            : ` (${ti.images_imported_from.file || "an idiom zip"}`}
+                          {ti.images_imported_from.exported_at
+                            ? `, exported ${formatDate(ti.images_imported_from.exported_at)})`
+                            : ")"}{" "}
+                          and are locked so that the parameters shown to participants match what the images
+                          depict. To change them, discard the import and generate new images.
+                        </p>
+                      </div>
+                    )}
                     {spec.length === 0 ? (
                       <p className="text-xs text-on-surface-variant italic">
                         No parameters required — ready to generate.
                       </p>
                     ) : (
-                      <div className="grid grid-cols-2 gap-4">
+                      // A disabled fieldset disables every control inside it,
+                      // whatever widget ParamField renders.
+                      <fieldset
+                        disabled={isImported(ti)}
+                        className={`grid grid-cols-2 gap-4 min-w-0 ${isImported(ti) ? "opacity-60" : ""}`}
+                      >
                         {spec.filter((entry) => entryApplies(entry, vals)).map((entry) => (
                           <div key={entry.key} className="flex flex-col gap-1">
                             <label className="text-xs font-semibold text-on-surface">
@@ -554,7 +683,7 @@ function SpecifyContent() {
                             />
                           </div>
                         ))}
-                      </div>
+                      </fieldset>
                     )}
 
                     {ti.generation_status === "failed" && ti.generation_error && (
@@ -582,7 +711,8 @@ function SpecifyContent() {
           <div className="flex items-center gap-3">
             <button
               onClick={handleGenerate}
-              disabled={generating || loading}
+              disabled={generating || loading || discarding || nothingToGenerate}
+              title={nothingToGenerate ? "Every task shows imported images — nothing to generate." : undefined}
               className="flex items-center gap-2 text-sm font-semibold border border-border-subtle text-on-surface-variant px-6 py-2.5 rounded-lg hover:bg-surface-container transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <span className={`material-symbols-outlined text-sm ${generating ? "animate-spin" : ""}`}>

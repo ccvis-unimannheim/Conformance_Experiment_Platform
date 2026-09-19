@@ -6,6 +6,7 @@ import Link from "next/link";
 import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../../components/Admin/Toast";
 import EditTaskModal from "../../../../components/Admin/EditTaskModal";
+import { IdiomImportButton, IdiomImportResult } from "../../../../components/Admin/IdiomImport";
 import { resolveIdiomLabel } from "../../../../utils/idiomLabels";
 import { saveWizardStep } from "../../../../utils/wizardSave";
 
@@ -59,7 +60,7 @@ function IdiomPreviewModal({ experimentId, taskKey, idiomKey, idiomLabel, datase
           {status === "unavailable" && (
             <div className="flex flex-col items-center gap-3">
               <span className="material-symbols-outlined text-4xl text-on-surface-variant">image_not_supported</span>
-              <p className="text-sm text-on-surface-variant text-center">Preview not available.<br/><span className="text-xs">Generate previews from the idiom selection page first.</span></p>
+              <p className="text-sm text-on-surface-variant text-center">Preview not available.<br/><span className="text-xs">Generate the visualizations on the Specify step first.</span></p>
             </div>
           )}
           <img
@@ -95,42 +96,18 @@ function formatDate(iso) {
 }
 
 // Export / import of the experiment's idiom images (see backend routers/idiom_bundle.py).
+// Import here keeps this experiment's parameters: a task whose zip parameters
+// differ is rejected. Importing images together with their parameters happens
+// on the Specify step.
 function IdiomFilesPanel({ experimentId, editable, overrides, importInfo, onChanged, showToast }) {
-  const inputRef = useRef(null);
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState(null); // { imported: [], skipped: [] }
-
-  async function handleImport(e) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    setBusy(true);
-    setResult(null);
-    try {
-      const form = new FormData();
-      form.append("file", file);
-      const res = await fetch(`/api/admin/experiments/${encodeURIComponent(experimentId)}/idioms/import`, {
-        method: "POST",
-        body: form,
-      });
-      if (!res.ok) {
-        const body = await res.clone().json().catch(() => null);
-        if (Array.isArray(body?.detail?.skipped)) setResult({ imported: [], skipped: body.detail.skipped });
-        throw new Error(await errorMessage(res));
-      }
-      const data = await res.json();
-      setResult({ imported: data.imported || [], skipped: data.skipped || [] });
-      showToast(data.message || "Images imported.");
-      await onChanged();
-    } catch (err) {
-      showToast(`Import failed: ${err.message}`, true);
-    } finally {
-      setBusy(false);
-    }
-  }
+  const [result, setResult] = useState(null); // see IdiomImportResult
 
   async function handleRevertAll() {
-    if (!window.confirm("Revert all uploaded and imported images? The generated images will be shown again.")) return;
+    if (!window.confirm(
+      "Revert all uploaded and imported images? The generated images will be shown again, " +
+      "and the parameters of imported tasks become editable on the Specify step."
+    )) return;
     setBusy(true);
     try {
       const res = await fetch(`/api/admin/experiments/${encodeURIComponent(experimentId)}/idioms/overrides`, {
@@ -155,9 +132,23 @@ function IdiomFilesPanel({ experimentId, editable, overrides, importInfo, onChan
           <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Idiom Images</p>
           <p className="text-xs text-on-surface-variant">
             Download the exact images participants see (with a manifest of how they were produced) to archive
-            them or reproduce the study. Importing a downloaded zip — into this or another experiment with the
-            same tasks and idioms — keeps those images fixed, even if the experiment is regenerated.
+            them or reproduce the study. Importing a downloaded zip keeps those images fixed, even if the
+            experiment is regenerated.
           </p>
+          {editable && (
+            <p className="text-xs text-on-surface-variant mt-2">
+              <span className="font-semibold text-on-surface">Import here only takes images that match this experiment:</span>{" "}
+              a task is rejected if its images come from a different dataset or were drawn with different
+              parameters than the ones set on the Specify step. To import images together with their own
+              parameters, use Import on the{" "}
+              <Link
+                href={`/admin/experiments/specify?experiment_id=${encodeURIComponent(experimentId)}`}
+                className="text-primary hover:underline"
+              >
+                Specify step
+              </Link>.
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           <a
@@ -168,18 +159,14 @@ function IdiomFilesPanel({ experimentId, editable, overrides, importInfo, onChan
             Download Idioms
           </a>
           {editable && (
-            <>
-              <input ref={inputRef} type="file" accept=".zip,application/zip" onChange={handleImport} className="hidden" />
-              <button
-                type="button"
-                onClick={() => inputRef.current?.click()}
-                disabled={busy}
-                className="flex items-center gap-1 text-xs font-semibold border border-border-subtle text-on-surface-variant px-3 py-2 rounded-lg hover:bg-surface-container transition-colors disabled:opacity-40"
-              >
-                <span className="material-symbols-outlined text-sm">upload</span>
-                {busy ? "Working…" : "Import Idioms"}
-              </button>
-            </>
+            <IdiomImportButton
+              experimentId={experimentId}
+              mode="overview"
+              disabled={busy}
+              onImported={onChanged}
+              onResult={setResult}
+              showToast={showToast}
+            />
           )}
         </div>
       </div>
@@ -211,21 +198,7 @@ function IdiomFilesPanel({ experimentId, editable, overrides, importInfo, onChan
         </div>
       )}
 
-      {result && (
-        <div className="text-xs text-on-surface-variant border border-border-subtle rounded-lg px-4 py-3">
-          <p className="font-semibold text-on-surface mb-1">
-            Imported {result.imported.length} file{result.imported.length !== 1 ? "s" : ""}
-            {result.skipped.length > 0 && `, skipped ${result.skipped.length}`}
-          </p>
-          {result.skipped.length > 0 && (
-            <ul className="list-disc pl-5 space-y-0.5 max-h-40 overflow-y-auto">
-              {result.skipped.map((s, i) => (
-                <li key={i}><span className="font-mono">{s.file}</span> — {s.reason}</li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
+      <IdiomImportResult result={result} mode="overview" />
     </div>
   );
 }
@@ -431,6 +404,13 @@ function ExperimentOverviewContent() {
     e.target.value = "";
     const target = replaceTargetRef.current;
     if (!file || !target) return;
+    // Asked only once the file is chosen: a confirm() before click() would use
+    // up the user gesture the browser needs to open the file dialog.
+    if (!window.confirm(
+      `Show "${file.name}" to participants instead of ${target.taskKey} / ${target.idiomKey}? ` +
+      "The parameters shown to participants will not change to match it, so make sure the image " +
+      "depicts the same data and settings."
+    )) return;
     try {
       const form = new FormData();
       form.append("file", file);

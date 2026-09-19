@@ -1360,6 +1360,23 @@ def _freeze_task_snapshots(instances: list[dict], existing_by_task_id: dict) -> 
     return instances
 
 
+def _keep_imported_parameters(instances: list[dict], existing_by_task_id: dict) -> list[dict]:
+    """A task whose images were imported keeps the parameters it was imported
+    with, whatever the caller sends: those images were drawn with them, and the
+    participant-facing parameter hints are built from them. Only reverting the
+    import (routers/idiom_bundle.py) releases the task, so the marker is never
+    taken from the caller either.
+    """
+    for inst in instances:
+        existing = existing_by_task_id.get(inst.get("task_id")) or {}
+        if existing.get("images_imported_from"):
+            inst["images_imported_from"] = existing["images_imported_from"]
+            inst["parameters"] = existing.get("parameters") or {}
+        else:
+            inst["images_imported_from"] = None
+    return instances
+
+
 @router.patch("/experiments/{experiment_id}", tags=["admin"])
 async def update_experiment(experiment_id: str, update_data: ds.ExperimentUpdate):
     # Keep task_instances (canonical) and task_configs (legacy mirror) in sync,
@@ -1376,6 +1393,7 @@ async def update_experiment(experiment_id: str, update_data: ds.ExperimentUpdate
             configs = [tc.model_dump() for tc in update_data.task_configs]
             instances = task_configs_to_instances(configs)
         instances = _freeze_task_snapshots(instances, existing_by_task_id)
+        instances = _keep_imported_parameters(instances, existing_by_task_id)
         fields["task_instances"] = instances
         fields["task_configs"] = task_instances_to_configs(instances)
     if update_data.status is not None:
@@ -1444,13 +1462,39 @@ def _entry_applies(entry: dict, params: dict) -> bool:
     return True
 
 
-def _validate_task_instances(exp: dict) -> list[str]:
+def _fully_uploaded_task_ids(exp: dict) -> set[str]:
+    """Tasks whose every selected idiom shows an uploaded or imported image.
+
+    Generating them would draw images nobody sees (uploads win, see
+    utils/idiom_files), and for imported tasks it would put them back to
+    "running" for nothing, so generation leaves them alone. A task with one
+    idiom still lacking an upload is generated as usual — with the imported
+    parameters, when it has them, so its new images match the imported ones.
+    """
+    overrides = {(o["task_key"], o["idiom_key"]) for o in idiom_files.list_overrides(exp["_id"])}
+    if not overrides:
+        return set()
+    out = set()
+    for ti in exp.get("task_instances", []):
+        task_key = _task_key_for(ti.get("task_id"))
+        idiom_keys = [
+            (dbc.get_document("Idiom", {"_id": iid}) or {}).get("idiom_key")
+            for iid in ti.get("idiom_ids") or []
+        ]
+        if task_key and idiom_keys and all((task_key, k) in overrides for k in idiom_keys):
+            out.add(ti.get("task_id"))
+    return out
+
+
+def _validate_task_instances(exp: dict, skip_task_ids: set[str] = frozenset()) -> list[str]:
     """Hard-validate every task_instance's parameters against its PARAM_SPEC and
     optional validate_params hook (see docs/ADMIN_EXPERIMENT_SETUP.md). Returns
     a list of human-readable error messages; empty means all valid."""
     errors: list[str] = []
     log_cache: dict[str, object] = {}
     for ti in exp.get("task_instances", []):
+        if ti.get("task_id") in skip_task_ids:
+            continue
         task_key = _task_key_for(ti.get("task_id"))
         if not task_key or task_key not in _TASK_MODULES:
             continue
@@ -1517,11 +1561,14 @@ def _run_generation_job(experiment_id: str):
     if not exp:
         return
     task_instances = exp.get("task_instances", [])
+    skip = _fully_uploaded_task_ids(exp)
 
     # Group instances per dataset; remember each ti's resolved task_key.
     by_dataset: dict[str, list[dict]] = {}
     meta: dict[str, str | None] = {}  # task_id -> task_key
     for ti in task_instances:
+        if ti.get("task_id") in skip:
+            continue
         ds = ti.get("dataset_id")
         task_key = _task_key_for(ti.get("task_id"))
         meta[ti.get("task_id")] = task_key
@@ -1544,6 +1591,8 @@ def _run_generation_job(experiment_id: str):
                 results[(ds, inst["task_key"])] = {"render_error": str(e)}
 
     for ti in task_instances:
+        if ti.get("task_id") in skip:
+            continue
         ds = ti.get("dataset_id")
         task_key = meta.get(ti.get("task_id"))
         if _is_custom_task_key(task_key):
@@ -1593,8 +1642,16 @@ async def generate_experiment_visualizations(experiment_id: str, background_task
     if generate_for_task_instances is None:
         raise HTTPException(status_code=503, detail="Visualization pipeline unavailable.")
 
+    skip = _fully_uploaded_task_ids(exp)
+    if all(ti.get("task_id") in skip for ti in task_instances):
+        return JSONResponse(content={
+            "message": "Nothing to generate — every task shows uploaded or imported images.",
+            "experiment_id": experiment_id,
+            "dataset_ids": [],
+        })
+
     # Hard-error on invalid parameters before touching anything (§10).
-    param_errors = _validate_task_instances(exp)
+    param_errors = _validate_task_instances(exp, skip)
     if param_errors:
         raise HTTPException(status_code=400, detail={
             "message": "Cannot generate — fix the following parameters first.",
@@ -1602,6 +1659,8 @@ async def generate_experiment_visualizations(experiment_id: str, background_task
         })
 
     for ti in task_instances:
+        if ti.get("task_id") in skip:
+            continue
         ti["generation_status"] = "running"
         ti["generation_error"] = None
     dbc.update_document("Experiment", {"_id": experiment_id}, {"$set": {

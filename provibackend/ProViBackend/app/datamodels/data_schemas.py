@@ -229,6 +229,10 @@ class TaskInstance(BaseModel):
     answer_options: List[OptionItem] = []  # option-bearing formats only
     generation_status: str = "pending"   # pending | running | ready | failed
     generation_error: Optional[str] = None
+    # Set when this task's images came from an idiom bundle import: where they
+    # came from. While set, `parameters` are the ones those images were drawn
+    # with and cannot be edited (PATCH keeps them); reverting the import clears it.
+    images_imported_from: Optional[Dict[str, Any]] = None
     question_ids: List[str] = []
     # Snapshot of the Task question bank entry, frozen when the task was first
     # added to the experiment. Later edits to the Task in the admin panel do
