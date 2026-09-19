@@ -52,6 +52,50 @@ GREY_LIGHT   = to_hex(_CIV(0.68))  # light olive  (secondary category / Mismatch
 GREY_LIGHTER = to_hex(_CIV(0.90))  # yellow-green (conformant / Synchronous)
 
 # ---------------------------------------------------------------------------
+# Grey-free palette
+#
+# cividis is close to neutral grey in its middle: between about 0.35 and 0.60 its
+# saturation stays below 0.12, and GREY_MED (0.45, #727274) is plain grey. The
+# constants below sample only the blue and yellow ends. Tasks move to them one
+# by one; the GREY_* values above stay as they are, because the eight tasks of
+# the published experiment (03, 04, 06, 10, 11, 19, 20, 34) must keep drawing
+# exactly what participants saw.
+# Continuous scales (heatmaps, matrices) keep the full cividis ramp. Grey stays
+# fine for what encodes no data: axes, gridlines, borders, text, reference lines
+# (a mean or a threshold) and the background of empty cells.
+# ---------------------------------------------------------------------------
+# Two groups compared with each other: blue vs yellow, as task03/19/20 draw them.
+PAIR_COLORS = (GREY_DARK, GREY_LIGHTER)
+
+# Alignment move types, one colour each across all tasks.
+MOVE_LOG      = to_hex(_CIV(0.10))  # deep navy
+MOVE_MODEL    = to_hex(_CIV(0.25))  # slate blue
+MOVE_MISMATCH = to_hex(_CIV(0.75))  # ochre
+MOVE_SYNC     = GREY_LIGHTER        # yellow — conformant
+
+# The stretches of cividis that are not grey, used by categorical_colors().
+_NON_GREY_SPANS = ((0.02, 0.28), (0.72, 0.95))
+
+
+def categorical_colors(n: int) -> list:
+    """n distinguishable cividis colours, evenly spaced over its blue and yellow
+    ends and skipping the grey middle. Ordered dark → light."""
+    if n <= 0:
+        return []
+    total = sum(hi - lo for lo, hi in _NON_GREY_SPANS)
+    out = []
+    for i in range(n):
+        d = total * (i / (n - 1) if n > 1 else 0.0)
+        for lo, hi in _NON_GREY_SPANS:
+            if d <= hi - lo:
+                out.append(to_hex(_CIV(lo + d)))
+                break
+            d -= hi - lo
+        else:
+            out.append(to_hex(_CIV(_NON_GREY_SPANS[-1][1])))
+    return out
+
+# ---------------------------------------------------------------------------
 # Color utilities
 # ---------------------------------------------------------------------------
 
@@ -1019,13 +1063,15 @@ def draw_grouped_box_plot(ax, data, labels, colors, *, ylabel: str = "",
         medianprops=dict(color="white", linewidth=2),
         flierprops=dict(marker="D", markersize=4, linestyle="none"),
     )
-    for patch, whisker_pair, cap_pair, flier, color in zip(
-            boxes["boxes"],
+    for patch, median, whisker_pair, cap_pair, flier, color in zip(
+            boxes["boxes"], boxes["medians"],
             zip(boxes["whiskers"][0::2], boxes["whiskers"][1::2]),
             zip(boxes["caps"][0::2], boxes["caps"][1::2]),
             boxes["fliers"], colors):
         patch.set_facecolor(color)
         patch.set_alpha(0.85)
+        # A white median disappears on a light (e.g. yellow) box.
+        median.set_color(contrasting_text_color(to_hex(color)))
         # Dark outline so the box stays visible even when the distribution is
         # near-constant and the IQR collapses to ~zero height (otherwise the box
         # vanishes and only the white median line floats on the background).
@@ -1201,11 +1247,15 @@ def bin_fitness_time_series(df, time_granularity: str = DEFAULT_TIME_GRANULARITY
 def render_conformance_line_graph(df, out_path, *,
                                   time_granularity: str = DEFAULT_TIME_GRANULARITY,
                                   title: str = "Process Conformance Over Time",
-                                  value_labels: bool = False):
+                                  value_labels: bool = False,
+                                  line_color: str = GREY_MED,
+                                  mean_color: str = GREY_LIGHT):
     """Line graph of mean conformance per time bin (granularity-aware).
 
     value_labels: when True, annotate each marker with its mean-fitness percentage
     (opt-in so callers that prefer an uncluttered trend line are unaffected).
+    line_color / mean_color: the trend line with its fill, and the overall-mean
+    line. The defaults are the grey ones task10 was drawn with.
     """
     import matplotlib.ticker as _mticker
 
@@ -1224,8 +1274,8 @@ def render_conformance_line_graph(df, out_path, *,
     x = binned["time_bin"]
     y = binned["avg_fitness"]
 
-    ax.fill_between(x, y, alpha=0.18, color=GREY_MED)
-    ax.plot(x, y, color=GREY_MED, linewidth=1.8, marker="o", markersize=4)
+    ax.fill_between(x, y, alpha=0.18, color=line_color)
+    ax.plot(x, y, color=line_color, linewidth=1.8, marker="o", markersize=4)
 
     if value_labels:
         for xi, yi in zip(x, y):
@@ -1235,7 +1285,7 @@ def render_conformance_line_graph(df, out_path, *,
                         color=GREY_DARK)
 
     overall_mean = df["fitness"].mean()
-    ax.axhline(overall_mean, color=GREY_LIGHT, linewidth=1.2,
+    ax.axhline(overall_mean, color=mean_color, linewidth=1.2,
                linestyle="--", label=f"Overall mean: {overall_mean:.2f}")
 
     g = apply_time_axis(ax, time_granularity)

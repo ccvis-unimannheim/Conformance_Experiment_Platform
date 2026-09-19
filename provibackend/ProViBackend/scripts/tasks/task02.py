@@ -63,7 +63,7 @@ import matplotlib.pyplot as plt
 
 from shared import (
     render_fitness_tile_metric, save_svg, make_table,
-    GREY_MED, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 
@@ -76,7 +76,7 @@ def task02_bar_chart(df, output_dir: str, predominant_threshold):
     avg = float(df["fitness"].mean())
 
     fig, ax = plt.subplots(figsize=(4.5, 5))
-    bar = ax.bar(["Overall"], [avg], color=GREY_MED, edgecolor="white", width=0.3)[0]
+    bar = ax.bar(["Overall"], [avg], color=GREY_DARK, edgecolor="white", width=0.3)[0]
     ax.text(bar.get_x() + bar.get_width() / 2, avg + 0.018, f"{avg:.3f}",
             ha="center", va="bottom", fontsize=FONT_ANNOT)
 

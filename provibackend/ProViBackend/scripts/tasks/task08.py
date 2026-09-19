@@ -60,12 +60,13 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
-from shared import most_common_stable, save_svg, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS, CIVIDIS_R, FONT_TITLE, FONT_ANNOT
+from matplotlib.colors import Normalize, to_hex
+from shared import most_common_stable, save_svg, GREY_DARK, GREY_MED, CIVIDIS, CIVIDIS_R, FONT_TITLE, FONT_ANNOT
+from shared import MOVE_LOG, MOVE_MODEL, MOVE_MISMATCH, contrasting_text_color
 
 # ── Cividis palette ──────────────────────────────────────────────────────────
 _C_DARK   = GREY_DARK      # dark navy   (highest emphasis)
-_C_MED    = GREY_MED       # olive-grey  (secondary)
-_C_LIGHT  = GREY_LIGHT     # light olive (tertiary)
+_C_MED    = GREY_MED       # neutral grey — caption text only, never data
 _C_BG     = "#f5f5f5"      # panel / cell backgrounds
 _HDR_BG   = GREY_DARK      # table header background
 _HDR_FG   = "white"        # table header text
@@ -324,11 +325,11 @@ def task08_matrix(violation_freq, cooccurrence, output_dir, thr_count, thr_frac,
 
     # Annotate each cell with the count; outline high-co-occurrence off-diagonal
     # cells (count >= threshold) so "frequently co-occurring" pairs stand out.
-    thresh = mat.max() / 2
+    norm = Normalize(vmin=0, vmax=mat.max())
     for i in range(n):
         for j in range(n):
             val = int(mat[i, j])
-            color = "white" if mat[i, j] > thresh else _C_DARK
+            color = contrasting_text_color(to_hex(_CMAP_SEQ(norm(mat[i, j]))))
             ax.text(j, i, str(val), ha="center", va="center",
                     fontsize=max(FONT_ANNOT - 1, 6), color=color, fontweight="bold")
             if thr_count is not None and i != j and thr_count > 0 and mat[i, j] >= thr_count:
@@ -394,18 +395,19 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count,
     freqs   = np.array([G.nodes[n]["freq"] for n in nodes_ordered])
     node_sz = (freqs / freqs.max() * 1600 + 400).tolist()
 
-    # Edge widths and grey shades proportional to co-occurrence
+    # Edge widths and shades proportional to co-occurrence: the blue end of
+    # cividis, slate for the weakest pair to navy for the strongest.
     edges   = list(G.edges())
     weights = [G[u][v]["weight"] for u, v in edges]
     max_w   = max(weights) if weights else 1
     edge_w  = [1.5 + (w / max_w) * 5 for w in weights]
-    edge_col= [plt.cm.Greys(0.25 + 0.55 * w / max_w) for w in weights]
+    edge_col= [CIVIDIS(0.30 - 0.25 * w / max_w) for w in weights]
 
-    # Node shades by violation type (updated for new terminology)
+    # Node colours by move type, as on every other task.
     def node_color(label):
-        if "Model Move" in label: return _C_LIGHT   # light grey
-        if "Log Move"   in label: return _C_MED     # mid grey
-        return _C_DARK                                  # dark (Mismatch)
+        if "Model Move" in label: return MOVE_MODEL
+        if "Log Move"   in label: return MOVE_LOG
+        return MOVE_MISMATCH
 
     colors = [node_color(n) for n in nodes_ordered]
 
@@ -450,9 +452,9 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count,
 
     # Legend with updated terminology
     legend_handles = [
-        mpatches.Patch(color=_C_LIGHT, label="Model Move (skipped activity)"),
-        mpatches.Patch(color=_C_MED,   label="Log Move (extra activity)"),
-        mpatches.Patch(color=_C_DARK,  label="Mismatch Move"),
+        mpatches.Patch(color=MOVE_MODEL,    label="Model Move (skipped activity)"),
+        mpatches.Patch(color=MOVE_LOG,      label="Log Move (extra activity)"),
+        mpatches.Patch(color=MOVE_MISMATCH, label="Mismatch Move"),
     ]
     ax.legend(handles=legend_handles, loc="lower right",
               fontsize=FONT_ANNOT, frameon=True, framealpha=0.95)
