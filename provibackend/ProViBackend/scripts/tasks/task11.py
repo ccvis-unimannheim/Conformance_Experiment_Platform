@@ -8,6 +8,8 @@ Visualizations (all SVG, cividis palette from shared.py):
   bar_chart            – trace count per predefined violation
   matrix               – activity × type grid for selected violations
   table                – violations ranked by trace frequency
+
+  Commented out of IDIOMS/generate() for now:
   table_bar_chart      – table + gradient bar chart
   flow_chart_elaborate – BPMN process view with violation details in nodes
 """
@@ -23,9 +25,9 @@ import violation_profile
 _TITLE_PREFIX = "Predefined Violation Frequency"
 
 IDIOMS = [
-    "bar_chart", "matrix",
-    "table", "table_bar_chart",
-    "flow_chart_elaborate",
+    "bar_chart", "matrix", "table",
+    # "table_bar_chart",
+    # "flow_chart_elaborate",
 ]
 
 
@@ -653,7 +655,7 @@ def generate(log, alignments, output_dir, model_path=None, target_violations=Non
     task11_bar_chart(selected, trace_coverage, n_traces, output_dir)
     task11_matrix(selected, trace_coverage, n_traces, output_dir)
     task11_table(selected, trace_coverage, n_traces, output_dir)
-    task11_table_bar_chart(selected, trace_coverage, n_traces, output_dir)
-    task11_flow_chart_elaborate(
-        selected, trace_coverage, n_traces, activity_trace_count, model_path, output_dir
-    )
+    # task11_table_bar_chart(selected, trace_coverage, n_traces, output_dir)
+    # task11_flow_chart_elaborate(
+    #     selected, trace_coverage, n_traces, activity_trace_count, model_path, output_dir
+    # )
