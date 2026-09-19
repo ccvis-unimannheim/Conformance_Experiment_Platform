@@ -139,11 +139,15 @@ const UploadDatasetModal = ({ existingDatasets, onClose, onUploaded }) => {
           <FileUploadCard
             label="Upload Log"
             icon="upload_file"
+            accept=".xes,.csv"
+            hint="XES or CSV. A CSV needs a case id, an activity and a timestamp column."
             onFileSelect={setLogFile}
           />
           <FileUploadCard
             label="Upload Guideline"
             icon="description"
+            accept=".bpmn"
+            hint="BPMN."
             onFileSelect={setGuidelineFile}
           />
         </div>
@@ -167,7 +171,7 @@ const UploadDatasetModal = ({ existingDatasets, onClose, onUploaded }) => {
             disabled={isSaving}
             className="flex items-center gap-2 text-button bg-primary text-on-primary px-8 py-2.5 rounded-lg hover:opacity-90 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isSaving ? "Saving and generating..." : "Save and Generate Graphs"}
+            {isSaving ? "Saving…" : "Save"}
             {!isSaving && (
               <span className="material-symbols-outlined text-sm">chevron_right</span>
             )}
