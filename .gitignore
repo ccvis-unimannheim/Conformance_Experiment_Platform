@@ -20,6 +20,9 @@ provibackend/ProViBackend/new_output/
 # Copied from new_input/ at startup by scripts/generate_sample_data.py.
 provibackend/ProViBackend/scripts/sample_data/input/EventLog.csv
 provibackend/ProViBackend/scripts/sample_data/cache/
+# Select Idiom page previews: drawn at runtime by the current generator code,
+# so a committed copy would go stale (see admin.py, "Idiom-level sample preview").
+provibackend/ProViBackend/scripts/sample_data/output/__idiom_preview/
 
 # Source spreadsheets, except the one the backend ships with.
 *.xlsx
