@@ -70,10 +70,7 @@ def validate_params(log, params) -> list:
     return trace_features.validate_attribute_class(params, multi=True)
 
 
-PARAM_SPEC = [
-    *trace_features.attribute_params(),
-    *trace_features.split_params_for(),
-]
+PARAM_SPEC = [*trace_features.grouping_params()]
           # "flow_chart_table", "flow_chart_elaborate_table"  # commented out
 
 

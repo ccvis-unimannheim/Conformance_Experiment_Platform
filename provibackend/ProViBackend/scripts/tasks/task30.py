@@ -34,20 +34,13 @@ import trace_features
 import trace_response
 
 PARAM_SPEC = [
-    *trace_features.attribute_params(multi=False),
-    *trace_features.split_params_for(),
+    *trace_features.grouping_params(),
     trace_response.PATTERN_TOP_N_PARAM,
 ]
 
 
 def validate_params(log, params) -> list:
-    errors = trace_features.validate_attribute_class(params, multi=False)
-    if errors:
-        return errors
-    attr = params.get("compare_attribute")
-    if not attr or not str(attr).strip():
-        return ["An attribute to split the log by is required."]
-    return []
+    return trace_features.validate_attribute_class(params, multi=True)
 
 
 import os
@@ -113,7 +106,8 @@ def _as_float(value):
         return None
 
 
-def split_by_attribute(log, attr: str, max_groups: int = MAX_CATEGORICAL_GROUPS):
+def split_by_attribute(log, attr: str, max_groups: int = MAX_CATEGORICAL_GROUPS,
+                       strategy: str = None):
     """Split cases into labelled sub-logs by a case-level data attribute.
 
     Returns (group_labels, assignment, meta):
@@ -136,8 +130,11 @@ def split_by_attribute(log, attr: str, max_groups: int = MAX_CATEGORICAL_GROUPS)
 
     # This call site cuts a case attribute in two at its median; task13's
     # quantile ranges are the same operation under a different strategy, which
-    # is why both now go through the shared splitter.
-    strategy = "binary" if value_type == "numeric" else "nominal_n"
+    # is why both now go through the shared splitter. `strategy` is the admin's
+    # choice from the shared split parameter — the three tasks that call this
+    # offer it, and used to ignore it here while honouring it in their panel
+    # idioms, so one figure cut the attribute differently from the next.
+    strategy = strategy or ("binary" if value_type == "numeric" else "nominal_n")
     result = trace_features.split(values, value_type, strategy=strategy,
                                   cap=max_groups, label_prefix=attr)
     if not result:
@@ -497,12 +494,24 @@ _ALL_FNAMES_TITLES = [
 
 
 def generate(log, fitness_df, alignments, output_dir: str,
-             compare_attribute: str = "AMOUNT_REQ"):
-    """Generate all Task ID 30 SVGs into output_dir."""
+             attribute_set=None, split_strategy=None, group_cap=None):
+    """Generate all Task ID 30 SVGs into output_dir.
+
+    Every idiom here compares the sub-logs of ONE attribute, so of the selected
+    set the first is the one that cuts the log — the same way task22 and task33
+    treat their distribution idioms. The picker is the family's shared one
+    (trace_features.grouping_params) so the eight tasks of the family differ
+    only in what they measure per group, not in what they ask the admin for.
+    """
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 30 visualizations ---")
 
-    groups, assignment, meta = split_by_attribute(log, compare_attribute)
+    attrs = list(attribute_set) if attribute_set else []
+    logger.info(f"      -> attributes: {attrs}")
+    compare_attribute = attrs[0] if attrs else ""
+    groups, assignment, meta = split_by_attribute(
+        log, compare_attribute, max_groups=group_cap or MAX_CATEGORICAL_GROUPS,
+        strategy=split_strategy)
     if groups is None:
         available = _available_case_attributes(log)
         logger.error(

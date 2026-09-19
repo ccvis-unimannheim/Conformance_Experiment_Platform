@@ -1072,17 +1072,26 @@ def extract(log, key: str, fitness_per_trace=None) -> tuple[list, str]:
 # condition would put two different questions on one axis.
 # ---------------------------------------------------------------------------
 
+#: The levels an attribute can be taken from, in the order the picker offers
+#: them. A task that compares traces to each other cannot use the log level —
+#: that value is the same for every trace, so it puts them all in one group —
+#: and says so by passing its own `levels`.
+ATTRIBUTE_LEVELS = {
+    "trace": {"value": "trace", "label": "Trace level — one value per case"},
+    "event": {"value": "event", "label": "Event level — at activity X, attribute Y = Z"},
+    "log":   {"value": "log",   "label": "Log level — one value for the whole log"},
+}
+
+ALL_LEVELS = ("trace", "event", "log")
+TRACE_COMPARING_LEVELS = ("trace", "event")
+
 ATTRIBUTE_CLASS_PARAM = {
     "key": "attribute_class",
     "slot": "attribute_class",
     "label": "Level the attributes are taken from",
     "hint": "Whether the traces are grouped by a case-level value or by what happened at one step",
     "widget": "select-one",
-    "options": [
-        {"value": "trace", "label": "Trace level — one value per case"},
-        {"value": "event", "label": "Event level — at activity X, attribute Y = Z"},
-        {"value": "log",   "label": "Log level — one value for the whole log"},
-    ],
+    "options": [ATTRIBUTE_LEVELS[k] for k in ALL_LEVELS],
     "default": "trace",
     "required": False,
 }
@@ -1102,25 +1111,45 @@ def _picker(key: str, label: str, source: str, klass: str, multi: bool) -> dict:
     }
 
 
-def attribute_params(multi: bool = True) -> list:
-    """The class selector plus one picker per class.
+def attribute_params(multi: bool = True, levels=ALL_LEVELS) -> list:
+    """The class selector plus one picker per offered class.
 
-    ``multi`` is False for a task that splits by a single attribute (task30).
+    ``multi`` is False for a task that splits by a single attribute; ``levels``
+    narrows which classes are offered at all, so a picker the task cannot use
+    is neither shown nor accepted (validate_attribute_class reads the same
+    tuple).
     """
-    return [
-        dict(ATTRIBUTE_CLASS_PARAM),
-        _picker("attribute_set" if multi else "compare_attribute",
-                "Attributes to analyse (empty = every attribute of this log that can be grouped)"
-                if multi else "Case attribute used to split traces into sub-logs",
-                "log.candidate_attributes", "trace", multi),
-        _picker("event_conditions" if multi else "compare_event_condition",
-                "Event conditions to analyse" if multi else
-                "Event condition used to split traces into sub-logs",
-                "log.event_conditions", "event", multi),
-        _picker("log_attributes" if multi else "compare_log_attribute",
-                "Log-level attributes" if multi else "Log-level attribute",
-                "log.log_attributes", "log", multi),
-    ]
+    pickers = {
+        "trace": lambda: _picker(
+            "attribute_set" if multi else "compare_attribute",
+            "Attributes to analyse (empty = every attribute of this log that can be grouped)"
+            if multi else "Case attribute used to split traces into sub-logs",
+            "log.candidate_attributes", "trace", multi),
+        "event": lambda: _picker(
+            "event_conditions" if multi else "compare_event_condition",
+            "Event conditions to analyse" if multi else
+            "Event condition used to split traces into sub-logs",
+            "log.event_conditions", "event", multi),
+        "log": lambda: _picker(
+            "log_attributes" if multi else "compare_log_attribute",
+            "Log-level attributes" if multi else "Log-level attribute",
+            "log.log_attributes", "log", multi),
+    }
+    klass_param = dict(ATTRIBUTE_CLASS_PARAM)
+    klass_param["options"] = [ATTRIBUTE_LEVELS[k] for k in ALL_LEVELS if k in levels]
+    return [klass_param] + [pickers[k]() for k in ALL_LEVELS if k in levels]
+
+
+def grouping_params(multi: bool = True, levels=ALL_LEVELS, strategy=None) -> list:
+    """The whole predictor side of a "split the traces, measure per group" task.
+
+    Which attributes, taken from which level, cut into groups how. Every task in
+    the family declares exactly this and differs only in what it measures per
+    group — see docs/TRACE_FEATURE_REGISTRY.md. One call, so the eight of them
+    cannot drift apart parameter by parameter.
+    """
+    return [*attribute_params(multi=multi, levels=levels),
+            *split_params_for(strategy)]
 
 
 def selected_keys(params: dict, log=None) -> list:
@@ -1143,24 +1172,23 @@ def selected_keys(params: dict, log=None) -> list:
     return default_keys(log) if log is not None else []
 
 
-def selected_key(params: dict) -> str:
-    """The single key a split-by-one task resolves to (task30)."""
+def validate_attribute_class(params: dict, *, multi: bool = True,
+                             levels=ALL_LEVELS) -> list:
+    """Errors in the attribute block: one class only, and it must say something.
+
+    ``levels`` mirrors what the task offers, so a class it does not show cannot
+    arrive from an older saved configuration and be acted on silently.
+    """
     params = params or {}
     klass = params.get("attribute_class") or "trace"
-    if klass == "event":
-        return str(params.get("compare_event_condition") or "")
-    if klass == "log":
-        return str(params.get("compare_log_attribute") or "")
-    return str(params.get("compare_attribute") or "")
-
-
-def validate_attribute_class(params: dict, *, multi: bool = True) -> list:
-    """Errors in the attribute block: one class only, and it must say something."""
-    params = params or {}
-    klass = params.get("attribute_class") or "trace"
-    fields = (("trace", "attribute_set" if multi else "compare_attribute"),
-              ("event", "event_conditions" if multi else "compare_event_condition"),
-              ("log", "log_attributes" if multi else "compare_log_attribute"))
+    fields = tuple((cls, name) for cls, name in (
+        ("trace", "attribute_set" if multi else "compare_attribute"),
+        ("event", "event_conditions" if multi else "compare_event_condition"),
+        ("log", "log_attributes" if multi else "compare_log_attribute"),
+    ) if cls in levels)
+    if klass not in levels:
+        return [f"This task takes attributes from the {' or '.join(levels)} level, "
+                f"not the {klass} level."]
     filled = [name for cls, name in fields if params.get(name)]
     errors = []
     if len(filled) > 1:

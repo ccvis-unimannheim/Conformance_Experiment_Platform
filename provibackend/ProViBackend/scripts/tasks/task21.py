@@ -62,13 +62,14 @@ SPLIT_STRATEGY = None  # admin chooses
 import trace_features
 
 def validate_params(log, params) -> list:
-    return trace_features.validate_attribute_class(params, multi=True)
+    return trace_features.validate_attribute_class(
+        params, multi=True, levels=trace_features.TRACE_COMPARING_LEVELS)
 
 
-PARAM_SPEC = [
-    *trace_features.attribute_params(),
-    *trace_features.split_params_for(),
-]
+# No log level: this task compares traces to each other, and a log-level
+# attribute has the same value for all of them.
+PARAM_SPEC = [*trace_features.grouping_params(
+    levels=trace_features.TRACE_COMPARING_LEVELS)]
 import os
 import numpy as np
 import pandas as pd

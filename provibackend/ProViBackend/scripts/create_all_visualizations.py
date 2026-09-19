@@ -359,9 +359,6 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
     def attribute_keys():
         """The attribute picker's three classes resolved to feature keys."""
         return trace_features.selected_keys(p, log) or None
-    def attribute_key():
-        """The single-attribute form of the same picker (task30)."""
-        return trace_features.selected_key(p) or cmp_attr()
     def perspective_kwargs(default_rule, default_count):
         """The trace-alignment + perspective block task09 and task28 share."""
         return dict(
@@ -458,7 +455,10 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
             grouping_strategy=(p.get("grouping_strategy") or "move_type"),
             selection=(p.get(violation_profile.STRATEGY_SELECTION_KEY.get(
                 p.get("grouping_strategy") or "move_type", "")) or None)),
-        "task30": lambda d: task30.generate(log, fitness_df, alignments, d, compare_attribute=attribute_key()),
+        "task30": lambda d: task30.generate(log, fitness_df, alignments, d,
+                                            attribute_set=attribute_keys(),
+                                            split_strategy=(p.get("split_strategy") or None),
+                                            group_cap=(int(p["group_cap"]) if p.get("group_cap") else None)),
         # Not outcome_activity(): that falls back to the "contains" heuristic,
         # and this task asks which activity a trace *ends* on. Passing None
         # lets it reach for the terminal-activity heuristic instead.
