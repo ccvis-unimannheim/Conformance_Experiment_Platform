@@ -217,8 +217,8 @@ conformant while its fitness is below 1.
 "% conformant" is **not** a response. Removing it is what lets slot 3 disappear
 from most tasks.
 
-Violation types are alignment-based control-flow only: Move on Model, Move on
-Log, Mismatch Move. Data guards, resource SoD and time SLAs are out of scope as
+Violation types are alignment-based control-flow only: Move on Model and Move
+on Log. Data guards, resource SoD and time SLAs are out of scope as
 violations — they may still appear in slot 1 as grouping features.
 
 ---

@@ -48,7 +48,7 @@ CIVIDIS_R = matplotlib.colormaps["cividis_r"]  # reversed: 0=yellow, high=dark
 _CIV      = CIVIDIS
 GREY_DARK    = to_hex(_CIV(0.15))  # dark navy    (strongest emphasis / Log Move)
 GREY_MED     = to_hex(_CIV(0.45))  # olive-grey   (primary category / Model Move)
-GREY_LIGHT   = to_hex(_CIV(0.68))  # light olive  (secondary category / Mismatch)
+GREY_LIGHT   = to_hex(_CIV(0.68))  # light olive  (secondary category)
 GREY_LIGHTER = to_hex(_CIV(0.90))  # yellow-green (conformant / Synchronous)
 
 # ---------------------------------------------------------------------------
@@ -82,7 +82,6 @@ PAIR_COLORS = (GREY_DARK, GREY_LIGHTER)
 # Alignment move types, one colour each across all tasks.
 MOVE_LOG      = to_hex(_CIV(0.10))  # deep navy
 MOVE_MODEL    = to_hex(_CIV(0.25))  # slate blue
-MOVE_MISMATCH = to_hex(_CIV(0.75))  # ochre
 MOVE_SYNC     = GREY_LIGHTER        # yellow — conformant
 
 # The stretches of cividis that are not grey, used by categorical_colors().
@@ -259,12 +258,12 @@ def auto_col_widths(col_labels, cell_text, header_weight: float = 1.15,
 # Two levels of abstraction:
 #   classify_step(obs_raw, exp_raw) -> (activity, type) | (None, None)
 #       Low-level primitive.  Returns the activity name + one of:
-#       "Model Move" / "Log Move" / "Mismatch Move".
+#       "Model Move" / "Log Move".
 #
 #   alignment_pairs_to_rows(alignment) -> list[dict]
 #       High-level parser producing display rows with step/log_move/model_move/
 #       status/moveType fields.  moveType adds "Synchronous Move" to the same
-#       three names.
+#       two names.
 #
 # The two used to disagree — classify_step said "Move on Model" where this said
 # "Model Move" — and both names reached participants: task09 showed one, task11
@@ -331,9 +330,21 @@ def alignment_pairs_to_rows(alignment):
                 "status": "Conformant", "moveType": "Synchronous Move",
             })
         elif observed not in SKIP_ALIGNMENT_TOKENS and expected not in SKIP_ALIGNMENT_TOKENS:
+            # Both sides carry a label and they differ. pm4py's alignments never
+            # produce this — a deviation there always has ">>" on one side — but
+            # such a pair says two things at once: this activity was executed,
+            # that one was prescribed. It is split into the two moves it is made
+            # of, so the figures keep one vocabulary (log move / model move)
+            # instead of carrying a third category that the intro pages do not
+            # teach and that no log has ever filled.
             rows_out.append({
-                "step": step_num, "log_move": observed, "model_move": expected,
-                "status": "Deviation", "moveType": "Mismatch Move",
+                "step": step_num, "log_move": observed, "model_move": "None",
+                "status": "Deviation", "moveType": "Log Move",
+            })
+            step_num += 1
+            rows_out.append({
+                "step": step_num, "log_move": "(skip)", "model_move": expected,
+                "status": "Deviation", "moveType": "Model Move",
             })
         elif observed in SKIP_ALIGNMENT_TOKENS and expected not in SKIP_ALIGNMENT_TOKENS:
             rows_out.append({
@@ -368,8 +379,11 @@ def classify_step(observed_raw, expected_raw):
     Naming convention:
         "Model Move"  – activity required by the model but absent in the trace
         "Log Move"    – extra activity present in the trace but not in the model
-        "Mismatch Move"  – both present but with different labels
-        (None, None)     – Synchronous Move (conformant) or tau/hidden transition
+        (None, None)  – Synchronous Move (conformant) or tau/hidden transition
+
+    A step with a different label on each side is counted as the log move it
+    contains; see alignment_pairs_to_rows, which splits the same step into its
+    two moves. pm4py's alignments do not produce one.
     """
     obs = (str(observed_raw) if observed_raw else "").strip()
     exp = (str(expected_raw) if expected_raw else "").strip()
@@ -381,7 +395,7 @@ def classify_step(observed_raw, expected_raw):
     if not obs_skip and not exp_skip:
         if obs == exp:
             return None, None
-        return obs, "Mismatch Move"
+        return obs, "Log Move"
     if obs_skip:
         return exp, "Model Move"
     return obs, "Log Move"
@@ -2286,7 +2300,7 @@ def chevron_nodes_from_alignment_rows(rows):
     """Map alignment rows (alignment_pairs_to_rows output) to chevron nodes.
 
     Colors follow the established move-type palette:
-    sync = GREY_LIGHTER, model move = GREY_MED, mismatch = GREY_LIGHT, log move = GREY_DARK.
+    sync = GREY_LIGHTER, model move = GREY_MED, log move = GREY_DARK.
     """
     nodes = []
     for row in rows:
@@ -2295,8 +2309,6 @@ def chevron_nodes_from_alignment_rows(rows):
             nodes.append({"label": str(label), "color": GREY_LIGHTER})
         elif row["moveType"] == "Model Move":
             nodes.append({"label": str(row["model_move"]), "color": GREY_MED})
-        elif row["moveType"] == "Mismatch Move":
-            nodes.append({"label": f"{row['log_move']} / {row['model_move']}", "color": GREY_LIGHT})
         else:
             nodes.append({"label": str(row["log_move"]), "color": GREY_DARK})
     return nodes
@@ -2306,12 +2318,12 @@ def alignment_violation_node_style(rep_rows):
     """Return a BPMN node_style_fn marking a trace's deviating / conform tasks.
 
     Maps the alignment rows (alignment_pairs_to_rows output) of one representative
-    trace onto the desired model: model moves -> GREY_MED (skipped step), mismatch
-    moves -> GREY_LIGHT, synchronous moves -> GREY_LIGHTER, everything else -> white. Shared
-    by the "Reasons" family (task13/task18/task21) so the elaborate flow idiom
+    trace onto the desired model: model moves -> GREY_MED (skipped step),
+    synchronous moves -> GREY_LIGHTER, everything else -> white. Shared by the
+    "Reasons" family (task13/task18/task21) so the elaborate flow idiom
     annotates violations identically. node_style_fn(eid, elem) ->
     (fill, stroke, stroke_width, text_color)."""
-    skipped, mismatch, conform = set(), set(), set()
+    skipped, conform = set(), set()
     for row in rep_rows:
         mt = row["moveType"]
         if mt == "Synchronous Move":
@@ -2320,16 +2332,12 @@ def alignment_violation_node_style(rep_rows):
             conform.add(lbl)
         elif mt == "Model Move":
             skipped.add(str(row["model_move"]))
-        elif mt == "Mismatch Move":
-            mismatch.add(str(row["model_move"]))
 
     def _style(eid, elem):
         name = elem.get("name", "")
         if elem.get("kind") == "task":
             if name in skipped:
                 return (GREY_MED, "#444444", 3, contrasting_text_color(GREY_MED))
-            if name in mismatch:
-                return (GREY_LIGHT, "#444444", 3, contrasting_text_color(GREY_LIGHT))
             if name in conform:
                 return (GREY_LIGHTER, "#666666", 2, contrasting_text_color(GREY_LIGHTER))
         return ("white", "#888888", 2, "#333333")

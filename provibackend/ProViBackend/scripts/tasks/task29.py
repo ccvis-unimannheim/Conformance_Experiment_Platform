@@ -45,11 +45,10 @@ from tasks.task26 import _lighten
 # Move-type vocabulary + colours for the activity-level idioms (stacked_bar,
 # matrix, parallel_sets, tree_map, sunburst) — matches the move-type strings
 # produced by alignment_pairs_to_rows / build_violation_pattern_df.
-_VTYPES = ["Model Move", "Log Move", "Mismatch Move"]
+_VTYPES = ["Model Move", "Log Move"]
 _VTYPE_COLOR = {
     "Model Move":    GREY_MED,
     "Log Move":      GREY_DARK,
-    "Mismatch Move": GREY_LIGHT,
 }
 
 # Top-N activities (by total violation count) shown in stacked_bar/matrix/parallel_sets
@@ -83,7 +82,6 @@ def _task29_activity_type_pivot(alignments, top_n: int = _PIVOT_TOP_N):
 TASK29_TYPE_LABELS = {
     "Model Move": "Model Move\n(Missing in Log)",
     "Log Move": "Log Move\n(Unexpected in Log)",
-    "Mismatch Move": "Mismatch Move\n(Log/Model differ)",
 }
 
 
@@ -125,8 +123,8 @@ def task29_violation_summary_dataframe(alignments, grouping_strategy: str = "mov
             lambda m: TASK29_TYPE_LABELS.get(m, m))
         # The move types read in a fixed order, not by frequency: they are a
         # nominal scale the reader learns, and reordering them between datasets
-        # would make two charts of the same three categories look different.
-        order = ["Model Move", "Log Move", "Mismatch Move"]
+        # would make two charts of the same two categories look different.
+        order = ["Model Move", "Log Move"]
         summary["_order"] = summary["move_type"].apply(
             lambda x: order.index(x) if x in order else len(order))
         summary = summary.sort_values(["_order", "violation_type"]).drop(columns=["_order"])
@@ -254,7 +252,7 @@ def task29_table(df: pd.DataFrame, output_dir: str):
 # ---------------------------------------------------------------------------
 
 def task29_stacked_bar(alignments, output_dir: str):
-    """Horizontal stacked bar: top-N activities coloured by violation type (Model/Log/Mismatch)."""
+    """Horizontal stacked bar: top-N activities coloured by violation type (Model/Log)."""
     out_path = os.path.join(output_dir, "task29_stacked_bar.svg")
     pivot, top_acts = _task29_activity_type_pivot(alignments)
     if not top_acts:

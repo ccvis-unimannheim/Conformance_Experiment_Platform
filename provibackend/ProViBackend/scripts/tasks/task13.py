@@ -687,7 +687,6 @@ def task13_flow_chart_elaborate_bpmn_table(ctx, ranking, model_path, output_dir)
         title="Where Violations Sit (flow) & Which Attributes Explain Them (table)",
         legend_items=[
             (GREY_MED,    "#444444", 3, "Model move (skipped step)"),
-            (GREY_LIGHT,  "#444444", 3, "Mismatch move"),
             (GREY_LIGHTER,   "#666666", 2, "Conform (synchronous)"),
             ("white", "#888888", 2, "Not on this trace"),
         ],

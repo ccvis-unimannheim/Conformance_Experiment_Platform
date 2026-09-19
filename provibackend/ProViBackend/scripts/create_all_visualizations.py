@@ -1025,8 +1025,8 @@ def get_log_violated_activities_task34(dataset_dir: str) -> list[dict]:
     """Distinct violated activities for task34's admin dropdown.
 
     Returns [{"value": "Approve Treatment", "label": "TREATMENT_APPROVED (6 traces)"}, ...]
-    sorted by trace count descending.  Only MoM / MoL violations are counted
-    (Mismatch Move is excluded, matching task34's classification rules).
+    sorted by trace count descending.  MoM / MoL violations are counted,
+    matching task34's classification rules.
     Powers the 'log.violated_activities_task34' param-spec source.
     """
     from tasks.task34 import _parse_alignment, _is_violation

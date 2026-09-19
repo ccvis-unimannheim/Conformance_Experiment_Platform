@@ -97,12 +97,11 @@ _C_XLIGHT = GREY_LIGHTER
 _HDR_BG   = GREY_DARK
 _CMAP_SEQ = CIVIDIS
 
-# Violation type → grey shade (light=skipped, mid=extra, dark=mismatch)
-_VTYPES = ["Model Move", "Log Move", "Mismatch Move"]
+# Violation type → grey shade (light = skipped, dark = extra)
+_VTYPES = ["Model Move", "Log Move"]
 _VTYPE_COLOR = {
     "Model Move": _C_LIGHT,
     "Log Move":   _C_MED,
-    "Mismatch Move": _C_DARK,
 }
 
 _TOP_N = 12   # max activities displayed
@@ -247,15 +246,14 @@ def task09_scatter_plot(activity_type, activity_totals, output_dir):
 
     mom = np.array([activity_type.get((a, "Model Move"), 0) for a in top_acts], dtype=float)
     mol = np.array([activity_type.get((a, "Log Move"),   0) for a in top_acts], dtype=float)
-    mm  = np.array([activity_type.get((a, "Mismatch Move"), 0) for a in top_acts], dtype=float)
-    totals = mom + mol + mm
+    totals = mom + mol
 
     max_total = max(totals) if totals.max() > 0 else 1
     sizes = (totals / max_total * 600 + 80).tolist()
 
     def _dominant_color(i):
-        vals  = [mom[i], mol[i], mm[i]]
-        types = ["Model Move", "Log Move", "Mismatch Move"]
+        vals  = [mom[i], mol[i]]
+        types = ["Model Move", "Log Move"]
         return _VTYPE_COLOR[types[int(np.argmax(vals))]]
 
     colors = [_dominant_color(i) for i in range(len(top_acts))]
@@ -352,13 +350,12 @@ def task09_table(activity_type, activity_totals, type_totals, n_violations, outp
     for a in top_acts:
         mom   = activity_type.get((a, "Model Move"), 0)
         mol   = activity_type.get((a, "Log Move"),   0)
-        mm    = activity_type.get((a, "Mismatch Move"), 0)
-        total = mom + mol + mm
+        total = mom + mol
         pct   = total / n_violations * 100 if n_violations > 0 else 0
-        rows.append([_short_label(a, 32), mom, mol, mm, total, f"{pct:.1f}%"])
+        rows.append([_short_label(a, 32), mom, mol, total, f"{pct:.1f}%"])
 
-    col_headers = ["Activity", "Model Move", "Log Move", "Mismatch Move", "Total", "% of All"]
-    col_widths  = [0.34, 0.14, 0.12, 0.15, 0.10, 0.10]
+    col_headers = ["Activity", "Model Move", "Log Move", "Total", "% of All"]
+    col_widths  = [0.40, 0.16, 0.14, 0.14, 0.16]
 
     n_rows  = len(rows)
     fig_h   = max(3.5, n_rows * 0.48 + 2.0)
@@ -414,7 +411,6 @@ def task09_table_bar_chart(activity_type, activity_totals, n_violations, output_
 
     mom_vals = [activity_type.get((a, "Model Move"), 0) for a in top_acts]
     mol_vals = [activity_type.get((a, "Log Move"),   0) for a in top_acts]
-    mm_vals  = [activity_type.get((a, "Mismatch Move"), 0) for a in top_acts]
     totals   = [activity_totals[a] for a in top_acts]
 
     fig, (ax_tbl, ax_bar) = plt.subplots(
@@ -424,8 +420,8 @@ def task09_table_bar_chart(activity_type, activity_totals, n_violations, output_
 
     # ── Left: table ──────────────────────────────────────────────────────────
     ax_tbl.axis("off")
-    col_headers = ["Activity", "MoM", "MoL", "MM", "Total"]
-    col_widths  = [0.50, 0.13, 0.13, 0.13, 0.11]
+    col_headers = ["Activity", "MoM", "MoL", "Total"]
+    col_widths  = [0.54, 0.15, 0.15, 0.16]
     t = 0.94
     row_h = (t - 0.04) / (n + 1)
     tw = 0.97
@@ -440,13 +436,13 @@ def task09_table_bar_chart(activity_type, activity_totals, n_violations, output_
                     color="white", fontweight="bold", transform=ax_tbl.transAxes)
         x += cw * tw
 
-    for i, (act, mom, mol, mm, total) in enumerate(
-            zip(top_acts, mom_vals, mol_vals, mm_vals, totals)):
+    for i, (act, mom, mol, total) in enumerate(
+            zip(top_acts, mom_vals, mol_vals, totals)):
         y_top = t - (i + 2) * row_h
         x = 0.015
         bg = "#f5f5f5" if i % 2 == 0 else "white"
         for j, (val, cw) in enumerate(
-                zip([_short_label(act, 24), mom, mol, mm, total], col_widths)):
+                zip([_short_label(act, 24), mom, mol, total], col_widths)):
             ax_tbl.add_patch(plt.Rectangle((x, y_top), cw * tw, row_h,
                                            fc=bg, ec="#eeeeee", linewidth=0.4,
                                            transform=ax_tbl.transAxes, clip_on=False))
@@ -463,7 +459,6 @@ def task09_table_bar_chart(activity_type, activity_totals, n_violations, output_
     for vtype, vals in [
         ("Model Move", mom_vals),
         ("Log Move",   mol_vals),
-        ("Mismatch Move", mm_vals),
     ]:
         v = np.array(vals, dtype=float)
         ax_bar.barh(range(n), v, left=lefts,
@@ -651,8 +646,8 @@ def task09_flow_chart_and_table(activity_type, activity_totals, type_totals, n_v
 
     # ── Table ──────────────────────────────────────────────────────────────────
     ax_tbl.axis("off")
-    col_headers = ["Activity", "Model Move", "Log Move", "Mismatch Move", "Total", "% of All"]
-    col_widths  = [0.34, 0.14, 0.12, 0.15, 0.10, 0.10]
+    col_headers = ["Activity", "Model Move", "Log Move", "Total", "% of All"]
+    col_widths  = [0.40, 0.16, 0.14, 0.14, 0.16]
     t = 0.96; l = 0.01; tw = 0.98
     row_h = (t - 0.02) / (n_rows + 1)
     x = l
@@ -667,10 +662,9 @@ def task09_flow_chart_and_table(activity_type, activity_totals, type_totals, n_v
     for i, act in enumerate(top_acts):
         mom   = activity_type.get((act, "Model Move"), 0)
         mol   = activity_type.get((act, "Log Move"),   0)
-        mm    = activity_type.get((act, "Mismatch Move"), 0)
-        total = mom + mol + mm
+        total = mom + mol
         pct   = total / n_violations * 100 if n_violations > 0 else 0
-        row_vals = [_short_label(act, 32), mom, mol, mm, total, f"{pct:.1f}%"]
+        row_vals = [_short_label(act, 32), mom, mol, total, f"{pct:.1f}%"]
         y_top = t - (i + 2) * row_h
         x = l
         bg = "#f5f5f5" if i % 2 == 0 else "white"
@@ -899,7 +893,6 @@ def _make_bpmn_violation_svg(activity_totals, model_path, h_scale: float = 1.0):
 _T11_VTYPE_SHORT = {
     "Model Move": "MoM",
     "Log Move":   "MoL",
-    "Mismatch Move": "MM",
 }
 
 
@@ -1169,8 +1162,8 @@ def task09_flow_chart_elaborate_bpmn_table(activity_type, activity_totals, type_
     tbl_h_in = max(3.5, n_rows * 0.48 + 2.0)
     tbl_fig, tbl_ax = plt.subplots(figsize=(tbl_w_in, tbl_h_in))
     tbl_ax.axis("off")
-    col_headers = ["Activity", "Model Move", "Log Move", "Mismatch Move", "Total", "% of All"]
-    col_widths  = [0.34, 0.14, 0.12, 0.15, 0.10, 0.10]
+    col_headers = ["Activity", "Model Move", "Log Move", "Total", "% of All"]
+    col_widths  = [0.40, 0.16, 0.14, 0.14, 0.16]
     t = 0.94; l = 0.02; tw = 0.96
     row_h = (t - 0.06) / (n_rows + 1)
     x = l
@@ -1185,10 +1178,9 @@ def task09_flow_chart_elaborate_bpmn_table(activity_type, activity_totals, type_
     for i, act in enumerate(top_acts):
         mom   = activity_type.get((act, "Model Move"), 0)
         mol   = activity_type.get((act, "Log Move"),   0)
-        mm    = activity_type.get((act, "Mismatch Move"), 0)
-        total = mom + mol + mm
+        total = mom + mol
         pct   = total / n_violations * 100 if n_violations > 0 else 0
-        row_vals = [_short_label(act, 32), mom, mol, mm, total, f"{pct:.1f}%"]
+        row_vals = [_short_label(act, 32), mom, mol, total, f"{pct:.1f}%"]
         y_top = t - (i + 2) * row_h
         x = l
         bg = "#f5f5f5" if i % 2 == 0 else "white"

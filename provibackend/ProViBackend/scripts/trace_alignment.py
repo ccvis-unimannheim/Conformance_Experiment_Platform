@@ -356,20 +356,14 @@ def sequence_of(log, i: int) -> tuple:
 
 
 def _matches_pattern(row, activity: str, move_type: str) -> bool:
-    """Does this alignment step realise the (activity, move type) pattern?
-
-    A mismatch move carries both labels, so it answers to either side's
-    activity — it is a deviation on both.
-    """
+    """Does this alignment step realise the (activity, move type) pattern?"""
     kind = row["moveType"]
-    if move_type and kind != move_type and kind != "Mismatch Move":
+    if move_type and kind != move_type:
         return False
     if kind == "Model Move":
         return str(row["model_move"]) == activity
     if kind == "Log Move":
         return str(row["log_move"]) == activity
-    if kind == "Mismatch Move":
-        return activity in (str(row["log_move"]), str(row["model_move"]))
     return False
 
 

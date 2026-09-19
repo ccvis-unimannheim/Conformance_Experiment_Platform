@@ -74,9 +74,7 @@ from shared import (
 # Constants
 # ---------------------------------------------------------------------------
 
-# Alignment violation vocabulary for Task 14: the two fundamental move types.
-# A PM4Py "mismatch" pair (both labels present but different) is treated as BOTH
-# a Model and a Log move — Task 14 has no separate "Mismatch Move" category.
+# Alignment violation vocabulary for Task 14: the two move types there are.
 _MOVE_TYPES = ["Model Move", "Log Move"]
 # Conformant + violation types, in display order (Synchronous first as the
 # baseline). Used so every idiom shows synchronous moves alongside violations.
@@ -161,18 +159,13 @@ def _build_context(alignments, log=None, trace_ids=None, rule="worst_fitness",
 
 
 def _row_move_types(row):
-    """Canonical move type(s) a row contributes. A PM4Py mismatch step (both
-    labels present but different) counts as BOTH a Model and a Log move, since
-    Task 14 has no separate 'Mismatch' category."""
-    mt = row["moveType"]
-    if mt == "Mismatch Move":
-        return ["Model Move", "Log Move"]
-    return [mt]
+    """Canonical move type(s) a row contributes."""
+    return [row["moveType"]]
 
 
 def _display_move_type(row):
-    """Move-type label shown in tables — a mismatch step reads as 'Model & Log Move'."""
-    return "Model & Log Move" if row["moveType"] == "Mismatch Move" else row["moveType"]
+    """Move-type label shown in tables."""
+    return row["moveType"]
 
 
 def _type_counts(ctx):
@@ -227,9 +220,6 @@ def _activity_for_row(row):
     mt = row["moveType"]
     if mt == "Model Move":
         return str(row["model_move"])
-    if mt == "Log Move":
-        return str(row["log_move"])
-    # Mismatch: prefer log_move as the executed label
     lm = str(row["log_move"])
     return lm if lm not in _MISSING_TOKENS else str(row["model_move"])
 

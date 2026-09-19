@@ -59,9 +59,8 @@ _MOVE_DEFAULT = to_hex(CIVIDIS(0.50))          # mid (fallback for unknown move 
 _MOVE_COLORS = {
     "Model Move":    to_hex(CIVIDIS(0.85)),    # soft  (light end)
     "Log Move":      _MOVE_DEFAULT,            # mid
-    "Mismatch Move": to_hex(CIVIDIS(0.15)),    # strong (dark end)
 }
-_MOVE_ORDER  = ["Model Move", "Log Move", "Mismatch Move"]
+_MOVE_ORDER  = ["Model Move", "Log Move"]
 
 
 # ---------------------------------------------------------------------------

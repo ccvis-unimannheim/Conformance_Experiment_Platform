@@ -77,8 +77,7 @@ def _task25_activity_replay(alignments):
 
     A synchronous move is behaviour the model prescribes and the log records. A
     model move (prescribed, not executed) and a log move (executed, not
-    prescribed) are both deviations of that activity. A mismatch move deviates
-    on both of its labels.
+    prescribed) are both deviations of that activity.
     """
     stats: dict = {}
 
@@ -99,9 +98,6 @@ def _task25_activity_replay(alignments):
                 bump(model_label, "deviating")
             elif move == "Log Move":
                 bump(log_label, "deviating")
-            elif move == "Mismatch Move":
-                bump(log_label, "deviating")
-                bump(model_label, "deviating")
     return stats
 
 
