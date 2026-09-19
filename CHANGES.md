@@ -20,6 +20,35 @@ task16 already does. The renderers stay.
 A draft that had already selected one of these keeps it selected, but
 regenerating no longer draws its image. `py_compile` only.
 
+## Session: task30 and task31 Idioms Carry One Payload (2026-09-19)
+
+### Problem solved
+
+Within a task the idioms must answer the same question. In task30 and task31
+several of them answered more than the rest, and task31's table cut the log a
+different way entirely.
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `scripts/tasks/task30.py` | The table drops its sub-log summary (#Traces, % Conformant, Mean Fitness) — a conformance level no other idiom states — and its pattern rows drop the counts and the Total column, leaving rates. Losing the `(n / rate)` header line also unsqueezes the column headers. Parallel sets drops its "Other" bucket, which measured the deviation the top-N leaves out. |
+| `scripts/tasks/task31.py` | The decision tree is gone, with the fitting helpers and split constants nothing else used. The table listed tree branch conditions and the case counts behind each rate; it now lists the bar chart's bands, traces and positive-outcome rate. Matrix and heatmap read one `_band_outcome_rates` table — the matrix as numbers, the heatmap as colour; the heatmap loses its calendar axis and the matrix its "All bands" row. All five idioms bin fitness the same way, `= 1.0` included, and the bar chart draws in task30's dark blue instead of grey. |
+
+task31 is down to five idioms: `table`, `bar_chart`, `stacked_bar`, `matrix`,
+`heatmap`.
+
+### Known asymmetry
+
+The bar chart and the table show the positive-outcome rate only; the stacked
+bar, matrix and heatmap show both outcomes. Negative is 100 - positive, so the
+five stay information-equivalent; it is a visual difference, not a payload one.
+
+### Verification
+
+`py_compile` and `pyflakes` on the two modules, the latter against HEAD so only
+new warnings count — there are none. Not regenerated.
+
 ## Session: Idiom Review for Tasks 24-32, and Matrices Without Colour (2026-09-19)
 
 ### Problem solved
