@@ -72,15 +72,14 @@ from matplotlib import gridspec
 from shared import (
     save_svg, make_table,
     draw_composition_stacked_bars, draw_grouped_box_plot, draw_value_heatmap,
-    GREY_MED, GREY_LIGHT, GREY_DARK, GREY_LIGHTER, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    PAIR_COLORS, categorical_colors, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 
 # ---------------------------------------------------------------------------
 # Group color constants
 # ---------------------------------------------------------------------------
-_COLOR_POSITIVE = GREY_MED    # medium-dark grey  — Positive outcome group
-_COLOR_NEGATIVE = GREY_LIGHT  # medium grey       — Negative outcome group
+_COLOR_POSITIVE, _COLOR_NEGATIVE = PAIR_COLORS  # cividis blue / yellow
 _GROUPS = ["Positive", "Negative"]
 _GROUP_COLORS = [_COLOR_POSITIVE, _COLOR_NEGATIVE]
 
@@ -93,7 +92,7 @@ def _group_suffix(outcome_activity: str) -> str:
 
 # Conformance categories used in Parallel Sets (ordered light → dark)
 _PSET_LABELS = ["Major deviation\n(< 0.8)", "Minor deviation\n(0.8 – <1.0)", "Conformant\n(= 1.0)"]
-_PSET_COLORS = [GREY_DARK, GREY_MED, GREY_LIGHTER]
+_PSET_COLORS = categorical_colors(3)  # navy, slate blue, yellow
 # Compact category labels reused by stacked bar / matrix
 _CAT_LABELS = ["Major dev. (<0.8)", "Minor dev. (0.8–<1.0)", "Conformant (=1.0)"]
 

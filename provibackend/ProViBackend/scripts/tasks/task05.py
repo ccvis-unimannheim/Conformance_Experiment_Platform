@@ -73,13 +73,12 @@ from shared import (
     save_svg, make_table, draw_parallel_sets, alignment_pairs_to_rows,
     draw_grouped_rate_bars, draw_composition_stacked_bars, draw_rate_matrix,
     draw_grouped_box_plot, draw_value_heatmap, render_empty_state_svg,
-    GREY_MED, GREY_LIGHT, GREY_DARK, GREY_LIGHTER, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    PAIR_COLORS, categorical_colors, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 TOP_N = 10
 
-_COLOR_POSITIVE = GREY_MED
-_COLOR_NEGATIVE = GREY_LIGHT
+_COLOR_POSITIVE, _COLOR_NEGATIVE = PAIR_COLORS  # cividis blue / yellow
 _GROUP_COLORS   = {"Positive": _COLOR_POSITIVE, "Negative": _COLOR_NEGATIVE}
 
 
@@ -215,6 +214,7 @@ def task05_stacked_bar(agg_df: pd.DataFrame, n_traces: dict, output_dir: str,
     draw_composition_stacked_bars(
         ax, groups, patterns,
         agg_df[["Positive_rate", "Negative_rate"]].values,
+        segment_colors=categorical_colors(len(patterns)),
     )
 
     ax.set_ylabel("Cumulative violation rate (%)", fontsize=FONT_LABEL)
@@ -398,6 +398,7 @@ def task05_parallel_sets(agg_df: pd.DataFrame, viol_df: pd.DataFrame,
         right_labels=right_labels,
         matrix=matrix,
         left_colors=[_COLOR_POSITIVE, _COLOR_NEGATIVE],
+        right_colors=categorical_colors(len(cats)),
         left_title="Sub-log",
         right_title="Violation Pattern",
     )
@@ -452,7 +453,7 @@ def task05_box_plot(log, viol_df: pd.DataFrame, assignment, output_dir: str,
             continue
         jitter = rng.uniform(-0.09, 0.09, arr.size)
         ax.scatter(np.full(arr.size, xi) + jitter, arr,
-                   s=12, color=GREY_MED, alpha=0.30, linewidths=0, zorder=4)
+                   s=12, color="#333333", alpha=0.30, linewidths=0, zorder=4)
 
     # Per-group annotation: % of traces with >=1 violation (the answer unit),
     # group size, and mean violations per trace.

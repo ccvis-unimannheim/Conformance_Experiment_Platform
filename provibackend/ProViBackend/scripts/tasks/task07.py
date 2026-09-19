@@ -33,7 +33,7 @@ import matplotlib.pyplot as plt
 from shared import (
     save_svg, build_fitness_time_series, bin_fitness_time_series,
     render_conformance_line_graph, render_conformance_horizon_chart,
-    DEFAULT_TIME_GRANULARITY, TIME_GRANULARITY_FREQ,
+    DEFAULT_TIME_GRANULARITY, TIME_GRANULARITY_FREQ, GREY_DARK,
 )
 
 
@@ -110,9 +110,11 @@ def _save_empty(output_dir: str, filename: str, message: str = "No data availabl
 def task07_line_graph(df: pd.DataFrame, output_dir: str,
                       time_granularity: str = DEFAULT_TIME_GRANULARITY):
     """Mean conformance per time bin (shared renderer, granularity-aware)."""
+    # Blue trend line; the mean is a neutral reference line, as on the horizon chart.
     render_conformance_line_graph(
         df, os.path.join(output_dir, "task07_line_graph.svg"),
-        time_granularity=time_granularity, value_labels=True)
+        time_granularity=time_granularity, value_labels=True,
+        line_color=GREY_DARK, mean_color="#555555")
 
 
 # ---------------------------------------------------------------------------

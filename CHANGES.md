@@ -2,6 +2,48 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: Grey-Free Idiom Colours, First Five Tasks (2026-09-19)
+
+### Problem solved
+
+The palette guide moved every chart to cividis, but cividis is nearly neutral
+grey in its middle, and the stops the tasks used sit there: `GREY_MED` (0.45) is
+`#727274`, saturation 0.01. Group comparisons, move types and category ramps
+therefore still drew in grey. The eight tasks of the published experiment are
+left as they are; this starts the others.
+
+### Backend (`provibackend/ProViBackend/scripts/`)
+
+| File | Change |
+|------|--------|
+| `shared.py` | New `PAIR_COLORS`, `MOVE_LOG` / `MOVE_MODEL` / `MOVE_MISMATCH` / `MOVE_SYNC` and `categorical_colors(n)`, all sampled outside cividis's grey middle; `GREY_*` values unchanged. `render_conformance_line_graph` takes `line_color` / `mean_color` (defaults = the old grey, which task10 keeps). `draw_grouped_box_plot` picks each median line's colour for contrast with its box — white vanished on a yellow box; no frozen task calls it. |
+| `tasks/task01.py` | Positive / Negative blue / yellow; conformance categories `categorical_colors(3)`. |
+| `tasks/task02.py` | The single bar is blue. |
+| `tasks/task05.py` | Sub-logs blue / yellow; stacked-bar segments and the parallel sets' right axis `categorical_colors`; box-plot jitter points neutral dark. |
+| `tasks/task07.py` | Line graph blue with a neutral mean line; horizon chart already blue / yellow. |
+| `tasks/task08.py` | Network nodes by `MOVE_*`, edges on cividis's blue end instead of `plt.cm.Greys`; matrix cell text by `contrasting_text_color`. |
+
+### Docs
+
+The rule — data colours come from cividis's blue and yellow ends, grey only for
+axes, borders, text, reference lines and empty cells, the eight frozen tasks
+untouched — is recorded in the comment above the new constants in `shared.py`.
+(`PALETTE_GUIDE.md` has the same as §0, but that file is git-ignored.)
+
+### Verification
+
+- `py_compile` over the changed files. The eight frozen tasks are unaffected by
+  construction: no `GREY_*` value changed, the line graph's defaults are the old
+  colours, and none of them calls `draw_grouped_box_plot`.
+- **Not rendered:** the new colours are to be checked on the /idiom previews after
+  deploying.
+
+### Known gaps
+
+- `categorical_colors(n)` for n ≈ 10 puts its first three blues close together;
+  task05's stacked bar can have 11 segments (top 10 + Other).
+- Box-plot whiskers keep the box colour, so yellow whiskers are faint on white.
+
 ## Session: Idiom Previews Drawn by the Current Code (2026-09-19)
 
 ### Problem solved
