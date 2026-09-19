@@ -2,6 +2,90 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: Idiom Review for Tasks 24-32, and Matrices Without Colour (2026-09-19)
+
+### Problem solved
+
+Three things, all in the visualization scripts:
+
+1. **The idiom review removed nineteen images.** Tasks 24, 25 and 27-32 each
+   offered idioms the review dropped. Unlike task01/task03, these are deleted
+   rather than commented out: renderer, `IDIOMS` entry, `generate()` call and
+   empty-state row all go, together with whatever helper, import or section
+   banner had no other caller left.
+2. **task27 ignored its own trace selection in six idioms out of nine.**
+   `trace_ids` was resolved inside the chevron/BPMN/table path, so an admin who
+   named traces got those three figures plus six that kept slicing the top
+   fifteen variants — the figures contradicted each other.
+3. **Every Matrix was a Heatmap that also printed its numbers.** The two idioms
+   differed only in annotation, which encodes one variable twice and leaves a
+   participant nothing to tell them apart by.
+
+### Idioms removed
+
+| Task | Removed | Left with |
+|------|---------|-----------|
+| task24 | flow chart & table | `flow_chart_elaborate` |
+| task25 | flow chart & table | `flow_chart_elaborate` |
+| task27 | scatterplot, flow chart & table, table & bar chart, gantt chart, flow chart+ & table, calendar | 9 idioms |
+| task28 | flow chart & table, table & bar chart, flow chart+ & table, network diagram, scatter plot | 8 idioms |
+| task29 | flow chart & table, table & bar chart, treemap | 8 idioms |
+| task30 | table & bar chart | 6 idioms |
+| task31 | scatterplot | 6 idioms |
+| task32 | table & bar chart | 7 idioms |
+
+A draft that has one of these selected keeps it selected; regenerating no longer
+draws its image.
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `scripts/tasks/task24.py` | Second idiom gone. The discovered model is no longer drawn as a graphviz DFG above the guideline BPMN: `_discovered_model_svg`, `_juxtapose`, `_svg_dims` and the base64 juxtaposition are removed and `task24_flow_chart_elaborate_bpmn` renders straight to its path. `_discover_dfg` stays — discovery is what produces the annotation (faded nodes, dark violation endpoints, the summary line), it is just not drawn as a second notation. Follows task35, whose Petri-net and DFG variants went for the same reason. |
+| `scripts/tasks/task25.py` | Second idiom gone; `_draw` loses its `with_table` branch. |
+| `scripts/tasks/task27.py` | Six idioms gone. The trace selection resolves once in the new `_selected_indices` and, when the admin **names** traces, `_selected_variant_df` gives every idiom one row per named trace — `build_variant_df`'s schema, so the renderers are unchanged and only their wording branches; `count` stays the frequency of that trace's behaviour in the whole log. Under the automatic rule the frequency and distribution idioms keep aggregating over the log's variants: that rule picks one trace per status by default, and a box plot of one value per group has no distribution to show. |
+| `scripts/tasks/task28.py` | Five idioms gone, including the `if ctx is not None:` guard whose only statement was one of the calls. |
+| `scripts/tasks/task29.py`, `task30.py`, `task31.py`, `task32.py` | Three / one / one / one idiom gone. |
+| `scripts/shared.py` | `draw_value_heatmap` gains `colorless=False` — white cells, the value carried by the printed number alone, no colorbar. New `draw_cell_grid` rules an `imshow` grid into cells, which is what makes a colourless matrix a table rather than floating numbers. `draw_rate_matrix` passes the flag through. Defaults are the current behaviour, so no other caller moves. |
+| `scripts/tasks/task27.py` … `task31.py` (matrices) | Matrices in tasks 27-31 draw `colorless=True`. task27's matrix is categorical, so colour was its whole payload: the four relations now print as letters (`C` contained, `L` unexpected log move, `M` skipped model move, blank absent) with a text key instead of a colour legend. A colour ramp over four nominal categories ranked them anyway. |
+| `scripts/create_all_visualizations.py` | `_TASK_RENAME_SKIP` loses task28 and task31, which no longer write a `scatter_plot` file. |
+
+### Docs
+
+| File | Change |
+|------|--------|
+| `docs/TASK_IDIOM_MAPPING.md` | The eighteen rows for the removed idioms. |
+| `docs/TRACE_ALIGNMENT_CLASS.md` | task27's per-task notes: a named selection reaches every idiom, the automatic rule does not, and why. "eleven renderers" read the threshold → four, plus the trace frame and the selection. The baseline counts are marked as predating this change. **task28 and task09 no longer offer the same idiom set** — trimming task09 to match is the open half of that decision. |
+| `docs/TRACE_ALIGNMENT_PARAMETERS.md` | `conformant_threshold` stays visible under a manual selection, but not for the reason given ("ten idioms colour whole-log variants by it, none depend on which traces were chosen"); replaced with what the two modes actually do. |
+| `docs/AGGREGATE_FITNESS_CLASS.md` | task25 is a single `flow_chart_elaborate`. |
+| `docs/STANDALONE_TASK_PARAMETERS.md` | "The juxtaposition" → "…, and why it is gone again", with the DFG-drawn / DFG-computed distinction. |
+| `docs/VIOLATION_PROFILE_CLASS.md` | The reproducibility fix lived in a deleted function; the rule it stands for — never sort a set by a key that leaves ties — is kept. |
+
+### Verification
+
+Whole dataset regenerated and compared against HEAD with `svg_compare.py`, both
+runs sharing one `cache/alignments.pkl` so pm4py's equally-optimal alignments
+cannot show up as a difference:
+
+```
+HEAD 265 SVGs → 246 SVGs;  19 removed, 0 added
+246 in common: 241 byte-identical, 5 changed
+  ~ task24/flow_chart_elaborate.svg   (the DFG panel is gone)
+  ~ task27/matrix.svg  task28/matrix.svg  task29/matrix.svg  task30/matrix.svg
+```
+
+The colourless cells are checked by decoding each matrix's embedded PNG rather
+than by reading fill attributes, since `imshow` puts the cell colours in the
+raster: every one is a single colour, pure white, where HEAD had three to six
+plus a 186-255 colour colorbar strip. task31's matrix takes its empty-state path
+on BPIC12 (fewer than two populated fitness bands), so that one was rendered
+separately from synthetic data.
+
+`pyflakes` over the touched modules reports **no warning that HEAD did not
+already report**. Four helpers that were dead before this session
+(`_task28_status_color`, `_as_float`, `_trace_attribute_value`,
+`_task31_collect_table_rows`) are deliberately left alone.
+
 ## Session: Custom Idioms Belong to Their Experiment (2026-09-19)
 
 ### Problem solved

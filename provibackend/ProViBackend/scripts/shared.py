@@ -1003,14 +1003,33 @@ def draw_composition_stacked_bars(ax, group_labels, pattern_labels, rates,
             bottoms[g] += h
 
 
+def draw_cell_grid(ax, n_rows: int, n_cols: int, color: str = "#CCCCCC",
+                   linewidth: float = 0.8):
+    """Rule an imshow grid into cells.
+
+    A colourless matrix has no fill to separate its cells, so the rules are what
+    make it a table rather than floating numbers.
+    """
+    ax.set_xticks(np.arange(-0.5, n_cols), minor=True)
+    ax.set_yticks(np.arange(-0.5, n_rows), minor=True)
+    ax.grid(which="minor", color=color, linewidth=linewidth)
+    ax.tick_params(which="minor", length=0)
+
+
 def draw_value_heatmap(fig, ax, data, row_labels, col_labels,
                        xlabel: str = "", cbar_label: str = "Rate (%)",
                        cell_fmt: str = "{:.1f}%", annotate: bool = True,
-                       cmap=None, rotate_xticks: int = 0, vmax: float = None):
-    """Colour-encoded matrix/heatmap with optional per-cell value labels + colorbar.
+                       cmap=None, rotate_xticks: int = 0, vmax: float = None,
+                       colorless: bool = False):
+    """Matrix/heatmap with optional per-cell value labels + colorbar.
 
     Convention used across the platform: Matrix = annotated grid (annotate=True);
     Heatmap = continuous colour intensity (annotate=False).
+
+    ``colorless=True`` makes it a matrix in the strict sense: empty cells, ruled
+    into a grid, the value carried by the printed number alone, and no colorbar.
+    Without it a Matrix is a Heatmap that also prints its numbers, which encodes
+    one variable twice and leaves the two idioms differing only in annotation.
 
     data: array-like of shape (len(row_labels), len(col_labels)).
     vmax: upper bound of the colour scale. When None it adapts to the data
@@ -1019,13 +1038,21 @@ def draw_value_heatmap(fig, ax, data, row_labels, col_labels,
     """
     import matplotlib as _mpl
     from matplotlib.colors import to_hex as _to_hex, Normalize as _Norm
+    from matplotlib.colors import ListedColormap as _Listed
 
     data = np.asarray(data, dtype=float)
     if cmap is None:
         cmap = CIVIDIS_R
     if vmax is None:
         vmax = max(data.max(), 1.0) if data.size else 1.0
-    im = ax.imshow(data, cmap=cmap, vmin=0, vmax=vmax, aspect="auto")
+    if colorless:
+        # Still an image, so the axes keep a heatmap's geometry and the cell
+        # coordinates the callers annotate against.
+        im = ax.imshow(np.zeros_like(data), cmap=_Listed(["white"]),
+                       vmin=0, vmax=1, aspect="auto")
+        draw_cell_grid(ax, len(row_labels), len(col_labels))
+    else:
+        im = ax.imshow(data, cmap=cmap, vmin=0, vmax=vmax, aspect="auto")
 
     ax.set_xticks(range(len(col_labels)))
     ax.set_xticklabels(col_labels, fontsize=FONT_ANNOT,
@@ -1044,20 +1071,23 @@ def draw_value_heatmap(fig, ax, data, row_labels, col_labels,
                 cell_hex = _to_hex(_cmap_obj(_norm(val)))
                 ax.text(ci, ri, cell_fmt.format(val),
                         ha="center", va="center", fontsize=FONT_ANNOT,
-                        color=contrasting_text_color(cell_hex))
+                        color=GREY_DARK if colorless
+                        else contrasting_text_color(cell_hex))
 
-    cbar = fig.colorbar(im, ax=ax, fraction=0.04, pad=0.02)
-    cbar.set_label(cbar_label, fontsize=FONT_ANNOT)
+    if not colorless:
+        cbar = fig.colorbar(im, ax=ax, fraction=0.04, pad=0.02)
+        cbar.set_label(cbar_label, fontsize=FONT_ANNOT)
     return im
 
 
 def draw_rate_matrix(fig, ax, data, row_labels, col_labels,
                      xlabel: str = "", cbar_label: str = "Rate (%)",
-                     cell_fmt: str = "{:.1f}%"):
+                     cell_fmt: str = "{:.1f}%", colorless: bool = False):
     """Annotated rate matrix — thin wrapper over draw_value_heatmap(annotate=True)."""
     return draw_value_heatmap(fig, ax, data, row_labels, col_labels,
                               xlabel=xlabel, cbar_label=cbar_label,
-                              cell_fmt=cell_fmt, annotate=True)
+                              cell_fmt=cell_fmt, annotate=True,
+                              colorless=colorless)
 
 
 def draw_grouped_box_plot(ax, data, labels, colors, *, ylabel: str = "",

@@ -21,7 +21,7 @@ same task with different titles.
 | The figure states | the fitness **and** a threshold to judge it against | the fitness | nothing aggregated |
 | The participant | compares one number to another | reads a number | derives a number |
 | Parameters | `predominant_threshold` | — | — |
-| Idioms | tile_metric, bar_chart, table | tile_metric, bar_chart, table, matrix, gauge_chart | flow_chart_elaborate, flow_chart_table |
+| Idioms | tile_metric, bar_chart, table | tile_metric, bar_chart, table, matrix, gauge_chart | flow_chart_elaborate |
 
 task06 is the baseline: five encodings of one scalar, deliberately nothing else.
 A trace-level distribution (boxplot) was removed from it because median, IQR and
@@ -58,9 +58,12 @@ sum ÷ traces" — was the answer minus one division.
 
 It now draws the guideline model, each activity labelled with how often it was
 executed where the model prescribes it out of how often it was involved at all
-(`779/821`), shaded by the share that deviated. `flow_chart_table` lists the same
-counts beneath the model: one payload, two readings, so neither idiom exposes
-more than the other. Nothing aggregated is printed anywhere.
+(`779/821`), shaded by the share that deviated. Nothing aggregated is printed
+anywhere.
+
+`flow_chart_table`, which listed the same counts in a table beneath the model —
+one payload, two readings, so neither idiom exposed more than the other — has
+been removed; task25 is now the single `flow_chart_elaborate`.
 
 The counts come from the centrally computed alignments — a synchronous move is
 behaviour the model prescribes and the log records; a model move (prescribed,

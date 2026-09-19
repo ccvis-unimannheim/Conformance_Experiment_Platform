@@ -21,8 +21,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "table", "table_bar_chart",
-          "parallel_sets", "stacked_bar", "matrix",
+IDIOMS = ["bar_chart", "table", "parallel_sets", "stacked_bar", "matrix",
           "heatmap"]
 
 
@@ -388,55 +387,6 @@ def task30_table(agg_df, stats_df, groups, attr, output_dir):
     save_svg(fig, os.path.join(output_dir, "task30_table.svg"))
 
 
-def task30_table_and_bar_chart(agg_df, groups, attr, output_dir):
-    """Pattern table (left) + horizontal grouped rate bars (right)."""
-    if agg_df.empty:
-        render_empty_state_svg(
-            os.path.join(output_dir, "task30_table_and_bar_chart.svg"),
-            "Violation Patterns per Sub-log", "No violations found.")
-        return
-
-    fig = plt.figure(figsize=(16, max(5.0, 1.5 + len(agg_df) * 0.50)))
-    gs = gridspec.GridSpec(1, 2, width_ratios=[1.5, 1.0], wspace=0.35)
-
-    ax_tbl = fig.add_subplot(gs[0])
-    ax_tbl.axis("off")
-    cell_text, col_labels, col_widths = _pattern_table_data(agg_df, groups)
-    make_table(
-        ax_tbl,
-        cell_text=cell_text,
-        col_labels=col_labels,
-        bbox=[0.01, 0.05, 0.98, 0.85],
-        col_widths=col_widths,
-        font_size=8.5,
-        scale_xy=(1, 1.7),
-        cell_pad=0.09,
-    )
-
-    ax_bar = fig.add_subplot(gs[1])
-    patterns = agg_df["pattern"].tolist()
-    x = draw_grouped_rate_bars(ax_bar, len(patterns), groups,
-                               _rates(agg_df, groups), _group_colors(groups),
-                               horizontal=True)
-    ax_bar.set_yticks(x)
-    ax_bar.set_yticklabels(patterns, fontsize=FONT_ANNOT - 1)
-    ax_bar.invert_yaxis()
-    ax_bar.set_xlabel("% of sub-log traces", fontsize=FONT_LABEL)
-    ax_bar.legend(
-        loc="lower center", bbox_to_anchor=(0.5, -0.28),
-        ncol=len(groups), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT - 1,
-    )
-    ax_bar.spines[["top", "right"]].set_visible(False)
-    ax_bar.xaxis.grid(True, linestyle="--", alpha=0.5)
-    ax_bar.set_axisbelow(True)
-
-    # Title centred over both subplots
-    fig.suptitle(f"Top-{len(agg_df)} Violation Patterns ({attr})",
-                 fontsize=FONT_TITLE)
-    fig.tight_layout(pad=1.2, rect=[0, 0.12, 1, 0.95])
-    save_svg(fig, os.path.join(output_dir, "task30_table_and_bar_chart.svg"))
-
-
 def task30_parallel_sets(agg_df, viol_df, stats_df, groups, attr, output_dir):
     """Parallel Sets: sub-log × violation pattern (top-N + Other); ribbon = count."""
     patterns = agg_df["pattern"].tolist() if not agg_df.empty else []
@@ -526,8 +476,8 @@ def task30_matrix(agg_df, groups, attr, output_dir):
     fig_h = max(3.0, 0.55 * len(patterns) + 1.2)
     fig, ax = plt.subplots(figsize=(max(5, len(groups) * 2.2), fig_h))
     draw_value_heatmap(fig, ax, data, patterns, groups,
-                       xlabel=f"Sub-log ({attr})", cbar_label="Rate (%)",
-                       cell_fmt="{:.1f}%", annotate=True, cmap="cividis_r")
+                       xlabel=f"Sub-log ({attr})",
+                       cell_fmt="{:.1f}%", annotate=True, colorless=True)
     ax.set_xticklabels(
         [g.replace(" ≤ ", "\n≤ ").replace(" > ", "\n> ").replace(" = ", "\n= ")
          for g in groups],
@@ -564,7 +514,6 @@ def task30_heatmap(agg_df, groups, attr, output_dir):
 _ALL_FNAMES_TITLES = [
     ("task30_bar_chart.svg",           "Violation Rates by Sub-log"),
     ("task30_table.svg",               "Conformance per Sub-log"),
-    ("task30_table_and_bar_chart.svg", "Violation Patterns per Sub-log"),
     ("task30_parallel_sets.svg",       "Sub-log vs. Violation Pattern"),
     ("task30_stacked_bar.svg",         "Violation Composition per Sub-log"),
     ("task30_matrix.svg",              "Violation Rate Matrix"),
@@ -620,7 +569,6 @@ def generate(log, fitness_df, alignments, output_dir: str,
 
     task30_bar_chart(agg_df, groups, compare_attribute, output_dir)
     task30_table(agg_df, stats_df, groups, compare_attribute, output_dir)
-    task30_table_and_bar_chart(agg_df, groups, compare_attribute, output_dir)
     task30_parallel_sets(agg_df, viol_df, stats_df, groups, compare_attribute, output_dir)
     task30_stacked_bar(agg_df, groups, compare_attribute, output_dir)
     task30_matrix(agg_df, groups, compare_attribute, output_dir)

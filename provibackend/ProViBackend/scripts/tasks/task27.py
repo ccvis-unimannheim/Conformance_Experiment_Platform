@@ -15,25 +15,24 @@ Public API:
         fitness_df           – per-trace fitness DataFrame from io_helpers.fitness_summary_dataframe
         alignments           – raw alignment results from io_helpers.run_alignments
         output_dir           – directory where SVGs are written
-        model_path           – reference BPMN; without it flow_chart_elaborate_table is skipped
+        model_path           – reference BPMN; without it flow_chart_elaborate is skipped
         conformant_threshold – fitness at or above which a variant is conformant
         trace_ids,
-        trace_count          – which variants the chevron, BPMN and table idioms
-                               show. There is no pick rule: the question is the
-                               contrast, so the count is per status — 2 means 2
-                               conformant and 2 non-conformant. The aggregate
-                               idioms keep showing the top-N variants
+        trace_count          – which traces are shown. There is no pick rule: the
+                               question is the contrast, so the count is per
+                               status — 2 means 2 conformant and 2 non-conformant.
+                               Named traces reach every idiom; under the automatic
+                               rule the frequency and distribution idioms keep
+                               aggregating over the log's variants
 """
 
 import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "scatter_plot", "table", "table_bar_chart",
-          "parallel_sets", "matrix",
-          "flow_chart_basic", "flow_chart_table", "flow_chart_elaborate",
-          "stacked_bar", "box_plot", "heatmap", "gantt_chart", "calendar",
-          "flow_chart_elaborate_table"]
+IDIOMS = ["bar_chart", "table", "parallel_sets", "matrix",
+          "flow_chart_basic", "flow_chart_elaborate",
+          "stacked_bar", "box_plot", "heatmap"]
 
 import trace_alignment
 import trace_response
@@ -78,19 +77,16 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from matplotlib import gridspec
 from matplotlib.colors import ListedColormap
 
 from shared import (
-    save_svg, make_table, draw_parallel_sets, alignment_pairs_to_rows,
-    build_variant_df, variant_table_data,
-    chevron_figure_width, chevron_nodes_from_alignment_rows, draw_chevron_strip,
+    save_svg, draw_parallel_sets, alignment_pairs_to_rows, build_variant_df,
     draw_composition_stacked_bars, draw_grouped_box_plot, draw_value_heatmap,
-    draw_gantt_strips, calendar_heatmap, render_empty_state_svg,
-    parse_bpmn_model, compose_bpmn_panels, contrasting_text_color,
-    GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    draw_cell_grid, render_empty_state_svg,
+    GREY_MED, GREY_LIGHT, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
+#: How many variants the aggregate idioms show when the admin names no traces.
 TOP_N = 15
 # Number of conformant / non-conformant variants shown as chevron strips
 STRIPS_PER_STATUS = 3
@@ -128,9 +124,14 @@ def _status_legend_handles():
 # ---------------------------------------------------------------------------
 
 def task27_bar_chart(vdf: pd.DataFrame, output_dir: str,
-                     threshold: float = CONFORMANT_DEFAULT):
-    """Bar chart: top-N variants by frequency; height = #traces, colour = status."""
-    top = vdf.head(TOP_N)
+                     threshold: float = CONFORMANT_DEFAULT, *,
+                     selected: bool = False):
+    """Bar chart by frequency, colour = status.
+
+    ``selected``: one bar per named trace, height = how many traces in the log
+    share its behaviour. Otherwise the top-N variants, height = #traces.
+    """
+    top = vdf if selected else vdf.head(TOP_N)
     colors = [_STATUS_COLORS[_status(f, threshold)] for f in top["fitness"]]
     ymax = max(int(top["count"].max()), 1)
 
@@ -143,86 +144,22 @@ def task27_bar_chart(vdf: pd.DataFrame, output_dir: str,
     ax.legend(handles=_status_legend_handles(),
               loc="lower center", bbox_to_anchor=(0.5, -0.25),
               ncol=2, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
-    ax.set_xlabel(f"Variant (ranked by frequency, top {len(top)} of {len(vdf)})",
-                  fontsize=FONT_LABEL)
-    ax.set_ylabel("Number of Traces", fontsize=FONT_LABEL)
-    ax.set_title("Variant Frequency by Conformance Status", fontsize=FONT_TITLE)
+    if selected:
+        ax.set_xlabel("Selected trace", fontsize=FONT_LABEL)
+        ax.set_ylabel("Traces in Log with This Behaviour", fontsize=FONT_LABEL)
+        ax.set_title("Trace Behaviour Frequency by Conformance Status",
+                     fontsize=FONT_TITLE)
+    else:
+        ax.set_xlabel(f"Variant (ranked by frequency, top {len(top)} of {len(vdf)})",
+                      fontsize=FONT_LABEL)
+        ax.set_ylabel("Number of Traces", fontsize=FONT_LABEL)
+        ax.set_title("Variant Frequency by Conformance Status", fontsize=FONT_TITLE)
     ax.set_ylim(0, ymax * 1.15)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task27_bar_chart.svg"))
-
-
-def task27_scatter_plot(fitness_df: pd.DataFrame, output_dir: str):
-    """Scatter: one dot per trace, x = chronological index, y = fitness, colour = status."""
-    fig, ax = plt.subplots(figsize=(10, 4))
-    for status, color in _STATUS_COLORS.items():
-        mask = fitness_df["fitness"].apply(_status) == status
-        sub = fitness_df[mask]
-        if sub.empty:
-            continue
-        ax.scatter(sub["trace_index"], sub["fitness"], c=color, s=15,
-                   alpha=0.6, linewidths=0, label=status)
-    ax.set_xlabel("Traces in Log ordered by time", fontsize=FONT_LABEL)
-    ax.set_ylabel("Fitness (0–1)", fontsize=FONT_LABEL)
-    ax.set_ylim(-0.05, 1.1)
-    ax.set_title("Conformance Status per Trace", fontsize=FONT_TITLE)
-    ax.legend(frameon=False, fontsize=FONT_ANNOT)
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
-    ax.set_axisbelow(True)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task27_scatter_plot.svg"))
-
-
-def task27_table_and_bar_chart(vdf: pd.DataFrame, output_dir: str,
-                               threshold: float = CONFORMANT_DEFAULT):
-    """Composite: status table (left) + status-coloured frequency bars (right)."""
-    top = vdf.head(TOP_N)
-    cell_text, col_labels, col_widths = variant_table_data(
-        vdf, TOP_N, include_status=True, rank_header="Rank",
-    )
-
-    fig = plt.figure(figsize=(15, max(4.5, 1.2 + len(top) * 0.45)))
-    gs = gridspec.GridSpec(1, 2, width_ratios=[1.5, 1.0], wspace=0.30)
-
-    ax_tbl = fig.add_subplot(gs[0])
-    ax_tbl.axis("off")
-    make_table(
-        ax_tbl,
-        cell_text=cell_text,
-        col_labels=col_labels,
-        bbox=[0.01, 0.05, 0.98, 0.88],
-        col_widths=col_widths,
-        font_size=9.5,
-        scale_xy=(1, 1.7),
-        cell_pad=0.09,
-    )
-    ax_tbl.set_title(f"Top-{len(top)} Variants by Frequency", fontsize=FONT_TITLE, pad=4)
-
-    ax_bar = fig.add_subplot(gs[1])
-    y = np.arange(len(top))
-    colors = [_STATUS_COLORS[_status(f, threshold)] for f in top["fitness"]]
-    ax_bar.barh(y, top["count"], color=colors, edgecolor="white")
-    ax_bar.set_yticks(y)
-    ax_bar.set_yticklabels(top["label"], fontsize=FONT_ANNOT - 1)
-    ax_bar.invert_yaxis()
-    xmax = max(int(top["count"].max()), 1)
-    for yi, val in zip(y, top["count"]):
-        ax_bar.text(val + xmax * 0.015, yi, f"{int(val)}", va="center",
-                    fontsize=FONT_ANNOT - 1)
-    ax_bar.set_xlabel("Number of Traces", fontsize=FONT_LABEL)
-    ax_bar.legend(handles=_status_legend_handles(), frameon=False,
-                  fontsize=FONT_ANNOT - 1,
-                  loc="lower right", bbox_to_anchor=(1.0, -0.20), ncol=1)
-    ax_bar.spines[["top", "right"]].set_visible(False)
-    ax_bar.xaxis.grid(True, linestyle="--", alpha=0.5)
-    ax_bar.set_axisbelow(True)
-
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task27_table_and_bar_chart.svg"))
 
 
 def _frequency_bucket(count: int, q33: float, q67: float) -> str:
@@ -234,8 +171,12 @@ def _frequency_bucket(count: int, q33: float, q67: float) -> str:
 
 
 def task27_parallel_sets(vdf: pd.DataFrame, output_dir: str,
-                         threshold: float = CONFORMANT_DEFAULT):
-    """Parallel Sets: variant-frequency bucket × conformance status; ribbon = #traces.
+                         threshold: float = CONFORMANT_DEFAULT, *,
+                         selected: bool = False):
+    """Parallel Sets: frequency bucket × conformance status; ribbon = #traces.
+
+    ``selected`` reads the rows as named traces and buckets them by how common
+    each one's behaviour is; otherwise they are the log's variants.
 
     (Deliberately different dimensions from task03's parallel sets.)
     """
@@ -257,7 +198,8 @@ def task27_parallel_sets(vdf: pd.DataFrame, output_dir: str,
     ax.axis("off")
     ax.set_xlim(-0.05, 1.05)
     ax.set_ylim(-0.05, 1.15)
-    ax.set_title("Parallel Sets: Variant-Frequency Bucket vs. Conformance Status",
+    noun = "Behaviour" if selected else "Variant"
+    ax.set_title(f"Parallel Sets: {noun}-Frequency Bucket vs. Conformance Status",
                  fontsize=FONT_TITLE, pad=12)
 
     draw_parallel_sets(
@@ -267,7 +209,7 @@ def task27_parallel_sets(vdf: pd.DataFrame, output_dir: str,
         matrix=matrix,
         left_colors=["#555555", "#999999", "#CCCCCC"],
         right_colors=[_COLOR_CONFORM, _COLOR_NON_CONFORM],
-        left_title="Variant Frequency",
+        left_title=f"{noun} Frequency",
         right_title="Status",
     )
 
@@ -281,7 +223,12 @@ def task27_parallel_sets(vdf: pd.DataFrame, output_dir: str,
 
 # Cell categories (code order = drawing precedence; higher code wins per cell)
 _REL_ABSENT, _REL_CONFORM, _REL_UNEXPECTED, _REL_SKIPPED = 0, 1, 2, 3
-_REL_COLORS = ["#FFFFFF", GREY_LIGHT, GREY_DARK, GREY_MED]
+#: What each category prints in its cell. The category used to be a fill colour,
+#: which made this idiom a heatmap over a nominal variable — colour ranks, and
+#: these four do not. A letter names the category instead and the cells stay
+#: empty; an absent activity prints nothing, so the pattern of what a trace does
+#: touch is what the reader sees first.
+_REL_MARKS = ["", "C", "L", "M"]
 _REL_LABELS = ["Absent", "Contained (conform)", "Unexpected (log move)",
                "Skipped (model move)"]
 
@@ -324,9 +271,11 @@ def _variant_relations(rep_rows) -> dict:
 
 
 def task27_matrix(vdf: pd.DataFrame, alignments, output_dir: str,
-                  threshold: float = CONFORMANT_DEFAULT):
-    """Matrix: rows = top-N variants, columns = activities; cell = variant's relation."""
-    top = vdf.head(TOP_N)
+                  threshold: float = CONFORMANT_DEFAULT, *,
+                  selected: bool = False):
+    """Matrix: rows = named traces or the top-N variants, columns = activities;
+    cell = that row's relation to the activity."""
+    top = vdf if selected else vdf.head(TOP_N)
     activities = _activity_order(alignments)
     if not activities:
         logger.warning("      task27: no activities found for the matrix.")
@@ -346,118 +295,32 @@ def task27_matrix(vdf: pd.DataFrame, alignments, output_dir: str,
     fig_h = max(3.8, 0.5 * len(top) + 2.2)
     fig_w = max(8.0, 0.85 * len(activities) + 3.2)
     fig, ax = plt.subplots(figsize=(fig_w, fig_h))
-    ax.imshow(data, cmap=ListedColormap(_REL_COLORS), vmin=0, vmax=3, aspect="auto")
+    ax.imshow(np.zeros_like(data), cmap=ListedColormap(["white"]),
+              vmin=0, vmax=1, aspect="auto")
+    draw_cell_grid(ax, len(top), len(activities))
 
-    # cell grid for readability
-    ax.set_xticks(np.arange(-0.5, len(activities)), minor=True)
-    ax.set_yticks(np.arange(-0.5, len(top)), minor=True)
-    ax.grid(which="minor", color="#DDDDDD", linewidth=0.8)
-    ax.tick_params(which="minor", length=0)
+    for ri in range(len(top)):
+        for ci in range(len(activities)):
+            mark = _REL_MARKS[int(data[ri, ci])]
+            if mark:
+                ax.text(ci, ri, mark, ha="center", va="center",
+                        fontsize=FONT_ANNOT, color=GREY_DARK)
 
     ax.set_xticks(range(len(activities)))
     ax.set_xticklabels(activities, rotation=40, ha="right", fontsize=FONT_ANNOT - 1)
     ax.set_yticks(range(len(top)))
     ax.set_yticklabels(row_labels, fontsize=FONT_ANNOT - 1)
     ax.set_xlabel("Activity (model order)", fontsize=FONT_LABEL)
-    ax.set_title(f"Variant × Activity Relation (top-{len(top)} variants)",
+    ax.set_title(f"Trace × Activity Relation ({len(top)} selected traces)"
+                 if selected else
+                 f"Variant × Activity Relation (top-{len(top)} variants)",
                  fontsize=FONT_TITLE)
-    ax.legend(
-        handles=[mpatches.Patch(facecolor=c, edgecolor="#AAAAAA", label=l)
-                 for c, l in zip(_REL_COLORS, _REL_LABELS)],
-        loc="upper center", bbox_to_anchor=(0.5, -0.32), ncol=4,
-        frameon=False, fontsize=FONT_ANNOT - 1,
-    )
+    key = "   ".join(f"{m or '(blank)'} = {l}"
+                     for m, l in zip(_REL_MARKS, _REL_LABELS))
+    ax.text(0.5, -0.32, key, transform=ax.transAxes, ha="center", va="top",
+            fontsize=FONT_ANNOT - 1, color=GREY_DARK)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task27_matrix.svg"))
-
-
-# ---------------------------------------------------------------------------
-# Flow Chart & Table: chevron strips per variant + compact variant table
-# ---------------------------------------------------------------------------
-
-def _chevron_move_legend_handles():
-    return [
-        mpatches.Patch(facecolor=GREY_LIGHTER,  edgecolor="black", linewidth=0.75,
-                       label="Synchronous move (Conform)"),
-        mpatches.Patch(facecolor=GREY_MED,   edgecolor="black", linewidth=0.75,
-                       label="Model move only"),
-        mpatches.Patch(facecolor=GREY_DARK,    edgecolor="black", linewidth=0.75,
-                       label="Log move only"),
-        mpatches.Patch(facecolor=GREY_LIGHT, edgecolor="black", linewidth=0.75,
-                       label="Mismatch move"),
-    ]
-
-
-def task27_flow_chart_and_table(vdf: pd.DataFrame, alignments, output_dir: str,
-                                threshold: float = CONFORMANT_DEFAULT):
-    """Small multiples of chevron strips (top conformant + top non-conformant
-    variants) with a compact variant table beneath."""
-    conform_all, nonconf_all = _split_by_status(vdf, threshold)
-    conform_v = conform_all.head(STRIPS_PER_STATUS)
-    nonconf_v = nonconf_all.head(STRIPS_PER_STATUS)
-    shown = pd.concat([conform_v, nonconf_v])
-    if shown.empty:
-        logger.warning("      task27: no variants to draw chevron strips for.")
-        return
-
-    strips = []
-    for _, row in shown.iterrows():
-        rep_rows = alignment_pairs_to_rows(
-            alignments[int(row["rep_trace_index"])].get("alignment", []))
-        nodes = chevron_nodes_from_alignment_rows(rep_rows)
-        status = _status(row["fitness"], threshold)
-        title = (f"{row['label']}  —  {int(row['count'])} traces "
-                 f"({row['coverage']:.1f}%)  —  {status}")
-        strips.append({"nodes": nodes, "title": title})
-
-    cell_text, col_labels, col_widths = variant_table_data(
-        shown.reset_index(drop=True), len(shown),
-        include_status=True, rank_header="Rank",
-    )
-
-    fig_w = max(chevron_figure_width(s["nodes"]) for s in strips)
-    strip_h = 1.55
-    table_h = max(1.8, 0.85 + len(cell_text) * 0.42)
-    fig_h = len(strips) * strip_h + table_h + 1.6
-
-    fig = plt.figure(figsize=(fig_w, fig_h))
-    gs = gridspec.GridSpec(
-        len(strips) + 1, 1,
-        height_ratios=[strip_h] * len(strips) + [table_h],
-        hspace=0.85,
-    )
-
-    for i, strip in enumerate(strips):
-        ax = fig.add_subplot(gs[i])
-        draw_chevron_strip(ax, strip["nodes"], fontsize=10)
-        ax.set_title(strip["title"], fontsize=FONT_ANNOT + 1, loc="left", pad=5)
-
-    ax_tbl = fig.add_subplot(gs[-1])
-    ax_tbl.axis("off")
-    make_table(
-        ax_tbl,
-        cell_text=cell_text,
-        col_labels=col_labels,
-        bbox=[0.10, 0.06, 0.80, 0.86],
-        col_widths=col_widths,
-        font_size=9.5,
-        scale_xy=(1, 1.5),
-        cell_pad=0.09,
-    )
-    ax_tbl.set_title("Shown Variants", fontsize=FONT_TITLE, pad=6)
-
-    fig.suptitle(
-        f"Top Conformant ({len(conform_v)}) and Non-conformant ({len(nonconf_v)}) "
-        f"Variants — Trace Alignment", fontsize=FONT_TITLE, y=0.995,
-    )
-    fig.legend(
-        handles=_chevron_move_legend_handles(),
-        loc="lower center", bbox_to_anchor=(0.5, 0.005),
-        ncol=4, fontsize=FONT_ANNOT, frameon=True, fancybox=False,
-        edgecolor="#cccccc",
-    )
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task27_flow_chart_and_table.svg"))
 
 
 # ---------------------------------------------------------------------------
@@ -465,12 +328,19 @@ def task27_flow_chart_and_table(vdf: pd.DataFrame, alignments, output_dir: str,
 # ---------------------------------------------------------------------------
 
 def _task27_trace_df(log, fitness_df: pd.DataFrame,
-                     threshold: float = CONFORMANT_DEFAULT) -> pd.DataFrame:
-    """Per-trace length, fitness, status, start_time, throughput (timestamped only)."""
+                     threshold: float = CONFORMANT_DEFAULT,
+                     indices=None) -> pd.DataFrame:
+    """Per-trace length, fitness, status, start_time, throughput (timestamped only).
+
+    ``indices`` restricts the frame to the selected traces, in selection order, so
+    the distribution idioms describe the traces the rest of the task shows.
+    """
     rows = []
-    for i, trace in enumerate(log):
-        if i >= len(fitness_df):
-            break
+    wanted = list(indices) if indices is not None else range(len(log))
+    for i in wanted:
+        if i >= len(fitness_df) or i >= len(log):
+            continue
+        trace = log[i]
         fit = float(fitness_df.iloc[i]["fitness"])
         times = []
         for e in trace:
@@ -540,13 +410,17 @@ def task27_box_plot(tdf: pd.DataFrame, output_dir: str):
 
 
 def task27_heatmap(vdf: pd.DataFrame, alignments, output_dir: str,
-                   threshold: float = CONFORMANT_DEFAULT):
-    """Top-N variants × activities, occurrence count within the variant (continuous)."""
-    top = vdf.head(TOP_N)
+                   threshold: float = CONFORMANT_DEFAULT, *,
+                   selected: bool = False):
+    """Named traces or top-N variants × activities, occurrence count within the
+    row (continuous)."""
+    top = vdf if selected else vdf.head(TOP_N)
     activities = _activity_order(alignments)
     if not activities:
-        render_empty_state_svg(os.path.join(output_dir, "task27_heatmap.svg"),
-                               "Variant × Activity Presence", "No activities found.")
+        render_empty_state_svg(
+            os.path.join(output_dir, "task27_heatmap.svg"),
+            "Trace × Activity Presence" if selected else "Variant × Activity Presence",
+            "No activities found.")
         return
     data = np.zeros((len(top), len(activities)))
     labels = []
@@ -559,165 +433,80 @@ def task27_heatmap(vdf: pd.DataFrame, alignments, output_dir: str,
     fig_h = max(3.8, 0.5 * len(top) + 2.0)
     fig_w = max(8.0, 0.7 * len(activities) + 3.0)
     fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+    unit = "trace" if selected else "variant"
     draw_value_heatmap(fig, ax, data, labels, activities, xlabel="Activity (model order)",
-                       cbar_label="Occurrences in variant", annotate=False, rotate_xticks=40)
-    ax.set_title(f"Activity Presence Across Variants (top-{len(top)})", fontsize=FONT_TITLE)
+                       cbar_label=f"Occurrences in {unit}", annotate=False, rotate_xticks=40)
+    ax.set_title(f"Activity Presence Across {len(top)} Selected Traces" if selected else
+                 f"Activity Presence Across Variants (top-{len(top)})",
+                 fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task27_heatmap.svg"))
-
-
-def task27_gantt_chart(vdf: pd.DataFrame, log, output_dir: str,
-                       threshold: float = CONFORMANT_DEFAULT):
-    """Representative traces per status (≤3 + ≤3) as event-span strips."""
-    rows = []
-    for status, color, sub in [
-        ("Conformant", _COLOR_CONFORM, _split_by_status(vdf, threshold)[0]),
-        ("Non-conformant", _COLOR_NON_CONFORM, _split_by_status(vdf, threshold)[1]),
-    ]:
-        for _, vrow in sub.head(3).iterrows():
-            idx = int(vrow["rep_trace_index"])
-            try:
-                trace = log[idx]
-            except Exception:
-                continue
-            times = sorted(pd.Timestamp(e.get("time:timestamp")) for e in trace
-                           if e.get("time:timestamp") is not None)
-            if not times:
-                continue
-            rows.append({"label": f"{vrow['label']} · {status[:7]} (n={int(vrow['count'])})",
-                         "color": color, "times": times})
-    if not rows:
-        render_empty_state_svg(os.path.join(output_dir, "task27_gantt_chart.svg"),
-                               "Representative Trace Timelines", "No timestamped traces.")
-        return
-    fig, ax = plt.subplots(figsize=(13, max(3, 0.5 * len(rows) + 1.6)))
-    draw_gantt_strips(ax, rows)
-    ax.set_xlabel("Time", fontsize=FONT_LABEL)
-    ax.set_title("Representative Trace Timelines by Conformance Status", fontsize=FONT_TITLE)
-    ax.legend(handles=_status_legend_handles(), frameon=False, fontsize=FONT_ANNOT,
-              loc="lower right")
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task27_gantt_chart.svg"))
-
-
-def task27_calendar(tdf: pd.DataFrame, output_dir: str):
-    """Single calendar: daily count of non-conformant case starts."""
-    sub = tdf[(tdf["status"] == "Non-conformant") & tdf["start_time"].notna()]
-    if sub.empty:
-        render_empty_state_svg(os.path.join(output_dir, "task27_calendar.svg"),
-                               "Daily Non-conformant Case Starts",
-                               "No non-conformant timestamped traces.")
-        return
-    daily = sub.groupby(sub["start_time"].dt.normalize()).size()
-    calendar_heatmap({d: int(v) for d, v in daily.items()},
-                     os.path.join(output_dir, "task27_calendar.svg"),
-                     title="Daily Count of Non-conformant Case Starts",
-                     cbar_label="Non-conformant case starts", vmin=0.0)
-
-
-def _task27_exemplar_style(rep_rows):
-    """node_style_fn marking a single trace's deviating / conform activities."""
-    skipped, mismatch, conform = set(), set(), set()
-    for row in rep_rows:
-        mt = row["moveType"]
-        if mt == "Synchronous Move":
-            conform.add(str(row["log_move"]) if str(row["log_move"]) not in {"-", "None"}
-                        else str(row["model_move"]))
-        elif mt == "Model Move":
-            skipped.add(str(row["model_move"]))
-        elif mt == "Mismatch Move":
-            mismatch.add(str(row["model_move"]))
-
-    def _style(eid, elem):
-        name = elem.get("name", "")
-        if elem.get("kind") == "task":
-            if name in skipped:
-                return (GREY_MED, "#444444", 3, contrasting_text_color(GREY_MED))
-            if name in mismatch:
-                return (GREY_LIGHT, "#444444", 3, contrasting_text_color(GREY_LIGHT))
-            if name in conform:
-                return (GREY_LIGHTER, "#666666", 2, contrasting_text_color(GREY_LIGHTER))
-        return ("white", "#888888", 2, "#333333")
-    return _style
-
-
-def task27_flow_chart_elaborate_table(vdf, alignments, model_path, output_dir, threshold: float = CONFORMANT_DEFAULT):
-    """Two elaborate BPMN panels (conformant + non-conformant exemplar) + comparison table.
-
-    A variant exemplar = its representative trace; deviating activities are marked
-    on the desired model (reuses the shared BPMN renderer / task28's geometry).
-    """
-    conf, nonc = (s.head(1) for s in _split_by_status(vdf, threshold))
-    if conf.empty or nonc.empty:
-        render_empty_state_svg(
-            os.path.join(output_dir, "task27_flow_chart_elaborate_table.svg"),
-            "Conformant vs. Non-conformant Exemplars",
-            "Need both a conformant and a non-conformant variant.")
-        return
-
-    parsed = parse_bpmn_model(model_path)
-    panels, exemplars = [], []
-    for vrow, status in [(conf.iloc[0], "Conformant"), (nonc.iloc[0], "Non-conformant")]:
-        rep_rows = alignment_pairs_to_rows(
-            alignments[int(vrow["rep_trace_index"])].get("alignment", []))
-        n_dev = sum(1 for r in rep_rows if r["moveType"] != "Synchronous Move")
-        panels.append({
-            "parsed": parsed,
-            "node_style_fn": _task27_exemplar_style(rep_rows),
-            "subtitle": f"{status} exemplar — {vrow['label']} "
-                        f"(n={int(vrow['count'])}, {vrow['coverage']:.1f}%, "
-                        f"fitness={vrow['fitness']:.3f})",
-        })
-        exemplars.append((vrow, n_dev))
-
-    (cv, cdev), (nv, ndev) = exemplars
-    table_rows = [
-        ["Variant rank", cv["label"], nv["label"]],
-        ["#Traces", str(int(cv["count"])), str(int(nv["count"]))],
-        ["Coverage %", f"{cv['coverage']:.1f}%", f"{nv['coverage']:.1f}%"],
-        ["Fitness", f"{cv['fitness']:.3f}", f"{nv['fitness']:.3f}"],
-        ["#Deviations (exemplar)", str(cdev), str(ndev)],
-    ]
-    compose_bpmn_panels(
-        panels,
-        os.path.join(output_dir, "task27_flow_chart_elaborate_table.svg"),
-        title="Conformant vs. Non-conformant Variant Exemplars on the Model",
-        legend_items=[
-            (GREY_LIGHTER,  "#666666", 2, "Conform (synchronous)"),
-            (GREY_MED,   "#444444", 3, "Model move (skipped)"),
-            (GREY_LIGHT, "#444444", 3, "Mismatch move"),
-            ("white", "#888888", 2, "Not on this trace"),
-        ],
-        table_rows=table_rows,
-        table_cols=["Metric", "Conformant", "Non-conformant"],
-    )
 
 
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def _task27_alignment_figures(log, alignments, vdf, model_path, output_dir, *,
-                              threshold, trace_ids, count):
-    """Chevron and BPMN of the compared variants, drawn by task04's renderers.
+def _selected_indices(log, vdf, *, threshold, trace_ids, count) -> list:
+    """The trace indices this task shows — read by *every* idiom, not just some.
 
     ``count`` of each status, not ``count`` in total: the contrast is the
-    question, so both sides are always on screen. The variants are picked as
-    representatives — one trace per variant (its ``rep_trace_index``) — with the
-    conformant ones first, so "Trace 1" is the conformant exemplar.
+    question, so both sides are always on screen. Without named ids the variants
+    are picked as representatives — one trace per variant (its
+    ``rep_trace_index``) — conformant ones first, so "Trace 1" is the conformant
+    exemplar.
+
+    Resolved once in ``generate``. It used to live inside the chevron/BPMN/table
+    path while every other idiom sliced the top-15 variants itself, so a *named*
+    selection reached three idioms out of nine and the figures contradicted each
+    other. A named selection now reaches all of them; the automatic rule still
+    only drives the trace-level trio, because it picks two traces by default and
+    the aggregate idioms need the log.
     """
-    import tasks.task04 as task04
-
     if vdf.empty:
-        return
-
+        return []
     if trace_ids:
         index_of = trace_alignment.case_index(log)
-        indices = [index_of[str(t)] for t in trace_ids if str(t) in index_of]
-    else:
-        conform, nonconf = _split_by_status(vdf, threshold)
-        indices = ([int(r) for r in conform["rep_trace_index"].head(count)] +
-                   [int(r) for r in nonconf["rep_trace_index"].head(count)])
+        return [index_of[str(t)] for t in trace_ids if str(t) in index_of]
+    conform, nonconf = _split_by_status(vdf, threshold)
+    return ([int(r) for r in conform["rep_trace_index"].head(count)] +
+            [int(r) for r in nonconf["rep_trace_index"].head(count)])
+
+
+def _selected_variant_df(log, vdf, fitness_df, indices) -> pd.DataFrame:
+    """``build_variant_df``'s schema with one row per *selected trace*.
+
+    Same columns, so the frequency, matrix and heatmap renderers stay as they are.
+    ``count`` / ``coverage`` remain the frequency of that trace's behaviour in the
+    whole log: the trace itself is a single occurrence, but how common its
+    behaviour is, is what those idioms report. ``label`` is the running
+    "Trace 1".."Trace N" ``trace_records`` also assigns, so the bar chart and the
+    move table name the same trace the same way.
+    """
+    by_seq = {tuple(variant): (int(count), float(coverage))
+              for variant, count, coverage
+              in zip(vdf["variant"], vdf["count"], vdf["coverage"])}
+    rows = []
+    for position, i in enumerate(indices):
+        if i >= len(log) or i >= len(fitness_df):
+            continue
+        seq = trace_alignment.sequence_of(log, i)
+        count, coverage = by_seq.get(seq, (1, 100.0 / max(len(log), 1)))
+        rows.append({
+            "rank": position + 1, "variant": seq,
+            "count": count, "coverage": coverage,
+            "fitness": float(fitness_df.iloc[i]["fitness"]),
+            "length": len(seq), "label": f"Trace {position + 1}",
+            "rep_trace_index": i,
+        })
+    return pd.DataFrame(rows, columns=["rank", "variant", "count", "coverage",
+                                       "fitness", "length", "label",
+                                       "rep_trace_index"])
+
+
+def _task27_alignment_figures(log, alignments, indices, model_path, output_dir):
+    """Chevron and BPMN of the compared traces, drawn by task04's renderers."""
+    import tasks.task04 as task04
 
     records = trace_alignment.trace_records(log, alignments, indices)
     if not records:
@@ -746,15 +535,20 @@ def generate(log, fitness_df, alignments, output_dir: str, model_path: str = Non
              trace_count=1):
     """Generate all Task ID 27 SVGs into output_dir.
 
-    model_path is required for the flow_chart_elaborate_table idiom (two annotated
-    BPMN exemplar panels); when absent that idiom is skipped.
+    model_path is required for the flow_chart_elaborate idiom (the annotated
+    BPMN); when absent that idiom is skipped.
 
     ``conformant_threshold`` is the fitness at or above which a variant counts as
     conformant — the cut this task's whole question rests on, and previously
-    fixed at 1.0 in code. ``trace_count`` is how many variants of *each* status
-    the chevron, BPMN and table idioms show; the aggregate idioms keep showing
-    the top-N variants, since which variants are conformant is what they are
-    there to report.
+    fixed at 1.0 in code. ``trace_count`` is how many traces of *each* status the
+    chevron, BPMN and table idioms show.
+
+    **When the admin names traces, every idiom draws those traces** — the whole
+    figure set then answers one selection instead of contradicting itself. Under
+    the automatic rule the frequency and distribution idioms keep aggregating over
+    the log's variants: the rule picks two traces by default, and a box plot of
+    one value per group, or three frequency buckets holding two variants, is not
+    a narrower figure but a broken one.
     """
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 27 visualizations ---")
@@ -770,9 +564,19 @@ def generate(log, fitness_df, alignments, output_dir: str, model_path: str = Non
 
     n_conform = int((vdf["fitness"] >= conformant_threshold).sum())
     n_nonconf = len(vdf) - n_conform
+
+    indices = _selected_indices(log, vdf, threshold=conformant_threshold,
+                                trace_ids=trace_ids, count=trace_count)
+    if not indices:
+        logger.warning("      Skipped Task 27: the selection names no trace.")
+        return
+
+    named = bool(trace_ids)
+    frame = _selected_variant_df(log, vdf, fitness_df, indices) if named else vdf
     logger.info(f"      -> {len(vdf)} variants "
                 f"({n_conform} conformant, {n_nonconf} non-conformant); "
-                f"showing top-{min(TOP_N, len(vdf))}.")
+                + (f"every idiom showing the {len(frame)} named trace(s)." if named
+                   else f"aggregate idioms showing top-{min(TOP_N, len(vdf))}."))
     if n_conform == 0:
         logger.warning("      task27: no conformant variants — "
                        "status encodings degrade to one group.")
@@ -780,28 +584,14 @@ def generate(log, fitness_df, alignments, output_dir: str, model_path: str = Non
         logger.warning("      task27: all variants conformant — "
                        "status encodings degrade to one group.")
 
-    task27_bar_chart(vdf, output_dir, conformant_threshold)
-    task27_scatter_plot(fitness_df, output_dir)
-    task27_table_and_bar_chart(vdf, output_dir, conformant_threshold)
-    task27_parallel_sets(vdf, output_dir, conformant_threshold)
-    task27_matrix(vdf, alignments, output_dir, conformant_threshold)
-    task27_flow_chart_and_table(vdf, alignments, output_dir, conformant_threshold)
+    task27_bar_chart(frame, output_dir, conformant_threshold, selected=named)
+    task27_parallel_sets(frame, output_dir, conformant_threshold, selected=named)
+    task27_matrix(frame, alignments, output_dir, conformant_threshold, selected=named)
 
-    _task27_alignment_figures(log, alignments, vdf, model_path, output_dir,
-                              threshold=conformant_threshold, trace_ids=trace_ids,
-                              count=trace_count)
+    _task27_alignment_figures(log, alignments, indices, model_path, output_dir)
 
-    tdf = _task27_trace_df(log, fitness_df, conformant_threshold)
+    tdf = _task27_trace_df(log, fitness_df, conformant_threshold,
+                           indices if named else None)
     task27_stacked_bar(tdf, output_dir)
     task27_box_plot(tdf, output_dir)
-    task27_heatmap(vdf, alignments, output_dir, conformant_threshold)
-    task27_gantt_chart(vdf, log, output_dir, conformant_threshold)
-    task27_calendar(tdf, output_dir)
-    if model_path:
-        try:
-            task27_flow_chart_elaborate_table(vdf, alignments, model_path, output_dir,
-                                              conformant_threshold)
-        except Exception as e:
-            logger.warning(f"      task27: flow_chart_elaborate_table skipped ({e}).")
-    else:
-        logger.warning("      task27: no model_path — flow_chart_elaborate_table skipped.")
+    task27_heatmap(frame, alignments, output_dir, conformant_threshold, selected=named)

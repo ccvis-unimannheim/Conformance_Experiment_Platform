@@ -17,6 +17,7 @@ The class documents are [TRACE_FEATURE_REGISTRY.md](TRACE_FEATURE_REGISTRY.md),
 |---|---|---|---|
 | task08 | which violations co-occur in a trace | `violation_patterns` | "threshold of high co-occurrence" |
 | task24 | where the discovered model differs from the guideline | `trace_selection_mode`, `trace_ids`, `trace_count` | "discovered model / discovery algorithm" |
+<!-- task24 draws one idiom, flow_chart_elaborate; see "The juxtaposition, and why it is gone again". -->
 | task37 | how two techniques' fitness values differ | `conformance_bins` | "the two techniques" |
 
 ---
@@ -89,18 +90,31 @@ Two deliberate departures from that class:
 `validate_params` rejects a manual selection of one trace: a model discovered
 from one trace is that trace.
 
-### The juxtaposition
+### The juxtaposition, and why it is gone again
 
-Both idioms now stack **the discovered model above the guideline**, each under
-its own caption; `flow_chart_table` adds the difference list beneath. Before,
-only the guideline was drawn, painted with the diff — the other half of a
-question about two models was left to the reader's imagination.
+task24 briefly stacked **the discovered model above the guideline**, each under
+its own caption, drawn with graphviz: an edge the guideline also prescribes thin
+and grey, one it does not heavy and dark. The argument was that painting the diff
+onto the guideline alone leaves the other half of a question about two models to
+the reader's imagination.
 
-The discovered model is drawn with graphviz in the same vocabulary as the panel
-below it: an edge the guideline also prescribes is thin and grey, one it does
-not is heavy and dark, an activity the guideline does not contain is filled
-dark. graphviz is already a dependency (`requirements.txt`, `Dockerfile`);
-without it the guideline panel is shown alone rather than the idiom failing.
+It was removed. The two panels are two *notations* — a directly-follows graph
+above a BPMN — at different scales in one image, and the mixture reads as one
+picture of one model rather than as a comparison. This follows task35, whose
+Petri-net and DFG variants were dropped for the same reason: re-drawing the same
+finding in a second notation is a notation comparison, not the task.
+
+The DFG did not go with it. `_discover_dfg` still produces the edges that
+`_compute_diff` turns into the annotation — faded nodes for activities never
+observed, dark borders on the endpoints of observed-not-in-model transitions, and
+the summary line. Discovery is still what the figure reports; it is no longer
+drawn as a second graph. `task24_flow_chart_elaborate_bpmn` now renders straight
+to its output path, so the graphviz call, the temporary guideline file and the
+base64 juxtaposition helpers (`_discovered_model_svg`, `_juxtapose`, `_svg_dims`)
+are gone.
+
+task24 also lost its second idiom, `flow_chart_table`, and is now a single
+`flow_chart_elaborate`.
 
 ---
 

@@ -138,8 +138,6 @@ _TASK_RENAME_SKIP: dict[str, set[str]] = {
     "task19": {"scatter_plot"},
     "task21": {"scatter_plot"},
     "task22": {"scatter_plot"},
-    "task28": {"scatter_plot"},
-    "task31": {"scatter_plot"},
     "task33": {"scatter_plot"},
     "task37": {"scatter_plot"},
 }

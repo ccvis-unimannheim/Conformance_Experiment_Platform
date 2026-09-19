@@ -12,7 +12,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["table", "tree", "bar_chart", "stacked_bar", "scatter_plot", "matrix", "heatmap"]
+IDIOMS = ["table", "tree", "bar_chart", "stacked_bar", "matrix", "heatmap"]
 
 
 PARAM_SPEC = [
@@ -582,81 +582,6 @@ def _task31_extract_start_times(log, df):
     return result
 
 
-def task31_scatter_plot(df: pd.DataFrame, log, output_dir: str):
-    """Scatter: trace-level fitness vs outcome with bin-mean trend line."""
-    out_path = os.path.join(output_dir, "task31_scatter_plot.svg")
-    if len(df) < 15:
-        render_empty_state_svg(out_path, "Conformance Degree vs. Outcome")
-        return
-
-    fitness = df["fitness"].astype(float).to_numpy()
-    outcome = df["positive_outcome"].astype(int).to_numpy()
-
-    # Downsample for scatter if needed
-    sampled = False
-    if len(df) > 2000:
-        rng = np.random.default_rng(42)
-        idx = rng.choice(len(df), size=2000, replace=False)
-        idx.sort()
-        fit_s = fitness[idx]
-        out_s = outcome[idx]
-        sampled = True
-    else:
-        fit_s = fitness
-        out_s = outcome
-
-    # Compute 10-bin trend line (use full data, not sampled)
-    bins = np.linspace(0, 1, 11)
-    bin_idx = np.digitize(fitness, bins[1:-1])
-    midpoints, rates, ses = [], [], []
-    for b in range(10):
-        mask = bin_idx == b
-        n_b = mask.sum()
-        if n_b >= 5:
-            mid = (bins[b] + bins[b + 1]) / 2
-            r = outcome[mask].mean()
-            se = np.sqrt(r * (1 - r) / n_b)
-            midpoints.append(mid)
-            rates.append(r)
-            ses.append(se)
-    midpoints = np.array(midpoints)
-    rates = np.array(rates)
-    ses = np.array(ses)
-
-    fig, ax = plt.subplots(figsize=(9.0, 5.2))
-
-    jitter = np.random.default_rng(42).uniform(-0.07, 0.07, size=len(out_s))
-    pos_mask_s = out_s == 1
-    neg_mask_s = out_s == 0
-    ax.scatter(fit_s[neg_mask_s], jitter[neg_mask_s],
-               color=GREY_LIGHT, s=18, alpha=0.35, marker="o", label="Negative outcome")
-    ax.scatter(fit_s[pos_mask_s], 1 + jitter[pos_mask_s],
-               color=GREY_DARK, s=18, alpha=0.35, marker="o", label="Positive outcome")
-
-    ax.set_ylim(-0.45, 1.45)
-    ax.set_yticks([-0.35, 1.35])
-    ax.set_yticklabels(["Negative", "Positive"], fontsize=FONT_ANNOT)
-    ax.set_xlim(-0.03, 1.03)
-    ax.set_xlabel("Conformance Degree (fitness)", fontsize=FONT_LABEL)
-    ax.set_ylabel("Outcome", fontsize=FONT_LABEL)
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
-    ax.set_axisbelow(True)
-    ax.set_title("Conformance Degree vs. Outcome", fontsize=FONT_TITLE, pad=8)
-    legend_patches = [
-        mpatches.Patch(color=GREY_DARK,  label="Positive outcome"),
-        mpatches.Patch(color=GREY_LIGHT, label="Negative outcome"),
-    ]
-    ax.legend(handles=legend_patches, loc="upper left", frameon=False, fontsize=FONT_ANNOT)
-
-    caption = "Scatter shows 2,000 sampled traces" if sampled else ""
-    fig.text(0.0, 0.01, caption, ha="left", fontsize=FONT_ANNOT - 1, color="#888888")
-
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, out_path)
-
-
 # ---------------------------------------------------------------------------
 # New idiom 4: Matrix — P(outcome | fitness band) exact rates
 # ---------------------------------------------------------------------------
@@ -704,15 +629,10 @@ def task31_matrix(df: pd.DataFrame, output_dir: str):
         row_labels=_FITNESS_BIN_LABELS + ["All bands"],
         col_labels=["Negative Outcome", "Positive Outcome"],
         xlabel="Outcome Category",
-        cbar_label="% of traces in band",
         annotate=False,   # manual two-line annotations added below
         rotate_xticks=0,
+        colorless=True,
     )
-
-    # Set colorbar limits
-    images = ax.get_images()
-    if images:
-        images[0].set_clim(0, 100)
 
     # Manual cell annotation
     n_rows, n_cols = rate_matrix.shape
@@ -725,10 +645,9 @@ def task31_matrix(df: pd.DataFrame, output_dir: str):
                 ax.text(c, r, "—", ha="center", va="center",
                         fontsize=FONT_ANNOT, color="#AAAAAA")
             else:
-                text_color = "#ffffff" if rate > 55 else "#222222"
                 ax.text(c, r, f"{rate:.1f}%\n(n={int(count)})",
                         ha="center", va="center", fontsize=FONT_ANNOT - 1,
-                        color=text_color, linespacing=1.4)
+                        color=GREY_DARK, linespacing=1.4)
 
     # Dashed separator above totals row
     ax.axhline(y=4.5, color="#AAAAAA", lw=1.0, ls="--")
@@ -930,6 +849,5 @@ def generate(log, alignments, output_dir: str, outcome_activity: str = ""):
     task31_tree(tree, output_dir)
     task31_bar_chart(df, output_dir)
     task31_stacked_bar(df, output_dir)
-    task31_scatter_plot(df, log, output_dir)
     task31_matrix(df, output_dir)
     task31_heatmap(df, log, output_dir)
