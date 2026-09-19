@@ -60,6 +60,25 @@ function ParamField({ entry, value, onChange }) {
   const [optionFilter, setOptionFilter] = useState("");
 
   if (entry.widget === "select-one") {
+    // A picker whose candidates come from the dataset can legitimately have
+    // none — a log with no event-level attribute offers no event condition, a
+    // log with no org:resource no resource. Without this the field rendered as
+    // an empty dropdown, which reads as "nothing selected yet" rather than
+    // "there is nothing to select". select-many has said so all along; this is
+    // the same message for the single-select form. Entries whose options are
+    // hard-coded (a perspective, a pick rule) are never empty and never hit it.
+    if (entry.source && options.length === 0) {
+      return (
+        <div className="flex flex-col gap-1">
+          <p className="text-sm text-on-surface/60 italic">
+            No candidates available for this dataset yet.
+          </p>
+          {entry.options_error && (
+            <p className="text-xs text-red-700 font-mono break-all">{entry.options_error}</p>
+          )}
+        </div>
+      );
+    }
     return (
       <select
         value={value ?? ""}
