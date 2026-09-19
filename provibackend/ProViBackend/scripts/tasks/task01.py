@@ -79,8 +79,9 @@ from shared import (
     save_svg, make_table,
     draw_composition_stacked_bars, draw_grouped_box_plot, draw_grouped_rate_bars,
     draw_value_heatmap,
-    PAIR_COLORS, categorical_colors, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    CIVIDIS, PAIR_COLORS, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
+from matplotlib.colors import to_hex
 
 
 # ---------------------------------------------------------------------------
@@ -97,11 +98,14 @@ def _group_suffix(outcome_activity: str) -> str:
     while the on-chart group/legend labels stay 'Positive'/'Negative'."""
     return f"(Positive = '{outcome_activity}' present)"
 
-# Conformance categories, low → high fitness. Coloured by that value: yellow is
-# low fitness, navy is 1.0 (see the colour rule in shared.py).
+# Conformance categories, low → high fitness. Yellow is low fitness (see the
+# colour rule in shared.py), and both deviation categories come from cividis's
+# yellow end so deviating vs conformant always reads as yellow vs blue.
+# categorical_colors(3) would give Minor a slate blue next to Conformant's navy,
+# and a log with no major deviations then draws all blue.
 _CAT_LABELS = ["Major dev. (<0.8)", "Minor dev. (0.8–<1.0)", "Conformant (=1.0)"]
 _CAT_LABELS_WRAPPED = ["Major deviation\n(< 0.8)", "Minor deviation\n(0.8 – <1.0)", "Conformant\n(= 1.0)"]
-_CAT_COLORS = categorical_colors(3)[::-1]  # yellow, slate blue, navy
+_CAT_COLORS = [to_hex(CIVIDIS(0.95)), to_hex(CIVIDIS(0.72)), to_hex(CIVIDIS(0.02))]  # yellow, ochre, navy
 _SHARE_LABEL = "Share of the group's traces (%)"
 
 
@@ -282,7 +286,7 @@ def task01_parallel_sets(counts: np.ndarray, output_dir: str, outcome_activity: 
     ctrl_x  = (x_left + x_right) / 2
 
     # Colour carries one meaning here, the conformance category: ribbons take their
-    # category's colour (yellow = major deviation, navy = conformant), and the
+    # category's colour (yellow = deviation, navy = conformant), and the
     # groups are outlined and named instead. Group colours as well would read as
     # a second, matching scale.
 
