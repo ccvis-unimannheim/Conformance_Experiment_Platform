@@ -8,9 +8,19 @@ even if the generator code changes and the experiment is regenerated. Single
 images can be replaced the same way, e.g. with an edited or hand-made figure.
 
 Zip layout, matched by task_key and idiom_key (never by experiment id):
-    manifest.json               (optional on import)
+    manifest.json               (required on import: it is what the checks read)
     <task_key>/<idiom_key>.svg  (or .png / .jpg / .jpeg)
     <task_key>/traces.json      (only tasks that show "given traces")
+
+An import runs in one of two modes, and every task is checked before any of its
+files is taken:
+    specify   the images arrive together with the parameters they were drawn
+              with, which replace this experiment's (reproducing a study).
+    overview  this experiment's parameters stay; a task whose parameters differ
+              from the zip's is rejected (swapping in images for a set-up task).
+In both, a task exported from a different dataset is rejected. Imported tasks
+are marked `images_imported_from`, which locks their parameters (see
+admin._keep_imported_parameters) until the import is reverted.
 """
 import datetime
 import io
@@ -18,18 +28,23 @@ import json
 import os
 import re
 import zipfile
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 
 import ProViBackend.utils.database.connection as dbc
+from ProViBackend.app.routers.admin import _entry_applies
+from ProViBackend.scripts.tasks import task_registry
 from ProViBackend.utils import idiom_files
 from ProViBackend.utils.database.migration import task_instances_to_configs
 
 router = APIRouter(prefix="/admin")
 
 BUNDLE_FORMAT = "procon-idiom-bundle"
-BUNDLE_VERSION = 1
+# 2: each task records its dataset's title and file checksums, so an import on
+# another server can tell the same dataset from a different one.
+BUNDLE_VERSION = 2
 MAX_BUNDLE_BYTES = 200 * 1024 * 1024        # the uploaded zip
 MAX_UNCOMPRESSED_BYTES = 500 * 1024 * 1024  # everything inside it
 MAX_IMAGE_BYTES = 20 * 1024 * 1024          # one image
@@ -117,6 +132,104 @@ def _refresh_generation_status(experiment_id: str, task_keys: set[str]) -> None:
         }})
 
 
+def _dataset_info(dataset_id: str) -> dict:
+    """Title and file checksums of a dataset, as recorded in the manifest."""
+    pair = dbc.get_document("DatasetPair", {"dataset_id": dataset_id}) if dataset_id else None
+    pair = pair or {}
+    return {
+        "id": dataset_id or None,
+        "title": pair.get("dataset_title"),
+        "log_checksum": (pair.get("log") or {}).get("checksum"),
+        "guideline_checksum": (pair.get("guideline") or {}).get("checksum"),
+    }
+
+
+def _dataset_mismatch(zip_task: dict, dataset_id: str) -> str | None:
+    """Why this zip task's images cannot come from this dataset, or None.
+
+    Checksums identify the dataset across servers; a version-1 manifest has
+    none, so it has to name the very same dataset id.
+    """
+    theirs = zip_task.get("dataset") or {}
+    ours = _dataset_info(dataset_id)
+    if theirs.get("log_checksum") and ours["log_checksum"]:
+        same = (theirs["log_checksum"] == ours["log_checksum"]
+                and theirs.get("guideline_checksum") == ours["guideline_checksum"])
+    else:
+        same = bool(zip_task.get("dataset_id")) and zip_task.get("dataset_id") == dataset_id
+    if same:
+        return None
+    zip_name = theirs.get("title") or zip_task.get("dataset_id") or "unknown"
+    our_name = ours["title"] or dataset_id or "none"
+    return f'Exported from a different dataset (zip: "{zip_name}", this experiment: "{our_name}").'
+
+
+def _normalize_param(value):
+    """Make two stored values of one parameter comparable: empty is empty
+    whatever its type, numbers compare by value, multi-selects ignore order."""
+    if value is None or (isinstance(value, (str, list, tuple, dict)) and len(value) == 0):
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, (list, tuple)):
+        return tuple(sorted(str(v) for v in value))
+    return value
+
+
+def _show_param(value) -> str:
+    if _normalize_param(value) is None:
+        return "(empty)"
+    if isinstance(value, (list, tuple)):
+        return ", ".join(str(v) for v in value)
+    return str(value)
+
+
+def _parameter_differences(task_key: str, theirs: dict, ours: dict) -> list[str]:
+    """Human-readable differences between two parameter sets of one task.
+
+    Missing keys take the PARAM_SPEC default, and a parameter that applies to
+    neither set (see `visible_if`) is ignored: neither changes the drawing.
+    """
+    try:
+        spec = [e for e in task_registry.get_param_spec(task_key) if e.get("key")]
+    except KeyError:
+        spec = []
+    entries = {e["key"]: e for e in spec}
+    keys = list(entries) or sorted(set(theirs) | set(ours))
+    diffs = []
+    for key in keys:
+        entry = entries.get(key)
+        if entry and not (_entry_applies(entry, theirs) or _entry_applies(entry, ours)):
+            continue
+        default = (entry or {}).get("default")
+        a, b = theirs.get(key, default), ours.get(key, default)
+        if _normalize_param(a) != _normalize_param(b):
+            diffs.append(f"{key}: zip = {_show_param(a)}; this experiment = {_show_param(b)}")
+    return diffs
+
+
+def _clear_import_marker(experiment_id: str, task_keys: set[str] | None = None) -> None:
+    """Release imported tasks (all of them when task_keys is None): their
+    parameters become editable again."""
+    exp = _get_experiment(experiment_id)
+    key_by_task_id = {t["task_id"]: t["task_key"] for t in _layout(exp)}
+    instances = exp.get("task_instances") or []
+    changed = False
+    for ti in instances:
+        if ti.get("images_imported_from") and (
+            task_keys is None or key_by_task_id.get(ti.get("task_id")) in task_keys
+        ):
+            ti["images_imported_from"] = None
+            changed = True
+    if changed:
+        dbc.update_document("Experiment", {"_id": experiment_id}, {"$set": {
+            "task_instances": instances,
+            "task_configs": task_instances_to_configs(instances),
+        }})
+
+
 def _safe_filename(name: str) -> str:
     return re.sub(r"[^A-Za-z0-9_-]+", "_", name or "experiment").strip("_") or "experiment"
 
@@ -141,10 +254,13 @@ async def export_experiment_idioms(experiment_id: str):
     exp = _get_experiment(experiment_id)
     buf = io.BytesIO()
     manifest_tasks, missing = [], []
+    datasets: dict[str, dict] = {}
 
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         for entry in _layout(exp):
             task_key, dataset_id = entry["task_key"], entry["dataset_id"]
+            if dataset_id not in datasets:
+                datasets[dataset_id] = _dataset_info(dataset_id)
             idioms_out = []
             for idiom in entry["idioms"]:
                 path, source = idiom_files.resolve_idiom_image(dataset_id, experiment_id, task_key, idiom)
@@ -168,6 +284,7 @@ async def export_experiment_idioms(experiment_id: str):
                 "task_key": task_key,
                 "label": entry["label"],
                 "dataset_id": dataset_id,
+                "dataset": datasets[dataset_id],
                 "parameters": entry["parameters"],
                 "idioms": idioms_out,
                 "traces_file": traces_file,
@@ -201,12 +318,18 @@ async def export_experiment_idioms(experiment_id: str):
 # ---------------------------------------------------------------------------
 
 @router.post("/experiments/{experiment_id}/idioms/import", tags=["admin"])
-async def import_experiment_idioms(experiment_id: str, file: UploadFile):
+async def import_experiment_idioms(
+    experiment_id: str,
+    file: UploadFile,
+    mode: Literal["specify", "overview"] = "overview",
+):
     """Pin the images of an idiom bundle zip onto this experiment.
 
-    Files are matched by <task_key>/<idiom_key>; anything that doesn't match a
-    task and idiom selected in this experiment is reported back as skipped.
-    Nothing is written unless at least one file matches.
+    Each task in the zip is checked first (see the module docstring for the
+    two modes): a task from another dataset, or in overview mode with other
+    parameters, is rejected whole. Files are then matched by
+    <task_key>/<idiom_key>. Everything not taken is reported back as rejected
+    with its reason; nothing is written unless at least one file is taken.
     """
     try:
         exp = _get_experiment(experiment_id)
@@ -224,14 +347,43 @@ async def import_experiment_idioms(experiment_id: str, file: UploadFile):
         raise HTTPException(status_code=400, detail="The zip's contents are too large (over 500 MB).")
 
     layout = _layout(exp)
-    manifest = {}
+    manifest = None
     if "manifest.json" in zf.namelist():
         try:
             manifest = json.loads(zf.read("manifest.json"))
         except (ValueError, UnicodeDecodeError):
-            manifest = {}
+            manifest = None
+    if not isinstance(manifest, dict) or not isinstance(manifest.get("tasks"), list):
+        raise HTTPException(status_code=400, detail=(
+            "The zip has no readable manifest.json, so the dataset and parameters its images "
+            "were drawn from cannot be checked. Import a zip downloaded from this platform, "
+            "or replace single images on the Overview page."
+        ))
+    zip_tasks = {t.get("task_key"): t for t in manifest["tasks"] if isinstance(t, dict)}
 
-    images, traces, skipped = [], [], []
+    # Whole-task checks, once per task: why every file of it is rejected, or None.
+    verdicts: dict[str, str | None] = {}
+    dataset_mismatch = False
+
+    def task_rejection(task: dict) -> str | None:
+        nonlocal dataset_mismatch
+        key = task["task_key"]
+        if key not in verdicts:
+            zip_task = zip_tasks.get(key)
+            if zip_task is None:
+                verdicts[key] = "Not listed in the zip's manifest.json."
+            elif reason := _dataset_mismatch(zip_task, task["dataset_id"]):
+                dataset_mismatch = True
+                verdicts[key] = reason
+            elif mode == "overview" and (
+                diffs := _parameter_differences(key, zip_task.get("parameters") or {}, task["parameters"])
+            ):
+                verdicts[key] = "Parameters differ from this experiment — " + "; ".join(diffs) + "."
+            else:
+                verdicts[key] = None
+        return verdicts[key]
+
+    images, traces, rejected = [], [], []
     seen = set()
     for info in zf.infolist():
         name = info.filename
@@ -241,15 +393,18 @@ async def import_experiment_idioms(experiment_id: str, file: UploadFile):
         if parts[-1].startswith("."):
             continue
         if len(parts) != 2 or any(p in ("", ".", "..") for p in parts):
-            skipped.append({"file": name, "reason": "Not in <task_key>/<file> layout."})
+            rejected.append({"file": name, "reason": "Not in <task_key>/<file> layout."})
             continue
         task_key, fname = parts
         task = _find_task(layout, task_key)
         if task is None:
-            skipped.append({"file": name, "reason": f"Task '{task_key}' is not in this experiment."})
+            rejected.append({"file": name, "reason": f"Task '{task_key}' is not in this experiment."})
+            continue
+        if reason := task_rejection(task):
+            rejected.append({"file": name, "reason": reason})
             continue
         if info.file_size > MAX_IMAGE_BYTES:
-            skipped.append({"file": name, "reason": "File is larger than 20 MB."})
+            rejected.append({"file": name, "reason": "File is larger than 20 MB."})
             continue
         if fname == idiom_files.TRACES_FILENAME:
             try:
@@ -257,27 +412,28 @@ async def import_experiment_idioms(experiment_id: str, file: UploadFile):
                 if not isinstance(parsed.get("traces"), list):
                     raise ValueError
             except (ValueError, UnicodeDecodeError, AttributeError):
-                skipped.append({"file": name, "reason": "traces.json is not in the expected format."})
+                rejected.append({"file": name, "reason": "traces.json is not in the expected format."})
                 continue
             traces.append((task_key, zf.read(info)))
             continue
         stem, ext = os.path.splitext(fname)
         if ext.lower() not in idiom_files.IMAGE_EXTENSIONS:
-            skipped.append({"file": name, "reason": "Unsupported file type (use SVG, PNG or JPG)."})
+            rejected.append({"file": name, "reason": "Unsupported file type (use SVG, PNG or JPG)."})
             continue
         if not any(i["idiom_key"] == stem for i in task["idioms"]):
-            skipped.append({"file": name, "reason": f"Idiom '{stem}' is not selected for {task_key} in this experiment."})
+            rejected.append({"file": name, "reason": f"Idiom '{stem}' is not selected for {task_key} in this experiment."})
             continue
         if (task_key, stem) in seen:
-            skipped.append({"file": name, "reason": "Another file for the same idiom is already in the zip."})
+            rejected.append({"file": name, "reason": "Another file for the same idiom is already in the zip."})
             continue
         seen.add((task_key, stem))
         images.append((task_key, stem, ext.lower(), zf.read(info)))
 
     if not images and not traces:
         raise HTTPException(status_code=400, detail={
-            "message": "Nothing in the zip matches this experiment's tasks and idioms.",
-            "skipped": skipped,
+            "message": "Nothing in the zip could be imported into this experiment.",
+            "rejected": rejected,
+            "dataset_mismatch": dataset_mismatch,
         })
 
     for task_key, idiom_key, ext, data in images:
@@ -287,22 +443,39 @@ async def import_experiment_idioms(experiment_id: str, file: UploadFile):
         target.mkdir(parents=True, exist_ok=True)
         (target / idiom_files.TRACES_FILENAME).write_bytes(data)
 
+    # Mark the imported tasks, which locks their parameters; in specify mode
+    # those become the zip's, in overview mode they already equal them.
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
     source = manifest.get("experiment") or {}
+    origin = {
+        "file": file.filename,
+        "experiment_id": source.get("id"),
+        "experiment_name": source.get("name"),
+        "exported_at": manifest.get("exported_at"),
+        "imported_at": now,
+    }
+    imported_keys = {t for t, *_ in images} | {t for t, _ in traces}
+    key_by_task_id = {t["task_id"]: t["task_key"] for t in layout}
+    instances = exp.get("task_instances") or []
+    for ti in instances:
+        key = key_by_task_id.get(ti.get("task_id"))
+        if key in imported_keys:
+            ti["images_imported_from"] = origin
+            if mode == "specify":
+                ti["parameters"] = zip_tasks[key].get("parameters") or {}
     dbc.update_document("Experiment", {"_id": experiment_id}, {"$set": {
-        "idioms_imported_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        "idioms_imported_from": {
-            "file": file.filename,
-            "experiment_id": source.get("id"),
-            "experiment_name": source.get("name"),
-            "exported_at": manifest.get("exported_at"),
-        },
+        "task_instances": instances,
+        "task_configs": task_instances_to_configs(instances),
+        "idioms_imported_at": now,
+        "idioms_imported_from": {k: v for k, v in origin.items() if k != "imported_at"},
     }})
-    _refresh_generation_status(experiment_id, {t for t, *_ in images} | {t for t, _ in traces})
+    _refresh_generation_status(experiment_id, imported_keys)
 
     return JSONResponse(content={
         "message": f"Imported {len(images)} image(s).",
         "imported": [f"{t}/{i}{e}" for t, i, e, _ in images] + [f"{t}/{idiom_files.TRACES_FILENAME}" for t, _ in traces],
-        "skipped": skipped,
+        "rejected": rejected,
+        "dataset_mismatch": dataset_mismatch,
     })
 
 
@@ -322,7 +495,8 @@ async def list_idiom_overrides(experiment_id: str):
 
 @router.delete("/experiments/{experiment_id}/idioms/overrides", tags=["admin"])
 async def revert_all_idiom_overrides(experiment_id: str):
-    """Drop every uploaded/imported image; the generated ones show again."""
+    """Drop every uploaded/imported image; the generated ones show again, and
+    imported tasks' parameters become editable."""
     exp = _get_experiment(experiment_id)
     _require_draft(exp)
     task_keys = {o["task_key"] for o in idiom_files.list_overrides(experiment_id)}
@@ -331,6 +505,7 @@ async def revert_all_idiom_overrides(experiment_id: str):
         "idioms_imported_at": None,
         "idioms_imported_from": None,
     }})
+    _clear_import_marker(experiment_id)
     _refresh_generation_status(experiment_id, task_keys)
     return JSONResponse(content={"message": "All uploaded images reverted."})
 
@@ -359,10 +534,13 @@ async def replace_idiom_image(experiment_id: str, task_key: str, idiom_key: str,
 
 @router.delete("/experiments/{experiment_id}/idioms/{task_key}/{idiom_key}", tags=["admin"])
 async def revert_idiom_image(experiment_id: str, task_key: str, idiom_key: str):
-    """Drop the uploaded image of one idiom; the generated one shows again."""
+    """Drop the uploaded image of one idiom; the generated one shows again.
+    Once a task has no uploaded image left, its parameters become editable."""
     exp = _get_experiment(experiment_id)
     _require_draft(exp)
     if not idiom_files.remove_override(experiment_id, task_key, idiom_key):
         raise HTTPException(status_code=404, detail="No uploaded image for this idiom.")
+    if not any(o["task_key"] == task_key for o in idiom_files.list_overrides(experiment_id)):
+        _clear_import_marker(experiment_id, {task_key})
     _refresh_generation_status(experiment_id, {task_key})
     return JSONResponse(content={"message": "Reverted to the generated image."})

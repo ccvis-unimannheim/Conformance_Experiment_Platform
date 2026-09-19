@@ -42,7 +42,8 @@ TaskInstance
 ├─ answer_format     : str | None    # one of the 7 global formats
 ├─ number_kind       : str | None    # percentage | integer | decimal
 ├─ answer_options    : [{label, value}]
-└─ generation_status : pending | running | ready | failed
+├─ generation_status : pending | running | ready | failed
+└─ images_imported_from : dict | None  # set by an idiom import; locks `parameters`
 ```
 
 `task_configs` (one row per task × idiom) is the legacy shape, kept in sync by
@@ -160,6 +161,9 @@ Generation only draws. It computes nothing about answers.
 Images the admin uploaded or imported for the experiment (next section) are
 stored apart from this output and take precedence over it, so regenerating
 never replaces them. /specify warns before generating when there are any.
+A task whose every selected idiom has such an image is skipped by generation
+altogether (`_fully_uploaded_task_ids` in `app/routers/admin.py`): its status
+stays `ready` and its parameters are not validated.
 
 ## Idiom images: export, import, replace
 
@@ -171,17 +175,46 @@ platform and put back in (`app/routers/idiom_bundle.py`, paths in
   and the experiment list once published) — a zip of every image participants
   see, laid out as `<task_key>/<idiom_key>.<ext>`, plus each task's
   `traces.json` and a `manifest.json` recording the experiment, each task's
-  dataset and parameters, and where every image came from (`generated`,
+  dataset (id, title and the checksums of its log and guideline — manifest
+  version 2) and parameters, and where every image came from (`generated`,
   `uploaded`, `custom`, `legacy`). `git_commit` is filled from the backend's
   `GIT_COMMIT` environment variable, which the deploy does not set yet.
-- **Import** (`POST …/idioms/import`) — puts such a zip into this experiment or
-  any other with the same tasks and idioms. Files are matched by `task_key` and
-  `idiom_key`, never by experiment id; ones that match nothing are listed back
-  with the reason. Custom tasks and custom idioms get random keys, so they only
-  match within the experiment and server they were exported from.
+- **Import** (`POST …/idioms/import?mode=specify|overview`) — puts such a zip
+  into this experiment or any other with the same tasks and idioms. Files are
+  matched by `task_key` and `idiom_key`, never by experiment id. The manifest is
+  required, because every task is checked against it before any of its files is
+  taken:
+  - **Dataset** (both modes): a task exported from a different dataset is
+    rejected. Checksums decide when both sides have them, so the same log
+    uploaded on another server still matches; a version-1 manifest has to name
+    the same dataset id.
+  - **Parameters**: in `specify` mode (the Specify step — reproducing a study)
+    the images arrive with the parameters they were drawn with, which replace
+    the task's. In `overview` mode (the Overview page — swapping images into a
+    task already set up) the task's parameters stay, and a task whose
+    parameters differ from the zip's is rejected, listing the differences.
+    Missing keys count as their `PARAM_SPEC` default, and multi-selects ignore
+    order.
+
+  Every file not taken is listed back as `rejected` with its reason, next to
+  the `imported` list; nothing is written if no file is taken. Custom tasks and
+  custom idioms get random keys, so they only match within the experiment and
+  server they were exported from.
 - **Replace one image** (`POST`/`DELETE …/idioms/{task_key}/{idiom_key}`) — an
   SVG/PNG/JPG from the admin's computer in place of one generated image, and
-  back.
+  back. The overview page asks for confirmation, since the parameters shown to
+  participants do not change to match the new image.
+
+A task that received images from an import is marked `images_imported_from`
+on its `TaskInstance` (source experiment, file, export and import times).
+While marked, its parameters are locked: the Specify page shows them read-only
+with the reason, and `PATCH /admin/experiments/{id}` keeps the stored
+parameters and the marker whatever the caller sends
+(`_keep_imported_parameters`). Those parameters are what the participant-facing
+parameter hints and any later export are built from, so the lock is what keeps
+them true to the images. Reverting releases the task — *Revert all* on the
+overview page or *Discard import* on the Specify page for every task, and a
+single revert once the task has no uploaded image left.
 
 Uploaded and imported images live in
 `data/_idiom_overrides/{experiment_id}/` and win over generated ones (see

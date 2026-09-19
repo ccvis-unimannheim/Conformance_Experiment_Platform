@@ -2,6 +2,62 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: Idiom Import Checks Dataset and Parameters (2026-09-19)
+
+### Problem solved
+
+- **Importing required generating first.** Import lived on the Overview page,
+  but /specify's Next only unlocks once every task is `ready`. An admin
+  reproducing a study had to set parameters and generate images only to replace
+  them a step later — and the wizard gave no hint that import existed at all.
+- **Imported images kept the wrong parameters.** Import pinned the images but
+  left the experiment's parameters as set on /specify. The participant-facing
+  parameter hints and any later export were built from those, so both could
+  describe something other than what the images showed.
+- **Nothing checked where images came from.** A zip from an experiment on
+  another dataset, or drawn with other parameters, was imported as long as the
+  task and idiom keys matched.
+
+### Backend (`provibackend/`)
+
+| File | Change |
+|------|--------|
+| `ProViBackend/app/routers/idiom_bundle.py` | Import takes `mode=specify\|overview` and checks each task before taking its files: rejected if exported from another dataset (by log/guideline checksum, or dataset id for version-1 manifests); in `overview` mode also if its parameters differ (differences listed). `specify` mode writes the zip's parameters onto the task. Imported tasks get `images_imported_from`; reverting clears it. A manifest is now required. Export writes manifest version 2 with each task's dataset title and checksums. The response lists `imported` and `rejected` (was `skipped`) plus `dataset_mismatch`. |
+| `ProViBackend/app/routers/admin.py` | `PATCH /experiments/{id}` keeps an imported task's parameters and marker whatever the caller sends (`_keep_imported_parameters`). Generation skips tasks whose every idiom shows an uploaded image (`_fully_uploaded_task_ids`), neither validating nor re-running them; if that is every task, it returns without starting a job. |
+| `ProViBackend/app/datamodels/data_schemas.py` | `TaskInstance.images_imported_from`. |
+
+### Frontend (`ProViFrontend/`)
+
+| File | Change |
+|------|--------|
+| `src/components/Admin/IdiomImport.js` | **New.** Import button (posts with a mode) and result view: imported files, rejected files with reasons, a dataset warning, and — for parameter rejections on Overview — a pointer to the Specify step. |
+| `src/app/admin/experiments/specify/page.js` | "Images from an earlier experiment" card: import (`specify` mode), count of imported tasks, *Discard import*. Imported tasks show a lock notice and read-only parameters. Generate leaves imported, ready tasks alone and is disabled once every task is imported. |
+| `src/app/admin/experiments/overview/page.js` | Import uses `overview` mode with the new result view and says which images it accepts. Replacing a single image asks for confirmation. Preview fallback text no longer points at the removed idiom selection page. |
+| `src/components/Admin/UploadIdiomModal 2.js` | **Deleted** — an unreferenced Finder duplicate of `UploadIdiomModal.js`. |
+
+### Docs
+
+`docs/ADMIN_EXPERIMENT_SETUP.md` (data model, *Generation*, *Idiom images*).
+
+### Verification
+
+- `py_compile` over the changed Python files; `eslint` over the changed JS
+  files — no new findings (the `react/no-unescaped-entities` errors in
+  `overview/page.js` are the pre-existing ones in the publish-conflict dialog).
+- **Not verified end to end:** no endpoint or page was run locally; testing
+  happens on the `develop` deployment.
+
+### Known gaps
+
+- Zips exported before this change are version 1 and carry no checksums, so
+  they only import into an experiment on the same server using the same
+  dataset id; exporting again from the source experiment produces a version-2
+  zip.
+- *Discard import* reverts every uploaded image of the experiment, including
+  single replacements made on the Overview page.
+- An experiment's dataset can still be changed after an import; the lock does
+  not re-check it, so the imported images would then no longer match.
+
 ## Session: Configurable Intro Pages, Idiom Image Export/Import (2026-09-18)
 
 ### Problem solved
