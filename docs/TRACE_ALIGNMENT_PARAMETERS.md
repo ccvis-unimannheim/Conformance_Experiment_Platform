@@ -166,10 +166,17 @@ existed). Conformant vs non-conformant *is* task27's question, which is why only
 task27 has this cut; everywhere else a violation is a non-synchronous move and
 needs no threshold.
 
-It stays visible under a manual selection because ten of task27's idioms — bar
-chart, table+bar, parallel sets, matrix, heatmap, gantt, stacked bar, box plot,
-calendar and the elaborate flow chart — colour and label whole-log variants by
-it, and none of them depend on which traces were chosen.
+It stays visible under a manual selection, unlike `violation_pattern`, because
+it keeps deciding what the figures say after the traces are named: the bar chart,
+parallel sets, matrix, heatmap, stacked bar and box plot all colour and label
+their rows Conformant / Non-conformant by it, whether those rows are the named
+traces or the log's variants.
+
+Which rows they are depends on the mode. **Named traces reach every idiom** — one
+row per trace, labelled `Trace 1..N` exactly as the move table labels them.
+**Under the automatic rule the frequency and distribution idioms keep aggregating
+over the log's variants** (top 15), because that rule picks one trace per status
+by default and a box plot of one value per group has no distribution to show.
 
 ---
 

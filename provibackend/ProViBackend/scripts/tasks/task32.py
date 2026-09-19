@@ -33,8 +33,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "stacked_bar", "boxplot", "table",
-          "table_bar_chart", "matrix", "heatmap", "parallel_sets"]
+IDIOMS = ["bar_chart", "stacked_bar", "boxplot", "table", "matrix",
+          "heatmap", "parallel_sets"]
 
 
 def _param_spec():
@@ -64,7 +64,6 @@ import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib import gridspec
 
 from shared import (
     save_svg, make_table, draw_parallel_sets,
@@ -82,9 +81,6 @@ from tasks.task30 import (
 
 TOP_N = 10
 _GROUP_PALETTE = [GREY_MED, GREY_LIGHT, GREY_DARK, GREY_LIGHTER]
-_PARETO_BAR = GREY_MED
-
-
 def _group_colors(groups: list) -> list:
     return [_GROUP_PALETTE[i % len(_GROUP_PALETTE)] for i in range(len(groups))]
 
@@ -324,60 +320,7 @@ def task32_table(agg_df, attr, output_dir):
 
 
 # ---------------------------------------------------------------------------
-# Idiom 5: table_bar_chart — frequency table (left) + ranked total bars (right)
-# ---------------------------------------------------------------------------
-
-def task32_table_bar_chart(agg_df, groups, attr, output_dir):
-    if agg_df.empty:
-        render_empty_state_svg(
-            os.path.join(output_dir, "task32_table_bar_chart.svg"),
-            "Main Violations by Sub-process", "No violations found.")
-        return
-    patterns = agg_df["pattern"].tolist()
-    totals = agg_df["total"].values
-
-    fig = plt.figure(figsize=(17, max(4.5, 1.3 + len(agg_df) * 0.50)))
-    gs = gridspec.GridSpec(1, 2, width_ratios=[1.45, 1.0], wspace=0.55)
-
-    ax_tbl = fig.add_subplot(gs[0])
-    ax_tbl.axis("off")
-    cell_text, col_labels, col_widths = _freq_table_data(agg_df, groups)
-    make_table(
-        ax_tbl,
-        cell_text=cell_text,
-        col_labels=col_labels,
-        bbox=[0.01, 0.05, 0.98, 0.84],
-        col_widths=col_widths,
-        font_size=8.5,
-        scale_xy=(1, 1.4),
-    )
-    ax_tbl.set_title(f"Top-{len(agg_df)} Violations ({attr})",
-                     fontsize=FONT_TITLE, pad=10)
-
-    ax_bar = fig.add_subplot(gs[1])
-    y = np.arange(len(patterns))
-    ax_bar.barh(y, totals, color=_PARETO_BAR, edgecolor="white",
-                linewidth=0.6, height=0.62)
-    for yi, t in zip(y, totals):
-        ax_bar.text(t, yi, f" {int(t)}", va="center", ha="left",
-                    fontsize=FONT_ANNOT - 1, color="#444444")
-    ax_bar.set_yticks(y)
-    ax_bar.set_yticklabels([_wrap_pattern(p) for p in patterns],
-                           fontsize=FONT_ANNOT - 1)
-    ax_bar.invert_yaxis()
-    ax_bar.set_xlabel("Total occurrences", fontsize=FONT_LABEL)
-    ax_bar.set_xlim(0, totals.max() * 1.15)
-    ax_bar.spines[["top", "right"]].set_visible(False)
-    ax_bar.xaxis.grid(True, linestyle="--", alpha=0.4)
-    ax_bar.set_axisbelow(True)
-    ax_bar.set_title("Frequency Ranking", fontsize=FONT_TITLE, pad=10)
-
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task32_table_bar_chart.svg"))
-
-
-# ---------------------------------------------------------------------------
-# Idiom 6: matrix — violation (rows, ranked) × sub-process, annotated counts
+# Idiom 5: matrix — violation (rows, ranked) × sub-process, annotated counts
 # ---------------------------------------------------------------------------
 
 def task32_matrix(agg_df, groups, attr, output_dir):
@@ -399,7 +342,7 @@ def task32_matrix(agg_df, groups, attr, output_dir):
 
 
 # ---------------------------------------------------------------------------
-# Idiom 7: heatmap — same as matrix, continuous intensity
+# Idiom 6: heatmap — same as matrix, continuous intensity
 # ---------------------------------------------------------------------------
 
 def task32_heatmap(agg_df, groups, attr, output_dir):
@@ -421,7 +364,7 @@ def task32_heatmap(agg_df, groups, attr, output_dir):
 
 
 # ---------------------------------------------------------------------------
-# Idiom 8: parallel_sets — sub-process → violation type (ribbon = count)
+# Idiom 7: parallel_sets — sub-process → violation type (ribbon = count)
 # ---------------------------------------------------------------------------
 
 def task32_parallel_sets(agg_df, viol_df, groups, attr, output_dir):
@@ -473,7 +416,6 @@ _ALL_FNAMES_TITLES = [
     ("task32_stacked_bar.svg",     "Violation Frequency by Sub-process"),
     ("task32_boxplot.svg",         "Violations per Trace by Sub-process"),
     ("task32_table.svg",           "Main Violations by Sub-process"),
-    ("task32_table_bar_chart.svg", "Main Violations + Frequency Ranking"),
     ("task32_matrix.svg",          "Violation Frequency Matrix"),
     ("task32_heatmap.svg",         "Violation Frequency Heatmap"),
     ("task32_parallel_sets.svg",   "Sub-process vs. Violation"),
@@ -546,7 +488,6 @@ def generate(log, alignments, output_dir: str,
     task32_stacked_bar(agg_df, groups, compare_attribute, output_dir)
     task32_boxplot(viol_df, assignment, groups, compare_attribute, output_dir)
     task32_table(agg_df, compare_attribute, output_dir)
-    task32_table_bar_chart(agg_df, groups, compare_attribute, output_dir)
     task32_matrix(agg_df, groups, compare_attribute, output_dir)
     task32_heatmap(agg_df, groups, compare_attribute, output_dir)
     task32_parallel_sets(agg_df, viol_df, groups, compare_attribute, output_dir)

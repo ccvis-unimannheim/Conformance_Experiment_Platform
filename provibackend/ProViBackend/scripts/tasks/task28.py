@@ -28,10 +28,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["flow_chart_basic", "flow_chart_table", "flow_chart_elaborate", "table",
-          "bar_chart", "stacked_bar", "scatter_plot", "boxplot", "matrix",
-          "heatmap", "table_bar_chart", "network_diagram",
-          "flow_chart_elaborate_table"]
+IDIOMS = ["flow_chart_basic", "flow_chart_elaborate", "table", "bar_chart",
+          "stacked_bar", "boxplot", "matrix", "heatmap"]
 
 import trace_alignment
 
@@ -77,19 +75,17 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from matplotlib import gridspec
 from matplotlib.colors import LinearSegmentedColormap
 
 from shared import (
-    save_svg, make_table, GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, CIVIDIS,
+    save_svg, make_table, GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT,
     chevron_figure_width, chevron_nodes_from_alignment_rows, draw_chevron_strip,
     alignment_pairs_to_rows, build_violation_pattern_df,
     draw_value_heatmap, draw_rate_matrix, draw_grouped_box_plot,
-    parse_bpmn_model, render_bpmn_annotated, compose_bpmn_panels,
+    parse_bpmn_model, render_bpmn_annotated,
     render_empty_state_svg, contrasting_text_color,
 )
-from matplotlib.colors import to_hex
 
 
 # Task 2 – Location / alignment visualizations (representative trace)
@@ -285,51 +281,6 @@ def task28_flow_chart_basic(ctx: dict, output_dir: str):
     save_svg(fig, os.path.join(output_dir, "task28_flow_chart_basic.svg"))
 
 
-def task28_flow_chart_and_table(ctx: dict, output_dir: str):
-    """Composite: table above, chevron row below. The table block is sized to its
-    row count so rows keep a normal height instead of stretching to fill the figure."""
-    rows = ctx["rows"]
-    nodes = chevron_nodes_from_alignment_rows(rows)
-    n_rows = len(rows) + 1  # + header
-
-    fig_w = max(16.0, chevron_figure_width(nodes))
-    tbl_block = 0.34 * n_rows           # inches reserved for the table
-    chev_block = 2.2                    # inches for the chevron strip
-    fig_h = tbl_block + chev_block + 1.4
-
-    fig = plt.figure(figsize=(fig_w, fig_h))
-    gs = gridspec.GridSpec(2, 1, height_ratios=[tbl_block, chev_block], hspace=0.28)
-    ax_top = fig.add_subplot(gs[0])
-    ax_bot = fig.add_subplot(gs[1])
-
-    ax_top.axis("off")
-    _add_task28_table_heading(fig, ctx, x=0.055, y=0.97, compact=True)
-    # bbox fills the (already row-sized) top subplot; scale_y=1.0 so rows are not inflated.
-    _draw_task28_alignment_table(
-        ax_top,
-        rows,
-        bbox=[0.055, 0.0, 0.89, 0.84],
-        font_size=9.4,
-        scale_y=1.0,
-    )
-
-    draw_chevron_strip(ax_bot, nodes, fontsize=11)
-    ax_bot.set_title("Trace Alignment", fontsize=FONT_TITLE, pad=7)
-
-    fig.tight_layout(pad=1.2)
-    fig.legend(
-        handles=_task28_move_legend_elements(),
-        loc="lower center",
-        bbox_to_anchor=(0.5, 0.025),
-        ncol=3,
-        fontsize=FONT_ANNOT,
-        frameon=True,
-        fancybox=False,
-        edgecolor="#cccccc",
-    )
-    save_svg(fig, os.path.join(output_dir, "task28_flow_chart_and_table.svg"))
-
-
 _MISSING_MOVE_TOKENS = {"-", "None", "(skip)", ">>", ""}
 
 def _trace_act_status(rows):
@@ -460,43 +411,6 @@ def _activity_movetype_pivot(df, top_n=TOP_N):
     return pivot, top_acts, move_types
 
 
-def _activity_freq(df):
-    return {a: int(c) for a, c in df.groupby("activity")["count"].sum().items()}
-
-
-def _freq_shade(count, max_count):
-    frac = (count / max_count) if max_count > 0 else 0.0
-    frac = max(0.0, min(1.0, frac))
-    return to_hex(CIVIDIS(frac))
-
-
-# --- Idiom: scatter_plot — per-trace dotted chart (scan for deviating traces) --
-
-def task28_scatter_plot(tdf, output_dir):
-    out = os.path.join(output_dir, "task28_scatter_plot.svg")
-    if tdf.empty:
-        render_empty_state_svg(out, "Scan Traces for Deviations", "No traces.")
-        return
-    x = tdf["trace_index"].to_numpy()
-    y = tdf["n_dev"].to_numpy(dtype=float)
-    clean = y == 0
-    fig, ax = plt.subplots(figsize=(11, 5.5))
-    ax.scatter(x[clean], y[clean], c=GREY_LIGHT, s=8, alpha=0.45, linewidths=0,
-               label="conformant")
-    ax.scatter(x[~clean], y[~clean], c=GREY_DARK, s=10, alpha=0.5, linewidths=0,
-               label="has deviations")
-    ax.set_xlabel("Trace (log order)", fontsize=FONT_LABEL)
-    ax.set_ylabel("Deviating steps per trace", fontsize=FONT_LABEL)
-    ax.set_title("Scan Traces for Deviations (each point = one trace)", fontsize=FONT_TITLE)
-    ax.legend(frameon=False, fontsize=FONT_ANNOT, loc="upper left",
-              bbox_to_anchor=(1.01, 1), borderaxespad=0, markerscale=2)
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.grid(True, linestyle="--", alpha=0.45)
-    ax.set_axisbelow(True)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, out)
-
-
 # --- Idiom: boxplot — deviations-per-trace distribution (find outliers) -------
 
 def task28_boxplot(tdf, output_dir):
@@ -591,7 +505,7 @@ def task28_matrix(df, output_dir):
     fig_h = max(3.5, 0.55 * len(top_acts) + 1.5)
     fig, ax = plt.subplots(figsize=(max(5, len(move_types) * 2.0), fig_h))
     draw_rate_matrix(fig, ax, data, top_acts, move_types,
-                     xlabel="Deviation Type", cbar_label="Count", cell_fmt="{:.0f}")
+                     xlabel="Deviation Type", cell_fmt="{:.0f}", colorless=True)
     ax.set_title(f"Explore: Activity × Deviation Type (top-{len(top_acts)})", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, out)
@@ -613,171 +527,6 @@ def task28_heatmap(df, output_dir):
     save_svg(fig, out)
 
 
-# --- Idiom: table_bar_chart — pattern table + frequency bars -----------------
-
-def task28_table_bar_chart(df, output_dir):
-    out = os.path.join(output_dir, "task28_table_bar_chart.svg")
-    if df.empty:
-        render_empty_state_svg(out, "Deviation Patterns", "No deviations found.")
-        return
-    top = df.head(TOP_N)
-    patterns = top["pattern"].tolist()
-    counts = top["count"].to_numpy(dtype=float)
-    colors = [_move_color(m) for m in top["move_type"]]
-
-    fig_h = max(4.8, 1.3 + len(top) * 0.5)
-    fig = plt.figure(figsize=(16, fig_h))
-    gs = gridspec.GridSpec(1, 2, width_ratios=[1.4, 1.0], wspace=0.45)
-    ax_tbl = fig.add_subplot(gs[0]); ax_tbl.axis("off")
-    cell_text = [[r["pattern"], r["move_type"], str(int(r["count"])), f"{r['pct']:.1f}%"]
-                 for _, r in top.iterrows()]
-    n_rows = len(cell_text) + 1
-    tbl_frac = min(0.86, 0.55 * n_rows / fig_h)
-    make_table(ax_tbl, cell_text=cell_text,
-               col_labels=["Deviation Pattern", "Deviation Type", "Count", "% of All"],
-               bbox=[0.01, max(0.04, 0.86 - tbl_frac), 0.98, tbl_frac],
-               col_widths=[0.46, 0.26, 0.14, 0.14], font_size=9, scale_xy=(1, 1.4))
-    ax_tbl.set_title(f"Top-{len(top)} Deviation Patterns", fontsize=FONT_TITLE, pad=10)
-
-    ax_bar = fig.add_subplot(gs[1])
-    y = np.arange(len(patterns))
-    ax_bar.barh(y, counts, color=colors, edgecolor="white", linewidth=0.6, height=0.62)
-    for yi, c in zip(y, counts):
-        ax_bar.text(c, yi, f" {int(c)}", va="center", ha="left",
-                    fontsize=FONT_ANNOT - 1, color="#444444")
-    ax_bar.set_yticks(y)
-    ax_bar.set_yticklabels([_wrap_pat(p) for p in patterns], fontsize=FONT_ANNOT - 1)
-    ax_bar.invert_yaxis()
-    ax_bar.set_xlabel("Observed count", fontsize=FONT_LABEL)
-    ax_bar.set_xlim(0, counts.max() * 1.15)
-    ax_bar.spines[["top", "right"]].set_visible(False)
-    ax_bar.xaxis.grid(True, linestyle="--", alpha=0.45)
-    ax_bar.set_axisbelow(True)
-    ax_bar.set_title("Frequency", fontsize=FONT_TITLE, pad=10)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, out)
-
-
-# --- Idiom: network_diagram — deviation co-occurrence (explore relations) ----
-
-def task28_network_diagram(alignments, df, output_dir):
-    out = os.path.join(output_dir, "task28_network_diagram.svg")
-    if df.empty:
-        render_empty_state_svg(out, "Deviation Co-occurrence", "No deviations found.")
-        return
-    try:
-        import networkx as nx
-    except ImportError:
-        render_empty_state_svg(out, "Deviation Co-occurrence",
-                               "networkx not installed.")
-        return
-
-    top = df.head(TOP_N)["pattern"].tolist()
-    top_set = set(top)
-    from collections import Counter
-    cooccur = Counter()
-    for res in alignments:
-        steps = alignment_pairs_to_rows(res.get("alignment") or [])
-        pats = sorted({f"{(s['model_move'] if s['moveType']=='Model Move' else s['log_move'])} ({s['moveType']})"
-                       for s in steps if s["moveType"] != "Synchronous Move"} & top_set)
-        for a in range(len(pats)):
-            for b in range(a + 1, len(pats)):
-                cooccur[(pats[a], pats[b])] += 1
-    pairs = [(a, b, c) for (a, b), c in cooccur.items() if c > 0]
-    if not pairs:
-        render_empty_state_svg(out, "Deviation Co-occurrence",
-                               "No deviation patterns co-occur in the same trace.")
-        return
-
-    freq = dict(zip(df["pattern"], df["count"]))
-    G = nx.Graph()
-    for p in top:
-        G.add_node(p, freq=int(freq.get(p, 1)))
-    for a, b, c in pairs:
-        G.add_edge(a, b, weight=c)
-    pos = nx.circular_layout(G, scale=2.0) if G.number_of_nodes() <= 8 \
-        else nx.spring_layout(G, seed=42, k=3.0)
-
-    nodes = list(G.nodes)
-    fr = np.array([G.nodes[n]["freq"] for n in nodes], dtype=float)
-    node_sz = (fr / fr.max() * 1500 + 350).tolist()
-    edges = list(G.edges()); w = [G[u][v]["weight"] for u, v in edges]
-    mw = max(w) if w else 1
-    ew = [1.5 + (x / mw) * 5 for x in w]
-    ec = [plt.cm.Greys(0.25 + 0.55 * x / mw) for x in w]
-
-    def _ncolor(p):
-        return _move_color("Model Move" if "Model Move" in p
-                           else "Log Move" if "Log Move" in p else "Mismatch Move")
-
-    fig, ax = plt.subplots(figsize=(13, 8.5))
-    nx.draw_networkx_edges(G, pos, ax=ax, width=ew, edge_color=ec, alpha=0.85, edgelist=edges)
-    nx.draw_networkx_nodes(G, pos, nodelist=nodes, ax=ax, node_size=node_sz,
-                           node_color=[_ncolor(n) for n in nodes], alpha=0.92,
-                           linewidths=0.8, edgecolors="white")
-    for node, (xx, yy) in pos.items():
-        ax.annotate(node.replace(" (", "\n("), xy=(xx, yy), xytext=(0, -20),
-                    textcoords="offset points", ha="center", va="top",
-                    fontsize=max(FONT_ANNOT - 1, 6), color="#222222",
-                    bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="#dddddd", alpha=0.92))
-    ax.legend(handles=[mpatches.Patch(color=_move_color(m), label=m) for m in _present_move_types(df)],
-              loc="lower right", fontsize=FONT_ANNOT, frameon=True, framealpha=0.95)
-    ax.set_title("Explore: Deviation Co-occurrence Network\n"
-                 "(node size = frequency · edge width = traces sharing both)", fontsize=FONT_TITLE)
-    ax.axis("off")
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, out)
-
-
-
-
-# --- Idiom: flow_chart_elaborate_table — BPMN shaded by frequency + table ----
-
-_BPMN_LEGEND = [
-    (GREY_LIGHTER, GREY_MED, 1.0, "No / few deviations"),
-    (GREY_LIGHT,   GREY_MED, 1.0, "Some deviations"),
-    (GREY_DARK,    GREY_MED, 1.0, "Most deviations"),
-]
-
-
-def _node_style_fn(act_freq, max_count):
-    def style(eid, elem):
-        name = elem.get("name", "")
-        if elem.get("kind") == "task" and name in act_freq:
-            fill = _freq_shade(act_freq[name], max_count)
-            tc = contrasting_text_color(fill)
-            return fill, GREY_MED, 1.5, tc
-        return "white", GREY_MED, 2, GREY_DARK
-    return style
-
-
-def task28_flow_chart_elaborate_table(df, model_path, output_dir):
-    out = os.path.join(output_dir, "task28_flow_chart_elaborate_table.svg")
-    if not model_path or not os.path.exists(model_path):
-        render_empty_state_svg(out, "Deviations on the Model", "No BPMN model available.")
-        return
-    if df.empty:
-        render_empty_state_svg(out, "Deviations on the Model", "No deviations found.")
-        return
-    try:
-        parsed = parse_bpmn_model(model_path)
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f"      task28: BPMN parse failed: {e}")
-        render_empty_state_svg(out, "Deviations on the Model", "Could not parse the BPMN model.")
-        return
-    act_freq = _activity_freq(df)
-    max_count = max(act_freq.values(), default=1)
-    top = df.head(TOP_N)
-    table_cols = ["Deviation Pattern", "Activity", "Deviation Type", "Count"]
-    table_rows = [[r["pattern"], r["activity"], r["move_type"], str(int(r["count"]))]
-                  for _, r in top.iterrows()] or [["No deviations.", "", "", ""]]
-    panels = [{"parsed": parsed, "node_style_fn": _node_style_fn(act_freq, max_count),
-               "subtitle": "Activity shade = deviation frequency · explore where the log differs"}]
-    compose_bpmn_panels(panels, out,
-                        title="Explore Deviations on the Model — with Pattern Table",
-                        legend_items=_BPMN_LEGEND, table_rows=table_rows, table_cols=table_cols)
-
-
 # ===========================================================================
 # Public entry point
 # ===========================================================================
@@ -785,13 +534,9 @@ def task28_flow_chart_elaborate_table(df, model_path, output_dir):
 _LOG_FNAMES_TITLES = [
     ("task28_bar_chart.svg",                  "Where Does the Log Deviate?"),
     ("task28_stacked_bar.svg",                "Deviations per Activity"),
-    ("task28_scatter_plot.svg",               "Scan Traces for Deviations"),
     ("task28_boxplot.svg",                    "Deviations per Trace"),
     ("task28_matrix.svg",                     "Activity × Deviation Type"),
     ("task28_heatmap.svg",                    "Deviation Heatmap"),
-    ("task28_table_bar_chart.svg",            "Deviation Patterns"),
-    ("task28_network_diagram.svg",            "Deviation Co-occurrence"),
-    ("task28_flow_chart_elaborate_table.svg", "Deviations on the Model"),
 ]
 
 
@@ -835,9 +580,6 @@ def generate(alignments, model_path: str, output_dir: str, log=None,
     else:
         logger.warning("      task28: no deviating trace — trace-level idioms skipped.")
 
-    if ctx is not None:
-        task28_flow_chart_and_table(ctx, output_dir)
-
     # Log-level exploratory overview
     df = _dev_df(alignments)
     tdf = _trace_dev_df(alignments)
@@ -851,10 +593,6 @@ def generate(alignments, model_path: str, output_dir: str, log=None,
                 f"{int((tdf['n_dev'] > 0).sum())}/{len(tdf)} traces deviate.")
     task28_bar_chart(df, output_dir)
     task28_stacked_bar(df, output_dir)
-    task28_scatter_plot(tdf, output_dir)
     task28_boxplot(tdf, output_dir)
     task28_matrix(df, output_dir)
     task28_heatmap(df, output_dir)
-    task28_table_bar_chart(df, output_dir)
-    task28_network_diagram(alignments, df, output_dir)
-    task28_flow_chart_elaborate_table(df, model_path, output_dir)
