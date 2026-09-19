@@ -2,11 +2,10 @@
 
 import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../../components/Admin/Toast";
 import { IdiomImportButton, IdiomImportResult } from "../../../../components/Admin/IdiomImport";
-import { saveWizardStep } from "../../../../utils/wizardSave";
+import { queueWizardSave } from "../../../../utils/wizardSave";
 
 function getId(obj) {
   return obj._id || obj.id;
@@ -418,7 +417,7 @@ function SpecifyContent() {
         ...ti,
         parameters: isImported(ti) ? ti.parameters || {} : next[ti.task_id] || {},
       }));
-      saveWizardStep(experimentId, "specify", { task_instances: updatedInstances })
+      queueWizardSave(experimentId, "specify", { task_instances: updatedInstances })
         .catch((e) => showToast(`Failed to save parameters: ${e.message}`, true));
       return next;
     });
@@ -504,7 +503,7 @@ function SpecifyContent() {
         parameters: isImported(ti) ? ti.parameters || {} : paramValues[ti.task_id] || {},
       }));
 
-      await saveWizardStep(experimentId, "specify", { task_instances: updatedInstances });
+      await queueWizardSave(experimentId, "specify", { task_instances: updatedInstances });
 
       let res = await fetch(`/api/admin/experiments/${experimentId}/generate`, { method: "POST" });
       if (!res.ok) {
@@ -536,6 +535,36 @@ function SpecifyContent() {
       setGenerating(false);
       showToast(`Failed to start generation: ${e.message}`, true);
     }
+  }
+
+  // Going back to change the idioms or the parameters invalidates the images
+  // they produced, so they are thrown away rather than left to be mistaken for
+  // the new configuration. Uploaded and imported images are not generated
+  // output and are kept (admin.discard_generated_images).
+  async function goBackToIdioms() {
+    const generated = taskInstances.filter(
+      (ti) => !isImported(ti) && ti.generation_status === "ready"
+    ).length;
+    if (generated > 0 && !window.confirm(
+      `Going back discards the images generated for ${generated} task${generated !== 1 ? "s" : ""} — ` +
+      "they were drawn with the idioms and parameters you are about to change, and you will have to " +
+      "generate again. Uploaded and imported images are kept. Continue?"
+    )) return;
+    try {
+      const res = await fetch(
+        `/api/admin/experiments/${encodeURIComponent(experimentId)}/generated-images`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || `HTTP ${res.status}`);
+      }
+    } catch (e) {
+      // Staying put beats arriving on /idiom with images that no longer match.
+      showToast(`Could not discard the generated images: ${e.message}`, true);
+      return;
+    }
+    router.push(`/admin/experiments/idiom?experiment_id=${encodeURIComponent(experimentId)}`);
   }
 
   async function handleDiscardImport() {
@@ -753,12 +782,14 @@ function SpecifyContent() {
       {/* Footer action bar */}
       <div className="border-t border-border-subtle bg-white sticky bottom-0">
         <div className="max-w-[1140px] mx-auto px-8 py-4 flex justify-between items-center">
-          <Link
-            href={`/admin/experiments/idiom${experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""}`}
-            className="text-sm text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors"
+          <button
+            onClick={goBackToIdioms}
+            disabled={generating || discarding}
+            title={generating ? "Wait for the generation to finish." : undefined}
+            className="text-sm text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <span className="material-symbols-outlined text-sm">arrow_back</span> Previous Step
-          </Link>
+          </button>
           <div className="flex items-center gap-3">
             <button
               onClick={handleGenerate}

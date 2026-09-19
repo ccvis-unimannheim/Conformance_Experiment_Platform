@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import AdminNav from "../../../../components/Admin/AdminNav";
-import { saveWizardStep } from "../../../../utils/wizardSave";
+import { queueWizardSave } from "../../../../utils/wizardSave";
 
 // ── Add Question Modal ──────────────────────────────────────────────────────
 
@@ -191,7 +191,7 @@ export default function KnowledgeSetupPage() {
 
   function persistSelection(next) {
     if (!experimentId) return;
-    saveWizardStep(experimentId, "knowledge", { knowledge_question_ids: Array.from(next) }, { endpoint: "knowledge-questions" })
+    queueWizardSave(experimentId, "knowledge", { knowledge_question_ids: Array.from(next) }, { endpoint: "knowledge-questions" })
       .catch((e) => setSaveError(e.message));
   }
 

@@ -6,7 +6,7 @@ import Link from "next/link";
 import AdminNav from "../../../../components/Admin/AdminNav";
 import ProcessModelImage from "../../../../components/General/ProcessModelImage";
 import IntroCitation from "../../../../components/General/IntroCitation";
-import { saveWizardStep } from "../../../../utils/wizardSave";
+import { queueWizardSave } from "../../../../utils/wizardSave";
 import {
   CONCEPT_SECTIONS,
   TASKINTRO_SECTIONS,
@@ -126,7 +126,7 @@ export default function IntroPagesSetupPage() {
 
   function save(sections, cites) {
     if (!experimentId) return;
-    saveWizardStep(experimentId, "concepts", body(sections, cites), { endpoint: "intro-pages" })
+    queueWizardSave(experimentId, "concepts", body(sections, cites), { endpoint: "intro-pages" })
       .catch((e) => setSaveError(e.message));
   }
 

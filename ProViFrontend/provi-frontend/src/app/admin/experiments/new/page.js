@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import AdminNav from "../../../../components/Admin/AdminNav";
 import ExperimentDetailsForm from "../../../../components/Admin/ExperimentDetailsForm";
 import DatasetSelectTable from "../../../../components/Admin/DatasetSelectTable";
-import { saveWizardStep } from "../../../../utils/wizardSave";
+import { queueWizardSave } from "../../../../utils/wizardSave";
 
 export default function NewExperimentPage() {
   const router = useRouter();
@@ -99,7 +99,7 @@ export default function NewExperimentPage() {
 
   function persistField(fields) {
     if (!createdRef.current) return;
-    saveWizardStep(experimentId, "prequestionnaire", fields).catch((e) => setSubmitError(e.message));
+    queueWizardSave(experimentId, "prequestionnaire", fields).catch((e) => setSubmitError(e.message));
   }
 
   function handleFormChange(field, value) {

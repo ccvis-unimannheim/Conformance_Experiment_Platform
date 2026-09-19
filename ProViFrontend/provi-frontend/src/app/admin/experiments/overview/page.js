@@ -8,7 +8,7 @@ import Toast from "../../../../components/Admin/Toast";
 import EditTaskModal from "../../../../components/Admin/EditTaskModal";
 import { IdiomImportButton, IdiomImportResult } from "../../../../components/Admin/IdiomImport";
 import { resolveIdiomLabel } from "../../../../utils/idiomLabels";
-import { saveWizardStep } from "../../../../utils/wizardSave";
+import { queueWizardSave } from "../../../../utils/wizardSave";
 
 function IdiomPreviewModal({ experimentId, taskKey, idiomKey, idiomLabel, datasetTitle, paramsSummary, version, onClose }) {
   const [status, setStatus] = useState("loading");
@@ -354,7 +354,7 @@ function ExperimentOverviewContent() {
       setExperiment(exp);
       setStatus(exp.status || "draft");
       if (exp.status === "draft") {
-        saveWizardStep(experimentId, "overview", {}).catch(() => {});
+        queueWizardSave(experimentId, "overview", {}).catch(() => {});
       }
 
       const tMap = {};

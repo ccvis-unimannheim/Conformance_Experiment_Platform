@@ -6,7 +6,7 @@ import Link from "next/link";
 import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../../components/Admin/Toast";
 import { TASK_IDIOM_LABEL_OVERRIDES } from "../../../../utils/idiomLabels";
-import { saveWizardStep } from "../../../../utils/wizardSave";
+import { queueWizardSave } from "../../../../utils/wizardSave";
 import UploadIdiomModal from "../../../../components/Admin/UploadIdiomModal";
 
 function getId(obj) {
@@ -411,7 +411,7 @@ function IdiomSelectionContent() {
 
   function persistMap(map) {
     if (!experimentId) return;
-    saveWizardStep(experimentId, "idiom", { task_configs: buildTaskConfigs(map) })
+    queueWizardSave(experimentId, "idiom", { task_configs: buildTaskConfigs(map) })
       .catch((e) => showToast(`Failed to save: ${e.message}`, true));
   }
 
@@ -476,7 +476,7 @@ function IdiomSelectionContent() {
     }
 
     try {
-      await saveWizardStep(experimentId, "idiom", { task_configs: buildTaskConfigs(taskIdiomMap) });
+      await queueWizardSave(experimentId, "idiom", { task_configs: buildTaskConfigs(taskIdiomMap) });
       router.push(`/admin/experiments/specify?experiment_id=${encodeURIComponent(experimentId)}`);
     } catch (e) {
       showToast(`Failed to save experiment: ${e.message}`, true);

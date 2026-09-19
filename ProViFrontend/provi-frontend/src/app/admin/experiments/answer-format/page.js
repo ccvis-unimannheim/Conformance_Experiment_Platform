@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../../components/Admin/Toast";
-import { saveWizardStep } from "../../../../utils/wizardSave";
+import { queueWizardSave } from "../../../../utils/wizardSave";
 
 function getId(obj) {
   return obj._id || obj.id;
@@ -444,7 +444,7 @@ function AnswerFormatContent() {
   }
 
   async function persist(instances = taskInstances) {
-    await saveWizardStep(experimentId, "answer-format", { task_instances: instances });
+    await queueWizardSave(experimentId, "answer-format", { task_instances: instances });
   }
 
   async function handleRubricSave(taskId, text) {
