@@ -26,6 +26,16 @@ Public API:
                                     central run (currently unused by the rendered idioms)
 """
 
+RUBRIC = (
+    "A complete answer states the overall degree of conformance as the single "
+    "percentage the figure encodes. Award full marks within ±1 percentage point, "
+    "partial marks within ±5, and no marks for a value read off the wrong scale "
+    "(a count, or a share of activities). Every idiom carries this one scalar and "
+    "nothing else — no distribution, no trace count — so an answer must not be "
+    "penalised for omitting spread, and an answer that reports one has read it "
+    "into the figure."
+)
+
 import logging
 
 logger = logging.getLogger(__name__)

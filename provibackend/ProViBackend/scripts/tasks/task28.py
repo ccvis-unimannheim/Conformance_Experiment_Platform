@@ -24,6 +24,15 @@ Public API:
         scoped_activity      – the resource rule (perspective "resource")
 """
 
+RUBRIC = (
+    "A complete answer locates the deviation in the trace and gives both halves "
+    "of it: which activity, what the guideline prescribed at that point, and what "
+    "was executed instead. Award full marks for the right position with both "
+    "halves, partial marks for locating the deviation without saying what "
+    "happened instead, and no marks for naming a step that aligns synchronously "
+    "or for reversing prescribed and executed behaviour."
+)
+
 import logging
 
 logger = logging.getLogger(__name__)

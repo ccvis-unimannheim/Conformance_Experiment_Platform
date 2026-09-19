@@ -9,6 +9,15 @@ Public API:
                             empty = all
 """
 
+RUBRIC = (
+    "A complete answer lists the violation types present and how often each "
+    "occurs, in the unit the figure groups by — move type, activity, or "
+    "activity+move-type pattern. Award full marks for a correct ranking with "
+    "approximately correct counts, partial marks for a correct ranking alone, and "
+    "no marks for counts in a different unit from the one shown, or for omitting "
+    "a type that the figure shows as frequent."
+)
+
 import logging
 
 logger = logging.getLogger(__name__)

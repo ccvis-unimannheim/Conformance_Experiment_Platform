@@ -43,6 +43,16 @@ Public API:
     task18_responsibility(log, alignments, candidate_attributes)  # reused by task21
 """
 
+RUBRIC = (
+    "A complete answer names the activities responsible for the violations and, "
+    "where the idiom shows it, each one's share of all deviations, so that the "
+    "answer ranks them rather than listing them. Award full marks for the "
+    "genuinely top-responsible activities with approximately correct shares, "
+    "partial marks for the correct activities without shares, and no marks for "
+    "naming activities that carry no deviations, or for answering with a case "
+    "attribute rather than an event — the unit here is the activity."
+)
+
 import logging
 
 logger = logging.getLogger(__name__)

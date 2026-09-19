@@ -16,6 +16,17 @@ Visualizations (all SVG, cividis palette from shared.py):
   stacked_bar     – fitness bucket distribution: T1 row and T2 row
 """
 
+RUBRIC = (
+    "A complete answer says how the two techniques' fitness values differ: "
+    "whether one is systematically higher, how closely they agree per trace, and "
+    "where they disagree most. Award full marks for the correct direction with an "
+    "approximate magnitude, partial marks for the direction alone, and no marks "
+    "for reversing which technique scores higher. Judge any number against the "
+    "one the participant's own idiom plots — most show per-trace values and their "
+    "mean, and the mean of per-trace fitness is not the log-level fitness, so an "
+    "answer is not wrong for differing from pm4py's log fitness."
+)
+
 import logging
 logger = logging.getLogger(__name__)
 

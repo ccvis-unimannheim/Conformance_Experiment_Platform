@@ -21,6 +21,18 @@ Public API:
     generate(log, alignments, output_dir, model_path=None)
 """
 
+RUBRIC = (
+    "A complete answer states how often each guideline violation occurs, says "
+    "what kind of deviation it is and — where the idiom shows the model — where "
+    "it sits in the process, and then judges severity explicitly as the "
+    "analyst's own assessment. Nothing in the figure ranks severity, so award "
+    "full marks when the frequencies are approximately right and the severity "
+    "judgement follows from them and is stated as a judgement; partial marks for "
+    "correct frequencies with no severity reading; no marks for frequencies that "
+    "contradict the figure. Do not mark a severity ordering wrong for "
+    "disagreeing with your own."
+)
+
 import logging
 
 logger = logging.getLogger(__name__)

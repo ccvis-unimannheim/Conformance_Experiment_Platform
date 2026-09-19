@@ -19,6 +19,17 @@ Public API:
         outcome_activity – activity name that marks a positive process outcome
 """
 
+RUBRIC = (
+    "A complete answer says which of the two outcome groups conforms better and "
+    "by roughly how much, in the terms the figure uses — the share of each "
+    "group's traces in each fitness category (e.g. 'about 80% of "
+    "positive-outcome traces are fully conformant against 55% of the negative "
+    "ones'), and ideally names a violation that separates them. Award full marks "
+    "for the correct direction with an approximate magnitude, partial marks for "
+    "the correct direction alone, and no marks for the wrong direction or for "
+    "comparing raw trace counts, which the unequal group sizes make misleading."
+)
+
 import logging
 
 logger = logging.getLogger(__name__)

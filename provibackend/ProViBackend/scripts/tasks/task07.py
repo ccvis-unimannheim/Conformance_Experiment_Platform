@@ -13,6 +13,16 @@ Public API:
                            (default: month).
 """
 
+RUBRIC = (
+    "A complete answer describes how conformance develops over the periods shown: "
+    "the overall direction, and the period(s) where it turns or breaks (e.g. "
+    "'stable until March, then a marked drop'). Award full marks for the correct "
+    "direction together with the turning point(s), partial marks for the "
+    "direction alone, and no marks for a trend the plotted series contradicts. "
+    "Judge the answer at the time granularity the figure was drawn at — "
+    "year, month or day — not at a finer one."
+)
+
 import logging
 
 logger = logging.getLogger(__name__)

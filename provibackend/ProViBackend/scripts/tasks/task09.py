@@ -28,6 +28,17 @@ Whole log:
                                     BPMN model, next to the breakdown table
 """
 
+RUBRIC = (
+    "A complete answer says, for each deviation it reports, which activity is "
+    "involved and what kind of deviation it is — prescribed but not executed "
+    "(model move), executed but not prescribed (log move), or deviating on both "
+    "labels (mismatch) — i.e. both what the guideline asked for and what happened "
+    "instead. Award full marks for the main deviations with the right activity "
+    "and the right type, partial marks for the activity without the type or the "
+    "type without the activity, and no marks for reversing prescribed and "
+    "executed, or for reporting a step that aligns synchronously as a violation."
+)
+
 import logging
 logger = logging.getLogger(__name__)
 

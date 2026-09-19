@@ -18,6 +18,15 @@ Public API:
         group_cap      – most groups named before the rest become "Other"
 """
 
+RUBRIC = (
+    "A complete answer says which attribute value's traces conform better and by "
+    "roughly how much, reading the per-group fitness summaries (and, where shown, "
+    "their spread). Award full marks for the correct direction with an "
+    "approximate magnitude, partial marks for the correct direction alone, and no "
+    "marks for the wrong direction or for comparing how many traces each group "
+    "holds rather than how well they conform."
+)
+
 import logging
 
 logger = logging.getLogger(__name__)

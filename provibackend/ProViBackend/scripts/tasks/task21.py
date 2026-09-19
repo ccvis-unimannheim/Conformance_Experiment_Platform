@@ -43,6 +43,17 @@ Public API:
     generate(log, alignments, model_path, output_dir, candidate_attributes=None)
 """
 
+RUBRIC = (
+    "A complete answer names candidate reasons of both kinds the figure offers — "
+    "an attribute group whose traces deviate more, and an activity that carries a "
+    "disproportionate share of the deviations — and says what in the figure "
+    "supports each. The candidates are ranked neutrally and no one of them is "
+    "'the' answer, so award full marks when the named candidates are genuinely "
+    "among those the figure highlights and are stated as candidates, partial "
+    "marks for one kind only, and no marks for a reason the figure does not "
+    "support or for asserting a proven cause."
+)
+
 import logging
 
 logger = logging.getLogger(__name__)

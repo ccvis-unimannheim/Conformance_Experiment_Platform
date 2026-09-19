@@ -29,6 +29,16 @@ Public API:
                                count as "main"; None keeps every violation
 """
 
+RUBRIC = (
+    "This task has two halves and a complete answer does both: the violations "
+    "that dominate the whole log, in rank order, and whether that ranking holds "
+    "in each sub-process or where it changes. Award full marks for a correct top "
+    "of the ranking plus a correct statement about the sub-processes, partial "
+    "marks for one half done correctly, and no marks for a ranking by rate — the "
+    "figure ranks by raw occurrence count — or for a sub-process comparison the "
+    "breakdown contradicts."
+)
+
 import logging
 
 logger = logging.getLogger(__name__)

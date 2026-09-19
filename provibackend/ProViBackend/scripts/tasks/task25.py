@@ -40,6 +40,19 @@ Public API:
                      empty state, since the model is the visual
 """
 
+RUBRIC = (
+    "A complete answer gives an overall degree of conformance the analyst derived "
+    "from the model's per-activity annotations, and says how it was derived; no "
+    "aggregate is printed anywhere, so an unexplained number is a guess. The "
+    "figure supports the share of replayed steps that were synchronous (pool the "
+    "annotated counts, e.g. 4580/4886 ≈ 94%), which is not the mean per-trace "
+    "fitness task06 states — judge against what the figure supports, not against "
+    "pm4py's log fitness. Award full marks within ±5 percentage points of the "
+    "figure-supported value with a stated derivation, partial marks for a correct "
+    "qualitative reading ('most activities conform, except X and Y'), and no "
+    "marks for a value no annotation supports."
+)
+
 import logging
 
 logger = logging.getLogger(__name__)
