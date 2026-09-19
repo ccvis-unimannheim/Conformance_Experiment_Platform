@@ -54,16 +54,6 @@ PARAM_SPEC = [
 ]
 
 
-RUBRIC = (
-    "A strong answer states the percentage of traces in each conformance category "
-    "(as defined by the selected interval boundaries), covering every category that "
-    "contains traces. Full credit requires an approximately correct percentage "
-    "(within ±5 percentage points) for each category, or a correct ranking of which "
-    "categories contain the most to fewest traces. No credit for percentages computed "
-    "against the wrong boundary set, or for omitting a category that contains traces."
-)
-
-
 def _parse_bins(raw) -> list | None:
     """Parse comma-separated bin boundaries from a param string."""
     if not raw:

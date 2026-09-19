@@ -35,19 +35,6 @@ def _param_spec():
 PARAM_SPEC = _param_spec()
 
 
-RUBRIC = (
-    "A complete answer names at least the two most frequent violation patterns with their "
-    "occurrence counts or relative frequencies, identifies which move type (Model Move, "
-    "Log Move, or Mismatch Move) dominates across all violations, and notes at least one "
-    "activity-level characteristic that distinguishes patterns from one another "
-    "(e.g. an activity that only appears as a Model Move, or the activity with the highest "
-    "total violation count). Award full marks for correctly covering frequency, move-type "
-    "distribution, and at least one distinguishing activity-level insight. Award partial "
-    "marks when frequency and move type are covered but no activity-level comparison is "
-    "made. Deduct marks for incorrect counts, wrong move-type attribution, or unsupported "
-    "claims about severity."
-)
-
 import os
 import numpy as np
 import pandas as pd

@@ -62,16 +62,6 @@ PARAM_SPEC = [
 ]
 
 
-RUBRIC = (
-    "A complete answer names where the Conformant and Non-conformant groups differ on "
-    "the compared attribute(s) — which values or buckets are more common in which group — "
-    "and ideally by roughly how much (e.g. 'Non-conformant traces are more often in the "
-    "longest throughput-time quartile, about 40% against 20%'). Award full marks for the "
-    "correct direction with an approximate magnitude, partial marks for the correct "
-    "direction without a magnitude, and deduct marks for the wrong direction."
-)
-
-
 def validate_params(log, params) -> list:
     """Ensure conformant_threshold is a number in (0, 1]. Empty = use default 1.0."""
     raw = params.get("conformant_threshold", 1.0)

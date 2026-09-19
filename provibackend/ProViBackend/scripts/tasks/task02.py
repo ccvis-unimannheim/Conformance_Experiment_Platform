@@ -18,17 +18,6 @@ Public API:
                                 on every idiom; no pass/fail verdict is rendered.
 """
 
-RUBRIC = (
-    "A complete answer gives a verdict — does behaviour predominantly follow the "
-    "model — and grounds it in the two numbers the figure shows: the log's "
-    "fitness and the threshold drawn beside it (e.g. 'fitness 95%, threshold "
-    "80%, so yes'). Award full marks for the correct verdict with both numbers, "
-    "partial marks for the correct verdict citing only the fitness, and no marks "
-    "for a verdict the two numbers contradict, or for reporting the threshold as "
-    "the measured value. No idiom prints a yes/no, so the verdict is the "
-    "participant's to make."
-)
-
 import logging
 
 logger = logging.getLogger(__name__)

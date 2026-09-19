@@ -25,16 +25,6 @@ Public API:
                          their own "Missing" group ("own_group")
 """
 
-RUBRIC = (
-    "A complete answer names the attribute group(s) with the highest violation "
-    "rate, states the direction and rough size of the difference, and offers that "
-    "as the reason the violations cluster there. Award full marks for the correct "
-    "group and direction with an approximate rate, partial marks for the correct "
-    "group and direction alone, and no marks for the wrong direction, for a group "
-    "the figure shows as flat, or for comparing raw violation counts between "
-    "groups of very different size."
-)
-
 import logging
 
 logger = logging.getLogger(__name__)

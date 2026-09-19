@@ -19,16 +19,6 @@ Co-occurrence is shown neutrally: no pair is flagged high or low, so the
 analyst decides which correlations are noteworthy.
 """
 
-RUBRIC = (
-    "A complete answer names the violation *pairs* that most often occur in the "
-    "same trace and gives an idea of how strongly they co-occur. The figure flags "
-    "no pair as high or low, so which pairs count as frequent is the analyst's "
-    "call: award full marks when the named pairs are genuinely among the "
-    "strongest shown and the magnitudes are approximately right, partial marks "
-    "for the correct pairs without magnitudes, and no marks for a pair that is "
-    "not among the strongest or for naming single violations rather than pairs."
-)
-
 import logging
 logger = logging.getLogger(__name__)
 

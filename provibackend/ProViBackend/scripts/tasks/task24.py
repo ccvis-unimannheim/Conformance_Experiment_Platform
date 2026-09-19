@@ -15,17 +15,6 @@ Two idioms (renamed by pipeline to canonical slugs):
     task24_flow_chart_and_table       →  flow_chart_table.svg
 """
 
-RUBRIC = (
-    "A complete answer names concrete differences between the discovered model "
-    "and the guideline: a path or edge the log takes that the guideline does not "
-    "prescribe, an activity the guideline prescribes that the discovered model "
-    "lacks, or an activity that appears only in the log. Award full marks for the "
-    "main differences named in the right direction, partial marks for noticing "
-    "that the two differ without locating it, and no marks for a difference in "
-    "the wrong direction — reporting a guideline element as an extra one — or for "
-    "describing only one of the two models."
-)
-
 import logging
 logger = logging.getLogger(__name__)
 

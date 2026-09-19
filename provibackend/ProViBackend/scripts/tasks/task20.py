@@ -46,21 +46,6 @@ PARAM_SPEC = [
 ]
 
 
-RUBRIC = (
-    "A strong answer identifies one or more concrete attributes — of the "
-    "control-flow (e.g. trace length, a present/absent activity), data (e.g. a "
-    "case-level value such as requested amount), resource, or time (e.g. case "
-    "duration) — that distinguish violating from conforming cases, and states the "
-    "direction of each effect (e.g. longer cases, or amounts above a threshold, "
-    "exhibit more violations). The answer should read the evidence as a root cause "
-    "(the attribute condition under which violations concentrate) rather than "
-    "merely restating frequencies. Partial credit for correctly naming a "
-    "discriminating attribute without giving its direction or threshold. No credit "
-    "for vague claims unsupported by the visualized decision-tree / attribute "
-    "evidence."
-)
-
-
 import os
 import re
 import numpy as np

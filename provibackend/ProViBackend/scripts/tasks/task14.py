@@ -49,18 +49,6 @@ def validate_params(log, params) -> list:
     return trace_alignment.validate_selection(log, params, min_traces=1, max_traces=1)
 
 
-RUBRIC = (
-    "A strong answer names each violation type present in the shown trace and "
-    "explains what it means in process terms — e.g. a Model Move indicates a "
-    "required step was absent from the recorded execution; a Log Move indicates "
-    "an unexpected step was executed that the model does not prescribe. "
-    "Full credit requires correctly identifying all present violation types and "
-    "giving a meaningful process-level description for each. "
-    "Partial credit for identifying some types or for correct naming without "
-    "explanation. No credit for types not present in the trace."
-)
-
-
 import os
 import numpy as np
 import matplotlib

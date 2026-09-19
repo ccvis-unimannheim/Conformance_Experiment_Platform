@@ -25,15 +25,6 @@ Public API:
                                idioms keep showing the top-N variants
 """
 
-RUBRIC = (
-    "A complete answer contrasts the two groups: which variants are conformant "
-    "and which are not, and what the non-conformant ones do differently — a step "
-    "skipped, a step inserted, a different order. Award full marks for correctly "
-    "classifying the variants shown and naming the behavioural difference, "
-    "partial marks for the classification without the difference, and no marks "
-    "for reversing which side is conformant."
-)
-
 import logging
 
 logger = logging.getLogger(__name__)

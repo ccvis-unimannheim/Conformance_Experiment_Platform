@@ -8,15 +8,6 @@ Public API:
                             shared.infer_terminal_activity
 """
 
-RUBRIC = (
-    "A complete answer says whether traces with higher conformance reach the "
-    "positive outcome more often, reading the direction off the curves and saying "
-    "how the gap between them develops over time. Award full marks for the "
-    "correct direction with a sense of the size of the gap, partial marks for the "
-    "direction alone, and no marks for the wrong direction. The figure shows an "
-    "association over time: an answer stated as a cause earns no extra credit."
-)
-
 import logging
 
 logger = logging.getLogger(__name__)

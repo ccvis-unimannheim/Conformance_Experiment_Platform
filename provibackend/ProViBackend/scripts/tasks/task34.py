@@ -68,16 +68,6 @@ def validate_params(log, params) -> list:
     return trace_alignment.validate_selection(log, params, min_traces=1, max_traces=4)
 
 
-RUBRIC = (
-    "A complete answer correctly identifies the activities where violations occur "
-    "in the representative (worst-fitness) trace and the type of each violation "
-    "(Model Move = skipped activity, Log Move = extra/inserted activity). "
-    "Award full marks for correctly naming the top violated activities with their "
-    "violation types. Award partial marks for correctly identifying the activities "
-    "without the types, or for identifying most but not all violated activities. "
-    "Deduct marks for incorrectly including activities that have no violations in the trace."
-)
-
 import os
 import numpy as np
 import matplotlib

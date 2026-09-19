@@ -25,18 +25,6 @@ Public API:
                          their own "Missing" group ("own_group")
 """
 
-RUBRIC = (
-    "A complete answer names the attribute group(s) whose conformance departs "
-    "most from the rest and states the direction and rough size of the gap (e.g. "
-    "'traces in the longest-duration bucket average 0.82 against 0.95 "
-    "elsewhere'), then relates that to prior knowledge as an explanation. Award "
-    "full marks for the correct group and direction with an approximate "
-    "magnitude, partial marks for the correct group and direction alone, and no "
-    "marks for the wrong direction or for a group the figure shows as flat. The "
-    "figure supports association only: an answer stated as a cause is not worth "
-    "more than one stated as a pattern."
-)
-
 import logging
 
 logger = logging.getLogger(__name__)

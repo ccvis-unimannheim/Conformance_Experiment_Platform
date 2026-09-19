@@ -41,16 +41,6 @@ PARAM_SPEC = [
 ]
 
 
-RUBRIC = (
-    "A complete answer identifies which sub-log has a higher conformance rate and names "
-    "at least one violation pattern that is more prevalent in one sub-log than the other, "
-    "with the correct direction. Award full marks for correctly identifying both the "
-    "conformance direction and the top distinguishing violation patterns with approximate "
-    "rates. Award partial marks for correct conformance direction only. Deduct marks for "
-    "incorrect directions."
-)
-
-
 def validate_params(log, params) -> list:
     errors = trace_features.validate_attribute_class(params, multi=False)
     if errors:

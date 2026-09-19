@@ -28,16 +28,6 @@ Public API:
         group_cap      – most groups named before the rest become "Other"
 """
 
-RUBRIC = (
-    "A complete answer says which of the supplied candidate reasons relates to "
-    "conformance, in which direction, and how strongly — reading the trend, the "
-    "correlation, or each group's deviation from the overall mean — and, where "
-    "the model idiom is shown, where conformance breaks down. Award full marks "
-    "for the correct reason and direction with an approximate magnitude, partial "
-    "marks for the correct direction alone, and no marks for the wrong direction "
-    "or for a candidate the figures show as unrelated."
-)
-
 import logging
 
 logger = logging.getLogger(__name__)

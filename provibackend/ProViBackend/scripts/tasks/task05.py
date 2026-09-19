@@ -20,17 +20,6 @@ Public API:
                             empty = all
 """
 
-RUBRIC = (
-    "A complete answer reports, for each violation in the selected set, how often "
-    "it occurs in each of the two sub-logs, and states where the two profiles "
-    "differ — which violation is relatively more common in which sub-log. Award "
-    "full marks for approximately correct frequencies per sub-log (or a correct "
-    "ranking plus the direction of the difference) covering every selected "
-    "violation, partial marks for one sub-log only or for the ranking without "
-    "magnitudes, and no marks for figures pooled across both sub-logs, which "
-    "answers a different question."
-)
-
 import logging
 
 logger = logging.getLogger(__name__)

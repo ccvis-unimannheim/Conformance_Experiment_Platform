@@ -1274,13 +1274,14 @@ async def get_option_candidates(
 
 @router.get("/tasks/{task_key}/rubric", tags=["admin"])
 async def get_task_rubric(task_key: str):
-    """Return this task's grading rubric for display/editing on /answer-format
-    and /overview.
+    """Return this task's grading rubric for display/editing on /answer-format.
 
     Reference text for manually coding free-text answers — it feeds no automatic
-    scoring. The task's RUBRIC constant is the default; an admin edit
-    (PATCH /tasks/{task_id} with a `rubric` field, stored on the Task document)
-    overrides it. `rubric` is `null` if neither exists.
+    scoring. Whatever an admin wrote (PATCH /tasks/{task_id} with a `rubric`
+    field, stored on the Task document) is it; `rubric` is `null` until someone
+    does, which is every task today. A module may still ship a `RUBRIC` constant
+    as a starting point — none currently does, because a rubric nobody has
+    reviewed is worse than an empty box that says a rubric is missing.
     """
     if task_key not in _TASK_MODULES:
         custom = dbc.get_custom_task_by_key(task_key)

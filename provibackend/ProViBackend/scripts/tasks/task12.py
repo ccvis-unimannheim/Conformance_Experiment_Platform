@@ -15,15 +15,6 @@ Visualizations (all SVG, cividis palette from shared.py):
   table_bar_chart – compact table (left) + horizontal bars (right)
 """
 
-RUBRIC = (
-    "A complete answer states the percentage of *traces* in which the designated "
-    "violations occur (or, equivalently, the conformant share). Award full marks "
-    "within ±2 percentage points, partial marks within ±5 or for a correct "
-    "conformant/deviating split given as counts, and no marks for a share of "
-    "events, moves or violation occurrences rather than traces — a trace counts "
-    "once however often it deviates."
-)
-
 import logging
 logger = logging.getLogger(__name__)
 

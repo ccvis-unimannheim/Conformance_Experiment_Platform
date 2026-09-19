@@ -11,15 +11,6 @@ Visualizations:
   network_diagram – Process Network Graph: edge color=conformance, width=support
 """
 
-RUBRIC = (
-    "A complete answer names the rules with the lowest conformance rate — the "
-    "predominant violations — and gives their rates approximately. Award full "
-    "marks for the correct rules with approximately correct rates, partial marks "
-    "for a correct ranking without rates, and no marks for naming rules that "
-    "conform well, or for reading how often a rule applies (support, encoded as "
-    "edge width) as how well it is followed (conformance, encoded as colour)."
-)
-
 import logging
 logger = logging.getLogger(__name__)
 

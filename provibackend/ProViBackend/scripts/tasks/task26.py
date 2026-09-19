@@ -11,16 +11,6 @@ Public API:
         model_path – reference BPMN; without it the flow-chart idioms are skipped
 """
 
-RUBRIC = (
-    "A complete answer relates each violation type shown to the severity the "
-    "figure assigns it, and says which violations are therefore the most "
-    "impactful — combining severity with how often the violation occurs where "
-    "both are shown. Severity here is configuration, not a computed result, so "
-    "award full marks for using the presented severity together with the "
-    "frequency, partial marks for reading the severity alone, and no marks for a "
-    "severity ordering the figure does not show."
-)
-
 import logging
 
 logger = logging.getLogger(__name__)

@@ -261,8 +261,8 @@ function NumberKindSelector({ kinds, value, onChange }) {
   );
 }
 
-// The task's RUBRIC constant is the default; an admin edit is stored on the
-// Task document and overrides it (PATCH /admin/tasks/{task_id}). Reference text
+// Empty until an admin writes one: the rubric is stored on the Task document
+// (PATCH /admin/tasks/{task_id}) and shared by every experiment. Reference text
 // for manually coding answers — it feeds no automatic scoring.
 function RubricEditor({ taskId, rubric, onSave }) {
   const [draft, setDraft] = useState(rubric ?? "");

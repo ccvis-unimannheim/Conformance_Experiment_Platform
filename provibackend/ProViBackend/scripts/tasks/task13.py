@@ -77,21 +77,6 @@ PARAM_SPEC = [
           # "flow_chart_table", "flow_chart_elaborate_table"  # commented out
 
 
-
-
-RUBRIC = (
-    "A strong answer identifies one or more process attributes (e.g. a case-level "
-    "data attribute, a resource, or a time-based measure) that are statistically "
-    "associated with guideline violations, and explains the direction of each "
-    "association (e.g. higher values of X correlate with more violations). "
-    "The answer should connect the observed pattern to a plausible process-level "
-    "reason rather than simply restating the numbers. "
-    "Partial credit for correctly naming an associated attribute without explaining "
-    "the direction or cause. No credit for vague statements unsupported by the "
-    "visualized evidence."
-)
-
-
 import os
 import numpy as np
 import pandas as pd

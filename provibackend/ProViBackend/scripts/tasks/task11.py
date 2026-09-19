@@ -53,18 +53,6 @@ def _param_spec():
 PARAM_SPEC = _param_spec()
 
 
-RUBRIC = (
-    "A strong answer states the trace-level frequency of each predefined violation — "
-    "i.e. the percentage of all traces in which that violation appears at least once — "
-    "for every distinct violation found in the log. "
-    "Full credit requires a correct percentage for each violation, rounded to the nearest "
-    "whole number. Partial credit for values within ±5 percentage points of the true value, "
-    "or for correctly ranking violations by trace frequency. No credit for raw occurrence "
-    "counts rather than trace-level percentages, or for percentages relative to a subset "
-    "of traces rather than the full log."
-)
-
-
 import os
 import io as _io
 import base64 as _base64

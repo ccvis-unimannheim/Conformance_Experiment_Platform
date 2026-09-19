@@ -14,15 +14,6 @@ Public API:
                      None/empty = all
 """
 
-RUBRIC = (
-    "A complete answer names the activities the model annotates as violated and "
-    "which kind of violation each carries — a prescribed step skipped, or an "
-    "unprescribed one inserted — reading both off the annotation. Award full "
-    "marks for the main annotated activities with the right kind, partial marks "
-    "for the activities without the kind, and no marks for naming activities the "
-    "model leaves unannotated."
-)
-
 import logging
 logger = logging.getLogger(__name__)
 
