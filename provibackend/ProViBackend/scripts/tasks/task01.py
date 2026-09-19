@@ -23,8 +23,12 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "table", "table_and_bar_chart", "parallel_sets",
-          "stacked_bar", "box_plot", "matrix"]
+IDIOMS = [
+    "bar_chart", "table", "stacked_bar", "matrix",
+    # "box_plot",             # draws quantiles, not the per-group shares; its boxes collapse at 1.0
+    # "table_and_bar_chart",  # two idioms in one (still drawn: task04's log level offers it)
+    # "parallel_sets",        # shows no count of traces per conformance category
+]
 
 
 
@@ -435,8 +439,10 @@ def generate(log, fitness_df, output_dir: str, outcome_activity: str = "Activate
 
     task01_bar_chart(counts, output_dir, outcome_activity)
     task01_table(counts, output_dir, outcome_activity)
+    # Not one of task01's idioms any more, but task04's log level (which runs
+    # this generate()) still offers it as table_bar_chart.
     task01_table_and_bar_chart(counts, output_dir, outcome_activity)
-    task01_parallel_sets(counts, output_dir, outcome_activity)
+    # task01_parallel_sets(counts, output_dir, outcome_activity)  # removed idiom
     task01_stacked_bar(counts, output_dir, outcome_activity)
-    task01_box_plot(df, output_dir, outcome_activity)
+    # task01_box_plot(df, output_dir, outcome_activity)  # removed idiom
     task01_matrix(counts, output_dir, outcome_activity)

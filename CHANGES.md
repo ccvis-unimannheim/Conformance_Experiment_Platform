@@ -2,6 +2,24 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: Removed Idioms Leave the Admin Panel, task01 and task03 (2026-09-20)
+
+The idiom review removed three of task01's idioms and two of task03's. They are
+commented out of each module's `IDIOMS`, which is what `/admin/task-idioms`
+offers on /idiom, and their calls in `generate()` are commented out — as
+task16 already does. The renderers stay.
+
+| Task | Removed | Reason |
+|------|---------|--------|
+| task01 | box_plot | draws quantiles, not the per-group shares; its boxes collapse at fitness 1.0 |
+| task01 | table_and_bar_chart | two idioms in one — **still drawn**: task04's log level runs task01's `generate()` and offers it as `table_bar_chart` |
+| task01 | parallel_sets | shows no count of traces per conformance category |
+| task03 | table_and_bar_chart | two idioms in one |
+| task03 | stacked_bar | removed in the review |
+
+A draft that had already selected one of these keeps it selected, but
+regenerating no longer draws its image. `py_compile` only.
+
 ## Session: task03 Asks About Overall Behavior; Readable Boolean Buckets (2026-09-19)
 
 | File | Change |

@@ -10,9 +10,9 @@ each selected attribute's distribution over quartile buckets, one panel per
 attribute (throughput time when none is selected):
     * bar_chart            – grouped bars, # traces per bucket
     * table                – bucket table (share % per group)
-    * table_and_bar_chart  – bucket table + grouped-bar panel (# traces)
-    * stacked_bar          – 100%-stacked bars per group over the buckets
     * matrix               – annotated grid, buckets × group, share (%)
+(table_and_bar_chart and stacked_bar were removed from the offered idioms;
+their renderers remain.)
 
 Public API:
     generate(log, fitness_df, output_dir, conformant_threshold=1.0,
@@ -29,7 +29,11 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "table", "table_and_bar_chart", "stacked_bar", "matrix"]
+IDIOMS = [
+    "bar_chart", "table", "matrix",
+    # "table_and_bar_chart",  # two idioms in one
+    # "stacked_bar",
+]
 
 
 PARAM_SPEC = [
@@ -553,6 +557,6 @@ def generate(log, fitness_df, output_dir: str, conformant_threshold: float = 1.0
 
     task03_bar_chart(panels, output_dir)
     task03_table(panels, output_dir)
-    task03_table_and_bar_chart(panels, output_dir)
-    task03_stacked_bar(panels, output_dir)
+    # task03_table_and_bar_chart(panels, output_dir)  # removed idiom
+    # task03_stacked_bar(panels, output_dir)  # removed idiom
     task03_matrix(panels, output_dir)
