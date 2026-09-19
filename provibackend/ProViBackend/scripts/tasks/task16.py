@@ -30,9 +30,12 @@ import logging
 logger = logging.getLogger(__name__)
 
 IDIOMS = [
-    "table", "bar_chart", "scatter_plot",
-    "flow_chart_table", "flow_chart_elaborate", "flow_chart_elaborate_table",
-    "table_bar_chart", "parallel_sets",
+    "table", "bar_chart", "parallel_sets",
+    # "scatter_plot",
+    # "flow_chart_table",
+    # "flow_chart_elaborate",
+    # "flow_chart_elaborate_table",
+    # "table_bar_chart",
 ]
 
 
@@ -41,7 +44,7 @@ IDIOMS = [
 RESPONSE_MEASURE = "violation_rate"
 SPLIT_STRATEGY = None  # admin chooses
 
-_SPLIT_SUPTITLE = "Reasons for Guideline Violations — Violation Rate by Attribute"
+_SPLIT_SUPTITLE = "Violation rate by Attribute"
 
 import trace_features
 
@@ -472,8 +475,8 @@ def generate(log, fitness_df, alignments, output_dir: str, model_path: str = Non
     logger.info("\n--- Generating Task 16 visualizations ---")
 
     viol_df    = _build_violation_df(alignments)
-    act_totals = _activity_total_violations(viol_df)
-    trace_df   = _per_trace_violation_counts(alignments, fitness_df)
+    # act_totals = _activity_total_violations(viol_df)  # only the removed BPMN idioms needed this
+    # trace_df   = _per_trace_violation_counts(alignments, fitness_df)  # only scatter_plot needed this
     s          = _overall_stats(fitness_df, viol_df, alignments)
     logger.info(f"      -> {_stats_line(s)}")
 
@@ -488,12 +491,12 @@ def generate(log, fitness_df, alignments, output_dir: str, model_path: str = Non
     st = _SPLIT_SUPTITLE
     task20.task20_table(panels, output_dir, filename="task16_table.svg", suptitle=st)
     task20.task20_bar_chart(panels, output_dir, filename="task16_bar_chart.svg", suptitle=st)
-    task20.task20_table_bar_chart(panels, output_dir,
-                                  filename="task16_table_bar_chart.svg", suptitle=st)
+    # task20.task20_table_bar_chart(panels, output_dir,
+    #                               filename="task16_table_bar_chart.svg", suptitle=st)
     task20.task20_parallel_sets(panels, output_dir,
                                 filename="task16_parallel_sets.svg", suptitle=st)
 
-    task16_scatter_plot(trace_df, s, output_dir)
-    task16_flow_chart_table(alignments, fitness_df, s, output_dir)
-    task16_flow_chart_elaborate(act_totals, s, model_path, output_dir)
-    task16_flow_chart_elaborate_table(act_totals, viol_df, s, model_path, output_dir)
+    # task16_scatter_plot(trace_df, s, output_dir)
+    # task16_flow_chart_table(alignments, fitness_df, s, output_dir)
+    # task16_flow_chart_elaborate(act_totals, s, model_path, output_dir)
+    # task16_flow_chart_elaborate_table(act_totals, viol_df, s, model_path, output_dir)
