@@ -2,6 +2,17 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: task03 Asks About Overall Behavior; Readable Boolean Buckets (2026-09-19)
+
+| File | Change |
+|------|--------|
+| `provibackend/ProViBackend/app/seed_data.py` | task03's description matches its question (already "overall behavior", from Tasks and Idioms.pdf): compare the groups over the chosen attributes, throughput time by default — no longer "which group is slower". |
+| `provibackend/ProViBackend/scripts/tasks/task03.py` | Module docstring and `RUBRIC` follow the question: any compared attribute, throughput time as the default. |
+| `provibackend/ProViBackend/scripts/trace_features.py` | `as_bucketable(..., key=)`: a `contains::X` boolean buckets as "With 'X'" / "Without 'X'" instead of a bare Yes / No. |
+| `scripts/tasks/task03.py`, `tasks/task13.py`, `trace_response.py` | Pass the key. task30 and `violation_profile` prefix every label with the attribute already, so they keep Yes / No. |
+
+`py_compile` only; not rendered.
+
 ## Session: task02 Idioms Show the Same Information (2026-09-19)
 
 | File | Change |

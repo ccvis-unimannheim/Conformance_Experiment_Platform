@@ -225,7 +225,7 @@ def _build_evidence_frame(log, feat: pd.DataFrame, candidate_attributes: list):
         else:
             try:
                 values, value_type = trace_features.extract(log, key)
-                values, kind = trace_features.as_bucketable(values, value_type)
+                values, kind = trace_features.as_bucketable(values, value_type, key=key)
             except (KeyError, ValueError) as e:
                 logger.warning(f"      task13: skipping attribute '{key}' — {e}")
                 continue

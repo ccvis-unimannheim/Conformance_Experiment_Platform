@@ -1,7 +1,9 @@
 """
-tasks/task03.py – Task ID 3: Describe / Compare / Conformant vs. non-conformant
-throughput time.
+tasks/task03.py – Task ID 3: Describe / Compare / Overall behavior of conformant
+vs. non-conformant traces.
 
+The question is how the two groups' behavior differs, so what is compared is
+the admin's choice (`response_attribute`); throughput time is only the default.
 Every idiom contrasts the SAME factors between the Conformant
 (fitness ≥ threshold) and Non-conformant (fitness < threshold) trace groups —
 each selected attribute's distribution over quartile buckets, one panel per
@@ -57,11 +59,12 @@ PARAM_SPEC = [
 
 
 RUBRIC = (
-    "A complete answer states which group — Conformant or Non-conformant — has the "
-    "longer average throughput time, and ideally by roughly how much (e.g. 'Non-conformant "
-    "traces take about twice as long on average'). Award full marks for the correct "
-    "direction with an approximate magnitude, partial marks for the correct direction "
-    "without a magnitude, and deduct marks for the wrong direction."
+    "A complete answer names where the Conformant and Non-conformant groups differ on "
+    "the compared attribute(s) — which values or buckets are more common in which group — "
+    "and ideally by roughly how much (e.g. 'Non-conformant traces are more often in the "
+    "longest throughput-time quartile, about 40% against 20%'). Award full marks for the "
+    "correct direction with an approximate magnitude, partial marks for the correct "
+    "direction without a magnitude, and deduct marks for the wrong direction."
 )
 
 
@@ -149,7 +152,7 @@ def _task03_build_trace_rows(log, fitness_df: pd.DataFrame,
     # walking every trace's timestamps a second time.
     key = response_attribute or trace_features.DURATION_KEY
     values, value_type = trace_features.extract(log, key)
-    values, value_type = trace_features.as_bucketable(values, value_type)
+    values, value_type = trace_features.as_bucketable(values, value_type, key=key)
 
     rows = []
     for i, trace in enumerate(log):
@@ -262,7 +265,7 @@ def _task03_throughput_bucket_rows(throughput_buckets):
 
 
 # ---------------------------------------------------------------------------
-# Idioms — every one shows the SAME throughput-time bucket comparison
+# Idioms — every one shows the SAME bucket comparison of the compared attribute(s)
 # ---------------------------------------------------------------------------
 
 def task03_bar_chart(panels, output_dir: str):
