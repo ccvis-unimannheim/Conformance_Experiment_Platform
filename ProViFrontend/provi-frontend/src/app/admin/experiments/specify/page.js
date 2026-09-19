@@ -53,9 +53,31 @@ function entryApplies(entry, vals) {
   });
 }
 
+// An entry whose candidates only make sense once a sibling parameter is set
+// (the values of *this* attribute, not of every attribute in the log) declares
+// `options_filter: {param, prefix}`. Its source lists every "<key><prefix>
+// <value>" pair — /specify bakes a param's options in once per dataset, so the
+// source cannot narrow itself to a choice made afterwards — and this keeps the
+// ones belonging to the sibling's current value. Nothing is offered until the
+// sibling is set: every option would be wrong.
+function filterOptions(entry, options, siblings) {
+  const rule = entry.options_filter;
+  if (!rule) return options;
+  const key = (siblings || {})[rule.param];
+  if (!key) return [];
+  const prefix = `${key}${rule.prefix ?? ""}`;
+  return options
+    .filter((o) => String(typeof o === "string" ? o : o.value).startsWith(prefix))
+    // The field is already scoped to the attribute, so repeating it in every
+    // row is noise. Only the label changes; the stored value keeps the pair.
+    .map((o) => (typeof o === "string"
+      ? { value: o, label: o.slice(prefix.length) }
+      : { ...o, label: String(o.label ?? o.value).slice(prefix.length) }));
+}
+
 // Generic param widget — renders per PARAM_SPEC entry (see docs/ADMIN_EXPERIMENT_SETUP.md).
-function ParamField({ entry, value, onChange }) {
-  const options = entry.options || [];
+function ParamField({ entry, value, onChange, siblings }) {
+  const options = filterOptions(entry, entry.options || [], siblings);
   const [optionFilter, setOptionFilter] = useState("");
 
   if (entry.widget === "select-one") {
@@ -101,10 +123,13 @@ function ParamField({ entry, value, onChange }) {
   if (entry.widget === "select-many") {
     const selected = Array.isArray(value) ? value : [];
     if (options.length === 0) {
+      const waitingFor = entry.options_filter && !(siblings || {})[entry.options_filter.param];
       return (
         <div className="flex flex-col gap-1">
           <p className="text-sm text-on-surface/60 italic">
-            No candidates available for this dataset yet.
+            {waitingFor
+              ? "Choose the attribute above first — these are its values."
+              : "No candidates available for this dataset yet."}
           </p>
           {entry.options_error && (
             <p className="text-xs text-red-700 font-mono break-all">{entry.options_error}</p>
@@ -376,7 +401,14 @@ function SpecifyContent() {
 
   function setParamValue(taskId, key, value) {
     setParamValues((prev) => {
-      const next = { ...prev, [taskId]: { ...(prev[taskId] || {}), [key]: value } };
+      const own = { ...(prev[taskId] || {}), [key]: value };
+      // A selection made from another attribute's values is not a selection
+      // from this one's: the pairs it holds are no longer on offer, so they
+      // would sit in the payload unseen and unremovable.
+      for (const entry of paramSpecs[taskId] || []) {
+        if (entry.options_filter?.param === key) own[entry.key] = [];
+      }
+      const next = { ...prev, [taskId]: own };
       const updatedInstances = taskInstances.map((ti) => ({
         ...ti,
         parameters: isImported(ti) ? ti.parameters || {} : next[ti.task_id] || {},
@@ -723,6 +755,7 @@ function SpecifyContent() {
                             <ParamField
                               entry={entry}
                               value={vals[entry.key]}
+                              siblings={vals}
                               onChange={(v) => setParamValue(ti.task_id, entry.key, v)}
                             />
                           </div>

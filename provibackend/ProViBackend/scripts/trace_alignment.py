@@ -152,6 +152,12 @@ CONFORMANT_VALUES_PARAM = {
     "label": "Values that count as conformant (any other value is a violation)",
     "widget": "select-many",
     "source": "log.attribute_values",
+    # The source lists every "attribute = value" pair in the log, because
+    # /specify bakes a param's options in once per dataset and cannot narrow
+    # them to a choice the admin has not made yet. So the narrowing happens
+    # where the choice is: only the pairs belonging to `data_attribute` are
+    # offered, and nothing is offered before one is picked.
+    "options_filter": {"param": "data_attribute", "prefix": " = "},
     "default": [],
     # validate_perspective refuses to generate without it in this perspective.
     "required": True,
@@ -717,7 +723,9 @@ def validate_perspective(log, params: dict) -> list:
             )
         # A value is offered as "attribute = value"; all of them must belong to
         # the attribute under scrutiny, or the figure would judge two attributes
-        # at once.
+        # at once. /specify only offers the chosen attribute's values and clears
+        # the selection when the attribute changes, so this now catches what it
+        # cannot see: a configuration saved before that, or one posted directly.
         foreign = [v for v in values
                    if "=" in v and v.split("=", 1)[0].strip() != attribute]
         if attribute and foreign:
