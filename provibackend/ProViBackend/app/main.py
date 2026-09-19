@@ -1,4 +1,5 @@
 import logging
+import threading
 import uuid
 from contextlib import asynccontextmanager
 
@@ -68,6 +69,12 @@ async def lifespan(app: FastAPI):
         _gen_sample()
     except Exception:
         logger.exception("Sample dataset generation failed; preview (sample) will be unavailable")
+    else:
+        # Draw the Select Idiom page's previews with this image's generator
+        # code, without holding up startup (see admin.prewarm_idiom_previews).
+        threading.Thread(
+            target=admin.prewarm_idiom_previews, name="idiom-preview-prewarm", daemon=True
+        ).start()
     yield
 
 

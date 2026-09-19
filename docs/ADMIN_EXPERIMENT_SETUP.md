@@ -165,6 +165,19 @@ A task whose every selected idiom has such an image is skipped by generation
 altogether (`_fully_uploaded_task_ids` in `app/routers/admin.py`): its status
 stays `ready` and its parameters are not validated.
 
+## Idiom previews on /idiom
+
+The preview on the idiom step (`POST`/`GET /admin/idiom-preview/{task_key}…`)
+is drawn by the same generator as an experiment's images, from the bundled
+sample dataset with default parameters — so it shows how the current code
+draws an idiom, not the experiment's data. It is generated once per task and
+container, into `scripts/sample_data/output/__idiom_preview/`, which is not on
+the data volume and not committed: every image rebuild (every code change)
+starts it empty. At startup `prewarm_idiom_previews` draws all tasks in a
+background thread, one after another; a task requested before its turn is
+drawn on that request instead. Outside Docker, delete that directory after
+changing a task to see its new previews.
+
 ## Idiom images: export, import, replace
 
 For reproducibility, the images participants see can be taken out of the

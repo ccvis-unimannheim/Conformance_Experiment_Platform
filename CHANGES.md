@@ -2,6 +2,51 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: Idiom Previews Drawn by the Current Code (2026-09-19)
+
+### Problem solved
+
+The preview on the idiom step served SVGs committed to the repo on 2026-07-19
+(12 tasks, exported from a container by `export_idiom_previews.sh`), and marked
+those tasks ready at startup without ever drawing them. The task modules have
+changed substantially since, so an admin choosing idioms saw July's drawings,
+while the Overview page — and participants — saw the current generator's
+output.
+
+### Backend (`provibackend/`)
+
+| File | Change |
+|------|--------|
+| `ProViBackend/app/routers/admin.py` | Previews are only ever drawn at runtime, into a container-local cache that every image rebuild empties. `prewarm_idiom_previews` draws all tasks one after another; `_claim_idiom_preview` (under a lock) keeps it and admin requests from drawing the same task twice. Sample-dataset check factored into `_sample_dataset_ready`. Preview SVGs are served with `Cache-Control: no-cache`. |
+| `ProViBackend/app/main.py` | Starts the prewarm in a daemon thread once the sample dataset exists. |
+| `ProViBackend/scripts/sample_data/output/__idiom_preview/` | **Deleted** (84 committed SVGs); now in `.gitignore`. |
+| `scripts/export_idiom_previews.sh` | **Deleted** — it existed to commit those SVGs. |
+
+### Frontend (`ProViFrontend/`)
+
+| File | Change |
+|------|--------|
+| `src/app/admin/experiments/idiom/page.js` | The page text, the preview button's tooltip and a note in the preview modal say what a preview is: roughly how the idiom looks, drawn from a bundled BPIC 2012 loan-application log with default parameters, not the admin's dataset — the real images come from generating on the Specify step. The note is left out for custom idioms, whose preview is the real image. |
+
+### Docs
+
+`docs/ADMIN_EXPERIMENT_SETUP.md` (*Idiom previews on /idiom*).
+
+### Verification
+
+- `py_compile` over the changed Python files.
+- **Not verified end to end:** the prewarm's duration and its effect on
+  request latency right after a deploy are unmeasured; its log lines
+  (`[idiom-preview] … in Ns`, `prewarm finished in Ns`) report both on the
+  server.
+
+### Known gaps
+
+- Still the sample dataset with default parameters, not the experiment's own
+  dataset — a preview shows how an idiom is drawn, not this experiment's data.
+- Generation shares the interpreter with request handling; the prewarm runs one
+  task at a time with a pause, but requests may still be slower until it ends.
+
 ## Session: Idiom Import Checks Dataset and Parameters (2026-09-19)
 
 ### Problem solved

@@ -90,7 +90,9 @@ function IdiomPreviewModal({ taskKey, idiomKey, idiomLabel, isCustom, onClose })
               {taskKey}
             </span>
             <span className="text-sm font-semibold text-on-surface">{idiomLabel}</span>
-            <span className="ml-2 text-xs text-on-surface-variant">(sample data · default params)</span>
+            {!isCustom && (
+              <span className="ml-2 text-xs text-on-surface-variant">(sample data · default params)</span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {status === "ready" && (
@@ -112,6 +114,19 @@ function IdiomPreviewModal({ taskKey, idiomKey, idiomLabel, isCustom, onClose })
             </button>
           </div>
         </div>
+
+        {/* What this preview is not: a custom idiom's image is the real one, but a
+            generated idiom is drawn from a bundled log with default parameters. */}
+        {!isCustom && (
+          <div className="flex items-start gap-2 px-5 py-2.5 text-xs text-on-surface-variant bg-surface-container border-b border-border-subtle flex-shrink-0">
+            <span className="material-symbols-outlined text-sm">info</span>
+            <p>
+              This shows roughly what the idiom looks like. Previews use a bundled loan-application log
+              (BPIC 2012) with default parameters, not your dataset. The images participants see are drawn
+              from your dataset once you set the parameters and generate on the Specify step.
+            </p>
+          </div>
+        )}
 
         {/* Body — white background so SVGs with white bg are visible */}
         <div className="flex-1 flex items-center justify-center p-6 overflow-auto bg-white min-h-[320px]">
@@ -265,7 +280,7 @@ function IdiomOption({ idiom, iid, selected, onToggle, onPreview, onRenamed, sho
           )}
           <button
             onClick={(e) => { e.stopPropagation(); onPreview(); }}
-            title="Preview this idiom with sample data"
+            title="Preview roughly what this idiom looks like (sample data, not your dataset)"
             className="flex-shrink-0 text-on-surface-variant hover:text-primary transition-colors p-0.5 rounded"
           >
             <span className="material-symbols-outlined text-[16px]">visibility</span>
@@ -480,7 +495,9 @@ function IdiomSelectionContent() {
             Choose which visualization idioms should be shown for each selected task. Each task must
             have at least one idiom assigned before saving. Click{" "}
             <span className="material-symbols-outlined text-sm align-middle">visibility</span>{" "}
-            to preview what an idiom looks like using sample data.
+            to preview roughly what an idiom looks like. Previews use a bundled loan-application log
+            (BPIC 2012) with default parameters, not your dataset — the actual images are drawn from your
+            dataset once you set the parameters and generate them on the Specify step.
           </p>
         </div>
 
