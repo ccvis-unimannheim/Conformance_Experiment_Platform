@@ -20,6 +20,25 @@ task16 already does. The renderers stay.
 A draft that had already selected one of these keeps it selected, but
 regenerating no longer draws its image. `py_compile` only.
 
+## Session: task31 Reads Like task10, and Says When a Category Is Empty (2026-09-19)
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| Bar chart | The `Bin '= 1.0'` caption is gone and the axis stops at 100 — a rate cannot pass it, and the 20% headroom made the tallest bar look short of a ceiling that does not exist. A label on a bar above 93% moves inside it, stacked over two lines: on one line it is wider than the bar, so its ends were white on the white background and unreadable. |
+| Stacked bar | `PAIR_COLORS` (navy against cividis's bright yellow) instead of `GREY_LIGHT` `#a99f73`, which sat in the olive middle and read as a third, muted category. |
+| Wording | All five idioms name the unit as task10 does: **Conformance Category**, not Conformance Degree, Conformance Band or Fitness Band. Empty-state titles included, so a blank idiom is not titled differently from a filled one. |
+| Empty categories | `_band_outcome_rates` returns NaN, not 0.0, for a category no trace falls into. A zero reads as "none of these traces had a positive outcome", which is a finding; there are none. The heatmap left such cells at the yellow end of its scale and now leaves them blank; the stacked bar dropped the category entirely and now keeps its slot empty. The bar chart, table and matrix already marked them (no bar, `—`, `—`). |
+
+All five idioms now show the same six categories and agree on what an empty one
+looks like.
+
+### Verification
+
+`py_compile` and `pyflakes`, the latter against HEAD so only new warnings count
+— there are none. Not regenerated.
+
 ## Session: task30 and task31 Idioms Carry One Payload (2026-09-19)
 
 ### Problem solved
