@@ -25,17 +25,17 @@ Design (settled):
     (rather than an automatic top-N cut), so charts stay readable and every idiom
     renders exactly the chosen set. Leaving it empty shows every pattern found.
 
-Scope = 4 idioms, all information-equivalent (per violation pattern: goal-achievement
+Scope = 5 idioms, all information-equivalent (per violation pattern: goal-achievement
 rate with vs. without), restricted to the admin-selected ``target_patterns``. Stems →
 canonical slug after the pipeline rename:
     task19_bar_chart.svg           → bar_chart
     task19_table.svg               → table
     task19_matrix.svg              → matrix
+    task19_heatmap.svg             → heatmap
     task19_parallel_sets.svg       → parallel_sets
 
     Commented out of IDIOMS/generate() for now:
     task19_table_and_bar_chart.svg → table_bar_chart
-    task19_heatmap.svg             → heatmap
 
 Public API:
     generate(log, alignments, model_path, output_dir, outcome_activity="",
@@ -51,9 +51,8 @@ import logging
 logger = logging.getLogger(__name__)
 
 IDIOMS = [
-    "bar_chart", "table", "matrix", "parallel_sets",
+    "bar_chart", "table", "matrix", "heatmap", "parallel_sets",
     # "table_bar_chart",
-    # "heatmap",
 ]
 
 
@@ -652,5 +651,5 @@ def generate(log, alignments, model_path, output_dir: str, outcome_activity: str
     task19_table(eff, output_dir)
     # task19_table_and_bar_chart(eff, output_dir)
     task19_matrix(eff, output_dir)
-    # task19_heatmap(eff, output_dir)
+    task19_heatmap(eff, output_dir)
     task19_parallel_sets(eff, output_dir)
