@@ -41,8 +41,12 @@ that is the participant's job:
 | idiom | how the threshold appears |
 |---|---|
 | tile_metric | a second value beside the fitness |
-| bar_chart | a dashed line across the bar, labelled `Fitness Threshold = 0.80` |
-| table | its own row |
+| bar_chart | a dashed line across the bar, named `Fitness Threshold = 0.80` in a legend below |
+| table | its own column, beside Mean Fitness — the only two columns |
+
+The three idioms carry the same two numbers and nothing else. The table used to
+add trace counts and "% conformant", which cut at fitness 1.0 beside a 0.8
+threshold: more information than the other two, and a second standard.
 
 It is participant-facing (no `hide_hint`): the question cannot be asked without
 naming the threshold.

@@ -2,6 +2,15 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: task02 Idioms Show the Same Information (2026-09-19)
+
+| File | Change |
+|------|--------|
+| `provibackend/ProViBackend/scripts/tasks/task02.py` | Table reduced to Mean Fitness and Fitness Threshold, what the tile and bar chart show; its trace counts and "% conformant" (cut at 1.0 beside a 0.8 threshold) are gone. Bar chart: the threshold label sat on the navy bar, dark on dark — it moves to a legend below the axes, and the dashed line gets a white outline so it shows across the bar. |
+| `docs/AGGREGATE_FITNESS_CLASS.md` | §2 matches: the table's threshold is a column, the bar chart's is named in a legend, and the three idioms carry the same two numbers. |
+
+`py_compile` only; not rendered.
+
 ## Session: task01 Idioms Show the Same Information (2026-09-19)
 
 ### Problem solved
