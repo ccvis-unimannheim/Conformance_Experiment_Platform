@@ -13,6 +13,7 @@ import ProViBackend.utils.database.connection as dbc
 from ProViBackend.utils import idiom_files, utils
 from ProViBackend.scripts.tasks import task_registry
 from ProViBackend.app.label_overrides import resolve_idiom_label
+from ProViBackend.app.task_wording import effective_wording
 from ProViBackend.utils.database.assignment import (
     assign_participant_to_experiment,
     get_assignment,
@@ -296,16 +297,16 @@ async def get_active_experiment():
         ti_snapshot = task_instances_by_task_id.get(task_id, {})
         task  = dbc.get_task(task_id)
         idiom = dbc.get_document("Idiom", {"_id": idiom_id})
-        if not (ti_snapshot.get("label") and ti_snapshot.get("task_key")) and not task:
-            continue
         if not idiom:
             continue
 
-        # The instance carries wording only where an admin reworded this task for
-        # this experiment; otherwise the shared question bank supplies it, so a
-        # correction there reaches every experiment that never overrode it.
-        task_key = ti_snapshot.get("task_key") or task["task_key"]
-        task_label = ti_snapshot.get("label") or task["label"]
+        # This experiment's own wording if an admin reworded the task here,
+        # otherwise the shared question bank's — so a correction to the bank
+        # reaches every experiment that never overrode it.
+        task_key = ti_snapshot.get("task_key") or (task or {}).get("task_key") or ""
+        task_label = effective_wording(exp, task_id, task, ti_snapshot)["label"]
+        if not task_key or not task_label:
+            continue
 
         svg_path, _ = _resolve_svg_path(task_id, idiom_id, dataset_id, experiment_id)
         svg_available = bool(svg_path and svg_path.exists())
@@ -421,16 +422,16 @@ async def get_assigned_trials(
         ti = task_instances_by_task_id.get(task_id, {})
         task  = dbc.get_task(task_id)
         idiom = dbc.get_document("Idiom", {"_id": idiom_id})
-        if not (ti.get("label") and ti.get("task_key")) and not task:
-            continue
         if not idiom:
             continue
 
-        # The instance carries wording only where an admin reworded this task for
-        # this experiment; otherwise the shared question bank supplies it, so a
-        # correction there reaches every experiment that never overrode it.
-        task_key = ti.get("task_key") or task["task_key"]
-        task_label = ti.get("label") or task["label"]
+        # This experiment's own wording if an admin reworded the task here,
+        # otherwise the shared question bank's — so a correction to the bank
+        # reaches every experiment that never overrode it.
+        task_key = ti.get("task_key") or (task or {}).get("task_key") or ""
+        task_label = effective_wording(exp, task_id, task, ti)["label"]
+        if not task_key or not task_label:
+            continue
 
         svg_path, _ = _resolve_svg_path(task_id, idiom_id, dataset_id, experiment_id)
         svg_available = bool(svg_path and svg_path.exists())

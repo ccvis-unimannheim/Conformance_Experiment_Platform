@@ -204,8 +204,7 @@ class TaskConfig(BaseModel):
     idiom_id: str
     dataset_id: str
     question_ids: List[str]
-    # This experiment's own wording, set only when an admin reworded the task
-    # here; `task_key` aside, empty means "use the question bank's wording".
+    # Legacy copy of the question bank frozen onto this config; see TaskInstance.
     task_key: Optional[str] = None
     label: Optional[str] = None
     description: Optional[str] = None
@@ -234,10 +233,10 @@ class TaskInstance(BaseModel):
     images_imported_from: Optional[Dict[str, Any]] = None
     question_ids: List[str] = []
     # `task_key` identifies which generator drew this task's figures and is
-    # always stamped. The three wording fields are this experiment's override,
-    # written only by PATCH /admin/tasks/{id}?experiment_id=… — empty (the
-    # normal case) means the shared question bank supplies the wording, so a
-    # correction to seed_data.py reaches every experiment that never edited it.
+    # always stamped. The three wording fields are a legacy copy of the question
+    # bank, frozen here before Experiment.task_overrides existed; they still
+    # outrank the bank so an experiment that has run keeps the text its
+    # participants saw. scripts/reseed_task_questions.py --apply clears them.
     task_key: Optional[str] = None
     label: Optional[str] = None
     description: Optional[str] = None
@@ -258,6 +257,11 @@ class Experiment(BaseModel):
     dataset_ids: List[str]
     task_configs: List[TaskConfig] = []      # legacy flat view (mirror of task_instances)
     task_instances: List[TaskInstance] = []  # canonical: one entry per task
+    # Questions this experiment asks in its own words: task_id -> {label,
+    # description, answer_type}, written when an admin edits a task on /task or
+    # /overview. Every task missing here is asked in the shared question bank's
+    # words, so a correction to seed_data.py reaches it (app/task_wording.py).
+    task_overrides: Dict[str, Dict[str, str]] = {}
     # The questions this experiment asks. An empty list is a real answer — the
     # admin deselected every one — so it cannot *also* mean "not chosen yet";
     # that is what the flag below is for. Experiments written before the flag

@@ -18,10 +18,10 @@ and with --apply writes the canonical wording and clears the flag.
 It also clears the wording frozen onto every experiment's task instances. That
 snapshot was taken the first time a task entered an experiment, so an experiment
 kept whatever the bank said that day — including the bank entries an admin had
-overwritten for a different experiment. With the snapshot gone, an instance
-reads through to the bank (participant.py: `ti.get("label") or task["label"]`),
-and a label reappears on an instance only when an admin rewords that task *for
-that experiment*.
+overwritten for a different experiment. With the snapshot gone, an experiment
+reads through to the bank (app/task_wording.py), and shows its own wording only
+where an admin reworded that task *for that experiment*, which is now stored
+separately (`Experiment.task_overrides`) and is left untouched here.
 
 Run it once after deploying the per-experiment wording change; it is idempotent.
 """

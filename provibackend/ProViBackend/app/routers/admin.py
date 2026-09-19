@@ -73,6 +73,7 @@ except ImportError:
     raise
 from ProViBackend.utils import config, idiom_files, utils
 from ProViBackend.app.datamodels import data_schemas as ds
+from ProViBackend.app.task_wording import effective_wording
 import ProViBackend.app.answer_formats as afmt
 import pathlib as pl
 
@@ -588,13 +589,19 @@ async def download_experiment_answers(experiment_id: str):
 
     # ── Clean up Task Answers columns ─────────────────────────────────────
     if not df_answers.empty:
-        # Resolve task_id → task_key + task_name
+        # Resolve task_id → task_key + task_name. The name is the question as
+        # *this* experiment asked it, which is what its participants answered.
+        exp_doc = dbc.get_document("Experiment", {"_id": experiment_id})
+        instances_by_task_id = {ti.get("task_id"): ti
+                                for ti in (exp_doc or {}).get("task_instances", [])}
         unique_task_ids = df_answers["task_id"].dropna().unique().tolist()
         task_lookup = {}
         for tid in unique_task_ids:
             doc = dbc.get_task(tid)
             if doc:
-                task_lookup[tid] = {"task_key": doc.get("task_key", ""), "task_name": doc.get("label", "")}
+                wording = effective_wording(exp_doc, tid, doc, instances_by_task_id.get(tid))
+                task_lookup[tid] = {"task_key": doc.get("task_key", ""),
+                                    "task_name": wording["label"]}
         df_answers["task_key"] = df_answers["task_id"].map(lambda x: task_lookup.get(x, {}).get("task_key", ""))
         df_answers["task_name"] = df_answers["task_id"].map(lambda x: task_lookup.get(x, {}).get("task_name", ""))
 
@@ -609,11 +616,8 @@ async def download_experiment_answers(experiment_id: str):
         df_answers["idiom_name"] = df_answers["idiom_id"].map(lambda x: idiom_lookup.get(x, {}).get("idiom_name", ""))
 
         # Add the configured answer format from the experiment's task_instances
-        exp_doc = dbc.get_document("Experiment", {"_id": experiment_id})
-        format_by_task = {}
-        if exp_doc:
-            for ti in exp_doc.get("task_instances", []):
-                format_by_task[ti.get("task_id")] = ti.get("answer_format") or ""
+        format_by_task = {tid: (ti.get("answer_format") or "")
+                          for tid, ti in instances_by_task_id.items()}
         df_answers["answer_format"] = df_answers["task_id"].map(
             lambda x: format_by_task.get(x, "")
         )
@@ -956,12 +960,8 @@ async def get_tasks(experiment_id: str | None = None):
     tasks.sort(key=_task_sort_key)
     if experiment_id:
         exp = dbc.get_document("Experiment", {"_id": experiment_id}) or {}
-        overrides = {ti.get("task_id"): ti for ti in (exp.get("task_instances") or [])}
         for doc in tasks:
-            inst = overrides.get(doc.get("_id")) or {}
-            for field in ("label", "description", "answer_type"):
-                if inst.get(field):
-                    doc[field] = inst[field]
+            doc.update(effective_wording(exp, doc.get("_id", ""), doc))
         tasks.extend(exp.get("custom_tasks") or [])
     return JSONResponse(content=tasks)
 
@@ -973,11 +973,11 @@ async def update_task(task_id: str, update_data: ds.TaskUpdate,
 
     The question bank (the Task collection) holds the wording every experiment
     starts from and is owned by seed_data.py, so a reworded question is stored
-    on the experiment's own task_instance: it reaches this experiment's
-    participants and no one else's. Editing the bank itself used to be what this
-    endpoint did, which made one experiment's wording ("…for Ship Order",
-    "…customer segments and region") everybody's default and stopped the startup
-    seed from ever correcting it.
+    on the experiment (`task_overrides`, see app/task_wording.py): it reaches
+    this experiment's participants and no one else's. Editing the bank itself
+    used to be what this endpoint did, which made one experiment's wording
+    ("…for Ship Order", "…customer segments and region") everybody's default and
+    stopped the startup seed from ever correcting it.
 
     `rubric` is the exception and still goes to the bank: it is reference text
     for whoever codes the answers by hand, not something a participant sees, and
@@ -1012,16 +1012,18 @@ async def update_task(task_id: str, update_data: ds.TaskUpdate,
             detail="experiment_id is required: a task's wording is edited for one "
                    "experiment, not for the shared question bank.",
         )
+    # Keyed by task_id on the experiment itself, not on its task_instances: on
+    # /task the tasks are still being chosen, so the instance does not exist yet
+    # (and should not be conjured up by an edit), and an override has to outlive
+    # deselecting the task and picking it again.
     updated = dbc.update_document(
         "Experiment",
-        query={"_id": experiment_id, "task_instances.task_id": task_id},
-        update={"$set": {f"task_instances.$.{k}": v for k, v in wording.items()}},
+        query={"_id": experiment_id},
+        update={"$set": {f"task_overrides.{task_id}.{k}": v for k, v in wording.items()}},
     )
     if not updated:
         raise HTTPException(
-            status_code=404,
-            detail=f"Task '{task_id}' is not part of experiment '{experiment_id}'.",
-        )
+            status_code=404, detail=f"Experiment '{experiment_id}' not found.")
     return JSONResponse(content={"message": "Task updated for this experiment.",
                                  "task_id": task_id, "experiment_id": experiment_id})
 
@@ -1444,23 +1446,24 @@ async def update_experiment_status(experiment_id: str, status: str):
 
 
 def _freeze_task_snapshots(instances: list[dict], existing_by_task_id: dict) -> list[dict]:
-    """Stamp each task instance with its `task_key`, and keep any wording this
-    experiment has overridden.
+    """Stamp each task instance with its `task_key`, and carry any legacy frozen
+    wording through untouched.
 
-    The question bank is the default for every experiment, and it is owned by
-    seed_data.py — so an instance carries no label unless an admin has edited
-    the wording *in this experiment* (PATCH /admin/tasks/{id}?experiment_id=…).
-    An instance without one reads through to the bank and always shows its
-    current wording.
+    Wording is not this function's business any more: an experiment asks each
+    task in the question bank's words unless an admin reworded it there, which
+    is stored on the experiment (`task_overrides`, app/task_wording.py). This
+    used to freeze the bank's label into every instance the first time the task
+    entered the experiment, and three readers then disagreed — /task showed the
+    bank, participants the frozen copy, and an admin's edit went to the bank, so
+    it reached neither their own experiment nor, correctly, everyone else's.
 
-    This used to freeze the bank's label into every instance the first time the
-    task entered the experiment. Three readers then disagreed: /task showed the
-    bank, participants showed the frozen copy, and an admin's edit — which went
-    to the bank — reached neither their own experiment nor, correctly, the other
-    experiments it silently changed.
+    Instances written back then still carry that copy; it is preserved here
+    rather than dropped, so an experiment that has already run keeps the text
+    its participants saw until reseed_task_questions.py --apply clears it.
 
-    `task_key` is identity rather than wording, so it stays: an experiment whose
-    Task document is later deleted still knows which generator drew its figures.
+    `task_key` is identity rather than wording, so it is always stamped: an
+    experiment whose Task document is later deleted still knows which generator
+    drew its figures.
     """
     task_cache: dict = {}
     for inst in instances:
@@ -1468,7 +1471,7 @@ def _freeze_task_snapshots(instances: list[dict], existing_by_task_id: dict) -> 
         if not task_id:
             continue
         existing = existing_by_task_id.get(task_id) or {}
-        # An override the admin set on this experiment survives every save.
+        # Legacy frozen wording survives every save; nothing writes it any more.
         for field in ("label", "description", "answer_type"):
             if not inst.get(field) and existing.get(field):
                 inst[field] = existing[field]
