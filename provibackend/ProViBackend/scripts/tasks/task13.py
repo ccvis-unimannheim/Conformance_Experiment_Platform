@@ -34,10 +34,12 @@ Design (settled):
 Scope = the 7 "High" idioms (Priority column of docs/TASK_IDIOM_MAPPING.md). Stems written here → canonical slug after the
 pipeline rename (see create_all_visualizations._FILE_RENAME):
     task13_bar_chart.svg                      → bar_chart
-    task13_scatter_plot.svg                   → scatterplot
     task13_table.svg                          → table
-    task13_table_and_bar_chart.svg            → table_bar_chart
     task13_parallel_sets.svg                  → parallel_sets
+
+    Commented out of IDIOMS/generate() for now:
+    task13_scatter_plot.svg                   → scatterplot
+    task13_table_and_bar_chart.svg            → table_bar_chart
     task13_flow_chart_and_table.svg           → flow_chart_table            (basic chevron + table)
     task13_flow_chart_elaborate_bpmn_table.svg→ flow_chart_elaborate_table  (annotated BPMN + table)
 
@@ -52,8 +54,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "scatter_plot", "table", "table_bar_chart",
-          "parallel_sets"]
+IDIOMS = ["bar_chart", "table", "parallel_sets",
+          # "scatter_plot",
+          # "table_bar_chart",
+          ]
 
 # What this task measures per group, and how it cuts the log — task
 # properties rather than admin choices (see TRACE_FEATURE_REGISTRY.md).
@@ -99,7 +103,7 @@ from matplotlib import gridspec
 from scipy import stats
 
 from shared import (
-    save_svg, make_table, draw_parallel_sets, render_empty_state_svg,
+    save_svg, make_table, draw_parallel_sets, render_empty_state_svg, wrap_text,
     chevron_nodes_from_alignment_rows, draw_chevron_strip, chevron_figure_width,
     parse_bpmn_model, compose_bpmn_panels, alignment_violation_node_style, format_threshold,
     GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
@@ -435,7 +439,7 @@ def task13_bar_chart(attr_meta, evidence_df, output_dir):
         ax.yaxis.grid(True, linestyle="--", alpha=0.45)
         ax.set_axisbelow(True)
     axes[0][0].set_ylabel("Violation rate (%)", fontsize=FONT_LABEL)
-    fig.suptitle("Guideline-Violation Rate by Candidate Attribute", fontsize=FONT_TITLE)
+    fig.suptitle("Guideline Violations by Candidate Attribute", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
@@ -498,25 +502,42 @@ def task13_scatter_plot(attr_meta, evidence_df, output_dir):
     save_svg(fig, path)
 
 
-def task13_table(ranking, output_dir):
-    """Ranked table: Attribute | Type (measure) | Association strength | Direction."""
-    cell_text = [[r["label"], f"{r['type']} ({r['measure']})",
-                  f"{r['strength']:.2f}", r["direction"]] for r in ranking]
-    fig_h = max(2.6, 1.4 + len(cell_text) * 0.5)
-    fig, ax = plt.subplots(figsize=(11.5, fig_h))
-    ax.axis("off")
-    make_table(
-        ax,
-        cell_text=cell_text,
-        col_labels=["Attribute", "Type (measure)", "Association strength", "Direction"],
-        bbox=[0.02, 0.05, 0.96, 0.80],
-        col_widths=[0.22, 0.27, 0.21, 0.30],
-        font_size=10,
-        cell_pad=0.08,
-    )
-    ax.set_title("Attributes Associated with Guideline Violations (ranked)",
-                 fontsize=FONT_TITLE, pad=10)
-    save_svg(fig, os.path.join(output_dir, "task13_table.svg"))
+def task13_table(ranking, evidence_df, output_dir):
+    """Small multiples: one bucket-breakdown table per candidate attribute,
+    matching bar_chart's per-attribute panels — Bucket | # Traces | Violation Rate."""
+    path = os.path.join(output_dir, "task13_table.svg")
+    violation = evidence_df["violation"].to_numpy()
+    panels = []
+    for r in ranking:
+        res = _bucket_rates(evidence_df[r["col"]].tolist(), r["type"], violation)
+        if res is not None:
+            panels.append((r, res))
+    if not panels:
+        render_empty_state_svg(path, "Attributes Associated with Guideline Violations",
+                               "No candidate attribute had enough variance to bucket.")
+        return
+
+    ncols = len(panels)
+    max_rows = max(len(labels) for _, (labels, _, _) in panels)
+    fig_h = max(3.2, 1.6 + max_rows * 0.5)
+    fig, axes = plt.subplots(1, ncols, figsize=(max(5.0, ncols * 3.8), fig_h), squeeze=False)
+    for ax, (r, (labels, rates, counts)) in zip(axes[0], panels):
+        ax.axis("off")
+        cell_text = [[lab, str(c), f"{rate:.0f}%"] for lab, rate, c in zip(labels, rates, counts)]
+        make_table(
+            ax,
+            cell_text=cell_text,
+            col_labels=["Bucket", "# Traces", "Violation Rate"],
+            bbox=[0.02, 0.06, 0.96, 0.74],
+            col_widths=[0.46, 0.27, 0.27],
+            font_size=9.5,
+            cell_pad=0.08,
+        )
+        ax.set_title(f"{r['label']}\n({r['type']}, assoc.={r['strength']:.2f})",
+                     fontsize=FONT_LABEL, pad=8)
+    fig.suptitle("Guideline Violations by Candidate Attribute", fontsize=FONT_TITLE)
+    fig.tight_layout(pad=1.2)
+    save_svg(fig, path)
 
 
 def task13_table_and_bar_chart(ranking, output_dir):
@@ -592,10 +613,14 @@ def task13_parallel_sets(evidence_df, ranking, output_dir):
         draw_parallel_sets(
             ax, left_labels, right_labels, matrix, left_colors,
             right_colors=[GREY_DARK, GREY_LIGHTER],
-            left_title=r["label"], right_title="Guideline violation",
+            # No right_title: the bars right below are already individually
+            # labelled "Violation" / "No violation", so a column header there
+            # is redundant — and with panels this narrow, dropping it is what
+            # stops it colliding with the (often long) left_title.
+            left_title=wrap_text(r["label"].replace("_", " "), 14), right_title="",
         )
     # Title above the column headers (which draw_parallel_sets places at y=1.08).
-    fig.suptitle("Attribute Bucket vs. Guideline Violation (all candidate reasons)",
+    fig.suptitle("Guideline Violations by Candidate Attribute",
                  fontsize=FONT_TITLE, y=0.99)
     fig.subplots_adjust(top=0.78, wspace=0.5)
     save_svg(fig, path)
@@ -744,9 +769,9 @@ def generate(log, alignments, model_path, output_dir: str, candidate_attributes=
 
     # Statistical idioms
     task13_bar_chart(attr_meta, evidence_df, output_dir)
-    task13_scatter_plot(attr_meta, evidence_df, output_dir)
-    task13_table(ranking, output_dir)
-    task13_table_and_bar_chart(ranking, output_dir)
+    # task13_scatter_plot(attr_meta, evidence_df, output_dir)
+    task13_table(ranking, evidence_df, output_dir)
+    # task13_table_and_bar_chart(ranking, output_dir)
     task13_parallel_sets(evidence_df, ranking, output_dir)
 
     # Flow combos commented out
