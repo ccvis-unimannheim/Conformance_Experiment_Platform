@@ -52,7 +52,7 @@ import matplotlib.dates as mdates
 
 from shared import (
     save_svg, make_table,
-    format_threshold, GREY_LIGHT, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT, draw_value_heatmap, render_empty_state_svg,
+    format_threshold, PAIR_COLORS, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT, draw_value_heatmap, render_empty_state_svg,
     infer_terminal_activity,
 )
 from tasks.task20 import (
@@ -220,7 +220,7 @@ def task31_table(df_table: pd.DataFrame, output_dir: str):
     make_table(
         ax,
         cell_text=cell_text,
-        col_labels=["Conformance Degree (fitness)", "Traces",
+        col_labels=["Conformance Category", "Traces",
                     "Positive Outcome Rate (%)"],
         bbox=[0.04, 0.08, 0.92, 0.70],
         col_widths=[0.40, 0.22, 0.38],
@@ -229,7 +229,7 @@ def task31_table(df_table: pd.DataFrame, output_dir: str):
         header_color=GREY_DARK,
         zebra=True,
     )
-    ax.set_title("Conformance Degree vs. Positive Outcome Rate",
+    ax.set_title("Conformance Category vs. Positive Outcome Rate",
                  fontsize=FONT_TITLE, pad=12)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task31_table.svg"))
@@ -243,7 +243,7 @@ def task31_bar_chart(df: pd.DataFrame, output_dir: str):
     """Bar chart: positive outcome rate per conformance degree band (6 bands incl. exact 1.0)."""
     out_path = os.path.join(output_dir, "task31_bar_chart.svg")
     if df.empty:
-        render_empty_state_svg(out_path, "Conformance Degree vs. Positive Outcome Rate")
+        render_empty_state_svg(out_path, "Conformance Category vs. Positive Outcome Rate")
         return
 
     bands = _assign_fitness_band(df["fitness"], include_exact_one=True)
@@ -264,31 +264,35 @@ def task31_bar_chart(df: pd.DataFrame, output_dir: str):
     ax.bar(x, agg["rate"].fillna(0), width=0.58, color=GREY_DARK, zorder=3,
            edgecolor="white")
 
-    # Annotate each non-empty bar with "rate% (n=N)" above bar
-    max_rate = float(agg["rate"].fillna(0).max())
+    # "rate% (n=N)" above each non-empty bar — inside it near the ceiling, where
+    # a label above would fall outside the fixed 0-100 axis.
     for i, row in agg.iterrows():
         n = row["n"]
         rate = row["rate"]
         if n == 0 or np.isnan(rate):
             continue
-        ax.text(i, rate + max_rate * 0.02 + 0.5,
-                f"{rate:.1f}%  (n={n})",
-                ha="center", va="bottom", fontsize=FONT_ANNOT, color="#222222")
+        label = f"{rate:.1f}%  (n={n})"
+        if rate > 93:
+            ax.text(i, rate - 2.0, label, ha="center", va="top",
+                    fontsize=FONT_ANNOT, color="#ffffff", zorder=4)
+        else:
+            ax.text(i, rate + 2.0, label, ha="center", va="bottom",
+                    fontsize=FONT_ANNOT, color="#222222")
 
-    ax.set_ylim(0, max(max_rate * 1.20, 10))
+    # A rate cannot pass 100, and a headroom factor that lets the axis run to
+    # 120 makes the tallest bar look short of a ceiling that does not exist.
+    ax.set_ylim(0, 100)
     ax.set_xlim(-0.6, len(_FITNESS_BIN_LABELS_EXACT) - 0.4)
     ax.set_xticks(x)
     ax.set_xticklabels(_FITNESS_BIN_LABELS_EXACT, fontsize=FONT_ANNOT)
-    ax.set_xlabel("Conformance Degree (fitness)", fontsize=FONT_LABEL)
+    ax.set_xlabel("Conformance Category", fontsize=FONT_LABEL)
     ax.set_ylabel("Positive Outcome Rate (%)", fontsize=FONT_LABEL)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    ax.set_title("Conformance Degree vs. Positive Outcome Rate", fontsize=FONT_TITLE, pad=10)
+    ax.set_title("Conformance Category vs. Positive Outcome Rate", fontsize=FONT_TITLE, pad=10)
 
-    caption = "Bin '= 1.0' = fitness exactly 1.0"
-    fig.text(0.0, 0.01, caption, ha="left", fontsize=FONT_ANNOT - 1, color="#888888")
     fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
 
@@ -301,7 +305,7 @@ def task31_stacked_bar(df: pd.DataFrame, output_dir: str):
     """100%-stacked bar: positive vs negative outcome proportion per conformance band."""
     out_path = os.path.join(output_dir, "task31_stacked_bar.svg")
     if df.empty:
-        render_empty_state_svg(out_path, "Outcome Composition by Conformance Band")
+        render_empty_state_svg(out_path, "Outcome Composition by Conformance Category")
         return
 
     bands = _assign_fitness_band(df["fitness"], include_exact_one=True)
@@ -317,7 +321,7 @@ def task31_stacked_bar(df: pd.DataFrame, output_dir: str):
         band_data.append({"band": label, "n": n, "prop_pos": prop_pos, "prop_neg": prop_neg})
 
     if not band_data:
-        render_empty_state_svg(out_path, "Outcome Composition by Conformance Band")
+        render_empty_state_svg(out_path, "Outcome Composition by Conformance Category")
         return
 
     n_nonempty = len(band_data)
@@ -332,8 +336,14 @@ def task31_stacked_bar(df: pd.DataFrame, output_dir: str):
     prop_neg_arr = np.array([d["prop_neg"] for d in band_data])
 
     # Bottom segment = positive (darker), top = negative (lighter)
-    bars_pos = ax.bar(x, prop_pos_arr, color=GREY_DARK, edgecolor="white", label="Positive outcome")
-    bars_neg = ax.bar(x, prop_neg_arr, bottom=prop_pos_arr, color=GREY_LIGHT, edgecolor="white", label="Negative outcome")
+    # PAIR_COLORS is the palette's pair for two unordered groups: dark navy
+    # against cividis's bright yellow. GREY_LIGHT (#a99f73) sat in the olive
+    # middle and read as a third, muted category.
+    _POSITIVE, _NEGATIVE = PAIR_COLORS
+    ax.bar(x, prop_pos_arr, color=_POSITIVE, edgecolor="white",
+           label="Positive outcome")
+    ax.bar(x, prop_neg_arr, bottom=prop_pos_arr, color=_NEGATIVE,
+           edgecolor="white", label="Negative outcome")
 
     # Annotate segments
     for i in range(n_nonempty):
@@ -350,7 +360,7 @@ def task31_stacked_bar(df: pd.DataFrame, output_dir: str):
     ax.set_yticklabels(["0%", "25%", "50%", "75%", "100%"], fontsize=FONT_ANNOT)
     ax.set_xticks(x)
     ax.set_xticklabels(band_labels, fontsize=FONT_ANNOT)
-    ax.set_xlabel("Conformance Band (fitness)", fontsize=FONT_LABEL)
+    ax.set_xlabel("Conformance Category", fontsize=FONT_LABEL)
     ax.set_ylabel("Proportion of Cases", fontsize=FONT_LABEL)
     ax.set_xlim(-0.6, n_nonempty - 0.4)
     ax.set_ylim(0, 1.0)
@@ -360,13 +370,13 @@ def task31_stacked_bar(df: pd.DataFrame, output_dir: str):
     ax.set_axisbelow(True)
 
     legend_patches = [
-        mpatches.Patch(facecolor=GREY_DARK,  label="Positive outcome"),
-        mpatches.Patch(facecolor=GREY_LIGHT, label="Negative outcome"),
+        mpatches.Patch(facecolor=_POSITIVE, label="Positive outcome"),
+        mpatches.Patch(facecolor=_NEGATIVE, label="Negative outcome"),
     ]
     ax.legend(handles=legend_patches,
               loc="lower center", bbox_to_anchor=(0.5, -0.25),
               ncol=2, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
-    ax.set_title("Outcome Composition by Conformance Band", fontsize=FONT_TITLE, pad=10)
+    ax.set_title("Outcome Composition by Conformance Category", fontsize=FONT_TITLE, pad=10)
 
     fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
@@ -409,12 +419,12 @@ def task31_matrix(df: pd.DataFrame, output_dir: str):
     """The band x outcome table as numbers. The heatmap draws it as colour."""
     out_path = os.path.join(output_dir, "task31_matrix.svg")
     if df.empty:
-        render_empty_state_svg(out_path, "Outcome Rate by Conformance Band")
+        render_empty_state_svg(out_path, "Outcome Rate by Conformance Category")
         return
 
     counts_full, rate_matrix, row_totals_full = _band_outcome_rates(df)
     if (row_totals_full > 0).sum() < 2:
-        render_empty_state_svg(out_path, "Outcome Rate by Conformance Band")
+        render_empty_state_svg(out_path, "Outcome Rate by Conformance Category")
         return
 
     fig_h = max(3.8, min(7.0, 1.3 + len(_FITNESS_BIN_LABELS_EXACT) * 0.72))
@@ -446,9 +456,9 @@ def task31_matrix(df: pd.DataFrame, output_dir: str):
                         ha="center", va="center", fontsize=FONT_ANNOT - 1,
                         color=GREY_DARK, linespacing=1.4)
 
-    ax.set_ylabel("Fitness Band", fontsize=FONT_LABEL)
+    ax.set_ylabel("Conformance Category", fontsize=FONT_LABEL)
     # Matrix convention: keep all four spines (bounding box of the color grid)
-    ax.set_title("Outcome Rate by Conformance Band", fontsize=FONT_TITLE, pad=10)
+    ax.set_title("Outcome Rate by Conformance Category", fontsize=FONT_TITLE, pad=10)
 
     fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
@@ -468,12 +478,12 @@ def task31_heatmap(df: pd.DataFrame, output_dir: str):
     """
     out_path = os.path.join(output_dir, "task31_heatmap.svg")
     if df.empty:
-        render_empty_state_svg(out_path, "Outcome Rate by Conformance Band")
+        render_empty_state_svg(out_path, "Outcome Rate by Conformance Category")
         return
 
     _counts, rate_matrix, row_totals = _band_outcome_rates(df)
     if (row_totals > 0).sum() < 2:
-        render_empty_state_svg(out_path, "Outcome Rate by Conformance Band")
+        render_empty_state_svg(out_path, "Outcome Rate by Conformance Category")
         return
 
     fig_h = max(3.8, min(7.0, 1.3 + len(_FITNESS_BIN_LABELS_EXACT) * 0.72))
@@ -485,13 +495,13 @@ def task31_heatmap(df: pd.DataFrame, output_dir: str):
         row_labels=_FITNESS_BIN_LABELS_EXACT,
         col_labels=["Negative Outcome", "Positive Outcome"],
         xlabel="Outcome Category",
-        cbar_label="% of traces in band",
+        cbar_label="% of traces in category",
         annotate=False,
         rotate_xticks=0,
         vmax=100,
     )
-    ax.set_ylabel("Fitness Band", fontsize=FONT_LABEL)
-    ax.set_title("Outcome Rate by Conformance Band", fontsize=FONT_TITLE, pad=10)
+    ax.set_ylabel("Conformance Category", fontsize=FONT_LABEL)
+    ax.set_title("Outcome Rate by Conformance Category", fontsize=FONT_TITLE, pad=10)
 
     fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
