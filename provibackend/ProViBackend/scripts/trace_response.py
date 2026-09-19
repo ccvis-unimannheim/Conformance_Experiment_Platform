@@ -254,7 +254,7 @@ def attribute_panels(log, features, response_measure, *, alignments=None,
     for key in features:
         try:
             values, value_type = trace_features.extract(log, key)
-            values, value_type = trace_features.as_bucketable(values, value_type)
+            values, value_type = trace_features.as_bucketable(values, value_type, key=key)
         except (KeyError, ValueError) as e:
             logger.warning(f"      attribute_panels: skipping '{key}' — {e}")
             continue

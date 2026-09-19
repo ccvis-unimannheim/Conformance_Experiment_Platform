@@ -137,7 +137,7 @@ CANONICAL_TASKS = [
     {
         "task_key": "task03",
         "label": "How does the overall behavior of conformant traces differ from that of non-conformant traces?",
-        "description": "Compare the throughput-time distribution of conforming vs non-conforming traces and determine which group is slower.",
+        "description": "Compare how conforming and non-conforming traces are distributed over the chosen attributes (throughput time by default) and describe where the two groups differ.",
         "answer_type": "single_choice",
     },
     {
