@@ -2,6 +2,30 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: Custom Idioms Belong to Their Experiment (2026-09-19)
+
+### Problem solved
+
+A custom idiom was a global `Idiom` document bound only to tasks, so every
+later experiment offered it for those tasks — test uploads included — and no
+page could remove one.
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `provibackend/ProViBackend/app/datamodels/data_schemas.py` | `Idiom.experiment_id`. |
+| `provibackend/ProViBackend/app/routers/admin.py` | `POST /idioms/upload` requires `experiment_id` and records it. `/task-idioms` offers a custom idiom only to its experiment; older ones (no `experiment_id`) only where already selected or bound to the experiment's own custom task. Deleting an experiment deletes the custom idioms uploaded in it. |
+| `ProViFrontend/provi-frontend/src/components/Admin/UploadIdiomModal.js`, `src/app/admin/experiments/idiom/page.js` | The modal posts the experiment id and says the idiom belongs to this experiment. |
+
+`docs/ADMIN_EXPERIMENT_SETUP.md` gains *Custom idioms*.
+
+### Verification
+
+`py_compile` and `eslint` on the changed files. Not run end to end. Nothing is
+deleted from the database: an experiment already using a custom idiom — a
+published one included — resolves it by id as before.
+
 ## Session: Grey-Free Idiom Colours, First Five Tasks (2026-09-19)
 
 ### Problem solved

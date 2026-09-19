@@ -337,6 +337,10 @@ class Idiom(BaseModel):
     is_custom: bool = False
     asset_ext: Optional[str] = None
     task_keys: Optional[List[str]] = None
+    # The experiment it was uploaded in; it is offered on /admin/experiments/idiom
+    # for that experiment only. None on custom idioms uploaded before this field
+    # existed, which stay offered only where they are already selected.
+    experiment_id: Optional[str] = None
 
 class IdiomUpdate(BaseModel):
     label: Optional[str] = None

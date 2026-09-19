@@ -693,6 +693,7 @@ function IdiomSelectionContent() {
 
       {uploadModalOpen && (
         <UploadIdiomModal
+          experimentId={experimentId}
           tasks={selectedTasks}
           onClose={() => setUploadModalOpen(false)}
           onUploaded={async () => {
