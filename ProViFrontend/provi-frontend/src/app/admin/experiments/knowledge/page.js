@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import AdminNav from "../../../../components/Admin/AdminNav";
 import { saveWizardStep } from "../../../../utils/wizardSave";
 
@@ -426,7 +427,13 @@ export default function KnowledgeSetupPage() {
 
         {saveError && <p className="mt-6 text-body-sm text-error">{saveError}</p>}
 
-        <div className="mt-12 flex justify-end">
+        <div className="mt-12 flex justify-between items-center">
+          <Link
+            href={`/admin/experiments/prequestionnaire${experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""}`}
+            className="text-sm text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors"
+          >
+            <span className="material-symbols-outlined text-sm">arrow_back</span> Previous Step
+          </Link>
           <button
             type="button"
             onClick={handleNext}

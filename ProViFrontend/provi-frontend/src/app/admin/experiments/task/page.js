@@ -547,7 +547,7 @@ export default function TaskSelectionPage() {
       <div className="border-t border-border-subtle bg-white sticky bottom-0">
         <div className="max-w-[1140px] mx-auto px-8 py-4 flex justify-between items-center">
           <Link
-            href="/admin/experiments/new"
+            href={`/admin/experiments/concepts${experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""}`}
             className="text-sm text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors"
           >
             <span className="material-symbols-outlined text-sm">arrow_back</span> Previous Step
