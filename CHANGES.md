@@ -20,6 +20,24 @@ task16 already does. The renderers stay.
 A draft that had already selected one of these keeps it selected, but
 regenerating no longer draws its image. `py_compile` only.
 
+## Session: task32's Idioms Agree on Unit, Palette and Numbers (2026-09-19)
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| Box plot | Removed. Its unit was the trace, not the violation pattern, and it summed every pattern together — dropping the dimension this task is about — while carrying median, IQR and outliers that no other idiom here has. task06's box plot went for the same reason (see AGGREGATE_FITNESS_CLASS.md). There is no honest re-targeting: per pattern and sub-process there is one number, so no distribution. task32 is down to six idioms. |
+| Palette | `_GROUP_PALETTE` starts at `PAIR_COLORS` — navy and cividis's bright yellow, as task31 uses — instead of `GREY_MED` / `GREY_LIGHT`, which sat in cividis's olive-grey middle and read as muted extra categories. It reaches every idiom through `_group_colors`. |
+| Matrix | `colorless=True`: white cells, ruled grid, no colorbar, as in tasks 27-31. |
+| Table | The Total and Cum % columns are gone. The cumulative share is a Pareto reading no other idiom supports, and the row total is a number only this table and the bar chart's cluster label carried — the rows are ranked by it anyway. |
+| Bar chart | The `Σ N` per cluster is gone with the other totals. Each bar now carries its own count, rotated inside the bar in `contrasting_text_color`, or just above it when the bar is too short. The bar geometry lives in `_BAR_WIDTH_TOTAL`, passed to `draw_grouped_rate_bars` and reused for the labels so the two cannot drift. |
+| Bar chart title | Names a cut only where there is one: "Violations — …" when every pattern is shown, "Top 10 of 23 Violations — …" when not. Under the move_type strategy there are only ever two patterns, so the old "top 2" claimed a ranking over the whole set — and, sitting next to "Sub-process", read as if it counted the bars. `_aggregate_frequency` carries `n_all_patterns` on every row for this, as a column rather than `df.attrs` so it survives the prominence filter. |
+
+### Verification
+
+`py_compile` and `pyflakes`, the latter against HEAD so only new warnings count
+— there are none. Not regenerated.
+
 ## Session: task31 Reads Like task10, and Says When a Category Is Empty (2026-09-19)
 
 ### Changes
