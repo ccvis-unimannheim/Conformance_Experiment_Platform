@@ -397,8 +397,13 @@ def task05_parallel_sets(agg_df: pd.DataFrame, viol_df: pd.DataFrame,
         left_labels=left_labels,
         right_labels=right_labels,
         matrix=matrix,
-        left_colors=[_COLOR_POSITIVE, _COLOR_NEGATIVE],
+        # Colour means only the pattern (navy = most frequent, as on the heatmap
+        # where dark = more); the sub-logs are outlined and named.
+        left_colors=["white", "white"],
+        left_edgecolor="#333333",
         right_colors=categorical_colors(len(cats)),
+        ribbon_colors_by="right",
+        ribbon_alpha=0.55,
         left_title="Sub-log",
         right_title="Violation Pattern",
     )

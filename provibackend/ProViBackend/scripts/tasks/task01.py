@@ -317,7 +317,10 @@ def task01_parallel_sets(df: pd.DataFrame, output_dir: str, outcome_activity: st
     x_right = 0.88
     ctrl_x  = (x_left + x_right) / 2
 
-    g_colors = {"Positive": _COLOR_POSITIVE, "Negative": _COLOR_NEGATIVE}
+    # Colour carries one meaning here, the conformance category: ribbons take their
+    # category's colour (yellow = conformant, navy = major deviation, as on the
+    # heatmaps), and the groups are outlined and named instead. Group colours as
+    # well would read as a second, matching scale.
 
     # Normalised heights
     g_heights = matrix.sum(axis=1) / total
@@ -330,7 +333,7 @@ def task01_parallel_sets(df: pd.DataFrame, output_dir: str, outcome_activity: st
     for g, h, bot in zip(groups, g_heights, g_bottoms):
         ax.add_patch(plt.Rectangle(
             (x_left - bar_w / 2, bot), bar_w, h,
-            facecolor=g_colors[g], edgecolor="white", linewidth=0.8, zorder=3,
+            facecolor="white", edgecolor="#333333", linewidth=1.0, zorder=3,
         ))
         if h > 0.03:
             ax.text(x_left - bar_w / 2 - 0.015, bot + h / 2, g,
@@ -376,9 +379,10 @@ def task01_parallel_sets(df: pd.DataFrame, output_dir: str, outcome_activity: st
                 Path.CURVE4, Path.CURVE4, Path.CURVE4,
                 Path.CLOSEPOLY,
             ]
+            # Opaque enough that a navy ribbon does not wash out to grey.
             ax.add_patch(PathPatch(
                 Path(verts, codes),
-                facecolor=g_colors[g], edgecolor="none", alpha=0.35, zorder=2,
+                facecolor=_PSET_COLORS[ci], edgecolor="none", alpha=0.55, zorder=2,
             ))
 
     # Column labels

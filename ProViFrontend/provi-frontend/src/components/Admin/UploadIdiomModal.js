@@ -10,7 +10,8 @@ function hasAllowedExtension(filename) {
   return ALLOWED_EXTENSIONS.some((ext) => lower.endsWith(ext));
 }
 
-const UploadIdiomModal = ({ tasks, onClose, onUploaded }) => {
+// The idiom belongs to experimentId: only that experiment offers it.
+const UploadIdiomModal = ({ experimentId, tasks, onClose, onUploaded }) => {
   const [file, setFile] = useState(null);
   const [label, setLabel] = useState("");
   const [taskKeys, setTaskKeys] = useState(new Set());
@@ -54,6 +55,7 @@ const UploadIdiomModal = ({ tasks, onClose, onUploaded }) => {
     formData.append("file", file);
     formData.append("label", label.trim());
     formData.append("task_keys", Array.from(taskKeys).join(","));
+    formData.append("experiment_id", experimentId);
 
     setIsSaving(true);
     try {
@@ -97,7 +99,8 @@ const UploadIdiomModal = ({ tasks, onClose, onUploaded }) => {
 
         <p className="text-body-sm text-on-surface-variant">
           Upload a fixed SVG or image visualization of your own, and pick which task(s) it should
-          be selectable for. Unlike the built-in idioms, it is not generated per dataset.
+          be selectable for. Unlike the built-in idioms, it is not generated per dataset. It
+          belongs to this experiment: other experiments will not offer it.
         </p>
 
         <div className="flex flex-col gap-2">
