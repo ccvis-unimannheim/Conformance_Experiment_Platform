@@ -105,19 +105,6 @@ PARAM_SPEC = [
 ]
 
 
-RUBRIC = (
-    "A complete answer compares the two traces' conformance patterns. For each "
-    "trace it identifies where the execution conforms to the guideline and where "
-    "it deviates — an activity skipped relative to the model (move on model) or an "
-    "extra activity inserted (move on log) — and contrasts the two, e.g. 'Trace 1 "
-    "is fully conformant, whereas Trace 2 skips Approve Treatment and inserts an "
-    "extra step'. Award full marks for correctly naming the key deviation(s) in "
-    "each trace and stating which trace is more conformant; partial marks for "
-    "identifying the more-conformant trace without the specific deviations; deduct "
-    "marks for misidentifying which trace conforms more."
-)
-
-
 def validate_params(log, params) -> list:
     """Each level validates only its own half.
 
@@ -332,7 +319,7 @@ def _task04_model_task_names(model_path):
 
 
 def task04_flow_chart_basic(selected, output_dir: str, model_path=None, *,
-                            filename="task04_flow_chart_basic.svg"):
+                            filename="task04_flow_chart_basic.svg", title=None):
     """Chevron flow chart: one horizontal chevron strip per selected trace, stacked
     so the two traces sit side by side (top vs bottom). Each activity chevron is
     coloured by its alignment move type — Synchronous Move, Model Move or Log Move;
@@ -341,7 +328,8 @@ def task04_flow_chart_basic(selected, output_dir: str, model_path=None, *,
     ``filename`` lets the other trace-alignment tasks (task09, task14, task27,
     task28, task34) draw this same figure into their own output directory —
     the figure is the class's, not task04's, and one renderer keeps them from
-    drifting into five encodings of one thing."""
+    drifting into five encodings of one thing. ``title`` is opt-in (None keeps
+    every existing caller's current, title-less layout unchanged)."""
     path = os.path.join(output_dir, filename)
     if not selected:
         fig, ax = plt.subplots(figsize=(7, 3)); ax.axis("off")
@@ -372,7 +360,11 @@ def task04_flow_chart_basic(selected, output_dir: str, model_path=None, *,
                for lbl, c in _MOVE_LEGEND]
     fig.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, 0.0),
                ncol=len(_MOVE_LEGEND), frameon=False, fontsize=FONT_ANNOT - 1)
-    fig.tight_layout(rect=[0, 0.08, 1, 1.0])
+    if title:
+        fig.suptitle(title, fontsize=FONT_TITLE, y=0.99)
+        fig.tight_layout(rect=[0, 0.08, 1, 0.93])
+    else:
+        fig.tight_layout(rect=[0, 0.08, 1, 1.0])
     save_svg(fig, path)
 
 

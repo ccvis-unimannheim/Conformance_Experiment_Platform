@@ -34,6 +34,7 @@ from fastapi import APIRouter, HTTPException, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 
 import ProViBackend.utils.database.connection as dbc
+from ProViBackend.app.task_wording import effective_wording
 from ProViBackend.app.routers.admin import _entry_applies
 from ProViBackend.scripts.tasks import task_registry
 from ProViBackend.utils import idiom_files
@@ -89,7 +90,7 @@ def _layout(exp: dict) -> list[dict]:
         out.append({
             "task_id": ti.get("task_id"),
             "task_key": task_key,
-            "label": ti.get("label") or task.get("label"),
+            "label": effective_wording(exp, ti.get("task_id", ""), task, ti)["label"],
             "dataset_id": ti.get("dataset_id") or "",
             "parameters": ti.get("parameters") or {},
             "idioms": idioms,

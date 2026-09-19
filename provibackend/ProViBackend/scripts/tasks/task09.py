@@ -18,9 +18,11 @@ trace_ids, see trace_alignment), judged on the chosen perspective
 Whole log:
   bar_chart                       – violation type frequency
   stacked_bar                     – per-activity stacked bar by violation type
+  matrix                          – activity × violation-type count heatmap
+
+  Commented out of IDIOMS/generate() for now:
   scatter_plot                    – Model Move vs Log Move count per activity
   table_bar_chart                 – table + stacked bar (side by side)
-  matrix                          – activity × violation-type count heatmap
   flow_chart_and_table,
   flow_chart_elaborate_bpmn_table – the violations on a chevron strip / the
                                     BPMN model, next to the breakdown table
@@ -30,10 +32,14 @@ import logging
 logger = logging.getLogger(__name__)
 
 IDIOMS = [
-    "bar_chart", "stacked_bar", "scatter_plot",
-    "table", "table_bar_chart", "matrix",
-    "flow_chart_basic", "flow_chart_and_table",
-    "flow_chart_elaborate_bpmn", "flow_chart_elaborate_bpmn_table",
+    "bar_chart", "stacked_bar",
+    "table", "matrix",
+    "flow_chart_basic",
+    "flow_chart_elaborate_bpmn",
+    # "scatter_plot",
+    # "table_bar_chart",
+    # "flow_chart_and_table",
+    # "flow_chart_elaborate_bpmn_table",
 ]
 
 import trace_alignment
@@ -1305,8 +1311,8 @@ def generate(log, alignments, output_dir, model_path=None,
 
     task09_bar_chart(type_totals, n_violations, output_dir)
     task09_stacked_bar(activity_type, activity_totals, output_dir)
-    task09_scatter_plot(activity_type, activity_totals, output_dir)
-    task09_table_bar_chart(activity_type, activity_totals, n_violations, output_dir)
+    # task09_scatter_plot(activity_type, activity_totals, output_dir)
+    # task09_table_bar_chart(activity_type, activity_totals, n_violations, output_dir)
     task09_matrix(activity_type, activity_totals, output_dir)
     records = trace_alignment.select_records(
         log, alignments, view=perspective, trace_ids=trace_ids,
@@ -1322,5 +1328,5 @@ def generate(log, alignments, output_dir, model_path=None,
         task09_flow_chart_basic(activity_type, activity_totals, alignments, output_dir)
         task09_flow_chart_elaborate_bpmn(activity_type, activity_totals, model_path, output_dir)
         task09_table(activity_type, activity_totals, type_totals, n_violations, output_dir)
-    task09_flow_chart_and_table(activity_type, activity_totals, type_totals, n_violations, alignments, output_dir)
-    task09_flow_chart_elaborate_bpmn_table(activity_type, activity_totals, type_totals, n_violations, model_path, output_dir)
+    # task09_flow_chart_and_table(activity_type, activity_totals, type_totals, n_violations, alignments, output_dir)
+    # task09_flow_chart_elaborate_bpmn_table(activity_type, activity_totals, type_totals, n_violations, model_path, output_dir)

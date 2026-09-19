@@ -572,15 +572,26 @@ def label_for(key: str) -> str:
     return key
 
 
-def as_bucketable(values: list, value_type: str) -> tuple[list, str]:
+def as_bucketable(values: list, value_type: str,
+                  key: Optional[str] = None) -> tuple[list, str]:
     """Adapt extracted values to what the bucketer accepts: numeric or categorical.
 
     Booleans become readable category labels rather than 0/1, so a bucket reads
-    "Yes"/"No" instead of a number that looks like a measurement. Ordinal values
-    have no bucketer yet and raise, which is why the picker filters them out.
+    "Yes"/"No" instead of a number that looks like a measurement. Given the
+    feature's ``key``, a ``contains::X`` bucket says what it holds —
+    "With 'X'" / "Without 'X'" — since a bare Yes/No under a chart leaves the
+    reader to find the question in the title. Callers that prefix every label
+    with the attribute (``label_prefix``) leave ``key`` out: the prefix already
+    names it. Ordinal values have no bucketer yet and raise, which is why the
+    picker filters them out.
     """
     if value_type == "boolean":
-        return (["Yes" if v else "No" for v in values], "categorical")
+        if key and key.startswith(CONTAINS_PREFIX):
+            activity = key[len(CONTAINS_PREFIX):]
+            yes, no = f"With '{activity}'", f"Without '{activity}'"
+        else:
+            yes, no = "Yes", "No"
+        return ([yes if v else no for v in values], "categorical")
     if value_type in ("numeric", "categorical", "ordinal"):
         return (values, value_type)
     raise ValueError(f"Value type '{value_type}' has no bucketing strategy.")

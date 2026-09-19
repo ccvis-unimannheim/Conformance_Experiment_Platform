@@ -21,10 +21,11 @@ logger = logging.getLogger(__name__)
 IDIOMS = [
     "table", "bar_chart",
     "flow_chart_basic",
-    "flow_chart_table",
     "flow_chart_elaborate",
-    "flow_chart_elaborate_table",
-    "table_bar_chart", "parallel_sets",
+    # "flow_chart_table",
+    # "flow_chart_elaborate_table",
+    # "table_bar_chart",
+    # "parallel_sets",
 ]
 
 
@@ -46,18 +47,6 @@ PARAM_SPEC = [
 
 def validate_params(log, params) -> list:
     return trace_alignment.validate_selection(log, params, min_traces=1, max_traces=1)
-
-
-RUBRIC = (
-    "A strong answer names each violation type present in the shown trace and "
-    "explains what it means in process terms — e.g. a Model Move indicates a "
-    "required step was absent from the recorded execution; a Log Move indicates "
-    "an unexpected step was executed that the model does not prescribe. "
-    "Full credit requires correctly identifying all present violation types and "
-    "giving a meaningful process-level description for each. "
-    "Partial credit for identifying some types or for correct naming without "
-    "explanation. No credit for types not present in the trace."
-)
 
 
 import os
@@ -270,7 +259,7 @@ def task14_table(ctx, output_dir):
         scale_xy=(1, 1.7),
     )
     ax.set_title(
-        f"Move Classification — {ctx['trace_label']}  (fitness {ctx['fitness']:.4f})",
+        f"Trace Alignment — {ctx['trace_label']}",
         fontsize=FONT_TITLE, pad=10,
     )
     fig.tight_layout(pad=1.2)
@@ -304,7 +293,7 @@ def task14_bar_chart(ctx, output_dir):
         )
     ax.set_ylabel("Occurrences in Trace", fontsize=FONT_LABEL)
     ax.set_title(
-        f"Move Type Distribution — {ctx['trace_label']}",
+        f"Trace Alignment — {ctx['trace_label']}",
         fontsize=FONT_TITLE,
     )
     ax.set_ylim(0, ymax * 1.22)
@@ -658,15 +647,16 @@ def generate(alignments, model_path: str, output_dir: str, log=None,
     if log is not None and model_path:
         import tasks.task04 as task04
         records = trace_alignment.trace_records(log, alignments, [ctx["trace_index"]])
+        heading = f"Trace Alignment — {ctx['trace_label']}"
         task04.task04_flow_chart_basic(records, output_dir, model_path=model_path,
-                                       filename="task14_flow_chart_basic.svg")
+                                       filename="task14_flow_chart_basic.svg", title=heading)
         task04.task04_flow_chart_elaborate(records, model_path, output_dir,
-                                           filename="task14_flow_chart_elaborate.svg")
+                                           filename="task14_flow_chart_elaborate.svg", title=heading)
 
     task14_table(ctx, output_dir)
     task14_bar_chart(ctx, output_dir)
-    task14_flow_chart_and_table(ctx, output_dir)
+    # task14_flow_chart_and_table(ctx, output_dir)
     # task14_flow_chart_elaborate(ctx, model_path, output_dir)  # superseded: task04's renderer draws it above
-    task14_flow_chart_elaborate_table(ctx, model_path, output_dir)
-    task14_table_bar_chart(ctx, output_dir)
-    task14_parallel_sets(ctx, output_dir)
+    # task14_flow_chart_elaborate_table(ctx, model_path, output_dir)
+    # task14_table_bar_chart(ctx, output_dir)
+    # task14_parallel_sets(ctx, output_dir)

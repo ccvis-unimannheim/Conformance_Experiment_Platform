@@ -60,6 +60,7 @@ import os
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import matplotlib.patheffects as pe
 
 from shared import (
     render_fitness_tile_metric, save_svg, make_table,
@@ -80,13 +81,16 @@ def task02_bar_chart(df, output_dir: str, predominant_threshold):
     ax.text(bar.get_x() + bar.get_width() / 2, avg + 0.018, f"{avg:.3f}",
             ha="center", va="bottom", fontsize=FONT_ANNOT)
 
-    # Neutral threshold reference line + label (only when threshold is set).
+    # Neutral threshold reference line (only when threshold is set). It crosses
+    # the dark bar, so a white outline keeps it visible there, and it is named
+    # in a legend below the axes: a label beside the line landed on the bar,
+    # dark text on navy.
     if predominant_threshold is not None:
-        ax.axhline(predominant_threshold, color="#444444", linestyle="--", linewidth=1.4)
-        ax.text(0.98, predominant_threshold + 0.012,
-                f"Fitness Threshold = {predominant_threshold:.2f}",
-                transform=ax.get_yaxis_transform(), ha="right", va="bottom",
-                fontsize=FONT_ANNOT, color="#444444")
+        ax.axhline(predominant_threshold, color="#444444", linestyle="--", linewidth=1.4,
+                   path_effects=[pe.Stroke(linewidth=3.2, foreground="white"), pe.Normal()],
+                   label=f"Fitness Threshold = {predominant_threshold:.2f}")
+        ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.12), frameon=False,
+                  fontsize=FONT_ANNOT)
 
     # Headroom above the bar so the value label never collides with the title;
     # ticks stay 0–1 to keep the "fixed 0–1 axis" reading.
@@ -102,31 +106,27 @@ def task02_bar_chart(df, output_dir: str, predominant_threshold):
 
 
 def task02_table(df, output_dir: str, predominant_threshold):
-    """One row: # of Traces | # of Conformant Traces | % of Conformant Traces |
-    Mean Fitness | Fitness Threshold (when set)."""
-    n = len(df)
-    n_conform = int(df["is_fit"].sum())
-    pct = (n_conform / n * 100) if n else 0.0
-    overall = float(df["fitness"].mean()) if n else 0.0
-    if predominant_threshold is not None:
-        cell_text = [[str(n), str(n_conform), f"{pct:.1f}%", f"{overall:.3f}",
-                      f"{predominant_threshold:.2f}"]]
-        col_labels = ["# of Traces", "# of Conformant Traces", "% of Conformant Traces",
-                      "Mean Fitness", "Fitness Threshold"]
-        col_widths = [0.18, 0.23, 0.23, 0.18, 0.18]
-    else:
-        cell_text = [[str(n), str(n_conform), f"{pct:.1f}%", f"{overall:.3f}"]]
-        col_labels = ["# of Traces", "# of Conformant Traces", "% of Conformant Traces",
-                      "Mean Fitness"]
-        col_widths = [0.22, 0.26, 0.26, 0.26]
+    """One row: Mean Fitness | Fitness Threshold (when set).
 
-    fig, ax = plt.subplots(figsize=(10, 2.8))
+    Exactly what the tile and the bar chart state, so the idioms differ only in
+    encoding. Trace counts and % conformant used to be here too; the latter cut
+    at fitness 1.0 beside a 0.8 threshold, a second, conflicting standard.
+    """
+    overall = float(df["fitness"].mean()) if len(df) else 0.0
+    cell_text = [[f"{overall:.3f}"]]
+    col_labels = ["Mean Fitness"]
+    if predominant_threshold is not None:
+        cell_text[0].append(f"{predominant_threshold:.2f}")
+        col_labels.append("Fitness Threshold")
+    col_widths = [1.0 / len(col_labels)] * len(col_labels)
+
+    fig, ax = plt.subplots(figsize=(6, 2.8))
     ax.axis("off")
     make_table(
         ax,
         cell_text=cell_text,
         col_labels=col_labels,
-        bbox=[0.04, 0.20, 0.92, 0.55],
+        bbox=[0.08, 0.20, 0.84, 0.55],
         col_widths=col_widths,
         font_size=11,
         scale_xy=(1, 1.9),
