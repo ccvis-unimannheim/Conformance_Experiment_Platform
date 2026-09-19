@@ -32,9 +32,11 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "stacked_bar", "scatter_plot",
-          "flow_chart_elaborate_table", "table", "table_bar_chart",
-          "parallel_sets"]
+IDIOMS = [
+    "bar_chart", "stacked_bar",
+    "flow_chart_elaborate_table", "table", "table_bar_chart",
+    "parallel_sets",
+]
 
 
 # What this task measures per group, and how it cuts the log — task
@@ -426,5 +428,4 @@ def generate(log, fitness_df, alignments, output_dir: str, model_path: str = Non
 
     # One grouping only: these read a distribution, not a per-bucket summary.
     task22_stacked_bar(trace_df, groups, compare_attribute, output_dir)
-    task22_scatter_plot(trace_df, groups, meta, compare_attribute, output_dir)
     task22_flow_chart_elaborate_table(stats_df, act_viol, model_path, compare_attribute, output_dir)
