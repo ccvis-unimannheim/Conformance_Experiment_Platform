@@ -10,7 +10,7 @@ Design note (why frequency only): severity, "is the rule too strict?", and textu
 rationale are value judgments that depend on the dataset and business context, not
 on the log. Baking them into the SVG would couple the visualization to one context.
 Instead task17 shows the neutral facts — how often, what KIND of deviation
-(skipped / inserted / mismatch — a label produced by the conformance algorithm,
+(skipped or inserted — a label produced by the conformance algorithm,
 not a judgment), and where on the model — and leaves the interpretation to the
 reader (or to admin-authored explanation text added on the visualization page).
 
@@ -53,11 +53,10 @@ from tasks.task26 import _lighten, _squarify_layout
 
 TOP_N = 12
 
-MOVE_TYPES = ["Model Move", "Log Move", "Mismatch Move"]
+MOVE_TYPES = ["Model Move", "Log Move"]
 MOVE_TYPE_COLORS = {
     "Model Move":    GREY_MED,
     "Log Move":      GREY_DARK,
-    "Mismatch Move": GREY_LIGHT,
 }
 _MOVE_RANK = {m: i for i, m in enumerate(MOVE_TYPES)}
 _BAR_COLOR = GREY_MED

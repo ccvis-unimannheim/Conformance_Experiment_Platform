@@ -2,6 +2,201 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: Removed Idioms Leave the Admin Panel, task01 and task03 (2026-09-20)
+
+The idiom review removed three of task01's idioms and two of task03's. They are
+commented out of each module's `IDIOMS`, which is what `/admin/task-idioms`
+offers on /idiom, and their calls in `generate()` are commented out — as
+task16 already does. The renderers stay.
+
+| Task | Removed | Reason |
+|------|---------|--------|
+| task01 | box_plot | draws quantiles, not the per-group shares; its boxes collapse at fitness 1.0 |
+| task01 | table_and_bar_chart | two idioms in one — **still drawn**: task04's log level runs task01's `generate()` and offers it as `table_bar_chart` |
+| task01 | parallel_sets | shows no count of traces per conformance category |
+| task03 | table_and_bar_chart | two idioms in one |
+| task03 | stacked_bar | removed in the review |
+
+A draft that had already selected one of these keeps it selected, but
+regenerating no longer draws its image. `py_compile` only.
+
+## Session: task31 Reads Like task10, and Says When a Category Is Empty (2026-09-19)
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| Bar chart | The `Bin '= 1.0'` caption is gone and the axis stops at 100 — a rate cannot pass it, and the 20% headroom made the tallest bar look short of a ceiling that does not exist. A label on a bar above 93% moves inside it, stacked over two lines: on one line it is wider than the bar, so its ends were white on the white background and unreadable. |
+| Stacked bar | `PAIR_COLORS` (navy against cividis's bright yellow) instead of `GREY_LIGHT` `#a99f73`, which sat in the olive middle and read as a third, muted category. |
+| Wording | All five idioms name the unit as task10 does: **Conformance Category**, not Conformance Degree, Conformance Band or Fitness Band. Empty-state titles included, so a blank idiom is not titled differently from a filled one. |
+| Empty categories | `_band_outcome_rates` returns NaN, not 0.0, for a category no trace falls into. A zero reads as "none of these traces had a positive outcome", which is a finding; there are none. The heatmap left such cells at the yellow end of its scale and now leaves them blank; the stacked bar dropped the category entirely and now keeps its slot empty. The bar chart, table and matrix already marked them (no bar, `—`, `—`). |
+
+All five idioms now show the same six categories and agree on what an empty one
+looks like.
+
+### Verification
+
+`py_compile` and `pyflakes`, the latter against HEAD so only new warnings count
+— there are none. Not regenerated.
+
+## Session: task30 and task31 Idioms Carry One Payload (2026-09-19)
+
+### Problem solved
+
+Within a task the idioms must answer the same question. In task30 and task31
+several of them answered more than the rest, and task31's table cut the log a
+different way entirely.
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `scripts/tasks/task30.py` | The table drops its sub-log summary (#Traces, % Conformant, Mean Fitness) — a conformance level no other idiom states — and its pattern rows drop the counts and the Total column, leaving rates. Losing the `(n / rate)` header line also unsqueezes the column headers. Parallel sets drops its "Other" bucket, which measured the deviation the top-N leaves out. |
+| `scripts/tasks/task31.py` | The decision tree is gone, with the fitting helpers and split constants nothing else used. The table listed tree branch conditions and the case counts behind each rate; it now lists the bar chart's bands, traces and positive-outcome rate. Matrix and heatmap read one `_band_outcome_rates` table — the matrix as numbers, the heatmap as colour; the heatmap loses its calendar axis and the matrix its "All bands" row. All five idioms bin fitness the same way, `= 1.0` included, and the bar chart draws in task30's dark blue instead of grey. |
+
+task31 is down to five idioms: `table`, `bar_chart`, `stacked_bar`, `matrix`,
+`heatmap`.
+
+### Known asymmetry
+
+The bar chart and the table show the positive-outcome rate only; the stacked
+bar, matrix and heatmap show both outcomes. Negative is 100 - positive, so the
+five stay information-equivalent; it is a visual difference, not a payload one.
+
+### Verification
+
+`py_compile` and `pyflakes` on the two modules, the latter against HEAD so only
+new warnings count — there are none. Not regenerated.
+
+## Session: Idiom Review for Tasks 24-32, and Matrices Without Colour (2026-09-19)
+
+### Problem solved
+
+Three things, all in the visualization scripts:
+
+1. **The idiom review removed nineteen images.** Tasks 24, 25 and 27-32 each
+   offered idioms the review dropped. Unlike task01/task03, these are deleted
+   rather than commented out: renderer, `IDIOMS` entry, `generate()` call and
+   empty-state row all go, together with whatever helper, import or section
+   banner had no other caller left.
+2. **task27 ignored its own trace selection in six idioms out of nine.**
+   `trace_ids` was resolved inside the chevron/BPMN/table path, so an admin who
+   named traces got those three figures plus six that kept slicing the top
+   fifteen variants — the figures contradicted each other.
+3. **Every Matrix was a Heatmap that also printed its numbers.** The two idioms
+   differed only in annotation, which encodes one variable twice and leaves a
+   participant nothing to tell them apart by.
+
+### Idioms removed
+
+| Task | Removed | Left with |
+|------|---------|-----------|
+| task24 | flow chart & table | `flow_chart_elaborate` |
+| task25 | flow chart & table | `flow_chart_elaborate` |
+| task27 | scatterplot, flow chart & table, table & bar chart, gantt chart, flow chart+ & table, calendar | 9 idioms |
+| task28 | flow chart & table, table & bar chart, flow chart+ & table, network diagram, scatter plot | 8 idioms |
+| task29 | flow chart & table, table & bar chart, treemap | 8 idioms |
+| task30 | table & bar chart | 6 idioms |
+| task31 | scatterplot | 6 idioms |
+| task32 | table & bar chart | 7 idioms |
+
+A draft that has one of these selected keeps it selected; regenerating no longer
+draws its image.
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `scripts/tasks/task24.py` | Second idiom gone. The discovered model is no longer drawn as a graphviz DFG above the guideline BPMN: `_discovered_model_svg`, `_juxtapose`, `_svg_dims` and the base64 juxtaposition are removed and `task24_flow_chart_elaborate_bpmn` renders straight to its path. `_discover_dfg` stays — discovery is what produces the annotation (faded nodes, dark violation endpoints, the summary line), it is just not drawn as a second notation. Follows task35, whose Petri-net and DFG variants went for the same reason. |
+| `scripts/tasks/task25.py` | Second idiom gone; `_draw` loses its `with_table` branch. |
+| `scripts/tasks/task27.py` | Six idioms gone. The trace selection resolves once in the new `_selected_indices` and, when the admin **names** traces, `_selected_variant_df` gives every idiom one row per named trace — `build_variant_df`'s schema, so the renderers are unchanged and only their wording branches; `count` stays the frequency of that trace's behaviour in the whole log. Under the automatic rule the frequency and distribution idioms keep aggregating over the log's variants: that rule picks one trace per status by default, and a box plot of one value per group has no distribution to show. |
+| `scripts/tasks/task28.py` | Five idioms gone, including the `if ctx is not None:` guard whose only statement was one of the calls. |
+| `scripts/tasks/task29.py`, `task30.py`, `task31.py`, `task32.py` | Three / one / one / one idiom gone. |
+| `scripts/shared.py` | `draw_value_heatmap` gains `colorless=False` — white cells, the value carried by the printed number alone, no colorbar. New `draw_cell_grid` rules an `imshow` grid into cells, which is what makes a colourless matrix a table rather than floating numbers. `draw_rate_matrix` passes the flag through. Defaults are the current behaviour, so no other caller moves. |
+| `scripts/tasks/task27.py` … `task31.py` (matrices) | Matrices in tasks 27-31 draw `colorless=True`. task27's matrix is categorical, so colour was its whole payload: the four relations now print as letters (`C` contained, `L` unexpected log move, `M` skipped model move, blank absent) with a text key instead of a colour legend. A colour ramp over four nominal categories ranked them anyway. |
+| `scripts/create_all_visualizations.py` | `_TASK_RENAME_SKIP` loses task28 and task31, which no longer write a `scatter_plot` file. |
+
+### Docs
+
+| File | Change |
+|------|--------|
+| `docs/TASK_IDIOM_MAPPING.md` | The eighteen rows for the removed idioms. |
+| `docs/TRACE_ALIGNMENT_CLASS.md` | task27's per-task notes: a named selection reaches every idiom, the automatic rule does not, and why. "eleven renderers" read the threshold → four, plus the trace frame and the selection. The baseline counts are marked as predating this change. **task28 and task09 no longer offer the same idiom set** — trimming task09 to match is the open half of that decision. |
+| `docs/TRACE_ALIGNMENT_PARAMETERS.md` | `conformant_threshold` stays visible under a manual selection, but not for the reason given ("ten idioms colour whole-log variants by it, none depend on which traces were chosen"); replaced with what the two modes actually do. |
+| `docs/AGGREGATE_FITNESS_CLASS.md` | task25 is a single `flow_chart_elaborate`. |
+| `docs/STANDALONE_TASK_PARAMETERS.md` | "The juxtaposition" → "…, and why it is gone again", with the DFG-drawn / DFG-computed distinction. |
+| `docs/VIOLATION_PROFILE_CLASS.md` | The reproducibility fix lived in a deleted function; the rule it stands for — never sort a set by a key that leaves ties — is kept. |
+
+### Verification
+
+Whole dataset regenerated and compared against HEAD with `svg_compare.py`, both
+runs sharing one `cache/alignments.pkl` so pm4py's equally-optimal alignments
+cannot show up as a difference:
+
+```
+HEAD 265 SVGs → 246 SVGs;  19 removed, 0 added
+246 in common: 241 byte-identical, 5 changed
+  ~ task24/flow_chart_elaborate.svg   (the DFG panel is gone)
+  ~ task27/matrix.svg  task28/matrix.svg  task29/matrix.svg  task30/matrix.svg
+```
+
+The colourless cells are checked by decoding each matrix's embedded PNG rather
+than by reading fill attributes, since `imshow` puts the cell colours in the
+raster: every one is a single colour, pure white, where HEAD had three to six
+plus a 186-255 colour colorbar strip. task31's matrix takes its empty-state path
+on BPIC12 (fewer than two populated fitness bands), so that one was rendered
+separately from synthetic data.
+
+`pyflakes` over the touched modules reports **no warning that HEAD did not
+already report**. Four helpers that were dead before this session
+(`_task28_status_color`, `_as_float`, `_trace_attribute_value`,
+`_task31_collect_table_rows`) are deliberately left alone.
+
+## Session: task03 Asks About Overall Behavior; Readable Boolean Buckets (2026-09-19)
+
+| File | Change |
+|------|--------|
+| `provibackend/ProViBackend/app/seed_data.py` | task03's description matches its question (already "overall behavior", from Tasks and Idioms.pdf): compare the groups over the chosen attributes, throughput time by default — no longer "which group is slower". |
+| `provibackend/ProViBackend/scripts/tasks/task03.py` | Module docstring and `RUBRIC` follow the question: any compared attribute, throughput time as the default. |
+| `provibackend/ProViBackend/scripts/trace_features.py` | `as_bucketable(..., key=)`: a `contains::X` boolean buckets as "With 'X'" / "Without 'X'" instead of a bare Yes / No. |
+| `scripts/tasks/task03.py`, `tasks/task13.py`, `trace_response.py` | Pass the key. task30 and `violation_profile` prefix every label with the attribute already, so they keep Yes / No. |
+
+`py_compile` only; not rendered.
+
+## Session: task02 Idioms Show the Same Information (2026-09-19)
+
+| File | Change |
+|------|--------|
+| `provibackend/ProViBackend/scripts/tasks/task02.py` | Table reduced to Mean Fitness and Fitness Threshold, what the tile and bar chart show; its trace counts and "% conformant" (cut at 1.0 beside a 0.8 threshold) are gone. Bar chart: the threshold label sat on the navy bar, dark on dark — it moves to a legend below the axes, and the dashed line gets a white outline so it shows across the bar. |
+| `docs/AGGREGATE_FITNESS_CLASS.md` | §2 matches: the table's threshold is a column, the bar chart's is named in a legend, and the three idioms carry the same two numbers. |
+
+`py_compile` only; not rendered.
+
+## Session: task01 Idioms Show the Same Information (2026-09-19)
+
+### Problem solved
+
+task01's idioms showed different data: the bar chart only each group's mean
+fitness, the table counts, % conformant and the mean, the matrix, stacked bar
+and parallel sets counts per fitness category. Participants given different
+idioms were given different information, not the same information drawn
+differently. Counts also made the larger group look better.
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `provibackend/ProViBackend/scripts/tasks/task01.py` | One kernel, `_task01_category_counts`: per group, traces in Major (<0.8) / Minor (0.8–<1.0) / Conformant (=1.0). Every idiom but the box plot draws its within-group shares, with `n` in the group label. Bar chart → grouped bars per category; table and table + bar chart → `count (share%)` per category (mean fitness dropped); stacked bar → 100% stacked; parallel sets → equal-height groups; matrix → row shares on a fixed 0–100% scale. Category colours: Major yellow, Minor ochre, Conformant navy — yellow is low fitness, and both deviation categories stay on cividis's yellow end so deviating vs conformant reads as yellow vs blue (the slate blue `categorical_colors(3)` gives Minor drew a log without major deviations all blue). `_task01_group_stats` removed. |
+| `provibackend/ProViBackend/scripts/shared.py` | The colour-direction comment: yellow is the low end of what is encoded, so fitness categories run yellow (deviating) → navy (conformant). |
+
+The box plot is unchanged and cannot show this: it draws quantiles, and with
+most fitness values at exactly 1.0 its boxes collapse. It stays in `IDIOMS`.
+task04 at log level draws task01's figures, so it changes with them.
+
+### Verification
+
+`py_compile` only. Not rendered: check the /idiom previews after deploying.
+
 ## Session: Custom Idioms Belong to Their Experiment (2026-09-19)
 
 ### Problem solved

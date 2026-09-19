@@ -16,7 +16,7 @@ The seven tasks already differed in exactly one way: what a violation is counted
 
 | strategy | unit | what drew it before |
 |---|---|---|
-| `move_type` | Model Move / Log Move / Mismatch | task29's bar, pie and table |
+| `move_type` | Model Move / Log Move | task29's bar, pie and table |
 | `activity` | one activity, split by move type | task11's tuned screenshots |
 | `pattern` | "Log Move on Ship Order" as one unit | task23's tables |
 
@@ -232,6 +232,11 @@ The order_to_cash dataset exposed a nondeterminism BPIC12 does not.
 leaving equal-frequency edges in set-iteration order, which changes with every
 Python process — two runs of the same data produced different tables. Tie-broken
 on the edge. All 262 SVGs now match across two processes on this dataset too.
+
+That idiom has since been deleted (task24 draws `flow_chart_elaborate` alone), so
+the fix no longer has a caller. The rule it stands for does: **never sort a set
+by a key that leaves ties** — order the underlying collection, or tie-break on
+the element itself.
 
 The earlier claim that all 264 were reproducible held only for BPIC12. A second
 dataset is worth more than a second run.

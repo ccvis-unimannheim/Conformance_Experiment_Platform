@@ -10,7 +10,7 @@ or what they led to, only what they *are* and how they are distributed.
 Seven tasks ask that question, and they already differ in exactly one way —
 what a violation is counted *as*:
 
-    move_type   Model Move / Log Move / Mismatch Move          (task29 today)
+    move_type   Model Move / Log Move                          (task29 today)
     activity    per activity, broken down by move type         (task11 today)
     pattern     "Log Move on Ship Order" as one unit           (task23 today)
 
@@ -59,7 +59,7 @@ STRATEGY_SELECTION_KEY = {
     "pattern":   "violation_patterns",
 }
 
-MOVE_TYPES = ("Model Move", "Log Move", "Mismatch Move")
+MOVE_TYPES = ("Model Move", "Log Move")
 
 
 # ---------------------------------------------------------------------------
@@ -73,7 +73,7 @@ GROUPING_STRATEGY_PARAM = {
     "hint": "Counts every violation the same way; only the unit they are grouped into changes",
     "widget": "select-one",
     "options": [
-        {"value": "move_type", "label": "By move type (Model Move / Log Move / Mismatch)"},
+        {"value": "move_type", "label": "By move type (Model Move / Log Move)"},
         {"value": "activity",  "label": "By activity, broken down by move type"},
         {"value": "pattern",   "label": "Not grouped — one unit per 'Move on Activity'"},
     ],
@@ -145,15 +145,20 @@ def selection_param_for(strategy: str) -> dict:
 #: Splits the log into sub-logs whose profiles are compared. Single-select: the
 #: figures put one sub-log per series, and two split attributes at once would be
 #: a cross-tabulation none of these idioms draw.
+#:
+#: Required, because both tasks that offer it ask a question about the split —
+#: task05 "across different logs", task32 "between sub-processes". Left empty it
+#: drew one profile of the whole log, which answers neither, and the task then
+#: looked like task29 with a different title.
 SPLIT_ATTRIBUTE_PARAM = {
     "key": "split_attribute",
     "slot": "split",
-    "label": "Attribute splitting the log into sub-logs (empty = whole log)",
+    "label": "Attribute splitting the log into sub-logs",
     "hint": "Each sub-log gets its own violation profile, compared side by side",
     "widget": "select-one",
     "source": "log.candidate_attributes",
     "default": "",
-    "required": False,
+    "required": True,
 }
 
 #: Cut separating the violations worth naming from the long tail. task32 calls
@@ -219,7 +224,6 @@ def binary_split(log, attribute: str):
 _MOVE_TYPE_ALIASES = {
     "mom": "Model Move", "move on model": "Model Move", "model move": "Model Move",
     "mol": "Log Move", "move on log": "Log Move", "log move": "Log Move",
-    "mm": "Mismatch Move", "mismatch move": "Mismatch Move",
 }
 
 
@@ -390,8 +394,8 @@ def profile(alignments, strategy: str = "move_type", *, selection=None,
     # violation occurrences (occurrences, not traces: a trace deviating both
     # ways on one activity would otherwise be counted twice in the ranking),
     # and inside an activity the move types keep their conceptual order rather
-    # than a frequency or alphabetical one, so every figure reads Model, Log,
-    # Mismatch the way the tuned screenshots do.
+    # than a frequency or alphabetical one, so every figure reads Model then Log
+    # the way the tuned screenshots do.
     move_rank = {m: i for i, m in enumerate(MOVE_TYPES)}
     if strategy in ("activity", "pattern"):
         if strategy == "activity":

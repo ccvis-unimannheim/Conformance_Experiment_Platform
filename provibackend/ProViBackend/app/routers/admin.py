@@ -73,6 +73,7 @@ except ImportError:
     raise
 from ProViBackend.utils import config, idiom_files, utils
 from ProViBackend.app.datamodels import data_schemas as ds
+from ProViBackend.app.task_wording import effective_wording
 import ProViBackend.app.answer_formats as afmt
 import pathlib as pl
 
@@ -588,13 +589,19 @@ async def download_experiment_answers(experiment_id: str):
 
     # ── Clean up Task Answers columns ─────────────────────────────────────
     if not df_answers.empty:
-        # Resolve task_id → task_key + task_name
+        # Resolve task_id → task_key + task_name. The name is the question as
+        # *this* experiment asked it, which is what its participants answered.
+        exp_doc = dbc.get_document("Experiment", {"_id": experiment_id})
+        instances_by_task_id = {ti.get("task_id"): ti
+                                for ti in (exp_doc or {}).get("task_instances", [])}
         unique_task_ids = df_answers["task_id"].dropna().unique().tolist()
         task_lookup = {}
         for tid in unique_task_ids:
             doc = dbc.get_task(tid)
             if doc:
-                task_lookup[tid] = {"task_key": doc.get("task_key", ""), "task_name": doc.get("label", "")}
+                wording = effective_wording(exp_doc, tid, doc, instances_by_task_id.get(tid))
+                task_lookup[tid] = {"task_key": doc.get("task_key", ""),
+                                    "task_name": wording["label"]}
         df_answers["task_key"] = df_answers["task_id"].map(lambda x: task_lookup.get(x, {}).get("task_key", ""))
         df_answers["task_name"] = df_answers["task_id"].map(lambda x: task_lookup.get(x, {}).get("task_name", ""))
 
@@ -609,11 +616,8 @@ async def download_experiment_answers(experiment_id: str):
         df_answers["idiom_name"] = df_answers["idiom_id"].map(lambda x: idiom_lookup.get(x, {}).get("idiom_name", ""))
 
         # Add the configured answer format from the experiment's task_instances
-        exp_doc = dbc.get_document("Experiment", {"_id": experiment_id})
-        format_by_task = {}
-        if exp_doc:
-            for ti in exp_doc.get("task_instances", []):
-                format_by_task[ti.get("task_id")] = ti.get("answer_format") or ""
+        format_by_task = {tid: (ti.get("answer_format") or "")
+                          for tid, ti in instances_by_task_id.items()}
         df_answers["answer_format"] = df_answers["task_id"].map(
             lambda x: format_by_task.get(x, "")
         )
@@ -942,7 +946,13 @@ def _remove_custom_task_idioms(task_keys: list[str]):
 
 @router.get("/tasks", tags=["admin"])
 async def get_tasks(experiment_id: str | None = None):
-    """The shared Task question bank, plus `experiment_id`'s own custom tasks if given."""
+    """The shared Task question bank, plus `experiment_id`'s own custom tasks if given.
+
+    With an `experiment_id`, each task is returned as *that experiment* asks it:
+    a task its admin reworded (PATCH /tasks/{id}?experiment_id=…) carries the
+    reworded text, every other task the bank's. Participants read the same way
+    (participant.py), so the admin pages and the study never disagree.
+    """
     tasks = dbc.get_query_db("Task", query={})
     for doc in tasks:
         if "_id" in doc and not isinstance(doc["_id"], str):
@@ -950,15 +960,35 @@ async def get_tasks(experiment_id: str | None = None):
     tasks.sort(key=_task_sort_key)
     if experiment_id:
         exp = dbc.get_document("Experiment", {"_id": experiment_id}) or {}
+        for doc in tasks:
+            doc.update(effective_wording(exp, doc.get("_id", ""), doc))
         tasks.extend(exp.get("custom_tasks") or [])
     return JSONResponse(content=tasks)
 
 
 @router.patch("/tasks/{task_id}", tags=["admin"])
-async def update_task(task_id: str, update_data: ds.TaskUpdate):
+async def update_task(task_id: str, update_data: ds.TaskUpdate,
+                      experiment_id: str | None = None):
+    """Reword one task **for one experiment**, or edit its shared rubric.
+
+    The question bank (the Task collection) holds the wording every experiment
+    starts from and is owned by seed_data.py, so a reworded question is stored
+    on the experiment (`task_overrides`, see app/task_wording.py): it reaches
+    this experiment's participants and no one else's. Editing the bank itself
+    used to be what this endpoint did, which made one experiment's wording
+    ("…for Ship Order", "…customer segments and region") everybody's default and
+    stopped the startup seed from ever correcting it.
+
+    `rubric` is the exception and still goes to the bank: it is reference text
+    for whoever codes the answers by hand, not something a participant sees, and
+    /answer-format reads it per task rather than per experiment.
+    """
     fields = {k: v for k, v in update_data.model_dump().items() if v is not None}
     if not fields:
         raise HTTPException(status_code=400, detail="No fields to update.")
+    wording = {k: v for k, v in fields.items()
+               if k in ("label", "description", "answer_type")}
+    shared = {k: v for k, v in fields.items() if k not in wording}
     if dbc.get_document("Task", {"_id": task_id}) is None:
         # Experiment-scoped custom task: edit it in place on its experiment.
         updated = dbc.update_document(
@@ -969,13 +999,33 @@ async def update_task(task_id: str, update_data: ds.TaskUpdate):
         if not updated:
             raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found.")
         return JSONResponse(content={"message": "Task updated.", "task_id": task_id})
-    # Marks this document as admin-customized so the startup seed (main.py
-    # _seed_collection) stops overwriting it with seed_data.py's hardcoded values.
-    fields["_admin_edited"] = True
-    updated = dbc.update_document("Task", query={"_id": task_id}, update={"$set": fields})
+    if shared:
+        # Non-canonical, so the startup seed leaves it alone (main._seed_collection
+        # only $sets the fields seed_data.py names).
+        if not dbc.update_document("Task", query={"_id": task_id}, update={"$set": shared}):
+            raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found.")
+    if not wording:
+        return JSONResponse(content={"message": "Task updated.", "task_id": task_id})
+    if not experiment_id:
+        raise HTTPException(
+            status_code=400,
+            detail="experiment_id is required: a task's wording is edited for one "
+                   "experiment, not for the shared question bank.",
+        )
+    # Keyed by task_id on the experiment itself, not on its task_instances: on
+    # /task the tasks are still being chosen, so the instance does not exist yet
+    # (and should not be conjured up by an edit), and an override has to outlive
+    # deselecting the task and picking it again.
+    updated = dbc.update_document(
+        "Experiment",
+        query={"_id": experiment_id},
+        update={"$set": {f"task_overrides.{task_id}.{k}": v for k, v in wording.items()}},
+    )
     if not updated:
-        raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found.")
-    return JSONResponse(content={"message": "Task updated.", "task_id": task_id})
+        raise HTTPException(
+            status_code=404, detail=f"Experiment '{experiment_id}' not found.")
+    return JSONResponse(content={"message": "Task updated for this experiment.",
+                                 "task_id": task_id, "experiment_id": experiment_id})
 
 
 @router.post("/experiments/{experiment_id}/custom-tasks", tags=["admin"])
@@ -1224,13 +1274,14 @@ async def get_option_candidates(
 
 @router.get("/tasks/{task_key}/rubric", tags=["admin"])
 async def get_task_rubric(task_key: str):
-    """Return this task's grading rubric for display/editing on /answer-format
-    and /overview.
+    """Return this task's grading rubric for display/editing on /answer-format.
 
     Reference text for manually coding free-text answers — it feeds no automatic
-    scoring. The task's RUBRIC constant is the default; an admin edit
-    (PATCH /tasks/{task_id} with a `rubric` field, stored on the Task document)
-    overrides it. `rubric` is `null` if neither exists.
+    scoring. Whatever an admin wrote (PATCH /tasks/{task_id} with a `rubric`
+    field, stored on the Task document) is it; `rubric` is `null` until someone
+    does, which is every task today. A module may still ship a `RUBRIC` constant
+    as a starting point — none currently does, because a rubric nobody has
+    reviewed is worse than an empty box that says a rubric is missing.
     """
     if task_key not in _TASK_MODULES:
         custom = dbc.get_custom_task_by_key(task_key)
@@ -1318,6 +1369,29 @@ async def get_experiment_stats(experiment_id: str):
     })
 
 
+def _remove_generated_output(exp: dict) -> list[str]:
+    """Delete this experiment's generated images; return the directories removed.
+
+    They live at data/{dataset_id}/output/{experiment_id}/, and the dataset ids
+    come from both the experiment's dataset_ids and its task_configs — a task
+    may target a dataset the experiment does not list. Uploaded and imported
+    images are not generated output (IDIOM_OVERRIDE_DIRECTORY holds those) and
+    are left alone.
+    """
+    experiment_id = exp["_id"]
+    dataset_ids = set(exp.get("dataset_ids", []) or [])
+    for tc in exp.get("task_configs", []):
+        if tc.get("dataset_id"):
+            dataset_ids.add(tc["dataset_id"])
+    removed = []
+    for dataset_id in sorted(dataset_ids):
+        out_dir = DATA_DIRECTORY / dataset_id / "output" / experiment_id
+        if out_dir.exists():
+            shutil.rmtree(out_dir, ignore_errors=True)
+            removed.append(f"{dataset_id}/output/{experiment_id}")
+    return removed
+
+
 @router.delete("/experiments/{experiment_id}", tags=["admin"])
 async def delete_experiment(experiment_id: str, force: bool = False):
     db = dbc.connect_to_database()
@@ -1359,22 +1433,9 @@ async def delete_experiment(experiment_id: str, force: bool = False):
     _remove_process_model_file(exp)
     idiom_files.remove_all_overrides(experiment_id)
 
-    # Remove the generated idiom SVGs for this experiment so they don't pile up as
-    # orphaned files on disk (mirrors dataset deletion's shutil.rmtree cleanup).
-    # The per-experiment output lives at data/{dataset_id}/output/{experiment_id}/;
-    # collect dataset ids from both the experiment's dataset_ids and its
-    # task_configs (a task may target a dataset not in dataset_ids).
-    dataset_ids = set(exp.get("dataset_ids", []) or [])
-    for tc in exp.get("task_configs", []):
-        if tc.get("dataset_id"):
-            dataset_ids.add(tc["dataset_id"])
-
-    removed_output_dirs = []
-    for dataset_id in dataset_ids:
-        out_dir = DATA_DIRECTORY / dataset_id / "output" / experiment_id
-        if out_dir.exists():
-            shutil.rmtree(out_dir, ignore_errors=True)
-            removed_output_dirs.append(f"{dataset_id}/output/{experiment_id}")
+    # Remove the generated idiom SVGs for this experiment so they don't pile up
+    # as orphaned files on disk (mirrors dataset deletion's rmtree cleanup).
+    removed_output_dirs = _remove_generated_output(exp)
 
     return JSONResponse(content={
         "message": "Experiment deleted.",
@@ -1395,32 +1456,59 @@ async def update_experiment_status(experiment_id: str, status: str):
     return JSONResponse(content={"message": f"Experiment status updated to '{status}'."})
 
 
+def _keep_state_below_the_task_step(instances: list[dict], existing_by_task_id: dict) -> list[dict]:
+    """The /task step chooses *which* tasks the experiment asks — nothing else.
+
+    It posts the legacy flat shape, one row per task with an empty idiom_id and
+    no parameters, so rebuilding instances from it as-is strips the idioms, the
+    parameters and the answer shape from every task already configured: adding
+    one task at the end of the wizard cost the work done on the other twenty.
+
+    A task that survives the save therefore keeps everything the later steps
+    gave it. One the admin deselects is dropped together with its state, and
+    comes back empty if it is selected again — the admin said to remove it.
+    """
+    return [dict(existing_by_task_id.get(inst.get("task_id")) or inst) for inst in instances]
+
+
 def _freeze_task_snapshots(instances: list[dict], existing_by_task_id: dict) -> list[dict]:
-    """Stamp each task instance with a frozen snapshot of its Task (question bank)
-    label/description/answer_type, taken the first time the task enters this
-    experiment. Once frozen, later edits to the Task in the admin panel no longer
-    change this experiment — only newly-added tasks (or new experiments) pick up
-    the current Task content.
+    """Stamp each task instance with its `task_key`, and carry any legacy frozen
+    wording through untouched.
+
+    Wording is not this function's business any more: an experiment asks each
+    task in the question bank's words unless an admin reworded it there, which
+    is stored on the experiment (`task_overrides`, app/task_wording.py). This
+    used to freeze the bank's label into every instance the first time the task
+    entered the experiment, and three readers then disagreed — /task showed the
+    bank, participants the frozen copy, and an admin's edit went to the bank, so
+    it reached neither their own experiment nor, correctly, everyone else's.
+
+    Instances written back then still carry that copy; it is preserved here
+    rather than dropped, so an experiment that has already run keeps the text
+    its participants saw until reseed_task_questions.py --apply clears it.
+
+    `task_key` is identity rather than wording, so it is always stamped: an
+    experiment whose Task document is later deleted still knows which generator
+    drew its figures.
     """
     task_cache: dict = {}
     for inst in instances:
         task_id = inst.get("task_id", "")
-        if not task_id or (inst.get("label") and inst.get("task_key")):
+        if not task_id:
             continue
-        existing = existing_by_task_id.get(task_id)
-        if existing and existing.get("label") and existing.get("task_key"):
+        existing = existing_by_task_id.get(task_id) or {}
+        # Legacy frozen wording survives every save; nothing writes it any more.
+        for field in ("label", "description", "answer_type"):
+            if not inst.get(field) and existing.get(field):
+                inst[field] = existing[field]
+        if inst.get("task_key"):
+            continue
+        if existing.get("task_key"):
             inst["task_key"] = existing["task_key"]
-            inst["label"] = existing["label"]
-            inst["description"] = existing.get("description", "")
-            inst["answer_type"] = existing.get("answer_type", "")
             continue
         if task_id not in task_cache:
             task_cache[task_id] = dbc.get_task(task_id) or {}
-        task = task_cache[task_id]
-        inst["task_key"] = task.get("task_key", "")
-        inst["label"] = task.get("label", "")
-        inst["description"] = task.get("description", "")
-        inst["answer_type"] = task.get("answer_type", "")
+        inst["task_key"] = task_cache[task_id].get("task_key", "")
     return instances
 
 
@@ -1456,6 +1544,8 @@ async def update_experiment(experiment_id: str, update_data: ds.ExperimentUpdate
         else:
             configs = [tc.model_dump() for tc in update_data.task_configs]
             instances = task_configs_to_instances(configs)
+            if update_data.current_step == "task":
+                instances = _keep_state_below_the_task_step(instances, existing_by_task_id)
         instances = _freeze_task_snapshots(instances, existing_by_task_id)
         instances = _keep_imported_parameters(instances, existing_by_task_id)
         fields["task_instances"] = instances
@@ -1688,6 +1778,56 @@ def _run_generation_job(experiment_id: str):
         "task_instances": task_instances,
         "task_configs": task_instances_to_configs(task_instances),
     }})
+
+
+@router.delete("/experiments/{experiment_id}/generated-images", tags=["admin"])
+async def discard_generated_images(experiment_id: str):
+    """Throw away the images this experiment has generated, and mark its tasks
+    pending again.
+
+    Stepping back from /specify is what calls this. The images were drawn from
+    the idioms and parameters the admin is going back to change, so keeping them
+    would leave the experiment holding a mixture: tasks marked ready whose
+    images no longer match their configuration, and no way to tell which is
+    which from /overview.
+
+    Uploaded and imported images are not generated output — they live in
+    IDIOM_OVERRIDE_DIRECTORY and are released only by reverting the import — so
+    they survive, and a task whose every image comes from there keeps its
+    status.
+    """
+    exp = dbc.get_document("Experiment", {"_id": experiment_id})
+    if not exp:
+        raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
+    if exp.get("status", "draft") != "draft":
+        raise HTTPException(
+            status_code=409,
+            detail="Images can only be discarded while the experiment is a draft.",
+        )
+
+    removed_dirs = _remove_generated_output(exp)
+
+    keep = _fully_uploaded_task_ids(exp)
+    instances = exp.get("task_instances", []) or []
+    reset = 0
+    for ti in instances:
+        if ti.get("task_id") in keep or ti.get("generation_status") == "pending":
+            continue
+        ti["generation_status"] = "pending"
+        ti["generation_error"] = None
+        reset += 1
+    if reset:
+        dbc.update_document("Experiment", {"_id": experiment_id}, {"$set": {
+            "task_instances": instances,
+            "task_configs": task_instances_to_configs(instances),
+        }})
+
+    return JSONResponse(content={
+        "message": "Generated images discarded.",
+        "experiment_id": experiment_id,
+        "removed_output_dirs": removed_dirs,
+        "tasks_reset": reset,
+    })
 
 
 @router.post("/experiments/{experiment_id}/generate", tags=["admin"])

@@ -53,18 +53,6 @@ def _param_spec():
 PARAM_SPEC = _param_spec()
 
 
-RUBRIC = (
-    "A strong answer states the trace-level frequency of each predefined violation — "
-    "i.e. the percentage of all traces in which that violation appears at least once — "
-    "for every distinct violation found in the log. "
-    "Full credit requires a correct percentage for each violation, rounded to the nearest "
-    "whole number. Partial credit for values within ±5 percentage points of the true value, "
-    "or for correctly ranking violations by trace frequency. No credit for raw occurrence "
-    "counts rather than trace-level percentages, or for percentages relative to a subset "
-    "of traces rather than the full log."
-)
-
-
 import os
 import io as _io
 import base64 as _base64
@@ -88,28 +76,24 @@ _C_XLIGHT = GREY_LIGHTER
 _HDR_BG   = GREY_DARK
 _CMAP_SEQ = CIVIDIS_R  # dark = many violations, yellow = 0
 
-_VTYPES = ["Model Move", "Log Move", "Mismatch Move"]
+_VTYPES = ["Model Move", "Log Move"]
 _VTYPE_SHORT = {
     "Model Move": "MoM",
     "Log Move":   "MoL",
-    "Mismatch Move": "MM",
 }
 # Display labels shown to admins/participants (internal _VTYPES keys stay as
 # returned by shared.classify_step so they keep matching across tasks).
 _VTYPE_DISPLAY = {
     "Model Move": "Model Move",
     "Log Move":   "Log Move",
-    "Mismatch Move": "Mismatch Move",
 }
 
 # Flat colour per violation type, matching task03/task04's Conformant/
-# Non-conformant style (dark navy vs. yellow); Mismatch Move — a third
-# category those tasks don't have — gets the mid-grey stop. Used by both the
-# Bar Chart and Matrix idioms.
+# Non-conformant style (dark navy vs. yellow). Used by both the Bar Chart and
+# Matrix idioms.
 _VTYPE_COLOR = {
     "Model Move": GREY_DARK,
     "Log Move":   GREY_LIGHTER,
-    "Mismatch Move": _C_MED,
 }
 _BAR_COLOR = _VTYPE_COLOR
 
@@ -117,7 +101,6 @@ _BAR_COLOR = _VTYPE_COLOR
 _VTYPE_FROM_TOKEN = {
     "mom": "Model Move", "move on model": "Model Move",
     "mol": "Log Move",   "move on log":   "Log Move",
-    "mm":  "Mismatch Move", "mismatch move": "Mismatch Move",
 }
 
 
@@ -223,7 +206,7 @@ def task11_bar_chart(selected, trace_coverage, n_traces, output_dir, *,
     """Vertical grouped bar chart: one Model Move bar and one Log Move bar per activity.
 
     Activities are sorted by combined (Model Move + Log Move) trace count,
-    descending. Mismatch Move is not shown in this idiom.
+    descending.
     """
     if not selected:
         _no_violations(output_dir, "bar_chart")

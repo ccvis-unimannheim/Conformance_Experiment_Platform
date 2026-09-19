@@ -48,10 +48,9 @@ TOP_N = 12
 #
 # Move-type keys use the classification labels from shared.alignment_pairs_to_rows
 # ("Model Move" = activity required by guideline but skipped in the log,
-#  "Log Move"   = unexpected extra activity in the log,
-#  "Mismatch Move" = log and model differ at the same step).
+#  "Log Move"   = unexpected extra activity in the log).
 # Rationale of the default rule: a skipped mandatory activity is graver than
-# an unexpected extra one; a mismatch is treated like an unexpected one.
+# an unexpected extra one.
 # ===========================================================================
 
 SEVERITY_LEVELS = ["High", "Medium", "Low"]          # fixed display order
@@ -63,7 +62,6 @@ SEVERITY_OVERRIDES: dict = {
 DEFAULT_SEVERITY = {
     "Model Move":    "High",
     "Log Move":      "Medium",
-    "Mismatch Move": "Medium",
 }
 
 

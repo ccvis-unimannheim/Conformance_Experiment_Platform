@@ -138,8 +138,6 @@ _TASK_RENAME_SKIP: dict[str, set[str]] = {
     "task19": {"scatter_plot"},
     "task21": {"scatter_plot"},
     "task22": {"scatter_plot"},
-    "task28": {"scatter_plot"},
-    "task31": {"scatter_plot"},
     "task33": {"scatter_plot"},
     "task37": {"scatter_plot"},
 }
@@ -729,33 +727,30 @@ def get_log_worst_traces(dataset_dir: str) -> list[dict]:
 
 
 def get_log_trace_ids(dataset_dir: str) -> list[dict]:
-    """Every trace in this dataset as a picker option for task04's `trace_ids`.
+    """Every trace in this dataset as a picker option for `trace_ids`.
 
-    Returns [{"value": "<case_id>", "label": "<case_id> — fitness 0.812",
-    "variant": 0}, ...] in log order. `value` is the trace's case id
-    (concept:name); `variant` is a 0-based index assigned by first appearance of
-    the trace's activity sequence (same variant key as task03), letting the admin
-    UI auto-select one trace per distinct variant. task04.generate /
-    task04.generate() accepts these ids in `trace_ids`. Powers the
-    'log.trace_ids' param-spec source.
+    Returns [{"value": "<case_id>", "label": "<case_id> — fitness 0.812"}, ...]
+    in log order; `value` is the trace's case id (concept:name), which the
+    trace-alignment tasks accept in `trace_ids`. Powers the 'log.trace_ids'
+    param-spec source.
+
+    Each option used to carry the index of its control-flow variant, for a
+    checkbox that auto-picked one trace per distinct variant. The checkbox is
+    gone, and with it the only reader of that field.
     """
     log_path, _model_path, _ = _resolve_dataset_paths(dataset_dir, None)
     log = load_event_log(log_path)
     alignments = get_or_compute_alignments(dataset_dir, log)
 
-    variant_index: dict[tuple, int] = {}
     options = []
     for i, trace in enumerate(log):
         if i >= len(alignments):
             break
         case_id = str(trace.attributes.get("concept:name", i))
         fitness = float(alignments[i].get("fitness", 1.0))
-        seq = tuple(str(event.get("concept:name", "")) for event in trace)
-        variant = variant_index.setdefault(seq, len(variant_index))
         options.append({
             "value": case_id,
             "label": f"{case_id} — fitness {fitness:.3f}",
-            "variant": variant,
         })
     return options
 
@@ -1030,8 +1025,8 @@ def get_log_violated_activities_task34(dataset_dir: str) -> list[dict]:
     """Distinct violated activities for task34's admin dropdown.
 
     Returns [{"value": "Approve Treatment", "label": "TREATMENT_APPROVED (6 traces)"}, ...]
-    sorted by trace count descending.  Only MoM / MoL violations are counted
-    (Mismatch Move is excluded, matching task34's classification rules).
+    sorted by trace count descending.  MoM / MoL violations are counted,
+    matching task34's classification rules.
     Powers the 'log.violated_activities_task34' param-spec source.
     """
     from tasks.task34 import _parse_alignment, _is_violation

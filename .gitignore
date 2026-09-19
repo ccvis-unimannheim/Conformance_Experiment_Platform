@@ -4,6 +4,9 @@
 check_idioms.py
 PALETTE_GUIDE.md
 /2604/
+# Working notes written for the report, not part of the docs the repo ships.
+docs/analysis/
+docs/report-input/
 
 # Secrets and per-machine setup
 .env

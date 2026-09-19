@@ -10,15 +10,14 @@ Public API:
         model_path – path to the reference BPMN file
         output_dir – directory where SVGs are written
 
-Two idioms (renamed by pipeline to canonical slugs):
+One idiom (renamed by pipeline to a canonical slug):
     task24_flow_chart_elaborate_bpmn  →  flow_chart_elaborate.svg
-    task24_flow_chart_and_table       →  flow_chart_table.svg
 """
 
 import logging
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["flow_chart_elaborate_bpmn", "flow_chart_and_table"]
+IDIOMS = ["flow_chart_elaborate_bpmn"]
 
 import trace_alignment
 
@@ -51,12 +50,10 @@ def validate_params(log, params) -> list:
     return trace_alignment.validate_selection(log, params, min_traces=1, max_traces=15)
 
 import os
-import re as _re
-import base64 as _base64
 from collections import Counter
 
 from shared import (
-    parse_bpmn_model, render_bpmn_annotated, compose_bpmn_panels,
+    parse_bpmn_model, render_bpmn_annotated,
     GREY_DARK, GREY_MED, GREY_LIGHTER,
 )
 
@@ -175,117 +172,12 @@ def _compute_diff(log, model_path: str, noise_threshold: int = NOISE_THRESHOLD,
 
 
 # ---------------------------------------------------------------------------
-# The discovered model, and putting it beside the guideline
-# ---------------------------------------------------------------------------
-
-def _svg_dims(svg: str):
-    """(width, height) in user units from an SVG string, or (None, None)."""
-    m = _re.search(r'<svg[^>]*\bwidth="([^"]+)"[^>]*\bheight="([^"]+)"', svg)
-    if not m:
-        return None, None
-    try:
-        return (float(_re.sub(r"[^\d.]", "", m.group(1))),
-                float(_re.sub(r"[^\d.]", "", m.group(2))))
-    except ValueError:
-        return None, None
-
-
-def _discovered_model_svg(diff: dict):
-    """The directly-follows model discovered from the selected traces, as SVG.
-
-    Drawn in the same vocabulary as the guideline panel beside it: an edge the
-    guideline also prescribes is thin and grey, one it does not is heavy and
-    dark, and an activity the guideline does not contain is filled dark. Returns
-    None when graphviz is unavailable, in which case the guideline panel is shown
-    on its own rather than the idiom failing.
-    """
-    dfg_counts  = diff["dfg_counts"]
-    model_edges = diff["model_edges"]
-    model_tasks = diff["model_task_names"]
-    if not dfg_counts:
-        return None
-    try:
-        import graphviz
-    except ImportError:
-        logger.warning("      task24: graphviz unavailable — discovered model not drawn.")
-        return None
-
-    dot = graphviz.Digraph(format="svg")
-    dot.attr(bgcolor="white", rankdir="LR", fontname="Arial", pad="0.3",
-             nodesep="0.45", ranksep="0.65")
-    dot.attr("node", fontname="Arial", fontsize="10", shape="box",
-             style="rounded,filled", margin="0.12,0.08")
-    dot.attr("edge", fontname="Arial", fontsize="8", fontcolor=GREY_MED)
-
-    activities = {a for pair in dfg_counts for a in pair}
-    for act in sorted(activities):
-        in_model = act in model_tasks
-        dot.node(act, act,
-                 fillcolor="white" if in_model else GREY_DARK,
-                 color=GREY_MED if in_model else GREY_DARK,
-                 fontcolor=GREY_DARK if in_model else "white",
-                 penwidth="1.4" if in_model else "2.2")
-
-    for (a, b), count in sorted(dfg_counts.items(), key=lambda kv: (-kv[1], kv[0])):
-        in_model = (a, b) in model_edges
-        dot.edge(a, b, label=str(count),
-                 color=GREY_MED if in_model else GREY_DARK,
-                 penwidth="1.2" if in_model else "2.4")
-
-    try:
-        return dot.pipe(format="svg").decode("utf-8")
-    except Exception as exc:   # graphviz binary missing, not just the module
-        logger.warning(f"      task24: discovered model not drawn ({exc}).")
-        return None
-
-
-def _juxtapose(parts, out_path: str):
-    """Stack SVG strings into one, each under its own caption, scaled to a
-    common width. ``parts`` is [(caption, svg), ...]; entries without an SVG are
-    skipped."""
-    parts = [(cap, svg) for cap, svg in parts if svg]
-    if not parts:
-        return False
-
-    dims = []
-    for _cap, svg in parts:
-        w, h = _svg_dims(svg)
-        dims.append((w or 900.0, h or 600.0))
-    width = max(w for w, _h in dims)
-
-    cap_h = 26.0
-    body, y = [], 0.0
-    for (caption, svg), (w, h) in zip(parts, dims):
-        scale = width / w
-        body.append(
-            f'  <text x="14" y="{y + 18:.1f}" font-family="Arial, sans-serif" '
-            f'font-size="13" font-weight="bold" fill="{GREY_DARK}">{caption}</text>')
-        b64 = _base64.b64encode(svg.encode("utf-8")).decode("ascii")
-        body.append(
-            f'  <image href="data:image/svg+xml;base64,{b64}" x="0" y="{y + cap_h:.1f}" '
-            f'width="{width:.1f}" height="{h * scale:.1f}"/>')
-        y += cap_h + h * scale + 10.0
-
-    with open(out_path, "w", encoding="utf-8") as fh:
-        fh.write("\n".join([
-            '<?xml version="1.0" encoding="UTF-8"?>',
-            '<svg xmlns="http://www.w3.org/2000/svg" '
-            'xmlns:xlink="http://www.w3.org/1999/xlink" '
-            f'width="{width:.1f}" height="{y:.1f}" viewBox="0 0 {width:.1f} {y:.1f}">',
-            '  <rect width="100%" height="100%" fill="white"/>',
-            *body,
-            "</svg>",
-        ]))
-    return True
-
-
-# ---------------------------------------------------------------------------
-# Idiom 1 – Process graph with aggregate diff coloring
+# Idiom – Process graph with aggregate diff coloring
 # ---------------------------------------------------------------------------
 
 def _build_diff_panel(diff: dict) -> dict:
     """Build the discovery-diff annotation (node/flow styling + summary + legend)
-    shared by flow_chart_elaborate_bpmn and flow_chart_and_table.
+    for flow_chart_elaborate_bpmn.
 
       missing task nodes         → faded fill + light stroke
       violation endpoint nodes   → dark border (endpoint of observed-not-in-model edge)
@@ -344,102 +236,23 @@ def _build_diff_panel(diff: dict) -> dict:
 
 
 def task24_flow_chart_elaborate_bpmn(diff: dict, output_dir: str, subtitle: str = ""):
-    """The discovered model above the guideline it is compared against.
+    """The guideline BPMN, annotated with what the discovery found.
 
-    The question is where the two models differ, so both are on screen: the
-    model discovered from the selected traces, and the guideline annotated with
-    what that discovery found. Painting the diff onto the guideline alone — what
-    this idiom did before — asked the reader to imagine the other half.
+    One visual vocabulary only: the differences are painted onto the model the
+    analyst already knows. The discovered behaviour is what produces the
+    annotation — faded nodes, dark violation endpoints, the summary line — it is
+    not drawn as a second, differently-shaped graph beside it.
     """
-    path = os.path.join(output_dir, "task24_flow_chart_elaborate_bpmn.svg")
+    path  = os.path.join(output_dir, "task24_flow_chart_elaborate_bpmn.svg")
     panel = _build_diff_panel(diff)
-    title = "Discovered vs. Desired Model — Differences"
-
-    guideline_path = path + ".guideline.tmp.svg"
     render_bpmn_annotated(
-        diff, guideline_path,
-        title=title,
+        diff, path,
+        title="Discovered vs. Desired Model — Differences",
         summary=" · ".join(x for x in (subtitle, panel["summary"]) if x),
         node_style_fn=panel["node_style_fn"],
         faded_flow_fn=panel["faded_flow_fn"],
         legend_items=panel["legend_items"],
     )
-    with open(guideline_path, encoding="utf-8") as fh:
-        guideline_svg = fh.read()
-    os.remove(guideline_path)
-
-    discovered_svg = _discovered_model_svg(diff)
-    ok = _juxtapose([
-        (f"Discovered from {subtitle}" if subtitle else "Discovered model", discovered_svg),
-        ("Guideline model, annotated with the differences", guideline_svg),
-    ], path)
-    if not ok:
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(guideline_svg)
-
-
-# ---------------------------------------------------------------------------
-# Idiom 2 – Difference table
-# ---------------------------------------------------------------------------
-
-def task24_flow_chart_and_table(diff: dict, output_dir: str, subtitle: str = ""):
-    """Diff graph (same annotated BPMN as flow_chart_elaborate) on top, the
-    discovery-diff table — Type | From / Activity | To | Observed Frequency —
-    beneath it."""
-    dfg_counts            = diff["dfg_counts"]
-    observed_not_in_model = diff["observed_not_in_model"]
-    in_model_not_observed = diff["in_model_not_observed"]
-    extra_activities      = diff["extra_activities"]
-    missing_activities    = diff["missing_activities"]
-
-    rows = []
-    # Tie-break on the edge itself. Sorting a *set* by frequency alone leaves
-    # equal-frequency edges in set-iteration order, which changes with every
-    # Python process, so this table's rows were shuffled between runs of the
-    # same data — see the reproducibility note in
-    # docs/CONFORMANCE_ATTRIBUTE_CLASS.md.
-    for (a, b) in sorted(observed_not_in_model, key=lambda e: (-dfg_counts.get(e, 0), e)):
-        rows.append(["Observed not in model", a, b, str(dfg_counts.get((a, b), 0))])
-    for (a, b) in sorted(in_model_not_observed):
-        rows.append(["In model, not observed", a, b, "—"])
-    for act in sorted(extra_activities):
-        rows.append(["Extra activity (log only)", act, "—", "—"])
-    for act in sorted(missing_activities):
-        rows.append(["Missing activity (model only)", act, "—", "—"])
-
-    if not rows:
-        rows = [["(No structural differences detected)", "—", "—", "—"]]
-
-    panel = _build_diff_panel(diff)
-    path = os.path.join(output_dir, "task24_flow_chart_and_table.svg")
-    guideline_path = path + ".guideline.tmp.svg"
-    compose_bpmn_panels(
-        [{
-            "parsed": diff,
-            "node_style_fn": panel["node_style_fn"],
-            "faded_flow_fn": panel["faded_flow_fn"],
-            "subtitle": " · ".join(x for x in (subtitle, panel["summary"]) if x),
-        }],
-        guideline_path,
-        title="Guideline Violations — Discovery Diff",
-        legend_items=panel["legend_items"],
-        table_rows=rows,
-        table_cols=["Type", "From / Activity", "To", "Observed Frequency"],
-    )
-    with open(guideline_path, encoding="utf-8") as fh:
-        guideline_svg = fh.read()
-    os.remove(guideline_path)
-
-    # Same pair as the other idiom, with the difference list spelled out
-    # beneath the guideline — one payload, two readings.
-    discovered_svg = _discovered_model_svg(diff)
-    ok = _juxtapose([
-        (f"Discovered from {subtitle}" if subtitle else "Discovered model", discovered_svg),
-        ("Guideline model and the differences found", guideline_svg),
-    ], path)
-    if not ok:
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(guideline_svg)
 
 
 # ---------------------------------------------------------------------------
@@ -452,7 +265,7 @@ def generate(log, model_path: str, output_dir: str, trace_ids=None,
 
     ``trace_ids`` / ``trace_count`` choose what the model is discovered from —
     the named traces, or every trace of the ``trace_count`` most frequent
-    variants. Both idioms then show that discovered model beside the guideline.
+    variants. The idiom then annotates the guideline with what was discovered.
     """
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 24 visualizations ---")
@@ -478,4 +291,3 @@ def generate(log, model_path: str, output_dir: str, trace_ids=None,
         return
 
     task24_flow_chart_elaborate_bpmn(diff, output_dir, subtitle=described)
-    task24_flow_chart_and_table(diff, output_dir, subtitle=described)

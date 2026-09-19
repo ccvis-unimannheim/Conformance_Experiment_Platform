@@ -1,0 +1,128 @@
+#!/usr/bin/env python3
+"""Put the task questions back where they belong: the bank, and the experiments.
+
+`main.py._seed_collection` upserts `seed_data.CANONICAL_TASKS` on every startup,
+but skips any document flagged `_admin_edited`: once an admin has edited a
+question through `PATCH /admin/tasks/{id}` (the Edit dialog on /task), the code
+no longer owns it, so a restart cannot silently discard their wording. The cost
+is that a later change to seed_data.py never reaches those documents either —
+the deploy succeeds, the container restarts, and the page still shows the old
+question.
+
+This script says which documents are in that state and what they would become,
+and with --apply writes the canonical wording and clears the flag.
+
+    docker compose exec provibackend python ProViBackend/scripts/reseed_task_questions.py
+    docker compose exec provibackend python ProViBackend/scripts/reseed_task_questions.py --apply
+
+It also clears the wording frozen onto every experiment's task instances. That
+snapshot was taken the first time a task entered an experiment, so an experiment
+kept whatever the bank said that day — including the bank entries an admin had
+overwritten for a different experiment. With the snapshot gone, an experiment
+reads through to the bank (app/task_wording.py), and shows its own wording only
+where an admin reworded that task *for that experiment*, which is now stored
+separately (`Experiment.task_overrides`) and is left untouched here.
+
+Run it once after deploying the per-experiment wording change; it is idempotent.
+"""
+import argparse
+import pathlib
+import sys
+import uuid
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
+
+from ProViBackend.app.main import _SEED_NAMESPACE           # noqa: E402
+from ProViBackend.app.seed_data import CANONICAL_TASKS      # noqa: E402
+from ProViBackend.utils.database import connection as dbc   # noqa: E402
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--apply", action="store_true",
+                        help="write the canonical labels and clear _admin_edited")
+    args = parser.parse_args()
+
+    db = dbc.connect_to_database()
+    pinned, stale, ok, missing = [], [], 0, []
+
+    for item in CANONICAL_TASKS:
+        _id = str(uuid.uuid5(_SEED_NAMESPACE, item["task_key"]))
+        doc = db["Task"].find_one({"_id": _id})
+        if doc is None:
+            missing.append(item["task_key"])
+            continue
+        differs = doc.get("label") != item["label"]
+        if doc.get("_admin_edited"):
+            pinned.append((item["task_key"], doc.get("label", ""), item["label"], differs))
+        elif differs:
+            stale.append((item["task_key"], doc.get("label", ""), item["label"]))
+        else:
+            ok += 1
+
+    print(f"{len(CANONICAL_TASKS)} canonical tasks: {ok} already match, "
+          f"{len(pinned)} admin-edited, {len(stale)} differ without the flag, "
+          f"{len(missing)} not in the database")
+
+    if stale:
+        print("\nDiffer but NOT flagged — a restart alone fixes these:")
+        for key, old, new in stale:
+            print(f"  {key}\n    is:     {old}\n    should: {new}")
+
+    if pinned:
+        print("\nAdmin-edited, so the seed skips them:")
+        for key, old, new, differs in pinned:
+            mark = "" if differs else "   (same wording anyway)"
+            print(f"  {key}{mark}\n    is:     {old}\n    would:  {new}")
+
+    if missing:
+        print("\nNot in the database at all (the seed will insert them on the next "
+              f"restart): {', '.join(missing)}")
+
+    # --- the wording frozen onto experiments --------------------------------
+    frozen = []
+    for exp in db["Experiment"].find({"task_instances": {"$exists": True}}):
+        n = sum(1 for ti in (exp.get("task_instances") or [])
+                if ti.get("label") or ti.get("description") or ti.get("answer_type"))
+        if n:
+            frozen.append((exp.get("_id"), exp.get("name") or exp.get("experiment_name") or "?", n))
+
+    print(f"\n{len(frozen)} experiment(s) carry a frozen question snapshot:")
+    for _id, name, n in frozen:
+        print(f"  {name} ({_id}): {n} task instance(s)")
+    if not frozen:
+        print("  none — every experiment already reads the bank")
+
+    if not args.apply:
+        if pinned or stale or frozen:
+            print("\nNothing written. Re-run with --apply to write the canonical "
+                  "wording, clear the flag, and drop the frozen snapshots.")
+        return 0
+
+    written = 0
+    for item in CANONICAL_TASKS:
+        _id = str(uuid.uuid5(_SEED_NAMESPACE, item["task_key"]))
+        result = db["Task"].update_one(
+            {"_id": _id},
+            {"$set": {k: v for k, v in item.items()},
+             "$unset": {"_admin_edited": ""}},
+        )
+        written += result.modified_count
+    print(f"\nWrote {written} Task document(s); the flag is cleared, so future "
+          f"seed_data.py changes reach them on restart.")
+
+    cleared = db["Experiment"].update_many(
+        {"task_instances": {"$exists": True}},
+        {"$unset": {"task_instances.$[].label": "",
+                    "task_instances.$[].description": "",
+                    "task_instances.$[].answer_type": ""}},
+    )
+    print(f"Cleared the frozen snapshot on {cleared.modified_count} experiment(s). "
+          f"They now show the bank's wording, and an admin rewording a task on "
+          f"/task or /overview writes only to that experiment.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

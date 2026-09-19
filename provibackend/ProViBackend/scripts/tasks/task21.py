@@ -405,7 +405,6 @@ def task21_flow_chart_elaborate_bpmn_table(ctx, candidates, model_path, output_d
         title="Where Violations Sit (flow) & Candidate Reasons to Explore (table)",
         legend_items=[
             (GREY_MED,    "#444444", 3, "Model move (skipped step)"),
-            (GREY_LIGHT,  "#444444", 3, "Mismatch move"),
             (GREY_LIGHTER,   "#666666", 2, "Conform (synchronous)"),
             ("white", "#888888", 2, "Not on this trace"),
         ],

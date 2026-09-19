@@ -1,17 +1,22 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import AdminNav from "../../../../components/Admin/AdminNav";
 import ExperimentDetailsForm from "../../../../components/Admin/ExperimentDetailsForm";
 import DatasetSelectTable from "../../../../components/Admin/DatasetSelectTable";
-import { saveWizardStep } from "../../../../utils/wizardSave";
+import { queueWizardSave } from "../../../../utils/wizardSave";
 
 export default function NewExperimentPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const [experimentId] = useState(() => crypto.randomUUID());
-  const createdRef = useRef(false);
+  // Reached with an id when the admin steps back here from a later wizard step:
+  // that draft is edited in place. Without one, this is a new experiment and the
+  // draft is created as soon as the form has a name and a dataset.
+  const resumedId = searchParams.get("experiment_id");
+  const [experimentId] = useState(() => resumedId || crypto.randomUUID());
+  const createdRef = useRef(Boolean(resumedId));
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -26,6 +31,22 @@ export default function NewExperimentPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
+
+  // Fill the form from the draft being edited, so stepping back shows what was
+  // entered rather than a blank page that would overwrite it on the next edit.
+  useEffect(() => {
+    if (!resumedId) return;
+    fetch(`/api/admin/experiments/${encodeURIComponent(resumedId)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((exp) => {
+        if (!exp) return;
+        setName(exp.name || "");
+        setSelectedIds(new Set(exp.dataset_ids || []));
+        if (exp.design_type) setDesignType(exp.design_type);
+        setRandomizeOrder((exp.within_sequence_mode || "random") === "random");
+      })
+      .catch(() => {});
+  }, [resumedId]);
 
   useEffect(() => {
     fetch(`/api/admin/datasets`)
@@ -78,7 +99,7 @@ export default function NewExperimentPage() {
 
   function persistField(fields) {
     if (!createdRef.current) return;
-    saveWizardStep(experimentId, "prequestionnaire", fields).catch((e) => setSubmitError(e.message));
+    queueWizardSave(experimentId, "prequestionnaire", fields).catch((e) => setSubmitError(e.message));
   }
 
   function handleFormChange(field, value) {
@@ -169,7 +190,9 @@ export default function NewExperimentPage() {
 
       <main className="flex-grow max-w-[900px] mx-auto w-full px-6 py-12 pb-32">
         <div className="mb-12">
-          <h1 className="text-h1 text-primary mb-2">Create New Experiment</h1>
+          <h1 className="text-h1 text-primary mb-2">
+            {resumedId ? "Experiment Details" : "Create New Experiment"}
+          </h1>
           <p className="text-body-lg text-secondary">
             Set up your research environment by defining project details and choosing your dataset(s).
           </p>

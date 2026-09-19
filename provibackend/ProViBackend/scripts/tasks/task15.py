@@ -78,8 +78,8 @@ from shared import (
 
 _FIT_THRESHOLD = 0.8
 
-_MOVE_TYPES = ["Model Move", "Log Move", "Mismatch Move"]
-_MOVE_COLOR = {"Model Move": GREY_MED, "Log Move": GREY_DARK, "Mismatch Move": GREY_LIGHT}
+_MOVE_TYPES = ["Model Move", "Log Move"]
+_MOVE_COLOR = {"Model Move": GREY_MED, "Log Move": GREY_DARK}
 
 _FITNESS_BANDS = [
     ("0.00–0.25", 0.00, 0.25, "#333333", "white"),

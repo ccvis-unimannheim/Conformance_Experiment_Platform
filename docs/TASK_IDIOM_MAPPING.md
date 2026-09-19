@@ -453,7 +453,6 @@ This task is similar to ``Present: Present Guideline violations'', but rather th
 | Idiom (Excel label) | Canonical key | Priority |
 |---|---|---|
 | Flow Chart+ (BPMN / Petri Net / DFG) | `flow_chart_elaborate` | High |
-| Flow Chart+ & Table | `flow_chart_elaborate_table` | High |
 
 ## task25
 
@@ -466,7 +465,6 @@ This task is similar to ``Present: Present Guideline violations'', but rather th
 | Bar Chart | `bar_chart` | Medium/Reviewed |
 | Scatter Plot (Dotted Chart) | `scatter_plot` | Medium/Reviewed |
 | Flow Chart+ (BPMN / Petri Net / DFG) | `flow_chart_elaborate` | Medium/Reviewed |
-| Flow Chart+ & Table | `flow_chart_elaborate_table` | Medium/Reviewed |
 | Tile Metric | `tile_metric` | High |
 | Table | `table` | Medium/Reviewed |
 
@@ -501,16 +499,10 @@ This task is similar to ``Present: Present Guideline violations'', but rather th
 |---|---|---|
 | Bar Chart | `bar_chart` | High |
 | Stacked Bar Graph | `stacked_bar` | Medium/Reviewed |
-| Scatter Plot (Dotted Chart) | `scatter_plot` | High |
 | Box and Whisker Plot | `boxplot` | Medium/Reviewed |
-| Flow Chart & Table | `flow_chart_table` | Medium/Reviewed |
-| Flow Chart+ & Table | `flow_chart_elaborate_table` | Medium/Reviewed |
 | Table | `table` | High |
-| Table & Bar Chart | `table_bar_chart` | High |
 | Matrix | `matrix` | Medium/Reviewed |
 | Heatmap | `heatmap` | Medium/Reviewed |
-| Gantt Chart | `gantt_chart` | Medium/Reviewed |
-| Calendar | `calendar` | Medium/Reviewed |
 | Parallel Sets | `parallel_sets` | High |
 
 ## task28
@@ -523,16 +515,11 @@ This task is similar to ``Present: Present Guideline violations'', but rather th
 |---|---|---|
 | Bar Chart | `bar_chart` | High |
 | Stacked Bar Graph | `stacked_bar` | Medium/Reviewed |
-| Scatter Plot (Dotted Chart) | `scatter_plot` | High |
 | Box and Whisker Plot | `boxplot` | Medium/Reviewed |
 | Flow Chart (Chevron Diagram) | `flow_chart_basic` | Medium/Reviewed |
-| Flow Chart & Table | `flow_chart_table` | High |
 | Flow Chart+ (BPMN / Petri Net / DFG) | `flow_chart_elaborate` | Medium/Reviewed |
-| Flow Chart+ & Table | `flow_chart_elaborate_table` | High |
-| Network Diagram | `network_diagram` | Medium/Reviewed |
 | Tree | `tree` | Medium/Reviewed |
 | Table | `table` | High |
-| Table & Bar Chart | `table_bar_chart` | High |
 | Matrix | `matrix` | Medium/Reviewed |
 | Heatmap | `heatmap` | Medium/Reviewed |
 | Gantt Chart | `gantt_chart` | Medium/Reviewed |
@@ -553,12 +540,10 @@ This task is similar to ``Present: Present Guideline violations'', but rather th
 | Stacked Bar Graph | `stacked_bar` | High |
 | Flow Chart+ & Table | `flow_chart_elaborate_table` | Medium/Reviewed |
 | Table | `table` | High |
-| Table & Bar Chart | `table_bar_chart` | High |
 | Matrix | `matrix` | High |
 | Heatmap | `heatmap` | Medium/Reviewed |
 | Pie / Donut Chart | `pie_chart` | High |
 | Sunburst Diagram | `sunburst` | High |
-| Tree Map | `tree_map` | High |
 | Parallel Sets | `parallel_sets` | High |
 
 ## task30
@@ -574,7 +559,6 @@ This task is similar to ``Present: Present Guideline violations'', but rather th
 | Scatter Plot (Dotted Chart) | `scatter_plot` | High |
 | Box and Whisker Plot | `boxplot` | Medium/Reviewed |
 | Table | `table` | High |
-| Table & Bar Chart | `table_bar_chart` | High |
 | Matrix | `matrix` | Medium/Reviewed |
 | Heatmap | `heatmap` | Medium/Reviewed |
 | Calendar | `calendar` | Medium/Reviewed |
@@ -590,7 +574,6 @@ This task is similar to ``Present: Present Guideline violations'', but rather th
 |---|---|---|
 | Bar Chart | `bar_chart` | Medium/Reviewed |
 | Stacked Bar Graph | `stacked_bar` | Medium/Reviewed |
-| Scatter Plot (Dotted Chart) | `scatter_plot` | High |
 | Table | `table` | Medium/Reviewed |
 | Matrix | `matrix` | High |
 | Heatmap | `heatmap` | High |
@@ -607,7 +590,6 @@ This task is similar to ``Present: Present Guideline violations'', but rather th
 | Stacked Bar Graph | `stacked_bar` | High |
 | Box and Whisker Plot | `boxplot` | Medium/Reviewed |
 | Table | `table` | High |
-| Table & Bar Chart | `table_bar_chart` | High |
 | Matrix | `matrix` | High |
 | Heatmap | `heatmap` | Medium/Reviewed |
 | Parallel Sets | `parallel_sets` | High |

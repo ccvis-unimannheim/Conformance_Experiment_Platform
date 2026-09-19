@@ -80,18 +80,6 @@ PARAM_SPEC = [
 ]
 
 
-RUBRIC = (
-    "A strong answer names at least one specific violation pattern (activity + move type) "
-    "with a strong association with missing or achieving the process goal, and states the "
-    "direction of the effect: negative risk difference = associated with missing the goal, "
-    "positive = associated with achieving it. Full marks require an approximate magnitude "
-    "(e.g. 'associated with a −35 pp drop in goal-achievement rate'). "
-    "Award partial marks for naming the correct pattern and direction without the magnitude. "
-    "Deduct marks for incorrect direction. "
-    "No credit for vague claims not grounded in the risk-difference values shown."
-)
-
-
 def validate_params(log, params) -> list:
     errors = []
     act = params.get("outcome_activity")

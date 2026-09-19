@@ -4,6 +4,13 @@ tasks/task01.py – Task ID 1: Confirm / Compare / Process conformance.
 Compare the conformance of two sub-logs split by process outcome (Positive = outcome_activity
 present in trace; Negative = absent) against the BPMN model.
 
+Every idiom but the box plot shows the same data, so participants who see
+different idioms are given the same information: per group, the share of its
+traces in each of three fitness categories, with the group's trace count in its
+label. Shares rather than counts, because the groups differ in size and a
+larger group would otherwise look better. The box plot cannot show this — it
+draws quantiles, and with most fitness values at exactly 1.0 its boxes collapse.
+
 Public API:
     generate(log, fitness_df, output_dir, outcome_activity="Activate Care")
         log              – PM4Py EventLog (for outcome-group classification)
@@ -16,8 +23,12 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "table", "table_and_bar_chart", "parallel_sets",
-          "stacked_bar", "box_plot", "matrix"]
+IDIOMS = [
+    "bar_chart", "table", "stacked_bar", "matrix",
+    # "box_plot",             # draws quantiles, not the per-group shares; its boxes collapse at 1.0
+    # "table_and_bar_chart",  # two idioms in one (still drawn: task04's log level offers it)
+    # "parallel_sets",        # shows no count of traces per conformance category
+]
 
 
 
@@ -64,22 +75,23 @@ import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 from matplotlib.patches import PathPatch
 from matplotlib.path import Path
 from matplotlib import gridspec
 
 from shared import (
     save_svg, make_table,
-    draw_composition_stacked_bars, draw_grouped_box_plot, draw_value_heatmap,
-    PAIR_COLORS, categorical_colors, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    draw_composition_stacked_bars, draw_grouped_box_plot, draw_grouped_rate_bars,
+    draw_value_heatmap,
+    CIVIDIS, PAIR_COLORS, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
+from matplotlib.colors import to_hex
 
 
 # ---------------------------------------------------------------------------
-# Group color constants
+# Group and category constants
 # ---------------------------------------------------------------------------
-_COLOR_POSITIVE, _COLOR_NEGATIVE = PAIR_COLORS  # cividis blue / yellow
+_COLOR_POSITIVE, _COLOR_NEGATIVE = PAIR_COLORS  # cividis blue / yellow (box plot)
 _GROUPS = ["Positive", "Negative"]
 _GROUP_COLORS = [_COLOR_POSITIVE, _COLOR_NEGATIVE]
 
@@ -90,11 +102,15 @@ def _group_suffix(outcome_activity: str) -> str:
     while the on-chart group/legend labels stay 'Positive'/'Negative'."""
     return f"(Positive = '{outcome_activity}' present)"
 
-# Conformance categories used in Parallel Sets (ordered light → dark)
-_PSET_LABELS = ["Major deviation\n(< 0.8)", "Minor deviation\n(0.8 – <1.0)", "Conformant\n(= 1.0)"]
-_PSET_COLORS = categorical_colors(3)  # navy, slate blue, yellow
-# Compact category labels reused by stacked bar / matrix
+# Conformance categories, low → high fitness. Yellow is low fitness (see the
+# colour rule in shared.py), and both deviation categories come from cividis's
+# yellow end so deviating vs conformant always reads as yellow vs blue.
+# categorical_colors(3) would give Minor a slate blue next to Conformant's navy,
+# and a log with no major deviations then draws all blue.
 _CAT_LABELS = ["Major dev. (<0.8)", "Minor dev. (0.8–<1.0)", "Conformant (=1.0)"]
+_CAT_LABELS_WRAPPED = ["Major deviation\n(< 0.8)", "Minor deviation\n(0.8 – <1.0)", "Conformant\n(= 1.0)"]
+_CAT_COLORS = [to_hex(CIVIDIS(0.95)), to_hex(CIVIDIS(0.72)), to_hex(CIVIDIS(0.02))]  # yellow, ochre, navy
+_SHARE_LABEL = "Share of the group's traces (%)"
 
 
 def _task01_cat_index(fitness: float) -> int:
@@ -123,178 +139,134 @@ def _task01_build_df(log, fitness_df: pd.DataFrame, outcome_activity: str) -> pd
     return df
 
 
-def _task01_group_stats(df: pd.DataFrame, conformant_threshold: float = 1.0) -> pd.DataFrame:
-    """Return summary stats (n_traces, n_conformant, pct_conformant, mean_fitness) per group.
+def _task01_category_counts(df: pd.DataFrame) -> np.ndarray:
+    """Trace counts per group and conformance category, shape (groups, categories).
 
-    The binary split is this task's point, so it keeps the conformant/
-    non-conformant cut the other group-comparison tasks dropped. The default
-    reproduces `is_fit` (fitness >= 1.0); an admin threshold overrides it.
+    The one data kernel every idiom but the box plot draws from.
     """
-    import trace_response
-
-    stats = trace_response.fitness_stats(
-        df["fitness"], df["outcome_group"], ["Positive", "Negative"],
-        conformant_threshold=conformant_threshold,
-    )
-    return pd.DataFrame({
-        "group":          stats["group"],
-        "n_traces":       stats["n"],
-        "n_conformant":   stats["n_conformant"],
-        "pct_conformant": stats["pct_conformant"],
-        "mean_fitness":   stats["mean"],
-    })
+    counts = np.zeros((len(_GROUPS), len(_CAT_LABELS)), dtype=int)
+    for gi, g in enumerate(_GROUPS):
+        for fitness in df.loc[df["outcome_group"] == g, "fitness"]:
+            counts[gi, _task01_cat_index(float(fitness))] += 1
+    return counts
 
 
-def _task01_conformance_category(fitness: float) -> str:
-    if fitness >= 1.0:
-        return _PSET_LABELS[2]
-    if fitness >= 0.8:
-        return _PSET_LABELS[1]
-    return _PSET_LABELS[0]
+def _task01_shares(counts: np.ndarray) -> np.ndarray:
+    """Each group's counts as a % of that group; an empty group is all 0."""
+    n = counts.sum(axis=1, keepdims=True)
+    return np.divide(counts * 100.0, n, out=np.zeros(counts.shape), where=n > 0)
+
+
+def _task01_group_labels(counts: np.ndarray) -> list:
+    """'Positive (n=321)' — the trace count the shares are taken of."""
+    return [f"{g} (n={int(n)})" for g, n in zip(_GROUPS, counts.sum(axis=1))]
+
+
+def _task01_table_rows(counts: np.ndarray, shares: np.ndarray) -> list:
+    """Group | #Traces | one 'count (share%)' cell per category."""
+    return [
+        [g, str(int(counts[gi].sum()))]
+        + [f"{int(counts[gi, ci])} ({shares[gi, ci]:.1f}%)" for ci in range(len(_CAT_LABELS))]
+        for gi, g in enumerate(_GROUPS)
+    ]
+
+
+def _task01_draw_share_bars(ax, counts: np.ndarray, shares: np.ndarray):
+    """Grouped bars: per group, one bar per category, height = share of the group."""
+    pos = draw_grouped_rate_bars(ax, len(_GROUPS), _CAT_LABELS, shares, _CAT_COLORS)
+    ax.set_xticks(pos)
+    ax.set_xticklabels(_task01_group_labels(counts), fontsize=FONT_ANNOT)
+    ax.set_ylabel(_SHARE_LABEL, fontsize=FONT_LABEL)
+    ax.set_ylim(0, 100)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
+    ax.set_axisbelow(True)
+
+
+def _task01_category_legend(ax, ncol: int = len(_CAT_LABELS)):
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.12), ncol=ncol,
+              frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
 
 
 # ---------------------------------------------------------------------------
 # Visualizations
 # ---------------------------------------------------------------------------
 
-def task01_bar_chart(stats_df: pd.DataFrame, output_dir: str, outcome_activity: str):
-    """Two bars: mean conformance rate for Positive vs Negative group."""
-    groups = stats_df["group"].tolist()
-    means  = stats_df["mean_fitness"].tolist()
-    colors = [_COLOR_POSITIVE, _COLOR_NEGATIVE]
-
-    fig, ax = plt.subplots(figsize=(6, 5))
-    bars = ax.bar(groups, means, color=colors, edgecolor="white", width=0.5)
-    for bar, val in zip(bars, means):
-        ax.text(
-            bar.get_x() + bar.get_width() / 2,
-            bar.get_height() + 0.015,
-            f"{val:.3f}",
-            ha="center", va="bottom", fontsize=FONT_ANNOT,
-        )
-    ax.set_ylabel("Mean Conformance Rate (0–1)", fontsize=FONT_LABEL)
-    ax.set_title(f"Mean Conformance Rate by Group {_group_suffix(outcome_activity)}",
+def task01_bar_chart(counts: np.ndarray, output_dir: str, outcome_activity: str):
+    """Grouped bars: per group, the share of its traces in each conformance category."""
+    shares = _task01_shares(counts)
+    fig, ax = plt.subplots(figsize=(6.5, 5))
+    _task01_draw_share_bars(ax, counts, shares)
+    ax.set_title(f"Conformance Categories per Group {_group_suffix(outcome_activity)}",
                  fontsize=FONT_TITLE)
-    ax.set_ylim(0, 1.15)
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
-    ax.set_axisbelow(True)
-    ax.legend(
-        handles=[
-            mpatches.Patch(color=_COLOR_POSITIVE, label="Positive"),
-            mpatches.Patch(color=_COLOR_NEGATIVE, label="Negative"),
-        ],
-        loc="lower center", bbox_to_anchor=(0.5, -0.25),
-        ncol=2, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT,
-    )
+    _task01_category_legend(ax)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task01_bar_chart.svg"))
 
 
-def task01_table(stats_df: pd.DataFrame, output_dir: str, outcome_activity: str):
-    """Group | #Traces | #Conformant | % Conformant | Mean Fitness."""
-    cell_text = [
-        [
-            row["group"],
-            str(int(row["n_traces"])),
-            str(int(row["n_conformant"])),
-            f"{row['pct_conformant']:.1f}%",
-            f"{row['mean_fitness']:.3f}",
-        ]
-        for _, row in stats_df.iterrows()
-    ]
-    fig_h = max(3.0, 1.2 + len(cell_text) * 0.56)
+def task01_table(counts: np.ndarray, output_dir: str, outcome_activity: str):
+    """Group | #Traces | count (share%) per conformance category."""
+    cell_text = _task01_table_rows(counts, _task01_shares(counts))
+    fig_h = max(3.0, 1.4 + len(cell_text) * 0.56)
     fig, ax = plt.subplots(figsize=(10, fig_h))
     ax.axis("off")
     make_table(
         ax,
         cell_text=cell_text,
-        col_labels=["Group", "#Traces", "#Conformant", "% Conformant", "Mean Fitness"],
+        col_labels=["Group", "#Traces", *_CAT_LABELS_WRAPPED],
         bbox=[0.03, 0.06, 0.94, 0.78],
-        col_widths=[0.20, 0.18, 0.20, 0.22, 0.20],
+        col_widths=[0.16, 0.14, 0.23, 0.24, 0.23],
         font_size=11,
         scale_xy=(1, 1.9),
         cell_pad=0.12,
     )
-    ax.set_title(f"Conformance Comparison by Group {_group_suffix(outcome_activity)}",
+    ax.set_title(f"Conformance Categories per Group {_group_suffix(outcome_activity)}",
                  fontsize=FONT_TITLE, pad=12)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task01_table.svg"))
 
 
-def task01_table_and_bar_chart(stats_df: pd.DataFrame, output_dir: str, outcome_activity: str):
-    """Table (left) + bar chart of mean fitness (right) in one figure."""
-    fig = plt.figure(figsize=(12, 4.5))
-    gs  = gridspec.GridSpec(1, 2, width_ratios=[1.6, 1.0], wspace=0.35)
+def task01_table_and_bar_chart(counts: np.ndarray, output_dir: str, outcome_activity: str):
+    """The table (left) and the grouped bars (right) in one figure."""
+    shares = _task01_shares(counts)
+    fig = plt.figure(figsize=(14, 5))
+    gs  = gridspec.GridSpec(1, 2, width_ratios=[1.5, 1.0], wspace=0.3)
 
-    # Left: table
     ax_tbl = fig.add_subplot(gs[0])
     ax_tbl.axis("off")
-    cell_text = [
-        [
-            row["group"],
-            str(int(row["n_traces"])),
-            str(int(row["n_conformant"])),
-            f"{row['pct_conformant']:.1f}%",
-            f"{row['mean_fitness']:.3f}",
-        ]
-        for _, row in stats_df.iterrows()
-    ]
     make_table(
         ax_tbl,
-        cell_text=cell_text,
-        col_labels=["Group", "#Traces", "#Conform.", "% Conform.", "Mean Fit."],
-        bbox=[0.02, 0.10, 0.96, 0.72],
-        col_widths=[0.20, 0.18, 0.22, 0.22, 0.18],
+        cell_text=_task01_table_rows(counts, shares),
+        col_labels=["Group", "#Traces", *_CAT_LABELS_WRAPPED],
+        bbox=[0.02, 0.18, 0.96, 0.64],
+        col_widths=[0.16, 0.14, 0.23, 0.24, 0.23],
         font_size=10,
         scale_xy=(1, 1.85),
         cell_pad=0.10,
     )
-    ax_tbl.set_title(f"Conformance Comparison by Group {_group_suffix(outcome_activity)}",
+    ax_tbl.set_title(f"Conformance Categories per Group {_group_suffix(outcome_activity)}",
                      fontsize=FONT_TITLE, pad=10)
 
-    # Right: bar chart
     ax_bar = fig.add_subplot(gs[1])
-    groups = stats_df["group"].tolist()
-    means  = stats_df["mean_fitness"].tolist()
-    bars = ax_bar.bar(groups, means, color=[_COLOR_POSITIVE, _COLOR_NEGATIVE],
-                      edgecolor="white", width=0.5)
-    for bar, val in zip(bars, means):
-        ax_bar.text(
-            bar.get_x() + bar.get_width() / 2,
-            bar.get_height() + 0.015,
-            f"{val:.3f}",
-            ha="center", va="bottom", fontsize=FONT_ANNOT,
-        )
-    ax_bar.set_ylabel("Mean Conformance Rate", fontsize=FONT_LABEL)
-    ax_bar.set_ylim(0, 1.15)
-    ax_bar.spines[["top", "right"]].set_visible(False)
-    ax_bar.yaxis.grid(True, linestyle="--", alpha=0.5)
-    ax_bar.set_axisbelow(True)
+    _task01_draw_share_bars(ax_bar, counts, shares)
+    _task01_category_legend(ax_bar, ncol=1)  # three across overflow the narrow panel
 
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task01_table_and_bar_chart.svg"))
 
 
-def task01_parallel_sets(df: pd.DataFrame, output_dir: str, outcome_activity: str):
+def task01_parallel_sets(counts: np.ndarray, output_dir: str, outcome_activity: str):
     """Parallel Sets: Outcome Group (left) × Conformance Category (right).
 
-    Ribbon width proportional to number of traces. Implemented with matplotlib
-    Bezier PathPatch — no external dependencies.
+    Every non-empty group gets the same height, so a ribbon's width is the share
+    of its group's traces — as in the other idioms — rather than a count, which
+    would make the larger group look better. Implemented with matplotlib Bezier
+    PathPatch — no external dependencies.
     """
-    df = df.copy()
-    df["category"] = df["fitness"].apply(_task01_conformance_category)
+    groups = _task01_group_labels(counts)
+    cats   = _CAT_LABELS_WRAPPED
 
-    groups = ["Positive", "Negative"]
-    cats   = _PSET_LABELS  # light → dark
-
-    # Count matrix [n_groups × n_cats]
-    matrix = np.zeros((len(groups), len(cats)), dtype=int)
-    for gi, g in enumerate(groups):
-        for ci, c in enumerate(cats):
-            matrix[gi, ci] = int(((df["outcome_group"] == g) & (df["category"] == c)).sum())
-
-    total = int(matrix.sum())
+    total = int(counts.sum())
     if total == 0:
         logger.warning("task01_parallel_sets: no data to render.")
         fig, ax = plt.subplots(figsize=(9, 5))
@@ -318,13 +290,15 @@ def task01_parallel_sets(df: pd.DataFrame, output_dir: str, outcome_activity: st
     ctrl_x  = (x_left + x_right) / 2
 
     # Colour carries one meaning here, the conformance category: ribbons take their
-    # category's colour (yellow = conformant, navy = major deviation, as on the
-    # heatmaps), and the groups are outlined and named instead. Group colours as
-    # well would read as a second, matching scale.
+    # category's colour (yellow = deviation, navy = conformant), and the
+    # groups are outlined and named instead. Group colours as well would read as
+    # a second, matching scale.
 
-    # Normalised heights
-    g_heights = matrix.sum(axis=1) / total
-    c_heights = matrix.sum(axis=0) / total
+    # Ribbon heights: share of the group × the group's (equal) height.
+    n_groups = int((counts.sum(axis=1) > 0).sum())
+    weights = _task01_shares(counts) / 100.0 / n_groups
+    g_heights = weights.sum(axis=1)
+    c_heights = weights.sum(axis=0)
 
     g_bottoms = np.concatenate([[0.0], np.cumsum(g_heights[:-1])])
     c_bottoms = np.concatenate([[0.0], np.cumsum(c_heights[:-1])])
@@ -340,7 +314,7 @@ def task01_parallel_sets(df: pd.DataFrame, output_dir: str, outcome_activity: st
                     ha="right", va="center", fontsize=FONT_ANNOT, color="#333333")
 
     # Draw right bars (categories)
-    for cat, color, h, bot in zip(cats, _PSET_COLORS, c_heights, c_bottoms):
+    for cat, color, h, bot in zip(cats, _CAT_COLORS, c_heights, c_bottoms):
         ax.add_patch(plt.Rectangle(
             (x_right - bar_w / 2, bot), bar_w, h,
             facecolor=color, edgecolor="white", linewidth=0.8, zorder=3,
@@ -353,12 +327,11 @@ def task01_parallel_sets(df: pd.DataFrame, output_dir: str, outcome_activity: st
     g_fill = g_bottoms.copy().astype(float)
     c_fill = c_bottoms.copy().astype(float)
 
-    for gi, g in enumerate(groups):
+    for gi in range(len(groups)):
         for ci in range(len(cats)):
-            count = matrix[gi, ci]
-            if count == 0:
+            rh = weights[gi, ci]
+            if rh == 0:
                 continue
-            rh = count / total
             ylb = g_fill[gi];        ylt = ylb + rh
             yrb = c_fill[ci];        yrt = yrb + rh
             g_fill[gi] += rh
@@ -382,7 +355,7 @@ def task01_parallel_sets(df: pd.DataFrame, output_dir: str, outcome_activity: st
             # Opaque enough that a navy ribbon does not wash out to grey.
             ax.add_patch(PathPatch(
                 Path(verts, codes),
-                facecolor=_PSET_COLORS[ci], edgecolor="none", alpha=0.55, zorder=2,
+                facecolor=_CAT_COLORS[ci], edgecolor="none", alpha=0.55, zorder=2,
             ))
 
     # Column labels
@@ -399,26 +372,19 @@ def task01_parallel_sets(df: pd.DataFrame, output_dir: str, outcome_activity: st
 # Medium idioms
 # ---------------------------------------------------------------------------
 
-def task01_stacked_bar(df: pd.DataFrame, output_dir: str, outcome_activity: str):
-    """Per outcome group, composition by conformance category (counts)."""
-    counts = np.zeros((len(_CAT_LABELS), len(_GROUPS)))
-    for gi, g in enumerate(_GROUPS):
-        sub = df[df["outcome_group"] == g]
-        for _, row in sub.iterrows():
-            counts[_task01_cat_index(float(row["fitness"])), gi] += 1
-
+def task01_stacked_bar(counts: np.ndarray, output_dir: str, outcome_activity: str):
+    """Per outcome group, composition by conformance category (100% stacked)."""
     fig, ax = plt.subplots(figsize=(6, 5.5))
-    draw_composition_stacked_bars(ax, _GROUPS, _CAT_LABELS, counts,
-                                  segment_colors=_PSET_COLORS)
-    ax.set_ylabel("Number of Traces", fontsize=FONT_LABEL)
+    draw_composition_stacked_bars(ax, _task01_group_labels(counts), _CAT_LABELS,
+                                  _task01_shares(counts).T, segment_colors=_CAT_COLORS)
+    ax.set_ylabel(_SHARE_LABEL, fontsize=FONT_LABEL)
+    ax.set_ylim(0, 100)
     ax.set_title(f"Conformance-Category Composition per Group {_group_suffix(outcome_activity)}",
                  fontsize=FONT_TITLE)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    handles, labels = ax.get_legend_handles_labels()
-    ax.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, -0.25),
-              ncol=max(1, len(handles)), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
+    _task01_category_legend(ax)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task01_stacked_bar.svg"))
 
@@ -435,17 +401,16 @@ def task01_box_plot(df: pd.DataFrame, output_dir: str, outcome_activity: str):
     save_svg(fig, os.path.join(output_dir, "task01_box_plot.svg"))
 
 
-def task01_matrix(df: pd.DataFrame, output_dir: str, outcome_activity: str):
-    """Outcome group × conformance category, annotated trace counts."""
-    counts = np.zeros((len(_GROUPS), len(_CAT_LABELS)))
-    for gi, g in enumerate(_GROUPS):
-        for _, row in df[df["outcome_group"] == g].iterrows():
-            counts[gi, _task01_cat_index(float(row["fitness"]))] += 1
+def task01_matrix(counts: np.ndarray, output_dir: str, outcome_activity: str):
+    """Outcome group × conformance category, annotated share of each group's traces.
+
+    The scale is fixed at 0–100% so a colour means the same share in both rows.
+    """
     fig, ax = plt.subplots(figsize=(7, 3.4))
-    draw_value_heatmap(fig, ax, counts, _GROUPS, _CAT_LABELS,
-                       xlabel="Conformance Category", cbar_label="Traces",
-                       cell_fmt="{:.0f}", annotate=True, rotate_xticks=15)
-    ax.set_title(f"Group × Conformance Category, trace counts {_group_suffix(outcome_activity)}",
+    draw_value_heatmap(fig, ax, _task01_shares(counts), _task01_group_labels(counts), _CAT_LABELS,
+                       xlabel="Conformance Category", cbar_label=_SHARE_LABEL,
+                       cell_fmt="{:.1f}%", annotate=True, rotate_xticks=15, vmax=100)
+    ax.set_title(f"Group × Conformance Category {_group_suffix(outcome_activity)}",
                  fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task01_matrix.svg"))
@@ -460,8 +425,8 @@ def generate(log, fitness_df, output_dir: str, outcome_activity: str = "Activate
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 1 visualizations ---")
 
-    df       = _task01_build_df(log, fitness_df, outcome_activity)
-    stats_df = _task01_group_stats(df)
+    df     = _task01_build_df(log, fitness_df, outcome_activity)
+    counts = _task01_category_counts(df)
 
     n_pos = int((df["outcome_group"] == "Positive").sum())
     n_neg = int((df["outcome_group"] == "Negative").sum())
@@ -472,10 +437,12 @@ def generate(log, fitness_df, output_dir: str, outcome_activity: str = "Activate
     if n_neg == 0:
         logger.warning("      All traces are Positive — no Negative group.")
 
-    task01_bar_chart(stats_df, output_dir, outcome_activity)
-    task01_table(stats_df, output_dir, outcome_activity)
-    task01_table_and_bar_chart(stats_df, output_dir, outcome_activity)
-    task01_parallel_sets(df, output_dir, outcome_activity)
-    task01_stacked_bar(df, output_dir, outcome_activity)
-    task01_box_plot(df, output_dir, outcome_activity)
-    task01_matrix(df, output_dir, outcome_activity)
+    task01_bar_chart(counts, output_dir, outcome_activity)
+    task01_table(counts, output_dir, outcome_activity)
+    # Not one of task01's idioms any more, but task04's log level (which runs
+    # this generate()) still offers it as table_bar_chart.
+    task01_table_and_bar_chart(counts, output_dir, outcome_activity)
+    # task01_parallel_sets(counts, output_dir, outcome_activity)  # removed idiom
+    task01_stacked_bar(counts, output_dir, outcome_activity)
+    # task01_box_plot(df, output_dir, outcome_activity)  # removed idiom
+    task01_matrix(counts, output_dir, outcome_activity)

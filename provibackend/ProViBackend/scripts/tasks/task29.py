@@ -13,8 +13,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "heatmap", "pie_chart", "flow_chart_table", "table", "table_bar_chart",
-          "stacked_bar", "matrix", "sunburst", "tree_map", "parallel_sets"]
+IDIOMS = ["bar_chart", "heatmap", "pie_chart", "table", "stacked_bar",
+          "matrix", "sunburst", "parallel_sets"]
 
 
 def _param_spec():
@@ -32,26 +32,23 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from matplotlib.patches import Polygon
-from matplotlib import gridspec
 
 from shared import (
-    save_svg, make_table, alignment_pairs_to_rows, render_empty_state_svg,
+    save_svg, make_table, render_empty_state_svg,
     build_violation_pattern_df, draw_value_heatmap, draw_parallel_sets,
     GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
     contrasting_text_color,
 )
-from tasks.task26 import _lighten, _squarify_layout
+from tasks.task26 import _lighten
 
 
 # Move-type vocabulary + colours for the activity-level idioms (stacked_bar,
 # matrix, parallel_sets, tree_map, sunburst) — matches the move-type strings
 # produced by alignment_pairs_to_rows / build_violation_pattern_df.
-_VTYPES = ["Model Move", "Log Move", "Mismatch Move"]
+_VTYPES = ["Model Move", "Log Move"]
 _VTYPE_COLOR = {
     "Model Move":    GREY_MED,
     "Log Move":      GREY_DARK,
-    "Mismatch Move": GREY_LIGHT,
 }
 
 # Top-N activities (by total violation count) shown in stacked_bar/matrix/parallel_sets
@@ -77,71 +74,6 @@ def _task29_activity_type_pivot(alignments, top_n: int = _PIVOT_TOP_N):
 # ---------------------------------------------------------------------------
 # Chevron helpers (same visual style as task28)
 # ---------------------------------------------------------------------------
-_CHEVRON_HEIGHT     = 1.65
-_CHEVRON_DEPTH      = 0.92
-_CHEVRON_GAP        = 0.82
-_CHEVRON_MIN_WIDTH  = 6.15
-_CHEVRON_CHAR_WIDTH = 0.42
-
-
-def _chevron_layout(nodes):
-    widths = []
-    for node in nodes:
-        longest = max(len(line) for line in str(node["label"]).splitlines())
-        content_w = _CHEVRON_DEPTH * 2.0 + 2.65 + longest * _CHEVRON_CHAR_WIDTH
-        widths.append(max(_CHEVRON_MIN_WIDTH, content_w))
-    x_cursor = 0.0
-    layout = []
-    for width in widths:
-        layout.append({"x": x_cursor, "width": width})
-        x_cursor += width + _CHEVRON_GAP
-    span = max(0.0, x_cursor - _CHEVRON_GAP)
-    return layout, span
-
-
-def _chevron_font_size(label, width, base_fontsize):
-    longest = max(len(line) for line in str(label).splitlines())
-    available = max(width - _CHEVRON_DEPTH * 2.0 - 1.2, 1.0)
-    estimated = longest * 0.34
-    if estimated <= available:
-        return base_fontsize
-    return max(8.5, base_fontsize * available / estimated)
-
-
-def _draw_chevrons(ax, nodes, fontsize=10):
-    ax.set_aspect("auto")
-    ax.axis("off")
-    h = _CHEVRON_HEIGHT
-    layout, span = _chevron_layout(nodes)
-    for i, node in enumerate(nodes):
-        base_x = layout[i]["x"]
-        width  = layout[i]["width"]
-        mid_y  = h / 2.0
-        verts = [
-            (base_x,                     0.0),
-            (base_x + _CHEVRON_DEPTH,    mid_y),
-            (base_x,                     h),
-            (base_x + width - _CHEVRON_DEPTH, h),
-            (base_x + width,             mid_y),
-            (base_x + width - _CHEVRON_DEPTH, 0.0),
-        ]
-        ax.add_patch(Polygon(
-            verts, closed=True,
-            facecolor=node["color"], edgecolor="#4a4a4a",
-            linewidth=1.25, joinstyle="miter",
-        ))
-        ax.text(
-            base_x + width / 2.0, mid_y,
-            node["label"],
-            ha="center", va="center",
-            fontsize=_chevron_font_size(node["label"], width, fontsize),
-            color=contrasting_text_color(node["color"]), clip_on=False,
-        )
-    ax.set_xlim(-0.45, span + 0.45)
-    ax.set_ylim(-0.08, h + 0.08)
-    return span
-
-
 # ---------------------------------------------------------------------------
 # Task 3 – Violation type summaries across all traces
 # ---------------------------------------------------------------------------
@@ -150,7 +82,6 @@ def _draw_chevrons(ax, nodes, fontsize=10):
 TASK29_TYPE_LABELS = {
     "Model Move": "Model Move\n(Missing in Log)",
     "Log Move": "Log Move\n(Unexpected in Log)",
-    "Mismatch Move": "Mismatch Move\n(Log/Model differ)",
 }
 
 
@@ -192,8 +123,8 @@ def task29_violation_summary_dataframe(alignments, grouping_strategy: str = "mov
             lambda m: TASK29_TYPE_LABELS.get(m, m))
         # The move types read in a fixed order, not by frequency: they are a
         # nominal scale the reader learns, and reordering them between datasets
-        # would make two charts of the same three categories look different.
-        order = ["Model Move", "Log Move", "Mismatch Move"]
+        # would make two charts of the same two categories look different.
+        order = ["Model Move", "Log Move"]
         summary["_order"] = summary["move_type"].apply(
             lambda x: order.index(x) if x in order else len(order))
         summary = summary.sort_values(["_order", "violation_type"]).drop(columns=["_order"])
@@ -316,223 +247,12 @@ def task29_table(df: pd.DataFrame, output_dir: str):
     save_svg(fig, os.path.join(output_dir, "task29_table.svg"))
 
 
-def task29_table_and_bar_chart(df: pd.DataFrame, output_dir: str):
-    """Composite: compact summary table and horizontal bar chart."""
-    total = int(df["count"].sum())
-    fig = plt.figure(figsize=(13.5, 4.8))
-    gs = gridspec.GridSpec(1, 2, width_ratios=[1.05, 1.70], wspace=0.62)
-    ax_table = fig.add_subplot(gs[0])
-    ax_bar = fig.add_subplot(gs[1])
-
-    ax_table.axis("off")
-    cell_text = [
-        [row["violation_type"], f"{int(row['count'])}", f"{row['percentage']:.2f}%"]
-        for _, row in df.iterrows()
-    ]
-    cell_text.append(["Total", f"{total}", "100.00%" if total else "0.00%"])
-    make_table(
-        ax_table,
-        cell_text=cell_text,
-        col_labels=["Violation", "Count", "%"],
-        bbox=[0.02, 0.22, 0.92, 0.58],
-        col_widths=[0.56, 0.22, 0.22],
-        font_size=8.5,
-        scale_xy=(1, 1.0),
-        highlight_last_row=True,
-    )
-    ax_table.set_title("Table", fontsize=FONT_TITLE, pad=10)
-
-    plot_df = df.sort_values("count", ascending=True)
-    colors = [GREY_MED if mt == "Model Move" else GREY_DARK if mt == "Log Move" else GREY_LIGHT for mt in plot_df["move_type"]]
-    ax_bar.barh(plot_df["violation_type"], plot_df["count"], color=colors, alpha=0.9)
-    xmax = max(plot_df["count"].max(), 1)
-    for y, val in enumerate(plot_df["count"]):
-        ax_bar.text(val + xmax * 0.015, y, f"{int(val)}", va="center", fontsize=FONT_ANNOT)
-    ax_bar.set_xlabel("Number of Violations", fontsize=FONT_LABEL)
-    ax_bar.set_title("Bar Chart", fontsize=FONT_TITLE, pad=10)
-    ax_bar.tick_params(axis="y", pad=8)
-    ax_bar.spines[["top", "right"]].set_visible(False)
-    ax_bar.xaxis.grid(True, linestyle="--", alpha=0.4)
-    ax_bar.set_axisbelow(True)
-    fig.suptitle("Violation Type Summary", fontsize=FONT_TITLE, y=0.98)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task29_table_and_bar_chart.svg"))
-
-
-
-def _task29_wrap_label(label: str, max_chars: int = 14) -> str:
-    """Wrap long activity label at underscore boundaries to fit inside chevron."""
-    if len(label) <= max_chars:
-        return label
-    parts = label.split("_")
-    lines, current = [], ""
-    for part in parts:
-        token = part if not current else f"_{part}"
-        if len(current) + len(token) <= max_chars:
-            current += token
-        else:
-            if current:
-                lines.append(current)
-            current = part
-    if current:
-        lines.append(current)
-    return "\n".join(lines) if lines else label
-
-
-def _task29_build_activity_violation_nodes(alignments, max_nodes: int = 16):
-    """Aggregate violations by activity across ALL traces.
-
-    Returns (nodes, items, truncated):
-      nodes     – list of {label, color} for _draw_chevrons
-      items     – list of {activity, dominant_type, total, avg_pos} sorted by process position
-      truncated – True when capped at max_nodes
-    """
-    from collections import defaultdict
-
-    # acc[activity] = {"counts": {move_type: int}, "positions": [step, ...]}
-    acc = defaultdict(lambda: {"counts": defaultdict(int), "positions": []})
-
-    for result in alignments:
-        rows = alignment_pairs_to_rows(result.get("alignment", []))
-        for row in rows:
-            mt = row["moveType"]
-            if mt == "Synchronous Move":
-                continue
-            # anchor each violation to its process activity name
-            if mt == "Model Move":
-                act = row["model_move"]
-            elif mt == "Log Move":
-                act = row["log_move"]
-            else:                          # Mismatch – expected position
-                act = row["model_move"]
-            if not act or act == "-":
-                continue
-            acc[act]["counts"][mt] += 1
-            acc[act]["positions"].append(row["step"])
-
-    if not acc:
-        return [], [], False
-
-    items = []
-    for act, s in acc.items():
-        dominant = max(s["counts"], key=s["counts"].get)
-        total    = sum(s["counts"].values())
-        avg_pos  = sum(s["positions"]) / len(s["positions"])
-        items.append({
-            "activity":     act,
-            "dominant_type": dominant,
-            "total":        total,
-            "avg_pos":      avg_pos,
-        })
-
-    # sort by process position first; cap to top-N by count if too many
-    items.sort(key=lambda x: x["avg_pos"])
-    truncated = len(items) > max_nodes
-    if truncated:
-        items = sorted(items, key=lambda x: x["total"], reverse=True)[:max_nodes]
-        items.sort(key=lambda x: x["avg_pos"])
-
-    nodes = []
-    for item in items:
-        color = (GREY_MED   if item["dominant_type"] == "Model Move"
-                 else GREY_DARK    if item["dominant_type"] == "Log Move"
-                 else GREY_LIGHT)
-        label = _task29_wrap_label(item["activity"]) + f"\n×{item['total']}"
-        nodes.append({"label": label, "color": color})
-
-    return nodes, items, truncated
-
-
-def task29_flow_chart_and_table(df: pd.DataFrame, alignments, output_dir: str):
-    """Composite: violation summary table (top) + activity-level violation map (bottom).
-
-    Table  – violation-type counts & percentages aggregated across all traces.
-    Flow   – each violating activity as a chevron node, coloured by dominant
-             violation type and labelled with total violation count, ordered by
-             average process position so the flow reads left-to-right.
-    """
-    nodes, items, truncated = _task29_build_activity_violation_nodes(alignments)
-
-    # fall back to an empty axis message when no violations exist
-    has_flow = bool(nodes)
-
-    # ── Percentages from df for legend labels ──
-    pct = {row["move_type"]: row["percentage"] for _, row in df.iterrows()}
-
-    # ── Figure sizing ──
-    total = int(df["count"].sum())
-    n_data_rows = len(df)
-
-    _layout, span = _chevron_layout(nodes) if has_flow else ({}, 0)
-    fig_w    = min(max(16.0, span * 0.29 + 1.6), 40.0)
-    table_h  = max(2.4, 1.1 + n_data_rows * 0.52)
-    chevron_h = 1.8
-    fig_h    = table_h + chevron_h + 0.9
-
-    fig = plt.figure(figsize=(fig_w, fig_h))
-    gs  = gridspec.GridSpec(2, 1, height_ratios=[table_h, chevron_h], hspace=0.42)
-    ax_table   = fig.add_subplot(gs[0])
-    ax_chevron = fig.add_subplot(gs[1])
-
-    # ── Table ──
-    ax_table.axis("off")
-    cell_text = [
-        [row["violation_type"].replace("\n", " "),
-         f"{int(row['count'])}",
-         f"{row['percentage']:.2f}%"]
-        for _, row in df.iterrows()
-    ]
-    cell_text.append(["Total", f"{total}", "100.00%" if total else "0.00%"])
-    make_table(
-        ax_table,
-        cell_text=cell_text,
-        col_labels=["Violation Type", "Count", "Percentage"],
-        bbox=[0.05, 0.05, 0.90, 0.78],
-        font_size=10,
-        scale_xy=(1, 1.7),
-        highlight_last_row=True,
-    )
-    ax_table.set_title("Table", fontsize=FONT_TITLE, pad=10)
-
-    # ── Chevron flow ──
-    if has_flow:
-        _draw_chevrons(ax_chevron, nodes, fontsize=10)
-        flow_title = "Violations by Activity"
-        if truncated:
-            flow_title += f" (top {len(nodes)} by count)"
-        ax_chevron.set_title(flow_title, fontsize=FONT_TITLE, pad=10)
-    else:
-        ax_chevron.axis("off")
-        ax_chevron.text(0.5, 0.5, "No violations found", ha="center", va="center",
-                        fontsize=FONT_ANNOT, color="#888888", transform=ax_chevron.transAxes)
-
-    # ── Legend ──
-    legend_handles = [
-        mpatches.Patch(facecolor=GREY_MED,   edgecolor="black", linewidth=0.75,
-                       label=f"Model Move ({pct.get('Model Move', 0):.1f}%)"),
-        mpatches.Patch(facecolor=GREY_DARK,    edgecolor="black", linewidth=0.75,
-                       label=f"Log Move ({pct.get('Log Move', 0):.1f}%)"),
-        mpatches.Patch(facecolor=GREY_LIGHT, edgecolor="black", linewidth=0.75,
-                       label=f"Mismatch Move ({pct.get('Mismatch Move', 0):.1f}%)"),
-    ]
-    fig.legend(
-        handles=legend_handles,
-        loc="lower center", bbox_to_anchor=(0.5, 0.01),
-        ncol=3, fontsize=FONT_ANNOT, frameon=True, fancybox=False, edgecolor="#cccccc",
-    )
-
-    fig.suptitle("Violation Type Summary", fontsize=FONT_TITLE, y=0.98)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task29_flow_chart_and_table.svg"))
-
-
-
 # ---------------------------------------------------------------------------
 # New idiom 1: Stacked bar — violation type breakdown per activity
 # ---------------------------------------------------------------------------
 
 def task29_stacked_bar(alignments, output_dir: str):
-    """Horizontal stacked bar: top-N activities coloured by violation type (Model/Log/Mismatch)."""
+    """Horizontal stacked bar: top-N activities coloured by violation type (Model/Log)."""
     out_path = os.path.join(output_dir, "task29_stacked_bar.svg")
     pivot, top_acts = _task29_activity_type_pivot(alignments)
     if not top_acts:
@@ -610,10 +330,10 @@ def task29_matrix(alignments, output_dir: str):
         row_labels=short_labels,
         col_labels=_VTYPES,
         xlabel="Violation Type",
-        cbar_label="Violation count",
         cell_fmt="{:.0f}",
         annotate=True,
         rotate_xticks=0,
+        colorless=True,
     )
     ax.set_title("Activity × Violation Type Matrix", fontsize=FONT_TITLE, pad=10)
     fig.tight_layout(pad=1.2)
@@ -668,67 +388,6 @@ def task29_parallel_sets(alignments, output_dir: str):
 # ---------------------------------------------------------------------------
 # New idiom 4: Tree Map — violation patterns by area = count
 # ---------------------------------------------------------------------------
-
-_TREEMAP_TOP_N = 20
-
-
-def task29_tree_map(alignments, output_dir: str):
-    """Tree map: one rectangle per (activity, move_type) pattern, area = count."""
-    out_path = os.path.join(output_dir, "task29_tree_map.svg")
-    pat_df = build_violation_pattern_df(alignments)
-    if pat_df.empty:
-        render_empty_state_svg(out_path, "Violation Pattern Tree Map")
-        return
-
-    by_count = pat_df.sort_values("count", ascending=False)
-    top = by_count.head(_TREEMAP_TOP_N)
-    items = [
-        {"label": row["activity"], "move_type": row["move_type"],
-         "count": int(row["count"]), "color": _VTYPE_COLOR[row["move_type"]]}
-        for _, row in top.iterrows()
-    ]
-    rest = by_count.iloc[_TREEMAP_TOP_N:]
-    if not rest.empty:
-        items.append({"label": "Other", "move_type": "", "count": int(rest["count"].sum()),
-                      "color": "#DDDDDD"})
-
-    W, H = 100.0, 62.0
-    total = sum(it["count"] for it in items)
-    sizes = [it["count"] / total * W * H for it in items]
-    rects = _squarify_layout(sizes, 0.0, 0.0, W, H)
-
-    fig, ax = plt.subplots(figsize=(12, 7.5))
-    ax.set_xlim(0, W)
-    ax.set_ylim(0, H)
-    ax.invert_yaxis()
-    ax.axis("off")
-    for it, (rx, ry, rw, rh) in zip(items, rects):
-        ax.add_patch(plt.Rectangle((rx, ry), rw, rh,
-                                   facecolor=it["color"], edgecolor="white", linewidth=2))
-        area_frac = (rw * rh) / (W * H)
-        if area_frac > 0.015 and rw > 7 and rh > 3.5:
-            fontsize = FONT_ANNOT if area_frac > 0.05 else FONT_ANNOT - 2
-            mt_short = it["move_type"].replace(" Move", "") if it["move_type"] else ""
-            label = it["label"]
-            if len(label) > 22:
-                label = label[:20] + "…"
-            cell_text = f"{label}\n{mt_short}\n×{it['count']}" if mt_short else f"{label}\n×{it['count']}"
-            ax.text(rx + rw / 2, ry + rh / 2, cell_text,
-                    ha="center", va="center", fontsize=fontsize,
-                    color=contrasting_text_color(it["color"]))
-
-    legend_handles = [
-        mpatches.Patch(color=_VTYPE_COLOR[vt], label=vt) for vt in _VTYPES
-    ]
-    if not rest.empty:
-        legend_handles.append(mpatches.Patch(color="#DDDDDD", label="Other"))
-    ax.legend(handles=legend_handles, loc="lower center",
-              bbox_to_anchor=(0.5, -0.06), ncol=4, frameon=False, fontsize=FONT_ANNOT)
-    ax.set_title(f"Violation Pattern Tree Map  (area = count, top-{len(top)})",
-                 fontsize=FONT_TITLE)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, out_path)
-
 
 # ---------------------------------------------------------------------------
 # New idiom 5: Sunburst — move_type (inner) → activity (outer)
@@ -827,10 +486,7 @@ def generate(alignments, output_dir: str, grouping_strategy: str = "move_type",
     task29_heatmap(df, output_dir)
     task29_pie_chart(df, output_dir)
     task29_table(df, output_dir)
-    task29_table_and_bar_chart(df, output_dir)
-    task29_flow_chart_and_table(df, alignments, output_dir)
     task29_stacked_bar(alignments, output_dir)
     task29_matrix(alignments, output_dir)
     task29_parallel_sets(alignments, output_dir)
-    task29_tree_map(alignments, output_dir)
     task29_sunburst(alignments, output_dir)

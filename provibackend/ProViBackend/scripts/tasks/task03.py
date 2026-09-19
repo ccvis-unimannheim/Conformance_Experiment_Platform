@@ -1,16 +1,18 @@
 """
-tasks/task03.py – Task ID 3: Describe / Compare / Conformant vs. non-conformant
-throughput time.
+tasks/task03.py – Task ID 3: Describe / Compare / Overall behavior of conformant
+vs. non-conformant traces.
 
+The question is how the two groups' behavior differs, so what is compared is
+the admin's choice (`response_attribute`); throughput time is only the default.
 Every idiom contrasts the SAME factors between the Conformant
 (fitness ≥ threshold) and Non-conformant (fitness < threshold) trace groups —
 each selected attribute's distribution over quartile buckets, one panel per
 attribute (throughput time when none is selected):
     * bar_chart            – grouped bars, # traces per bucket
     * table                – bucket table (share % per group)
-    * table_and_bar_chart  – bucket table + grouped-bar panel (# traces)
-    * stacked_bar          – 100%-stacked bars per group over the buckets
     * matrix               – annotated grid, buckets × group, share (%)
+(table_and_bar_chart and stacked_bar were removed from the offered idioms;
+their renderers remain.)
 
 Public API:
     generate(log, fitness_df, output_dir, conformant_threshold=1.0,
@@ -27,7 +29,11 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "table", "table_and_bar_chart", "stacked_bar", "matrix"]
+IDIOMS = [
+    "bar_chart", "table", "matrix",
+    # "table_and_bar_chart",  # two idioms in one
+    # "stacked_bar",
+]
 
 
 PARAM_SPEC = [
@@ -54,15 +60,6 @@ PARAM_SPEC = [
         "required": False,
     },
 ]
-
-
-RUBRIC = (
-    "A complete answer states which group — Conformant or Non-conformant — has the "
-    "longer average throughput time, and ideally by roughly how much (e.g. 'Non-conformant "
-    "traces take about twice as long on average'). Award full marks for the correct "
-    "direction with an approximate magnitude, partial marks for the correct direction "
-    "without a magnitude, and deduct marks for the wrong direction."
-)
 
 
 def validate_params(log, params) -> list:
@@ -149,7 +146,7 @@ def _task03_build_trace_rows(log, fitness_df: pd.DataFrame,
     # walking every trace's timestamps a second time.
     key = response_attribute or trace_features.DURATION_KEY
     values, value_type = trace_features.extract(log, key)
-    values, value_type = trace_features.as_bucketable(values, value_type)
+    values, value_type = trace_features.as_bucketable(values, value_type, key=key)
 
     rows = []
     for i, trace in enumerate(log):
@@ -262,7 +259,7 @@ def _task03_throughput_bucket_rows(throughput_buckets):
 
 
 # ---------------------------------------------------------------------------
-# Idioms — every one shows the SAME throughput-time bucket comparison
+# Idioms — every one shows the SAME bucket comparison of the compared attribute(s)
 # ---------------------------------------------------------------------------
 
 def task03_bar_chart(panels, output_dir: str):
@@ -550,6 +547,6 @@ def generate(log, fitness_df, output_dir: str, conformant_threshold: float = 1.0
 
     task03_bar_chart(panels, output_dir)
     task03_table(panels, output_dir)
-    task03_table_and_bar_chart(panels, output_dir)
-    task03_stacked_bar(panels, output_dir)
+    # task03_table_and_bar_chart(panels, output_dir)  # removed idiom
+    # task03_stacked_bar(panels, output_dir)  # removed idiom
     task03_matrix(panels, output_dir)

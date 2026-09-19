@@ -17,8 +17,8 @@ process model rather than from a computed number. Three principles:
     bands or ranges, so the overall degree can actually be derived from them.
     Colour only ranks the activities; the numbers carry the information.
 
-Both idioms draw the same per-activity counts — the table restates what the node
-labels already say — so neither exposes more than the other.
+The idiom draws the per-activity counts on the model itself; the node labels
+carry the whole payload.
 
 **What the figure supports is not task06's number.** Pooling the labels gives
 the share of replayed steps that were synchronous — an event-weighted rate. The
@@ -36,7 +36,7 @@ Public API:
         log        – PM4Py EventLog (unused; kept for the calling convention)
         alignments – raw alignment results from io_helpers.run_alignments
         output_dir – directory where SVGs are written
-        model_path – the guideline BPMN; without it both idioms render their
+        model_path – the guideline BPMN; without it the idiom renders its
                      empty state, since the model is the visual
 """
 
@@ -44,7 +44,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["flow_chart_elaborate", "flow_chart_table"]
+IDIOMS = ["flow_chart_elaborate"]
 
 
 PARAM_SPEC = []
@@ -77,8 +77,7 @@ def _task25_activity_replay(alignments):
 
     A synchronous move is behaviour the model prescribes and the log records. A
     model move (prescribed, not executed) and a log move (executed, not
-    prescribed) are both deviations of that activity. A mismatch move deviates
-    on both of its labels.
+    prescribed) are both deviations of that activity.
     """
     stats: dict = {}
 
@@ -99,9 +98,6 @@ def _task25_activity_replay(alignments):
                 bump(model_label, "deviating")
             elif move == "Log Move":
                 bump(log_label, "deviating")
-            elif move == "Mismatch Move":
-                bump(log_label, "deviating")
-                bump(model_label, "deviating")
     return stats
 
 
@@ -158,7 +154,7 @@ _LEGEND = [
 # Visualizations
 # ---------------------------------------------------------------------------
 
-def _draw(stats, model_path, output_dir, filename, *, with_table):
+def _draw(stats, model_path, output_dir, filename):
     path = os.path.join(output_dir, filename)
     if not model_path:
         render_empty_state_svg(path, _TITLE, "No process model provided.")
@@ -176,21 +172,10 @@ def _draw(stats, model_path, output_dir, filename, *, with_table):
         render_empty_state_svg(path, _TITLE, "No BPMN geometry to render.")
         return
 
-    table_rows = table_cols = None
-    if with_table:
-        table_cols = ["Activity", "As prescribed", "Deviating", "Times involved"]
-        table_rows = [
-            [name, str(entry["as_prescribed"]), str(entry["deviating"]),
-             str(_involved(entry))]
-            for name, entry in sorted(stats.items(),
-                                      key=lambda kv: (-_involved(kv[1]), kv[0]))
-        ]
-
     compose_bpmn_panels(
         [{"parsed": parsed, "node_style_fn": _node_style_fn(by_element_id),
           "subtitle": _SUMMARY}],
-        path, title=_TITLE, legend_items=_LEGEND,
-        table_rows=table_rows, table_cols=table_cols, node_font_size=18,
+        path, title=_TITLE, legend_items=_LEGEND, node_font_size=18,
     )
 
 
@@ -198,15 +183,7 @@ def task25_flow_chart_elaborate(stats, model_path, output_dir: str):
     """The guideline model, each activity labelled with its replay counts and
     shaded by the share that deviated. The overall degree of conformance is
     derivable from the labels; it is nowhere stated."""
-    _draw(stats, model_path, output_dir, "task25_flow_chart_elaborate.svg",
-          with_table=False)
-
-
-def task25_flow_chart_table(stats, model_path, output_dir: str):
-    """The same model with the same counts listed beneath it — a second reading
-    of one payload, not a second payload."""
-    _draw(stats, model_path, output_dir, "task25_flow_chart_table.svg",
-          with_table=True)
+    _draw(stats, model_path, output_dir, "task25_flow_chart_elaborate.svg")
 
 
 # ---------------------------------------------------------------------------
@@ -226,4 +203,3 @@ def generate(log, alignments, output_dir: str, model_path: str = None):
         logger.info(f"      -> {len(stats)} activities, {involved} replayed steps.")
 
     task25_flow_chart_elaborate(stats, model_path, output_dir)
-    task25_flow_chart_table(stats, model_path, output_dir)
