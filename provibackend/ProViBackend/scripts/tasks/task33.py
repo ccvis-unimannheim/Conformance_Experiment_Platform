@@ -43,16 +43,12 @@ _SPLIT_SUPTITLE = "Process Conformance by Candidate Attribute"
 
 import trace_features
 
+def validate_params(log, params) -> list:
+    return trace_features.validate_attribute_class(params, multi=True)
+
+
 PARAM_SPEC = [
-    {
-        "key": "attribute_set",
-        "slot": "split",
-        "label": "Attributes to analyse (empty = the discovered default set)",
-        "widget": "select-many",
-        "source": "log.candidate_attributes",
-        "default": [],
-        "required": False,
-    },
+    *trace_features.attribute_params(),
     *trace_features.split_params_for(),
 ]
 import os

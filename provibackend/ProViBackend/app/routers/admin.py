@@ -32,6 +32,8 @@ try:
         get_log_data_attributes,
         get_log_attribute_values,
         get_log_resource_values,
+        get_log_event_conditions,
+        get_log_log_attributes,
         get_log_time_bins,
         _FILE_RENAME,
         _TASK_RENAME_SKIP,
@@ -54,6 +56,8 @@ except ImportError:
     get_log_data_attributes = None
     get_log_attribute_values = None
     get_log_resource_values = None
+    get_log_event_conditions = None
+    get_log_log_attributes = None
     get_log_time_bins = None
     _FILE_RENAME = {}
     _TASK_RENAME_SKIP = {}
@@ -129,6 +133,8 @@ _LOG_VIOLATED_ACTS_TASK34_CACHE: dict[str, list[dict]] = {}
 _LOG_DATA_ATTRS_CACHE: dict[str, list[dict]] = {}
 _LOG_ATTR_VALUES_CACHE: dict[str, list[dict]] = {}
 _LOG_RESOURCE_VALUES_CACHE: dict[str, list[dict]] = {}
+_LOG_EVENT_CONDITIONS_CACHE: dict[str, list[dict]] = {}
+_LOG_LOG_ATTRIBUTES_CACHE: dict[str, list[dict]] = {}
 
 
 def _dataset_data_attributes(dataset_id: str) -> list[dict]:
@@ -151,6 +157,28 @@ def _dataset_attribute_values(dataset_id: str) -> list[dict]:
     values = get_log_attribute_values(str(DATA_DIRECTORY / dataset_id))
     _LOG_ATTR_VALUES_CACHE[dataset_id] = values
     return values
+
+
+def _dataset_log_attributes(dataset_id: str) -> list[dict]:
+    """Log-level attributes (the log class of the attribute picker, cached)."""
+    if dataset_id in _LOG_LOG_ATTRIBUTES_CACHE:
+        return _LOG_LOG_ATTRIBUTES_CACHE[dataset_id]
+    if get_log_log_attributes is None:
+        return []
+    rows = get_log_log_attributes(str(DATA_DIRECTORY / dataset_id))
+    _LOG_LOG_ATTRIBUTES_CACHE[dataset_id] = rows
+    return rows
+
+
+def _dataset_event_conditions(dataset_id: str) -> list[dict]:
+    """"At activity X, attribute Y = Z" conditions (the event class, cached)."""
+    if dataset_id in _LOG_EVENT_CONDITIONS_CACHE:
+        return _LOG_EVENT_CONDITIONS_CACHE[dataset_id]
+    if get_log_event_conditions is None:
+        return []
+    rows = get_log_event_conditions(str(DATA_DIRECTORY / dataset_id))
+    _LOG_EVENT_CONDITIONS_CACHE[dataset_id] = rows
+    return rows
 
 
 def _dataset_resource_values(dataset_id: str) -> list[dict]:
@@ -293,6 +321,8 @@ OPTION_SOURCES: list[dict] = [
     {"source": "log.data_attributes",      "label": "Data attributes"},
     {"source": "log.attribute_values",     "label": "Attribute values (attribute = value)"},
     {"source": "log.resource_values",      "label": "Resources"},
+    {"source": "log.event_conditions",     "label": "Event conditions (activity · attribute = value)"},
+    {"source": "log.log_attributes",       "label": "Log-level attributes"},
 ]
 
 
@@ -320,6 +350,10 @@ def _param_candidates(source: str, dataset_id: str) -> list:
         return _dataset_attribute_values(dataset_id)
     if source == "log.resource_values":
         return _dataset_resource_values(dataset_id)
+    if source == "log.event_conditions":
+        return _dataset_event_conditions(dataset_id)
+    if source == "log.log_attributes":
+        return _dataset_log_attributes(dataset_id)
     return []
 
 

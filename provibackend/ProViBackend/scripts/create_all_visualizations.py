@@ -66,6 +66,7 @@ import tasks.task09 as task09
 import tasks.task10 as task10
 import tasks.task11 as task11
 import trace_alignment
+import trace_features
 import violation_profile
 import tasks.task12 as task12
 import tasks.task13 as task13
@@ -357,6 +358,12 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
         """The trace-alignment class's explicit selection, or None for its rule."""
         return trace_alignment.selected_trace_ids(p) or None
     def violation_pattern():      return p.get("violation_pattern") or ""
+    def attribute_keys():
+        """The attribute picker's three classes resolved to feature keys."""
+        return trace_features.selected_keys(p, log) or None
+    def attribute_key():
+        """The single-attribute form of the same picker (task30)."""
+        return trace_features.selected_key(p) or cmp_attr()
     def perspective_kwargs(default_rule, default_count):
         """The trace-alignment + perspective block task09 and task28 share."""
         return dict(
@@ -408,29 +415,30 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
         "task12": lambda d: task12.generate(log, alignments, d,
                                             violation_patterns=(p.get("violation_patterns") or None)),
         "task13": lambda d: task13.generate(log, alignments, model_path, d,
-                                            candidate_attributes=(p.get("attribute_set") or None)),
+                                            candidate_attributes=attribute_keys()),
         "task14": lambda d: task14.generate(
             alignments, model_path, d, log=log, trace_ids=trace_ids(),
             trace_pick_rule=trace_alignment.pick_rule(p, "worst_fitness"),
             violation_pattern=violation_pattern()),
         "task15": lambda d: task15.generate(log, fitness_df, alignments, d, model_path=model_path,
-                                            attribute_set=(p.get("attribute_set") or None),
+                                            attribute_set=attribute_keys(),
                                             split_strategy=(p.get("split_strategy") or None),
                                             group_cap=(int(p["group_cap"]) if p.get("group_cap") else None)),
         "task16": lambda d: task16.generate(log, fitness_df, alignments, d, model_path=model_path,
-                                            attribute_set=(p.get("attribute_set") or None),
+                                            attribute_set=attribute_keys(),
                                             split_strategy=(p.get("split_strategy") or None),
                                             group_cap=(int(p["group_cap"]) if p.get("group_cap") else None)),
         "task17": lambda d: task17.generate(log, alignments, d, model_path=model_path),
-        "task18": lambda d: task18.generate(log, alignments, model_path, d),
+        "task18": lambda d: task18.generate(log, alignments, model_path, d,
+                                            candidate_attributes=attribute_keys()),
         "task19": lambda d: task19.generate(log, alignments, model_path, d, outcome_activity=outcome_activity(),
                                             target_patterns=target_patterns_task19()),
         "task20": lambda d: task20.generate(log, alignments, d, model_path=model_path,
-                                            attribute_set=(p.get("attribute_set") or None)),
+                                            attribute_set=attribute_keys()),
         "task21": lambda d: task21.generate(log, alignments, model_path, d,
-                                            candidate_attributes=(p.get("attribute_set") or None)),
+                                            candidate_attributes=attribute_keys()),
         "task22": lambda d: task22.generate(log, fitness_df, alignments, d, model_path=model_path,
-                                            attribute_set=(p.get("attribute_set") or None),
+                                            attribute_set=attribute_keys(),
                                             split_strategy=(p.get("split_strategy") or None),
                                             group_cap=(int(p["group_cap"]) if p.get("group_cap") else None)),
         "task23": lambda d: task23.generate(alignments, d, log=log,
@@ -452,7 +460,7 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
             grouping_strategy=(p.get("grouping_strategy") or "move_type"),
             selection=(p.get(violation_profile.STRATEGY_SELECTION_KEY.get(
                 p.get("grouping_strategy") or "move_type", "")) or None)),
-        "task30": lambda d: task30.generate(log, fitness_df, alignments, d, compare_attribute=cmp_attr()),
+        "task30": lambda d: task30.generate(log, fitness_df, alignments, d, compare_attribute=attribute_key()),
         # Not outcome_activity(): that falls back to the "contains" heuristic,
         # and this task asks which activity a trace *ends* on. Passing None
         # lets it reach for the terminal-activity heuristic instead.
@@ -466,7 +474,7 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
                 p.get("grouping_strategy") or "pattern", "")) or None),
             prominence_threshold=p.get("prominence_threshold")),
         "task33": lambda d: task33.generate(log, fitness_df, d, alignments=alignments,
-                                            attribute_set=(p.get("attribute_set") or None),
+                                            attribute_set=attribute_keys(),
                                             split_strategy=(p.get("split_strategy") or None),
                                             group_cap=(int(p["group_cap"]) if p.get("group_cap") else None)),
         "task34": lambda d: task34.generate(
@@ -752,6 +760,33 @@ def get_log_trace_ids(dataset_dir: str) -> list[dict]:
     return options
 
 
+#: An attribute with more distinct values than this is an identifier, not a
+#: dimension: naming one of its values in a rule addresses a single case. The
+#: same rule task13.discover_candidate_attributes applies to its own candidates
+#: — kept in sync by the comment rather than the import, since that module pulls
+#: in the whole task package.
+def _is_identifier_like(n_distinct: int, n_traces: int) -> bool:
+    return n_distinct > max(5, n_traces * 0.5)
+
+
+#: Longest candidate list handed to a picker. The select-many widget renders one
+#: checkbox per candidate behind a search box, so a long list is slow to skim
+#: rather than unusable — but a list no one can reach the end of is not a choice.
+MAX_PICKER_CANDIDATES = 200
+
+
+def _is_numeric_column(values) -> bool:
+    """Every observed value parses as a number (mirrors task13's column typing)."""
+    if not values:
+        return False
+    for v in values:
+        try:
+            float(str(v))
+        except (TypeError, ValueError):
+            return False
+    return True
+
+
 def _dataset_attribute_index(dataset_dir: str):
     """(attribute -> sorted distinct values, resource values) for this dataset.
 
@@ -760,6 +795,10 @@ def _dataset_attribute_index(dataset_dir: str):
     which one an attribute is depends on the log, not on the admin — and the
     structural keys (the activity name, the timestamp, the case id) are left out
     because no rule is written about them.
+
+    Identifier-like attributes are dropped: BPIC12's REG_DATE holds one distinct
+    value per trace, and flattening it into "attribute = value" candidates put
+    148 503 checkboxes on the page.
     """
     log_path, _model_path, _ = _resolve_dataset_paths(dataset_dir, None)
     log = load_event_log(log_path)
@@ -789,7 +828,100 @@ def _dataset_attribute_index(dataset_dir: str):
             for key, value in dict(event).items():
                 _record(key, value)
 
-    return ({k: sorted(v) for k, v in values.items()}, sorted(resources))
+    n_traces = len(log)
+    kept = {}
+    for key, vals in values.items():
+        if _is_identifier_like(len(vals), n_traces):
+            logger.info(f"      '{key}' looks like an identifier ({len(vals)} distinct "
+                        f"values over {n_traces} traces) — not offered as a candidate.")
+            continue
+        if _is_numeric_column(vals):
+            # A data rule over a numeric attribute is a range ("amount <= 10000"),
+            # not a list of the 631 amounts a log happens to contain. The
+            # conformant-values parameter can only express membership, so a
+            # numeric attribute has nothing to offer it — see
+            # docs/TRACE_ALIGNMENT_PARAMETERS.md for the gap this leaves.
+            logger.info(f"      '{key}' is numeric — a conformant *set* cannot "
+                        f"express a rule about it; not offered as a candidate.")
+            continue
+        kept[key] = sorted(vals)
+    return (kept, sorted(resources))
+
+
+def get_log_log_attributes(dataset_dir: str) -> list[dict]:
+    """Log-level attributes, as `log::<key>` features.
+
+    A log attribute has one value for the whole log, so selecting one does not
+    split anything — it labels the log as a single group. Most logs carry only
+    export metadata here (pm4py leaves `origin`), and then the picker is empty
+    and says so, which is the honest answer: this log has nothing to analyse at
+    log level. Powers the 'log.log_attributes' param-spec source.
+    """
+    import trace_features
+
+    log_path, _model_path, _ = _resolve_dataset_paths(dataset_dir, None)
+    log = load_event_log(log_path)
+    attrs = getattr(log, "attributes", {}) or {}
+    return [
+        {"value": f"{trace_features.LOG_PREFIX}{key}",
+         "label": f"{key} = {value}"}
+        for key, value in sorted(attrs.items())
+        if not str(key).startswith("@@")
+    ]
+
+
+def get_log_event_conditions(dataset_dir: str) -> list[dict]:
+    """"At activity X, attribute Y had value Z" conditions, by trace coverage.
+
+    The event perspective of the attribute picker (task13/15/16/20/21/22). Each
+    condition is a *trace-level* question — did this trace ever execute X with
+    Y = Z — so it splits the traces in two and the existing panels draw it like
+    any other boolean feature.
+
+    Conditions every trace satisfies, or none does, are left out: they put every
+    trace in one group, which compares nothing. On BPIC12 that alone removes the
+    four most frequent ones (A_SUBMITTED is always executed by resource 112).
+    Powers the 'log.event_conditions' param-spec source.
+    """
+    from collections import Counter
+    import trace_features
+
+    log_path, _model_path, _ = _resolve_dataset_paths(dataset_dir, None)
+    log = load_event_log(log_path)
+
+    skip = {"concept:name", "time:timestamp", "case:concept:name",
+            "concept:instance", "variant", "variant-index"}
+    coverage: Counter = Counter()
+    for trace in log:
+        seen = set()
+        for event in trace:
+            activity = str(event.get("concept:name", ""))
+            if not activity:
+                continue
+            for key, value in dict(event).items():
+                key = str(key)
+                if key in skip or key.startswith("@@") or key.startswith(":") \
+                        or key.lower().startswith("unnamed") or value is None:
+                    continue
+                seen.add((activity, key, str(value)))
+        coverage.update(seen)
+
+    n_traces = len(log)
+    rows = []
+    for (activity, key, value), n in coverage.items():
+        if n >= n_traces or n == 0:
+            continue
+        rows.append({
+            "value": f"{trace_features.AT_PREFIX}{activity}|{key}|{value}",
+            "label": f"{activity} · {key} = {value}  ({n} traces, {n / n_traces * 100:.1f}%)",
+            "coverage": n,
+        })
+    rows.sort(key=lambda r: (-r["coverage"], r["value"]))
+    if len(rows) > MAX_PICKER_CANDIDATES:
+        logger.info(f"      {len(rows)} event conditions found; offering the "
+                    f"{MAX_PICKER_CANDIDATES} most frequent.")
+        rows = rows[:MAX_PICKER_CANDIDATES]
+    return [{"value": r["value"], "label": r["label"]} for r in rows]
 
 
 def get_log_data_attributes(dataset_dir: str) -> list[dict]:
@@ -852,14 +984,30 @@ def get_log_candidate_attributes(dataset_dir: str) -> list[dict]:
     Feature keys are stable: a case-level data attribute keeps its own name and
     throughput keeps `__throughput_hours__`, so `attribute_set` values saved by
     existing experiments keep resolving.
+    Two filters apply here rather than in the registry, whose rule is that
+    cardinality never gates availability: a feature with one distinct value puts
+    every trace in one group, and one with a distinct value per trace is an
+    identifier (BPIC12's REG_DATE) whose buckets are singletons plus a huge
+    "Other". Neither can answer "how does this attribute relate to violations",
+    which is what every caller asks. The canonical reading of each attribute is
+    listed first (`Feature.primary`), so the admin meets "amount" before
+    "amount (mean) / (max) / (sum)".
     """
     import trace_features
 
     log_path, _model_path, _ = _resolve_dataset_paths(dataset_dir, None)
     log = load_event_log(log_path)
-    return [feature.as_option()
-            for feature in trace_features.discover_features(log)
-            if feature.value_type in trace_features.BUCKETABLE_TYPES]
+    return [f.as_option() for f in trace_features.offerable(log)]
+
+
+def get_log_default_attributes(dataset_dir: str) -> list[str]:
+    """The keys an empty `attribute_set` falls back to: the canonical ones.
+
+    The same list the picker shows first, so "leave it empty" and "take the
+    obvious ones" agree.
+    """
+    return [row["value"] for row in get_log_candidate_attributes(dataset_dir)
+            if row.get("primary")]
 
 
 def get_log_violation_activities(dataset_dir: str) -> list[dict]:

@@ -35,16 +35,7 @@ import trace_features
 import trace_response
 
 PARAM_SPEC = [
-    {
-        "key": "compare_attribute",
-        "slot": "split",
-        "label": "Case attribute used to split traces into sub-logs",
-        "hint": "Traces are split into sub-logs by this case attribute",
-        "widget": "select-one",
-        "source": "log.candidate_attributes",
-        "default": "",
-        "required": True,
-    },
+    *trace_features.attribute_params(multi=False),
     *trace_features.split_params_for(),
     trace_response.PATTERN_TOP_N_PARAM,
 ]
@@ -61,6 +52,9 @@ RUBRIC = (
 
 
 def validate_params(log, params) -> list:
+    errors = trace_features.validate_attribute_class(params, multi=False)
+    if errors:
+        return errors
     attr = params.get("compare_attribute")
     if not attr or not str(attr).strip():
         return ["An attribute to split the log by is required."]

@@ -57,6 +57,7 @@ function entryApplies(entry, vals) {
 // Generic param widget — renders per PARAM_SPEC entry (see docs/ADMIN_EXPERIMENT_SETUP.md).
 function ParamField({ entry, value, onChange }) {
   const options = entry.options || [];
+  const [optionFilter, setOptionFilter] = useState("");
 
   if (entry.widget === "select-one") {
     return (
@@ -124,6 +125,18 @@ function ParamField({ entry, value, onChange }) {
     // Trace picker: the chart labels traces by running number ("Trace 1..N") in
     // selection order, so surface the "Trace N → id" mapping for the admin.
     const isTracePicker = entry.source === "log.trace_ids";
+    // A dataset can produce hundreds of candidates (every trace id, every
+    // "activity · attribute = value"), and the list is a scroll box: without a
+    // filter, finding one means reading all of them. Selected options always
+    // stay visible so filtering cannot hide what is already chosen.
+    const query = (optionFilter || "").trim().toLowerCase();
+    const shownOptions = !query
+      ? options
+      : options.filter((opt) => {
+          const v = typeof opt === "string" ? opt : opt.value;
+          const l = typeof opt === "string" ? opt : opt.label ?? opt.value;
+          return selected.includes(v) || String(l).toLowerCase().includes(query);
+        });
     return (
       <div className="flex flex-col gap-1">
         {showVariantPick && (
@@ -155,8 +168,27 @@ function ParamField({ entry, value, onChange }) {
             </div>
           </div>
         )}
+        {options.length > 12 && (
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={optionFilter}
+              onChange={(e) => setOptionFilter(e.target.value)}
+              placeholder={`Filter ${options.length} options…`}
+              className="w-full text-xs border border-border-subtle rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+            <span className="text-xs text-on-surface-variant whitespace-nowrap">
+              {shownOptions.length} shown · {selected.length} selected
+            </span>
+          </div>
+        )}
         <div className="flex flex-col gap-0.5 max-h-72 overflow-y-auto border border-border-subtle rounded-lg px-3 py-2 bg-white">
-          {options.map((opt) => {
+          {shownOptions.length === 0 && (
+            <span className="text-sm text-on-surface-variant italic">
+              Nothing matches this filter.
+            </span>
+          )}
+          {shownOptions.map((opt) => {
             const optValue = typeof opt === "string" ? opt : opt.value;
             const optLabel = typeof opt === "string" ? opt : opt.label ?? opt.value;
             return (

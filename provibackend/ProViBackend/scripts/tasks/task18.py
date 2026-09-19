@@ -50,6 +50,20 @@ logger = logging.getLogger(__name__)
 IDIOMS = ["flow_chart_elaborate_table", "flow_chart_table", "bar_chart",
           "scatter_plot", "table", "table_bar_chart", "parallel_sets"]
 
+
+import trace_features
+
+#: task18 explains violations with attributes, like task13/20/21, so it takes
+#: the same three-class picker rather than silently using the default set.
+PARAM_SPEC = [
+    *trace_features.attribute_params(),
+]
+
+
+def validate_params(log, params) -> list:
+    return trace_features.validate_attribute_class(params)
+
+
 import os
 import numpy as np
 import pandas as pd

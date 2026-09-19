@@ -62,19 +62,12 @@ SPLIT_STRATEGY = None  # admin chooses
 
 import trace_features
 
+def validate_params(log, params) -> list:
+    return trace_features.validate_attribute_class(params, multi=True)
+
+
 PARAM_SPEC = [
-    {
-        "key": "attribute_set",
-        "slot": "split",
-        "label": "Attributes to analyse (empty = every attribute of this log that can be grouped)",
-        # Participant-facing: the admin's fallback wording is plumbing, and
-        # the hint is only ever shown next to an actual selection.
-        "hint": "Attributes analysed",
-        "widget": "select-many",
-        "source": "log.candidate_attributes",
-        "default": [],
-        "required": False,
-    },
+    *trace_features.attribute_params(),
     *trace_features.split_params_for(),
 ]
           # "flow_chart_table", "flow_chart_elaborate_table"  # commented out
@@ -292,47 +285,22 @@ def _is_structural_key(key: str) -> bool:
 def discover_candidate_attributes(log, feat=None) -> list:
     """Dataset-independent default candidate attributes ("reasons").
 
-    Every case/event attribute of THIS log that the attribute-evidence idioms can
-    meaningfully bucket, plus the derived throughput time when it varies. Structural
-    keys and non-bucketable columns are skipped. This is the single source of truth
-    shared by the task13/18/20/21 rendering defaults and the admin picker
-    (create_all_visualizations.get_log_candidate_attributes), so the default set
-    adapts to the dataset instead of assuming BPIC12's attributes.
+    Now `trace_features.default_keys`: the registry's canonical features for this
+    log. The key-scanning this replaces read a raw column's *first event* as the
+    trace's value — a fallback meant for case attributes replicated onto events,
+    which cannot tell those apart from an attribute that genuinely varies within
+    the trace. On BPIC12 every trace's `org:resource` came back as 112, the
+    automatic submitter of the first event, so the column looked constant and the
+    log's 61 executors were never offered. The registry decides case-level vs
+    event-level by whether the value is constant, and derives named features
+    (`resource::dominant`, `amount::last`) for the ones that are not.
 
-    Returns [] when the log carries no bucketable attribute — a valid result that
-    lets the callers emit their normal empty-state instead of probing hard-coded
-    keys. ``feat`` is task20's trace-feature frame (for the throughput column); pass
-    it when already computed to avoid recomputation.
+    ``feat`` is accepted for call-site compatibility and no longer needed: the
+    registry derives throughput time from the log itself.
     """
-    n_traces = len(log)
-    keys = []
-    for key in _available_attributes(log):
-        if _is_structural_key(key):
-            continue
-        values, kind = _collect_attribute_column(log, key)
-        if kind == "missing":
-            continue
-        if _bucket_assign(list(values), kind) is None:
-            continue
-        if kind == "categorical" and n_traces:
-            # Identifier-like column: nearly one distinct value per trace, so
-            # bucketing yields a few singletons and one enormous "Other". This
-            # replaces a hard-coded "REG_DATE" exclusion, which only recognised
-            # the identifier BPIC12 happens to carry. Numeric columns are exempt
-            # — quantile bucketing copes with any number of distinct values.
-            distinct = len({str(v) for v in values if v is not None})
-            if distinct > max(MAX_CATEGORIES, n_traces * 0.5):
-                logger.info(
-                    f"      task13: '{key}' looks like an identifier "
-                    f"({distinct} distinct values over {n_traces} traces) — "
-                    f"not offered as a default attribute."
-                )
-                continue
-        keys.append(key)
-    if feat is not None and not feat.empty and "duration_hours" in feat:
-        if _bucket_assign(feat["duration_hours"].tolist(), "numeric") is not None:
-            keys.append(THROUGHPUT_KEY)
-    return keys
+    import trace_features
+
+    return trace_features.default_keys(log)
 
 
 def _bucket_rates(values, kind: str, violation):
