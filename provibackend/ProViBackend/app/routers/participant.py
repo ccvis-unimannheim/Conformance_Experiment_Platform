@@ -301,8 +301,9 @@ async def get_active_experiment():
         if not idiom:
             continue
 
-        # Prefer the frozen per-experiment snapshot so edits to the Task question
-        # bank in the admin panel don't retroactively change this experiment.
+        # The instance carries wording only where an admin reworded this task for
+        # this experiment; otherwise the shared question bank supplies it, so a
+        # correction there reaches every experiment that never overrode it.
         task_key = ti_snapshot.get("task_key") or task["task_key"]
         task_label = ti_snapshot.get("label") or task["label"]
 
@@ -425,8 +426,9 @@ async def get_assigned_trials(
         if not idiom:
             continue
 
-        # Prefer the frozen per-experiment snapshot so edits to the Task question
-        # bank in the admin panel don't retroactively change this experiment.
+        # The instance carries wording only where an admin reworded this task for
+        # this experiment; otherwise the shared question bank supplies it, so a
+        # correction there reaches every experiment that never overrode it.
         task_key = ti.get("task_key") or task["task_key"]
         task_label = ti.get("label") or task["label"]
 

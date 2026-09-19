@@ -942,7 +942,13 @@ def _remove_custom_task_idioms(task_keys: list[str]):
 
 @router.get("/tasks", tags=["admin"])
 async def get_tasks(experiment_id: str | None = None):
-    """The shared Task question bank, plus `experiment_id`'s own custom tasks if given."""
+    """The shared Task question bank, plus `experiment_id`'s own custom tasks if given.
+
+    With an `experiment_id`, each task is returned as *that experiment* asks it:
+    a task its admin reworded (PATCH /tasks/{id}?experiment_id=…) carries the
+    reworded text, every other task the bank's. Participants read the same way
+    (participant.py), so the admin pages and the study never disagree.
+    """
     tasks = dbc.get_query_db("Task", query={})
     for doc in tasks:
         if "_id" in doc and not isinstance(doc["_id"], str):
@@ -950,15 +956,39 @@ async def get_tasks(experiment_id: str | None = None):
     tasks.sort(key=_task_sort_key)
     if experiment_id:
         exp = dbc.get_document("Experiment", {"_id": experiment_id}) or {}
+        overrides = {ti.get("task_id"): ti for ti in (exp.get("task_instances") or [])}
+        for doc in tasks:
+            inst = overrides.get(doc.get("_id")) or {}
+            for field in ("label", "description", "answer_type"):
+                if inst.get(field):
+                    doc[field] = inst[field]
         tasks.extend(exp.get("custom_tasks") or [])
     return JSONResponse(content=tasks)
 
 
 @router.patch("/tasks/{task_id}", tags=["admin"])
-async def update_task(task_id: str, update_data: ds.TaskUpdate):
+async def update_task(task_id: str, update_data: ds.TaskUpdate,
+                      experiment_id: str | None = None):
+    """Reword one task **for one experiment**, or edit its shared rubric.
+
+    The question bank (the Task collection) holds the wording every experiment
+    starts from and is owned by seed_data.py, so a reworded question is stored
+    on the experiment's own task_instance: it reaches this experiment's
+    participants and no one else's. Editing the bank itself used to be what this
+    endpoint did, which made one experiment's wording ("…for Ship Order",
+    "…customer segments and region") everybody's default and stopped the startup
+    seed from ever correcting it.
+
+    `rubric` is the exception and still goes to the bank: it is reference text
+    for whoever codes the answers by hand, not something a participant sees, and
+    /answer-format reads it per task rather than per experiment.
+    """
     fields = {k: v for k, v in update_data.model_dump().items() if v is not None}
     if not fields:
         raise HTTPException(status_code=400, detail="No fields to update.")
+    wording = {k: v for k, v in fields.items()
+               if k in ("label", "description", "answer_type")}
+    shared = {k: v for k, v in fields.items() if k not in wording}
     if dbc.get_document("Task", {"_id": task_id}) is None:
         # Experiment-scoped custom task: edit it in place on its experiment.
         updated = dbc.update_document(
@@ -969,13 +999,31 @@ async def update_task(task_id: str, update_data: ds.TaskUpdate):
         if not updated:
             raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found.")
         return JSONResponse(content={"message": "Task updated.", "task_id": task_id})
-    # Marks this document as admin-customized so the startup seed (main.py
-    # _seed_collection) stops overwriting it with seed_data.py's hardcoded values.
-    fields["_admin_edited"] = True
-    updated = dbc.update_document("Task", query={"_id": task_id}, update={"$set": fields})
+    if shared:
+        # Non-canonical, so the startup seed leaves it alone (main._seed_collection
+        # only $sets the fields seed_data.py names).
+        if not dbc.update_document("Task", query={"_id": task_id}, update={"$set": shared}):
+            raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found.")
+    if not wording:
+        return JSONResponse(content={"message": "Task updated.", "task_id": task_id})
+    if not experiment_id:
+        raise HTTPException(
+            status_code=400,
+            detail="experiment_id is required: a task's wording is edited for one "
+                   "experiment, not for the shared question bank.",
+        )
+    updated = dbc.update_document(
+        "Experiment",
+        query={"_id": experiment_id, "task_instances.task_id": task_id},
+        update={"$set": {f"task_instances.$.{k}": v for k, v in wording.items()}},
+    )
     if not updated:
-        raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found.")
-    return JSONResponse(content={"message": "Task updated.", "task_id": task_id})
+        raise HTTPException(
+            status_code=404,
+            detail=f"Task '{task_id}' is not part of experiment '{experiment_id}'.",
+        )
+    return JSONResponse(content={"message": "Task updated for this experiment.",
+                                 "task_id": task_id, "experiment_id": experiment_id})
 
 
 @router.post("/experiments/{experiment_id}/custom-tasks", tags=["admin"])
@@ -1396,31 +1444,42 @@ async def update_experiment_status(experiment_id: str, status: str):
 
 
 def _freeze_task_snapshots(instances: list[dict], existing_by_task_id: dict) -> list[dict]:
-    """Stamp each task instance with a frozen snapshot of its Task (question bank)
-    label/description/answer_type, taken the first time the task enters this
-    experiment. Once frozen, later edits to the Task in the admin panel no longer
-    change this experiment — only newly-added tasks (or new experiments) pick up
-    the current Task content.
+    """Stamp each task instance with its `task_key`, and keep any wording this
+    experiment has overridden.
+
+    The question bank is the default for every experiment, and it is owned by
+    seed_data.py — so an instance carries no label unless an admin has edited
+    the wording *in this experiment* (PATCH /admin/tasks/{id}?experiment_id=…).
+    An instance without one reads through to the bank and always shows its
+    current wording.
+
+    This used to freeze the bank's label into every instance the first time the
+    task entered the experiment. Three readers then disagreed: /task showed the
+    bank, participants showed the frozen copy, and an admin's edit — which went
+    to the bank — reached neither their own experiment nor, correctly, the other
+    experiments it silently changed.
+
+    `task_key` is identity rather than wording, so it stays: an experiment whose
+    Task document is later deleted still knows which generator drew its figures.
     """
     task_cache: dict = {}
     for inst in instances:
         task_id = inst.get("task_id", "")
-        if not task_id or (inst.get("label") and inst.get("task_key")):
+        if not task_id:
             continue
-        existing = existing_by_task_id.get(task_id)
-        if existing and existing.get("label") and existing.get("task_key"):
+        existing = existing_by_task_id.get(task_id) or {}
+        # An override the admin set on this experiment survives every save.
+        for field in ("label", "description", "answer_type"):
+            if not inst.get(field) and existing.get(field):
+                inst[field] = existing[field]
+        if inst.get("task_key"):
+            continue
+        if existing.get("task_key"):
             inst["task_key"] = existing["task_key"]
-            inst["label"] = existing["label"]
-            inst["description"] = existing.get("description", "")
-            inst["answer_type"] = existing.get("answer_type", "")
             continue
         if task_id not in task_cache:
             task_cache[task_id] = dbc.get_task(task_id) or {}
-        task = task_cache[task_id]
-        inst["task_key"] = task.get("task_key", "")
-        inst["label"] = task.get("label", "")
-        inst["description"] = task.get("description", "")
-        inst["answer_type"] = task.get("answer_type", "")
+        inst["task_key"] = task_cache[task_id].get("task_key", "")
     return instances
 
 

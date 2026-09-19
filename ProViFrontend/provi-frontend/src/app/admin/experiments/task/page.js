@@ -121,13 +121,17 @@ export default function TaskSelectionPage() {
 
   async function saveEditedTask(payload) {
     const taskId = getTaskId(editingTask);
-    const res = await fetch(`/api/admin/tasks/${encodeURIComponent(taskId)}`, {
+    // The wording is stored on this experiment's task instance, not on the
+    // shared question bank — see PATCH /admin/tasks/{id} in admin.py.
+    const res = await fetch(
+      `/api/admin/tasks/${encodeURIComponent(taskId)}` +
+        `?experiment_id=${encodeURIComponent(experimentId)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error(await res.text());
-    showToast("Task updated successfully!");
+    showToast("Task updated for this experiment.");
     await fetchTasks();
   }
 

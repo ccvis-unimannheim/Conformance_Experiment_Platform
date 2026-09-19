@@ -204,9 +204,8 @@ class TaskConfig(BaseModel):
     idiom_id: str
     dataset_id: str
     question_ids: List[str]
-    # Snapshot of the Task question bank entry, frozen when the task was first
-    # added to the experiment. Empty for legacy experiments predating the
-    # snapshot (they keep falling back to a live Task lookup).
+    # This experiment's own wording, set only when an admin reworded the task
+    # here; `task_key` aside, empty means "use the question bank's wording".
     task_key: Optional[str] = None
     label: Optional[str] = None
     description: Optional[str] = None
@@ -234,10 +233,11 @@ class TaskInstance(BaseModel):
     # with and cannot be edited (PATCH keeps them); reverting the import clears it.
     images_imported_from: Optional[Dict[str, Any]] = None
     question_ids: List[str] = []
-    # Snapshot of the Task question bank entry, frozen when the task was first
-    # added to the experiment. Later edits to the Task in the admin panel do
-    # not change already-created experiments. Empty for legacy experiments
-    # predating the snapshot (they keep falling back to a live Task lookup).
+    # `task_key` identifies which generator drew this task's figures and is
+    # always stamped. The three wording fields are this experiment's override,
+    # written only by PATCH /admin/tasks/{id}?experiment_id=… — empty (the
+    # normal case) means the shared question bank supplies the wording, so a
+    # correction to seed_data.py reaches every experiment that never edited it.
     task_key: Optional[str] = None
     label: Optional[str] = None
     description: Optional[str] = None

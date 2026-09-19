@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Report — and optionally repair — Task questions that the startup seed skips.
+"""Put the task questions back where they belong: the bank, and the experiments.
 
 `main.py._seed_collection` upserts `seed_data.CANONICAL_TASKS` on every startup,
 but skips any document flagged `_admin_edited`: once an admin has edited a
@@ -15,9 +15,15 @@ and with --apply writes the canonical wording and clears the flag.
     docker compose exec provibackend python ProViBackend/scripts/reseed_task_questions.py
     docker compose exec provibackend python ProViBackend/scripts/reseed_task_questions.py --apply
 
-Running experiments are unaffected either way: a task_instance keeps the label
-snapshotted when it was configured (participant.py reads `ti["label"]` first),
-so this changes the question bank, not an experiment already in the field.
+It also clears the wording frozen onto every experiment's task instances. That
+snapshot was taken the first time a task entered an experiment, so an experiment
+kept whatever the bank said that day — including the bank entries an admin had
+overwritten for a different experiment. With the snapshot gone, an instance
+reads through to the bank (participant.py: `ti.get("label") or task["label"]`),
+and a label reappears on an instance only when an admin rewords that task *for
+that experiment*.
+
+Run it once after deploying the per-experiment wording change; it is idempotent.
 """
 import argparse
 import pathlib
@@ -74,10 +80,24 @@ def main() -> int:
         print("\nNot in the database at all (the seed will insert them on the next "
               f"restart): {', '.join(missing)}")
 
+    # --- the wording frozen onto experiments --------------------------------
+    frozen = []
+    for exp in db["Experiment"].find({"task_instances": {"$exists": True}}):
+        n = sum(1 for ti in (exp.get("task_instances") or [])
+                if ti.get("label") or ti.get("description") or ti.get("answer_type"))
+        if n:
+            frozen.append((exp.get("_id"), exp.get("name") or exp.get("experiment_name") or "?", n))
+
+    print(f"\n{len(frozen)} experiment(s) carry a frozen question snapshot:")
+    for _id, name, n in frozen:
+        print(f"  {name} ({_id}): {n} task instance(s)")
+    if not frozen:
+        print("  none — every experiment already reads the bank")
+
     if not args.apply:
-        if pinned or stale:
+        if pinned or stale or frozen:
             print("\nNothing written. Re-run with --apply to write the canonical "
-                  "wording and clear the flag.")
+                  "wording, clear the flag, and drop the frozen snapshots.")
         return 0
 
     written = 0
@@ -89,9 +109,18 @@ def main() -> int:
              "$unset": {"_admin_edited": ""}},
         )
         written += result.modified_count
-    print(f"\nWrote {written} document(s). The flag is cleared, so future "
-          f"seed_data.py changes reach them on restart until an admin edits "
-          f"them again.")
+    print(f"\nWrote {written} Task document(s); the flag is cleared, so future "
+          f"seed_data.py changes reach them on restart.")
+
+    cleared = db["Experiment"].update_many(
+        {"task_instances": {"$exists": True}},
+        {"$unset": {"task_instances.$[].label": "",
+                    "task_instances.$[].description": "",
+                    "task_instances.$[].answer_type": ""}},
+    )
+    print(f"Cleared the frozen snapshot on {cleared.modified_count} experiment(s). "
+          f"They now show the bank's wording, and an admin rewording a task on "
+          f"/task or /overview writes only to that experiment.")
     return 0
 
 

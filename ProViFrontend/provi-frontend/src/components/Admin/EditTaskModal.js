@@ -45,6 +45,10 @@ export default function EditTaskModal({ task, onClose, onSave }) {
             <span className="material-symbols-outlined">close</span>
           </button>
         </div>
+        <p className="text-xs text-on-surface-variant -mt-2">
+          Applies to this experiment only. Other experiments keep the wording from
+          the shared question bank.
+        </p>
         <div className="flex flex-col gap-3">
           <div>
             <label className="text-xs font-bold uppercase tracking-wider text-on-surface-variant block mb-1">

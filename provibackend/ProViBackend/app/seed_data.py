@@ -2,8 +2,9 @@
 Canonical Task and Idiom catalogs.
 
 Upserted into MongoDB on every startup (main.py _seed_collection), so edits
-here reach existing documents. Documents an admin has edited through the API
-(flagged `_admin_edited`) are skipped.
+here reach existing documents — and through them every experiment, since an
+experiment shows this wording unless an admin reworded the task for that one
+experiment (then it is stored on that experiment's task_instance).
 """
 
 CANONICAL_TASKS = [

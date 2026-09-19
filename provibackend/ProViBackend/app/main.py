@@ -31,10 +31,11 @@ def _seed_collection(collection_name: str, items: list, key_field: str):
     is only assigned on insert. Any non-canonical fields already on the document
     (not present in seed_data) are left untouched.
 
-    Documents an admin has customized via the API (flagged `_admin_edited`,
-    e.g. `PATCH /admin/tasks/{id}`) are skipped entirely — code no longer owns
-    those fields once an admin has overridden them, otherwise every backend
-    restart would silently discard the admin's edit.
+    A document flagged `_admin_edited` is skipped entirely. Nothing sets that
+    flag any more: an admin rewording a task writes to their own experiment
+    (`PATCH /admin/tasks/{id}?experiment_id=…`) rather than to the shared
+    question bank, so the check only honours documents pinned before that
+    change. `scripts/reseed_task_questions.py --apply` clears them.
     """
     db = dbc.connect_to_database()
     for item in items:
