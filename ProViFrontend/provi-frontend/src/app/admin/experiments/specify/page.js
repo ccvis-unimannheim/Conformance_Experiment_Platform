@@ -119,27 +119,6 @@ function ParamField({ entry, value, onChange }) {
         onChange([...selected, optValue]);
       }
     }
-    // Admin convenience: auto-select one option from each of the first N distinct
-    // variants (needs a per-option `variant` field from the backend).
-    const hasVariants = options.some((o) => typeof o === "object" && o.variant != null);
-    const showVariantPick = entry.variant_autoselect && hasVariants;
-    const autoselectCount = entry.autoselect_count ?? 10;
-    function pickFromVariants() {
-      const seen = new Set();
-      const picked = [];
-      for (const opt of options) {
-        if (typeof opt !== "object" || opt.variant == null) continue;
-        if (seen.has(opt.variant)) continue;
-        seen.add(opt.variant);
-        picked.push(opt.value);
-        if (picked.length >= autoselectCount) break;
-      }
-      onChange(picked);
-    }
-    function toggleVariantPick(checked) {
-      if (checked) pickFromVariants();
-      else onChange([]);
-    }
     // Trace picker: the chart labels traces by running number ("Trace 1..N") in
     // selection order, so surface the "Trace N → id" mapping for the admin.
     const isTracePicker = entry.source === "log.trace_ids";
@@ -157,21 +136,6 @@ function ParamField({ entry, value, onChange }) {
         });
     return (
       <div className="flex flex-col gap-1">
-        {showVariantPick && (
-          <label className="flex items-center gap-2 text-sm text-on-surface cursor-pointer">
-            <input
-              type="checkbox"
-              onChange={(e) => toggleVariantPick(e.target.checked)}
-              className="accent-primary"
-            />
-            <span>
-              Pick from different Variants
-              <span className="text-on-surface-variant font-normal ml-1">
-                (auto-select {autoselectCount} traces across distinct variants)
-              </span>
-            </span>
-          </label>
-        )}
         {isTracePicker && selected.length > 0 && (
           <div className="text-xs border border-border-subtle rounded-lg px-3 py-2 bg-gray-50">
             <span className="font-semibold text-on-surface">

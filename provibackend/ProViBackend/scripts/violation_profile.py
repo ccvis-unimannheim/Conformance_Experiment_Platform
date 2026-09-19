@@ -145,15 +145,20 @@ def selection_param_for(strategy: str) -> dict:
 #: Splits the log into sub-logs whose profiles are compared. Single-select: the
 #: figures put one sub-log per series, and two split attributes at once would be
 #: a cross-tabulation none of these idioms draw.
+#:
+#: Required, because both tasks that offer it ask a question about the split —
+#: task05 "across different logs", task32 "between sub-processes". Left empty it
+#: drew one profile of the whole log, which answers neither, and the task then
+#: looked like task29 with a different title.
 SPLIT_ATTRIBUTE_PARAM = {
     "key": "split_attribute",
     "slot": "split",
-    "label": "Attribute splitting the log into sub-logs (empty = whole log)",
+    "label": "Attribute splitting the log into sub-logs",
     "hint": "Each sub-log gets its own violation profile, compared side by side",
     "widget": "select-one",
     "source": "log.candidate_attributes",
     "default": "",
-    "required": False,
+    "required": True,
 }
 
 #: Cut separating the violations worth naming from the long tail. task32 calls

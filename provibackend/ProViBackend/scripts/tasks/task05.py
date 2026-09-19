@@ -45,15 +45,15 @@ PARAM_SPEC = [*_shared_params()]
 
 
 def validate_params(log, params) -> list:
-    """Check the sub-log attribute splits this log in two.
+    """Check that an attribute is named and that it splits this log in two.
 
     An attribute with one value throughout, or none at all, yields a single
     group — the comparison this task exists for would then be a chart of one
-    series against nothing.
+    series against nothing. Naming none at all is the same problem.
     """
     attr = params.get("split_attribute")
     if not attr:
-        return []
+        return ["Pick the attribute that splits the log into the sub-logs to compare."]
     import violation_profile
     if violation_profile.binary_split(log, attr) is None:
         return [f"Attribute '{attr}' does not split this log into two sub-logs."]

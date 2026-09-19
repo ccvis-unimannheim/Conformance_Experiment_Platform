@@ -626,12 +626,14 @@ SPLIT_PARAMS = [
         "widget": "select-one",
         # A strategy that does not fit an attribute falls back to the one its
         # type deserves (see `split`), so these read as preferences rather than
-        # instructions — "two halves" cannot mean anything for Yes/No.
+        # instructions: asking for ranges of a yes-no attribute gets one group
+        # per value, which is the only cut it has.
         "options": [
             {"value": "ordered_bins",
              "label": "Ranges — numbers into quantile bands, dates into calendar periods"},
             {"value": "binary",
-             "label": "Two halves — above and below the median (numbers and dates only)"},
+             "label": "Two halves — above and below the median; "
+                      "Yes and No for a yes-no attribute"},
             {"value": "nominal_n",
              "label": "One group per value — the most frequent, the rest as “Other”"},
         ],

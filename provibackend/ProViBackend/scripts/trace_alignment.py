@@ -99,10 +99,6 @@ TRACE_IDS_PARAM = {
     "hide_hint": True,
     "widget": "select-many",
     "source": "log.trace_ids",
-    # Admin convenience: a checkbox that auto-selects one trace from each of the
-    # first N distinct variants. Handled in the specify-page select-many UI.
-    "variant_autoselect": True,
-    "autoselect_count": 2,
     "default": [],
     "required": False,
     "visible_if": {"trace_selection_mode": "manual"},

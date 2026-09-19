@@ -55,7 +55,7 @@ PARAM_SPEC = [
         rules=["violation_gap", "worst_fitness", "first_nonconformant",
                "most_frequent_variants"],
         default_rule="violation_gap",
-        count_default=2, count_min=1, count_max=4,
+        count_default=1, count_min=1, count_max=4,
     ),
     {**trace_alignment.VIOLATION_PATTERN_PARAM,
      "visible_if": {**trace_alignment.VIOLATION_PATTERN_PARAM["visible_if"],
