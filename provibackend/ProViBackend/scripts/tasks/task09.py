@@ -1210,7 +1210,8 @@ def alignment_figures(output_dir, model_path, *, view, records, attribute,
             filename=f"{prefix}_flow_chart_elaborate_bpmn.svg", **titled)
         task04.task04_table(records, model_path, output_dir,
                             filename=f"{prefix}_table.svg",
-                            show_order=show_order, **titled)
+                            show_order=show_order,
+                            merge_log_moves=merge_log_moves, **titled)
         return
 
     trace_alignment.draw_value_chevrons(

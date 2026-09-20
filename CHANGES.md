@@ -256,6 +256,60 @@ task. A log move of a modelled activity — the common case — could never reac
 Separately, the rows sit in model order, so a trace that runs two activities out
 of order read exactly like one that runs them in order. The chevron shows that
 difference; the table dropped it.
+## Session: task27's Eight Idioms Answer Its One Question (2026-09-20)
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| Box plot removed | Throughput time per status answers how *long* the two groups take, not how their behaviour differs, and a distribution needs a population — over the handful of traces the admin names it was a box built from one or two values. Eight idioms left. |
+| Every idiom on the selection | The `selected=named` split is gone: the aggregates fell back to the log's top-15 variants whenever the traces were not named by hand, so the automatic rule gave the chevron two traces and the bar chart fifteen variants. `TOP_N` and every "variant" branch went with it. The objection to closing this gap was the box plot; it is gone. |
+| One payload | `_activity_status_payload` — activity × conformance status, the cell counting how many selected traces of that status touch the activity. Bar chart groups it, stacked bar stacks it, parallel sets flows activity to status, matrix prints it on white cells, heatmap colours it. They used to carry three answers between them: frequency (bar, parallel sets), trace length (stacked bar) and behaviour (matrix, heatmap). `_task27_trace_df`, `_frequency_bucket`, `_variant_relations` and the `_REL_*` marks went with the old ones. |
+| Palette | `_COLOR_CONFORM` / `_COLOR_NON_CONFORM` are `PAIR_COLORS`, cividis navy and bright yellow, as task29, task31 and task32 use them. They were `GREY_MED` over `GREY_LIGHT`: two neighbours in cividis's olive middle that read as one shade, which is the worst possible reading for the contrast this task is about. The parallel sets' left ramp comes from `CIVIDIS_R` instead of three greys. |
+| Titles | `_TASK27_TITLE = "How Conformant and Non-Conformant Traces Differ"` on all eight, the chevron, BPMN and table included. They carried seven different ones, several naming a unit ("Variant Frequency", "top-15 variants") that stopped being true. |
+
+### Verification
+
+`trace_count` 1 against 3 on BPIC12-A: all eight SVGs differ, where under the
+automatic rule only the four trace-level ones used to. The matrix's raster
+decodes to one colour, pure white — it has been colourless since the tasks
+27-31 round. The payload reads as the question: A_DECLINED and A_CANCELLED
+appear only in the conformant traces, A_APPROVED, A_REGISTERED and A_ACTIVATED
+only in the non-conformant ones.
+
+## Session: One Row per Activity, Even When It Was Both Executed and Inserted (2026-09-20)
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| `merge_log_moves` on task04_table | An activity that a trace both executed and inserted got two rows: "Check Credit" and "Check Credit (Log Move)". The suffix kept them apart, at the price of a row label saying one thing and the cell under it saying the same thing again, and of one activity sitting in two places in a table whose point is one row per activity. With the switch on it gets a single row whose cell names both moves: "Model Move & Log Move". |
+| Fixed order in the cell | `_MOVE_ORDER` names Synchronous, then Model, then Log, so the same pair reads the same in every cell of every trace. |
+| Activities outside the model | They used to enter the table through their "(Log Move)" row label. Merged, the key is the plain activity name, which the model-task list does not hold — so the extra-row rule now takes any key the model does not know, and an inserted "Escalate Case" keeps its row under its own name. |
+| Width | The per-trace column width follows the longest cell rather than a constant 2.7 inches: a merged cell holds two moves and can be twice as wide as a plain one. |
+| Scope | Opt-in, `False` by default; only task28 sets it, through `alignment_figures`. task04, task09, task14 and task27 are unchanged. It should become the default when they come up for review. |
+
+### Verification
+
+The four cell modes over a trace that executes "Check Credit", inserts it again,
+and inserts "Escalate Case", which is not a model task:
+
+```
+merge=False order=False   Check Credit              Model Move
+                          Check Credit (Log Move)   Log Move
+                          Escalate Case (Log Move)  Log Move
+
+merge=True  order=False   Check Credit              Model Move & Log Move
+                          Escalate Case             Log Move
+
+merge=True  order=True    Check Credit              2 · Model Move & 3 · Log Move
+```
+
+Rendered with two traces, the second of which executes Check Credit cleanly:
+one "Check Credit" row reading "Model Move & Log Move" against "Synchronous
+Move", and an "Escalate Case" row reading "Log Move" against "—". task28 still
+writes its seven SVGs.
+
 ## Session: One Title Over task28, and a Table That Does Not Repeat the Chevron (2026-09-20)
 
 ### Changes
