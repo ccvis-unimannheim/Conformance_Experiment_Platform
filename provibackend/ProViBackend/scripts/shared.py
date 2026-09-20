@@ -2235,9 +2235,15 @@ def chevron_layout(nodes, uniform_width=False):
     return layout, span
 
 
-def chevron_figure_width(nodes, min_w: float = 13.0, max_w: float = 34.0):
-    """Choose a figure width that keeps chevron text from being compressed."""
-    _layout, span = chevron_layout(nodes)
+def chevron_figure_width(nodes, min_w: float = 13.0, max_w: float = 34.0,
+                         uniform_width: bool = False):
+    """Choose a figure width that keeps chevron text from being compressed.
+
+    uniform_width must match whatever draw_chevron_strip(..., uniform_width=)
+    is called with — the widest-label-wins layout is wider overall than the
+    per-label one, so the figure needs to be sized from the same layout that
+    will actually be drawn."""
+    _layout, span = chevron_layout(nodes, uniform_width=uniform_width)
     return min(max(min_w, span * 0.29 + 1.6), max_w)
 
 
