@@ -20,57 +20,70 @@ comparison are the same kind of object, which is what lets one renderer draw
 them both. The directly-follows graph stays inside pm4py — a step towards the
 model, not something this platform draws.
 
-Three idioms, each comparing like with like:
+Three idioms. Each shows the desired model as BPMN and the discovered model in
+that idiom's own encoding:
 
-- `flow_chart_elaborate` — both models as BPMN panels, one above the other,
-  through `shared.compose_bpmn_panels`.
-- `flow_chart_basic` — both models as a chevron strip, one above the other.
-- `table` — both models as a column, the cell holding the step the activity has
-  in that model, so the table says what is missing *and* what moved.
+- `flow_chart_elaborate` — the discovered model as a second BPMN panel.
+- `flow_chart_basic` — the discovered model as a chevron strip.
+- `table` — the discovered model as its list of steps.
 
-All three read one payload (`_model_diff`): each activity's category — in both
-models, only in the desired one, only in the discovered one — and its position
-in each. One palette across the three: white for shared, cividis navy for
-desired-only, cividis bright yellow for discovered-only.
+The desired side is always the BPMN, because it is the only notation here that
+shows concurrency: a guideline redrawn as a chevron strip or a list of steps
+would claim an order its gateways do not prescribe. What the experiment varies
+is how the *discovered* model is presented.
 
-The comparison is symmetric for the first time. It used to set a smoothed set
-of model edges against raw directly-follows pairs counted off the log, so any
-rare path in the log became a structural difference against the guideline.
+**Nothing marks the differences.** The first version painted three categories
+onto both models — in both, only in the desired one, only in the discovered
+one — with a legend naming them. That answered the task's question on the
+participant's behalf: the work left was to find the coloured shapes, not to
+compare two models. This is an Explore task, and the comparison is what is
+being measured, so every node is drawn the same. `_model_diff` and the palette
+are gone; a one-line difference summary survives in the pipeline log, where
+only the admin sees it.
 
-`noise_threshold` becomes a real admin parameter (0.0-0.4, default 0.2),
-replacing a hard-coded minimum edge count no admin could see. Verified to move
-the discovered model: on the sample guideline 21 elements / 24 flows at 0.0 and
-0.2, 19 / 21 at 0.3.
+**No noise-threshold parameter.** It was briefly an admin parameter; it is now
+fixed at 0.0. How much behaviour enters the discovery is already the trace
+selection's job, and the traces it picks are whole variants chosen for their
+frequency, so a filter that drops infrequent paths has nothing left to drop.
+Two parameters over one decision would only let an admin set them against each
+other.
+
+**The discovered model is re-laid-out.** pm4py's auto-layout spread it over
+5806 × 1985 units against the guideline's 1385 × 256 — four times as wide,
+ten times as tall, with long detours between neighbouring nodes. `_relayout`
+replaces the geometry: nodes keep their size and go into columns by
+longest-path depth, each column centred vertically; edges become short
+orthogonal runs, and a backward edge drops below the diagram and returns.
+Result on the sample: 2573 × 154. The width that remains is the discovered
+model's own shape — nineteen sequential layers against the guideline's ten
+with parallel branches — not wasted space, and that difference is itself part
+of the answer.
 
 ### Files changed
 
 - `provibackend/ProViBackend/scripts/tasks/task24.py` — rewritten.
-  `_discover_model`, `_named_tasks`, `_linearise`, `_model_diff`,
-  `_difference_summary`, `_node_style_fn` and the three idiom renderers added;
-  `_discover_dfg`, `_compute_diff`, `_build_diff_panel` and `_model_task_edges`
-  deleted. `IDIOMS` now holds canonical keys — it declared the
-  `flow_chart_elaborate_bpmn` file stem, which is not a key the Idiom
-  collection knows.
-- `provibackend/ProViBackend/scripts/create_all_visualizations.py` — the task24
-  lambda passes `noise_threshold`.
+  `_discover_model`, `_named_tasks`, `_depths`, `_relayout`, `_linearise`,
+  `_difference_summary`, `_plain_node_style`, the SVG-stacking helpers and the
+  three idiom renderers added; `_discover_dfg`, `_compute_diff`,
+  `_build_diff_panel` and `_model_task_edges` deleted. `IDIOMS` now holds
+  canonical keys — it declared the `flow_chart_elaborate_bpmn` file stem,
+  which is not a key the Idiom collection knows.
 - `docs/TASK_IDIOM_MAPPING.md` — the two added idioms, and why.
 
 ### Known costs
 
 `_linearise` presses a graph into a line for the chevron and the table: two
 models differing only in whether A and B are concurrent produce the same strip
-and the same step numbers. The BPMN idiom is in the set because of it. Depth is
-the longest path from the start event, not the shortest — with an exclusive
-choice the shortest path reaches post-choice activities through whichever
-branch is briefest, which put "Close Case" ahead of the long branch's
-activities on the sample guideline.
+and the same step numbers. That is exactly why the desired side of every idiom
+stays a BPMN. Depth is the longest path from the start event, not the shortest
+— with an exclusive choice the shortest path reaches post-choice activities
+through whichever branch is briefest, which put "Close Case" ahead of the long
+branch's activities on the sample guideline.
 
-No edge-level difference is drawn. Collapsing gateways to get comparable
-task-to-task edges turns each model into a reachability closure, and two models
-built by different means differ in dozens of closure pairs while describing the
-same behaviour — sixteen of them on the sample guideline, none with a
-reader-visible meaning. Each panel draws its own flows; the comparison lives in
-the nodes.
+The two BPMN panels are drawn at their natural size on one canvas, so a
+discovered model with more layers than the guideline appears wider than it.
+Scaling the panels to a common width would shrink the wider one's labels
+towards unreadable; it has not been done.
 
 ## Session: Task 27 on the Trace Level (2026-09-20)
 
