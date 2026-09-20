@@ -5,24 +5,16 @@ Question: How do fitness values of traces differ when applying two different
 techniques to compute them? What is the overall trend of trace fitness?
 
 Visualizations (all SVG, cividis palette from shared.py):
-  bar_chart       – mean/median comparison: T1 vs T2
-  boxplot         – distribution: T1 vs T2 side by side
-  scatter_plot    – per-trace T1 vs T2 (technique agreement)
-  line_graph      – fitness trend per trace index: T1 and T2 overlaid
-  horizon_chart   – delta (T1 – T2) horizon chart, or T1 deviation from mean
-  heatmap         – 2D density: T1 bucket × T2 bucket
-  table           – per-trace detail: T1, T2, delta, classification
-  table_bar_chart – summary statistics table + fitness bucket bar chart
-  stacked_bar     – fitness bucket distribution: T1 row and T2 row
+  bar_chart   – mean/median comparison: T1 vs T2
+  heatmap     – 2D density: T1 bucket × T2 bucket
+  table       – per-trace detail: T1, T2, delta, classification
+  stacked_bar – fitness bucket distribution: T1 row and T2 row
 """
 
 import logging
 logger = logging.getLogger(__name__)
 
-IDIOMS = [
-    "bar_chart", "boxplot", "scatter_plot",
-    "heatmap", "table", "table_bar_chart", "stacked_bar",
-]
+IDIOMS = ["bar_chart", "heatmap", "table", "stacked_bar"]
 
 #: The bands the fitness axis is cut into — the heatmap's two axes, the stacked
 #: bar's segments and the bucket bar chart. Same parameter as task10's, because
@@ -89,7 +81,6 @@ def validate_params(log, params) -> list:
 
 import os
 import numpy as np
-import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -372,108 +363,6 @@ def task37_bar_chart(data, output_dir):
 
 
 # ── Idiom 2: Box Plot ─────────────────────────────────────────────────────────
-
-def task37_boxplot(data, output_dir):
-    """Side-by-side box plots: T1 vs T2 fitness distributions."""
-    if data["n_traces"] == 0:
-        _no_data(output_dir, "boxplot"); return
-
-    has_t2     = data["t2"] is not None
-    plot_data  = [data["t1"]] + ([data["t2"]] if has_t2 else [])
-    labels     = [data["t1_name"]] + ([data["t2_name"]] if has_t2 else [])
-    box_colors = [_C_T1] + ([_C_T2] if has_t2 else [])
-
-    fig, ax = plt.subplots(figsize=(8, 5.5))
-    ax.set_facecolor("#fafbfc")
-
-    bp = ax.boxplot(
-        plot_data, tick_labels=labels, patch_artist=True,
-        medianprops=dict(color=_C_DARK, linewidth=2),
-        whiskerprops=dict(color=_C_MED, linewidth=1.2),
-        capprops=dict(color=_C_MED, linewidth=1.2),
-        flierprops=dict(marker="o", markerfacecolor=_C_LIGHT,
-                        markersize=3, linestyle="none", markeredgewidth=0),
-    )
-    for patch, clr in zip(bp["boxes"], box_colors):
-        patch.set_facecolor(clr)
-
-    # Annotate median values
-    for i, vals in enumerate(plot_data):
-        med = float(np.median(vals))
-        txt_clr = "white" if box_colors[i] == _C_T1 else _C_DARK
-        ax.text(i + 1, med + 0.025, f"{med:.3f}",
-                ha="center", va="bottom",
-                fontsize=FONT_ANNOT, color=txt_clr)
-
-    ax.set_ylabel("Fitness (0 – 1)", fontsize=FONT_LABEL)
-    ax.set_ylim(-0.05, 1.12)
-    ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%.2f"))
-    ax.set_title(
-        f"Fitness Distribution Comparison  ·  {data['n_traces']:,} traces",
-        fontsize=FONT_TITLE,
-    )
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
-    ax.set_axisbelow(True)
-
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task37_boxplot.svg"))
-
-
-# ── Idiom 3: Scatter Plot ─────────────────────────────────────────────────────
-
-def task37_scatter_plot(data, output_dir):
-    """Per-trace scatter: T1 fitness (x) vs T2 fitness (y).
-    Points on the y=x diagonal indicate full agreement between techniques."""
-    if data["n_traces"] == 0:
-        _no_data(output_dir, "scatter_plot"); return
-    if data["t2"] is None:
-        _save_empty(output_dir, "task37_scatter_plot.svg",
-                    "Scatter plot requires two techniques.\n"
-                    "Token-based replay not available (no model path).")
-        return
-
-    t1     = np.array(data["t1"])
-    t2     = np.array(data["t2"])
-    abs_d  = np.abs(t1 - t2)
-    # Map delta to greyscale: 0 → light, max → dark
-    vmax   = max(float(abs_d.max()), 0.01)
-    greys  = (abs_d / vmax) * 0.8 + 0.1   # range [0.1, 0.9]
-    colors = [(g, g, g) for g in greys]
-
-    fig, ax = plt.subplots(figsize=(7, 7))
-    ax.set_facecolor("#fafbfc")
-
-    ax.scatter(t1, t2, c=colors, s=20, alpha=0.75, edgecolors="none", zorder=3)
-    ax.plot([0, 1], [0, 1], linestyle="--", color=_C_LIGHT, linewidth=1.2,
-            zorder=2, label="Perfect agreement  (y = x)")
-
-    ax.set_xlim(-0.02, 1.05)
-    ax.set_ylim(-0.02, 1.05)
-    ax.set_xlabel(f"{data['t1_name']} fitness", fontsize=FONT_LABEL)
-    ax.set_ylabel(f"{data['t2_name']} fitness", fontsize=FONT_LABEL)
-    ax.xaxis.set_major_formatter(mticker.FormatStrFormatter("%.2f"))
-    ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%.2f"))
-    ax.set_title(
-        f"Technique Fitness Agreement  ·  {data['n_traces']:,} traces",
-        fontsize=FONT_TITLE,
-    )
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.grid(True, linestyle="--", alpha=0.45)
-    ax.set_axisbelow(True)
-    ax.legend(fontsize=FONT_ANNOT, frameon=False)
-
-    ax.text(0.03, 0.97, f"Mean |Δ| = {abs_d.mean():.3f}",
-            transform=ax.transAxes, fontsize=FONT_ANNOT,
-            va="top", color=_C_MED)
-
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task37_scatter_plot.svg"))
-
-
-# ── Idiom 4: Line Graph ───────────────────────────────────────────────────────
-
-# ── Idiom 4: Heatmap ──────────────────────────────────────────────────────────
 
 def task37_heatmap(data, output_dir):
     """2D heatmap: T1 fitness bucket (rows) × T2 fitness bucket (cols).
@@ -788,9 +677,6 @@ def generate(log, alignments, output_dir, model_path=None, conformance_bins=None
     logger.info(f"      -> Fitness bands: {', '.join(data['bucket_labels'])}")
 
     task37_bar_chart(data, output_dir)
-    task37_boxplot(data, output_dir)
-    task37_scatter_plot(data, output_dir)
     task37_heatmap(data, output_dir)
     task37_table(data, output_dir)
-    task37_table_bar_chart(data, output_dir)
     task37_stacked_bar(data, output_dir)

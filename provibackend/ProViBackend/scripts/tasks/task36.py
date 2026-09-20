@@ -17,235 +17,279 @@ construction, while still being offered to an admin as something to pick.
 import logging
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart"]
+IDIOMS = ["bar_chart", "table", "pie_chart"]
 
 
 def _param_spec():
     """The Violation-profile class's parameters, plus this task's own cut."""
     import violation_profile
+    threshold = violation_profile.prominence_threshold_param(
+        "Minimum share of all violations for a violation to count as "
+        "'predominant' (%)",
+        "The same cut task32 calls 'main', on the same number",
+    )
+    # Required, unlike everywhere else this parameter appears. It is the only
+    # thing that separates this task from task11 and task29, and an empty field
+    # used to be silently ignored — which produced task11's figures under
+    # task36's question.
+    threshold["required"] = True
     return [
         violation_profile.GROUPING_STRATEGY_PARAM,
         *violation_profile.SELECTION_PARAMS,
-        violation_profile.prominence_threshold_param(
-            "Minimum share of all violations for a violation to count as "
-            "'predominant' (%)",
-            "The same cut task32 calls 'main', on the same number",
-        ),
+        threshold,
     ]
 
 
 PARAM_SPEC = _param_spec()
 
 import os
+
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-import warnings
-warnings.filterwarnings("ignore")
-
-from shared import (save_svg, render_empty_state_svg, FONT_TITLE, FONT_LABEL,
-                    FONT_ANNOT, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER)
 from matplotlib.colors import to_hex
 
-# ── Palette ──────────────────────────────────────────────────────────────────
-_C_DARK   = GREY_DARK
-_C_MED    = GREY_MED
-_C_LIGHT  = GREY_LIGHT
-_C_XLIGHT = GREY_LIGHTER
-_HDR_BG   = GREY_DARK
+from shared import (
+    save_svg, render_empty_state_svg, make_table, auto_col_widths,
+    contrasting_text_color, CIVIDIS_R, GREY_LIGHT, GREY_DARK,
+    FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+)
 
-_TEMPLATE_PRIORITY = {
-    "succession": 0, "chainsuccession": 1,
-    "coexistence": 2, "response": 3, "altresponse": 4,
-    "responded_existence": 5, "precedence": 6, "altprecedence": 7,
-    "absence": 0, "exactly_one": 1, "init": 2, "existence": 3,
-}
+#: One title over all three.
+_TITLE = "Predominant Guideline Violations"
 
-_TEMPLATE_LABELS = {
-    "init":                "Init",
-    "existence":           "Existence",
-    "exactly_one":         "Exactly One",
-    "absence":             "Absence",
-    "responded_existence": "Resp. Existence",
-    "response":            "Response",
-    "altresponse":         "Alt. Response",
-    "precedence":          "Precedence",
-    "altprecedence":       "Alt. Precedence",
-    "coexistence":         "Co-existence",
-    "succession":          "Succession",
-    "chainsuccession":     "Chain Succession",
-}
+#: What everything under the cut is pooled into. One entry rather than a long
+#: tail: the question is which violations dominate, and a figure that lists
+#: twenty groups at half a percent each answers a different one. It is still
+#: shown, because "everything else together is 8%" is part of the answer.
+_OTHER = "All other violations"
 
-_ALLOWED_TEMPLATES = {
-    "init", "exactly_one", "absence",
-    "response", "precedence", "coexistence", "succession",
-}
+#: The default when an admin's threshold does not reach the figures. It cannot
+#: happen through the form any more (the parameter is required), only through a
+#: direct call.
+_DEFAULT_THRESHOLD = 5.0
 
 
-def _conf_gray(rate: float) -> str:
-    """Low conformance → dark, high → light (greyscale)."""
-    v = int(0x2a + (0xe0 - 0x2a) * max(0.0, min(1.0, rate)))
-    return f"#{v:02x}{v:02x}{v:02x}"
+def _label(group, series) -> str:
+    """The row's name.
+
+    Under the "activity" strategy `profile()` puts the activity in ``group``
+    and the move type in ``series``, so an activity violated in both ways
+    produces two rows with the same ``group``. Reading ``group`` alone would
+    label them identically.
+    """
+    text = str(group)
+    return f"{text} ({series})" if series not in (None, "", "None") else text
 
 
-# ── Data extraction ───────────────────────────────────────────────────────────
+def _ranking(alignments, n_traces, strategy, selection, threshold):
+    """[(label, count, pct, is_predominant)], largest share first.
 
-def _extract_data(log, alignments=None, grouping_strategy: str = "pattern",
-                  selection=None, prominence_threshold: float = None) -> dict:
-    """Per-violation conformance rates, from the alignment.
-
-    **This is a redefinition.** The task used to discover a Declare model and
-    compute per-constraint conformance with pm4py — it took `alignments` and
-    never read them. "Conformance per rule" was therefore a different kind of
-    conformance from the one every other task in this study reports, and the
-    two could disagree about the same log without either being wrong.
-
-    A "rule" is now a violation group from the shared kernel, and its
-    conformance rate is the share of traces that do **not** carry it. The
-    predominant violations are the ones a `prominence_threshold` keeps — the
-    same cut task32 calls "main", on the same number.
-
-    The activity-pair data this used to carry alongside is gone with the two
-    idioms that read it: an alignment violation is not a pair, so the heatmap
-    and the network diagram could only ever say they awaited a redesign.
+    Every group at or above ``threshold`` percent of all violation occurrences
+    in its own right; everything below pooled into one `_OTHER` entry, which
+    carries the summed count and share and is never counted as predominant.
     """
     import violation_profile
 
-    n_traces = len(log)
-    empty = {"constraints": [], "n_traces": n_traces}
-    if not alignments:
-        logger.warning("Task36: no alignments provided.")
-        return empty
-
-    profile = violation_profile.profile(alignments, grouping_strategy,
+    profile = violation_profile.profile(alignments, strategy,
                                         selection=selection, n_traces=n_traces)
     if profile.empty:
-        return empty
+        return []
 
-    if prominence_threshold:
-        kept = violation_profile.prominent(profile, prominence_threshold)
-        if kept.empty:
-            logger.warning(
-                "Task36: no violation reaches %g%% of all occurrences — the "
-                "predominance cut is ignored so the figures are not empty.",
-                prominence_threshold)
-        else:
-            dropped = len(profile) - len(kept)
-            profile = kept
-            logger.info("Task36: %d below the %g%% predominance cut, %d kept.",
-                        dropped, prominence_threshold, len(profile))
-
-    constraints = []
+    profile = profile.sort_values("pct_count", ascending=False)
+    rows, other_count, other_pct = [], 0, 0.0
     for _, row in profile.iterrows():
-        label = str(row["group"])
-        if row["series"]:
-            label = f'{label} ({row["series"]})'
-        conf_rate = 1.0 - (row["traces"] / n_traces if n_traces else 0.0)
-        constraints.append({
-            "label": label,
-            "conf_rate": conf_rate,
-            "violations": int(row["traces"]),
-            "color": _conf_gray(conf_rate),
-        })
-    # Least conformant first: the question asks which violations are
-    # predominant, so the worst rule leads.
-    constraints.sort(key=lambda c: (c["conf_rate"], c["label"]))
-
-    logger.info("Task36: %d violation group(s) over %d traces.",
-                len(constraints), n_traces)
-    return {"constraints": constraints, "n_traces": n_traces}
+        if float(row["pct_count"]) >= threshold:
+            rows.append((_label(row["group"], row["series"]),
+                         int(row["count"]), float(row["pct_count"]), True))
+        else:
+            other_count += int(row["count"])
+            other_pct += float(row["pct_count"])
+    if other_count:
+        rows.append((_OTHER, other_count, other_pct, False))
+    return rows
 
 
-def task36_bar_chart(data: dict, output_dir: str):
-    constraints = data["constraints"]
-    if not constraints:
-        logger.warning("Task36 bar_chart: no violations to rank.")
-        render_empty_state_svg(
-            os.path.join(output_dir, "task36_bar_chart.svg"),
-            "Conformance per Rule", "No violations found in this log.")
+def _colors(rows) -> list:
+    """Cividis for the predominant groups, neutral for the pooled remainder.
+
+    The remainder is not a violation group but a leftover, and giving it a
+    shade from the same ramp would put it in the ranking it stands outside of.
+    """
+    predominant = [i for i, r in enumerate(rows) if r[3]]
+    shades = {}
+    for rank, i in enumerate(predominant):
+        pos = 0.15 + 0.6 * rank / max(len(predominant) - 1, 1)
+        shades[i] = to_hex(CIVIDIS_R(pos))
+    return [shades.get(i, GREY_LIGHT) for i in range(len(rows))]
+
+
+def _annot(count, pct) -> str:
+    return f"{count:,} ({pct:.1f} %)"
+
+
+def _empty(output_dir, idiom_key, message):
+    render_empty_state_svg(os.path.join(output_dir, f"task36_{idiom_key}.svg"),
+                           _TITLE, message)
+
+
+# ---------------------------------------------------------------------------
+# Visualizations
+# ---------------------------------------------------------------------------
+
+def task36_bar_chart(rows, threshold, total, output_dir: str):
+    """Groups ranked by occurrences, with the predominance cut drawn across.
+
+    The cut is a line rather than a filter: a group just under it is part of
+    the answer to "which are predominant" precisely by being just under it.
+    """
+    if not rows:
+        _empty(output_dir, "bar_chart", "No violations found.")
         return
 
-    items = constraints[:20]
-    n = len(items)
-    fig_h = max(6, n * 0.52 + 2.5)
-    fig, ax = plt.subplots(figsize=(11, fig_h))
+    labels = [r[0] for r in rows]
+    counts = [r[1] for r in rows]
+    colors = _colors(rows)
+    y = np.arange(len(rows))
+    xmax = max(counts)
 
-    labels = [c["label"] for c in items]
-    rates  = [c["conf_rate"] for c in items]
-    colors = [c["color"] for c in items]
-    viols  = [c["violations"] for c in items]
-    n_tr   = data["n_traces"]
+    fig, ax = plt.subplots(figsize=(max(9.0, 5.0 + 0.085 * max(len(l) for l in labels)),
+                                    max(3.4, len(rows) * 0.62 + 2.0)))
+    ax.set_facecolor("#fafbfc")
+    ax.barh(y, counts, 0.62, color=colors, edgecolor="white", linewidth=0.8)
+    for yi, (_lbl, count, pct, _pre) in zip(y, rows):
+        ax.text(count + xmax * 0.015, yi, _annot(count, pct), ha="left",
+                va="center", fontsize=FONT_ANNOT, color=GREY_DARK)
 
-    y_pos = np.arange(n)
-    bars = ax.barh(y_pos, rates, color=colors, edgecolor="white",
-                   linewidth=0.5, height=0.72)
+    # The cut, in the axis's own unit: a share of all violation occurrences is
+    # that share of the total count.
+    cut = threshold / 100.0 * total
+    if 0 < cut <= xmax * 1.05:
+        ax.axvline(cut, color=GREY_DARK, linestyle="--", linewidth=1.2, zorder=3)
+        ax.text(cut, len(rows) - 0.35, f"  Predominance cut: {threshold:g} %",
+                rotation=90, va="top", ha="left", fontsize=FONT_ANNOT - 1,
+                color=GREY_DARK)
 
-    for i, (rate, bar, viol) in enumerate(zip(rates, bars, viols)):
-        pct_txt = f"{rate:.1%}"
-        x_text = min(rate + 0.012, 1.06)
-        ax.text(x_text, bar.get_y() + bar.get_height() / 2,
-                f"{pct_txt}  ({viol:,} violations)",
-                va="center", ha="left", fontsize=7.5, color=_C_DARK)
-
-    ax.set_yticks(y_pos)
-    ax.set_yticklabels(labels, fontsize=8)
-    ax.set_xlim(0, 1.38)
-    ax.set_xlabel("Conformance Rate (fraction of traces satisfying rule)",
-                  fontsize=FONT_LABEL)
-    ax.set_title(
-        "Per-Rule Conformance Rate  ·  Task 36\n"
-        f"Declare model constraints, sorted by violation severity  (n = {n_tr:,} traces)",
-        fontsize=FONT_TITLE, pad=10, loc="left",
-    )
-
-    # Reference lines
-    ax.axvline(0.8, color=_C_LIGHT, linestyle="--", linewidth=0.9)
-    ax.axvline(0.5, color=_C_LIGHT, linestyle=":",  linewidth=0.9)
-
-    # Conformance bands legend
-    legend_items = [
-        mpatches.Patch(color=_conf_gray(0.95), label="High  ≥ 80%",      ec="#888"),
-        mpatches.Patch(color=_conf_gray(0.65), label="Medium  50–80%",   ec="#888"),
-        mpatches.Patch(color=_conf_gray(0.40), label="Low  30–50%",       ec="#888"),
-        mpatches.Patch(color=_conf_gray(0.15), label="Very Low  < 30%",   ec="#888"),
-    ]
-    ax.legend(handles=legend_items,
-              loc="lower center", bbox_to_anchor=(0.5, -0.25),
-              ncol=4, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
-
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
+    ax.set_yticks(y)
+    ax.set_yticklabels(labels, fontsize=FONT_ANNOT)
+    ax.invert_yaxis()
+    ax.set_xlabel("Violation occurrences", fontsize=FONT_LABEL)
+    ax.set_xlim(0, xmax * 1.28)
+    ax.set_title(_TITLE, fontsize=FONT_TITLE)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
+    ax.set_axisbelow(True)
     fig.tight_layout(pad=1.2)
-
-    path = os.path.join(output_dir, "task36_bar_chart.svg")
-    save_svg(fig, path)
-    logger.info(f"Task36: bar_chart saved → {path}")
+    save_svg(fig, os.path.join(output_dir, "task36_bar_chart.svg"))
 
 
-# ── Idiom 2: Heatmap ──────────────────────────────────────────────────────────
+def task36_table(rows, threshold, total, output_dir: str):
+    """The same numbers as text, with the verdict spelled out.
 
-def generate(log, alignments, output_dir: str, model_path: str = None,
-             grouping_strategy: str = "pattern", selection=None,
-             prominence_threshold: float = None):
-    logger.info("\n--- Generating Task 36 visualizations (Declare constraint conformance) ---")
-    logger.info("      Extracting Declare conformance data…")
-    data = _extract_data(log, alignments, grouping_strategy, selection,
-                         prominence_threshold)
-
-    if not data["constraints"]:
-        logger.warning("Task36: no violations found — emitting empty states.")
-        for name in IDIOMS:
-            render_empty_state_svg(
-                os.path.join(output_dir, f"task36_{name}.svg"),
-                "Conformance per Rule", "No violations found in this log.")
+    The last column is what the bar chart draws as a line and the pie as
+    colour: whether this group reaches the cut.
+    """
+    if not rows:
+        _empty(output_dir, "table", "No violations found.")
         return
 
-    n = data["n_traces"]
-    logger.info(f"Task36: {len(data['constraints'])} constraints, {n} traces")
+    cell_text = [[label, f"{count:,}", f"{pct:.1f} %",
+                  "Yes" if predominant else "—"]
+                 for label, count, pct, predominant in rows]
+    col_labels = ["Violation", "Occurrences", "Share of all violations",
+                  f"Predominant (≥ {threshold:g} %)"]
 
-    try:
-        task36_bar_chart(data, output_dir)
-    except Exception as e:
-        logger.warning(f"Task36: bar_chart failed: {e}", exc_info=True)
+    fig_h = max(3.0, 1.2 + len(cell_text) * 0.46)
+    fig_w = max(9.0, 5.4 + 0.085 * max(len(r[0]) for r in rows))
+    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+    ax.axis("off")
+    make_table(
+        ax,
+        cell_text=cell_text,
+        col_labels=col_labels,
+        bbox=[0.03, 0.05, 0.94, 0.88],
+        col_widths=auto_col_widths(col_labels, cell_text),
+        font_size=10.5,
+        scale_xy=(1, 1.7),
+        zebra=True,
+    )
+    ax.set_title(_TITLE, fontsize=FONT_TITLE, pad=12)
+    fig.tight_layout(pad=1.2)
+    save_svg(fig, os.path.join(output_dir, "task36_table.svg"))
+
+
+def task36_pie_chart(rows, threshold, total, output_dir: str):
+    """Each group's share of all violations; the pooled remainder in neutral.
+
+    "Predominant" is a share, and this is the idiom that encodes a share
+    directly. Unlike task25, showing it is the point: this task presents the
+    answer rather than having it derived.
+    """
+    if not rows:
+        _empty(output_dir, "pie_chart", "No violations found.")
+        return
+
+    counts = [r[1] for r in rows]
+    colors = _colors(rows)
+
+    fig, ax = plt.subplots(figsize=(9.5, 6.5))
+    wedges, _texts, autotexts = ax.pie(
+        counts,
+        colors=colors,
+        startangle=90,
+        autopct=lambda pct: f"{pct:.1f} %" if pct >= 4 else "",
+        pctdistance=0.68,
+        wedgeprops=dict(edgecolor="white", linewidth=2),
+        textprops=dict(fontsize=FONT_ANNOT),
+    )
+    for color, autotext in zip(colors, autotexts):
+        autotext.set_color(contrasting_text_color(color))
+
+    for wedge, (label, count, pct, _pre) in zip(wedges, rows):
+        mid = np.deg2rad((wedge.theta1 + wedge.theta2) / 2.0)
+        text = label if pct >= 4 else f"{label} — {_annot(count, pct)}"
+        ax.annotate(text, xy=(np.cos(mid) * 0.85, np.sin(mid) * 0.85),
+                    xytext=(np.cos(mid) * 1.18, np.sin(mid) * 1.18),
+                    ha="left" if np.cos(mid) >= 0 else "right", va="center",
+                    fontsize=FONT_ANNOT,
+                    arrowprops=dict(arrowstyle="-", color="#999999", linewidth=0.8))
+
+    ax.set_title(_TITLE, fontsize=FONT_TITLE)
+    fig.tight_layout(pad=1.2)
+    save_svg(fig, os.path.join(output_dir, "task36_pie_chart.svg"))
+
+
+# ---------------------------------------------------------------------------
+# Public entry point
+# ---------------------------------------------------------------------------
+
+def generate(log, alignments, output_dir: str, grouping_strategy: str = "move_type",
+             selection=None, prominence_threshold: float = None, **kwargs):
+    """Generate all Task 36 SVGs into output_dir."""
+    os.makedirs(output_dir, exist_ok=True)
+    logger.info("\n--- Generating Task 36 visualizations ---")
+
+    if not alignments:
+        logger.warning("      Skipped Task 36: no alignments provided.")
+        for key in IDIOMS:
+            _empty(output_dir, key, "No alignment data available.")
+        return
+
+    threshold = float(prominence_threshold) if prominence_threshold else _DEFAULT_THRESHOLD
+    rows = _ranking(alignments, len(log) if log is not None else len(alignments),
+                    grouping_strategy, selection, threshold)
+    if not rows:
+        logger.warning("      Skipped Task 36: no violations in the alignments.")
+        for key in IDIOMS:
+            _empty(output_dir, key, "No violations found.")
+        return
+
+    total = sum(count for _l, count, _p, _pre in rows)
+    n_pre = sum(1 for r in rows if r[3])
+    logger.info(f"      -> {len(rows)} row(s), {n_pre} predominant at "
+                f"{threshold:g}% of {total:,} violation occurrences.")
+
+    task36_bar_chart(rows, threshold, total, output_dir)
+    task36_table(rows, threshold, total, output_dir)
+    task36_pie_chart(rows, threshold, total, output_dir)
