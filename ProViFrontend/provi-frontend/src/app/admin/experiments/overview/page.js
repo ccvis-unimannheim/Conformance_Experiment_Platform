@@ -228,6 +228,103 @@ function IdiomFilesPanel({ experimentId, editable, bundleOnly, overrides, import
   );
 }
 
+// Name, design and task order, changeable while the experiment is a draft.
+// The wizard asks for these on /new, which an experiment built from a zip never
+// visits — and which shows a dataset table that route has no use for, so
+// stepping back there is not the answer. Saved one field at a time, so a
+// half-finished edit cannot be published by accident.
+function ExperimentSettingsCard({ experiment, experimentId, editable, showToast, onSaved }) {
+  const [name, setName] = useState(experiment.name || "");
+  const [busy, setBusy] = useState(false);
+  const design = experiment.design_type || "between";
+  const randomised = (experiment.within_sequence_mode || "fixed") === "random";
+
+  async function save(fields) {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/experiments/${encodeURIComponent(experimentId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fields),
+      });
+      if (!res.ok) throw new Error(await errorMessage(res));
+      await onSaved();
+    } catch (e) {
+      showToast(`Could not save: ${e.message}`, true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="bg-white border border-border-subtle rounded-lg p-5">
+      <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">
+        Experiment settings
+      </p>
+      <p className="text-xs text-on-surface-variant mb-3">
+        {editable
+          ? "How the tasks are shown to participants. Changing the design changes how idioms are allocated, so it is only possible while this is a draft."
+          : "Read-only: participants have been assigned under these settings."}
+      </p>
+
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold text-on-surface w-44">Name</span>
+          <input
+            type="text"
+            value={name}
+            disabled={!editable || busy}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={() => {
+              const next = name.trim();
+              if (next && next !== experiment.name) save({ name: next });
+            }}
+            className="flex-1 min-w-[12rem] text-xs px-3 py-2 rounded border border-border-subtle disabled:bg-surface-container"
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold text-on-surface w-44">Study design</span>
+          <div className="flex gap-2 flex-1 min-w-[12rem]">
+            {[
+              { value: "between", label: "Between-subjects", title: "One idiom per task, balanced across participants." },
+              { value: "within", label: "Within-subjects", title: "Every participant sees all idioms of every task." },
+            ].map(({ value, label, title }) => (
+              <button
+                key={value}
+                type="button"
+                title={title}
+                disabled={!editable || busy || design === value}
+                onClick={() => save({ design_type: value })}
+                className={`text-xs px-3 py-2 rounded border transition-colors ${
+                  design === value
+                    ? "border-primary text-primary bg-primary/5 font-semibold"
+                    : "border-border-subtle text-on-surface-variant hover:bg-surface-container disabled:opacity-40"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <label className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold text-on-surface w-44">Task order</span>
+          <span className="flex items-center gap-2 text-xs text-on-surface-variant">
+            <input
+              type="checkbox"
+              checked={randomised}
+              disabled={!editable || busy}
+              onChange={() => save({ within_sequence_mode: randomised ? "fixed" : "random" })}
+            />
+            Randomised per participant
+          </span>
+        </label>
+      </div>
+    </div>
+  );
+}
+
 // What participants meet before the tasks. Every experiment has these, set or
 // not: an experiment that skipped those wizard steps — one built from a zip
 // always does — is on the defaults, which is a choice the admin never made.
@@ -698,6 +795,16 @@ function ExperimentOverviewContent() {
               )}
             </div>
           </div>
+        )}
+
+        {experiment && (
+          <ExperimentSettingsCard
+            experiment={experiment}
+            experimentId={experimentId}
+            editable={status === "draft"}
+            showToast={showToast}
+            onSaved={init}
+          />
         )}
 
         {experiment && <ParticipantFlowCard experiment={experiment} experimentId={experimentId} />}
