@@ -82,7 +82,12 @@ PERSPECTIVE_PARAM = {
         {"value": "resource",     "label": "Resource — who executed the activity"},
     ],
     "default": "control-flow",
-    "required": False,
+    # A fixed-option select whose default silently decides what is drawn.
+    # Required so /specify marks it and refuses an empty one: the choice is
+    # always in force, and without the asterisk an admin cannot tell it was
+    # made for them. Contrast the parameters that stay optional, where an
+    # empty value has a stated meaning their own label gives.
+    "required": True,
 }
 
 TRACE_SELECTION_MODE_PARAM = {
@@ -96,7 +101,12 @@ TRACE_SELECTION_MODE_PARAM = {
         {"value": "manual", "label": "I pick them myself"},
     ],
     "default": "auto",
-    "required": False,
+    # A fixed-option select whose default silently decides what is drawn.
+    # Required so /specify marks it and refuses an empty one: the choice is
+    # always in force, and without the asterisk an admin cannot tell it was
+    # made for them. Contrast the parameters that stay optional, where an
+    # empty value has a stated meaning their own label gives.
+    "required": True,
 }
 
 TRACE_IDS_PARAM = {
@@ -212,7 +222,14 @@ def trace_pick_rule_param(rules: list, default: str) -> dict:
         "widget": "select-one",
         "options": [{"value": r, "label": PICK_RULES[r]} for r in rules],
         "default": default,
-        "required": False,
+        # A fixed-option select whose default silently decides what is drawn.
+    # Required so /specify marks it and refuses an empty one: the choice is
+    # always in force, and without the asterisk an admin cannot tell it was
+    # made for them. Contrast the parameters that stay optional, where an
+    # empty value has a stated meaning their own label gives.
+        # Its visible_if keeps that honest: both the page and admin.py skip a
+        # hidden entry, so naming the traces by hand never blocks on it.
+        "required": True,
         "visible_if": {"trace_selection_mode": "auto"},
     }
 

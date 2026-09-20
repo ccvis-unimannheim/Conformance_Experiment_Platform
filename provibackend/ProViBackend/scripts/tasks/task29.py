@@ -36,7 +36,8 @@ import matplotlib.patches as mpatches
 from shared import (
     save_svg, make_table, render_empty_state_svg,
     build_violation_pattern_df, draw_value_heatmap, draw_parallel_sets,
-    GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    GREY_LIGHT, PAIR_COLORS, CIVIDIS_R,
+    FONT_TITLE, FONT_LABEL, FONT_ANNOT,
     contrasting_text_color,
 )
 from tasks.task26 import _lighten
@@ -46,10 +47,11 @@ from tasks.task26 import _lighten
 # matrix, parallel_sets, tree_map, sunburst) — matches the move-type strings
 # produced by alignment_pairs_to_rows / build_violation_pattern_df.
 _VTYPES = ["Model Move", "Log Move"]
-_VTYPE_COLOR = {
-    "Model Move":    GREY_MED,
-    "Log Move":      GREY_DARK,
-}
+#: The platform's two-category pair — cividis navy and cividis bright yellow,
+#: as task31 and task32 use it. It was GREY_MED over GREY_DARK: two neighbours
+#: in cividis's dark half, which read as one emphasis level rather than two
+#: categories, and left the bright secondary unused.
+_VTYPE_COLOR = dict(zip(_VTYPES, PAIR_COLORS))
 
 # Top-N activities (by total violation count) shown in stacked_bar/matrix/parallel_sets
 _PIVOT_TOP_N = 15
@@ -79,9 +81,14 @@ def _task29_activity_type_pivot(alignments, top_n: int = _PIVOT_TOP_N):
 # ---------------------------------------------------------------------------
 
 # Task 3 helpers
+#: Plain, without the "(Missing in Log)" / "(Unexpected in Log)" glosses these
+#: labels used to carry. task04, task34 and the move tables say "Model Move" and
+#: "Log Move"; a reader comparing two idioms of one task should not have to
+#: decide whether "Unexpected in Log" is a third kind of move. Kept as a map so
+#: the call site stays the same and a future rename has one place.
 TASK29_TYPE_LABELS = {
-    "Model Move": "Model Move\n(Missing in Log)",
-    "Log Move": "Log Move\n(Unexpected in Log)",
+    "Model Move": "Model Move",
+    "Log Move": "Log Move",
 }
 
 
@@ -147,7 +154,7 @@ def task29_violation_summary_dataframe(alignments, grouping_strategy: str = "mov
 def task29_bar_chart(df: pd.DataFrame, output_dir: str):
     """Bar chart: occurrence count by violation type."""
     fig, ax = plt.subplots(figsize=(8.5, 5.2))
-    colors = [GREY_MED if mt == "Model Move" else GREY_DARK if mt == "Log Move" else GREY_LIGHT for mt in df["move_type"]]
+    colors = [_VTYPE_COLOR.get(mt, GREY_LIGHT) for mt in df["move_type"]]
     bars = ax.bar(df["violation_type"], df["count"], color=colors, edgecolor="white", width=0.55, alpha=0.88)
     ymax = max(df["count"].max(), 1)
     for bar, val in zip(bars, df["count"]):
@@ -172,42 +179,54 @@ def task29_bar_chart(df: pd.DataFrame, output_dir: str):
 
 
 def task29_heatmap(df: pd.DataFrame, output_dir: str):
-    """Heatmap: one count cell per violation type."""
+    """Heatmap: the count of each violation type as colour.
+
+    No numbers in the cells, which is what separates it from the matrix
+    beside it (shared.draw_value_heatmap: Matrix = annotated grid,
+    Heatmap = continuous colour). It used to print the count *and* shade
+    the cell, encoding one variable twice and leaving the matrix with
+    nothing of its own. The ramp is cividis, not the "Greys" it had, which
+    was the last greyscale figure in the task.
+    """
     labels = df["violation_type"].tolist()
     values = df["count"].to_numpy(dtype=float).reshape(-1, 1)
 
     fig_h = max(3.2, 1.1 + len(labels) * 0.85)
     fig, ax = plt.subplots(figsize=(6.5, fig_h))
-    im = ax.imshow(values, cmap="Greys", aspect="auto")
-    ax.set_xticks([0])
-    ax.set_xticklabels(["Count"], fontsize=FONT_ANNOT)
-    ax.set_yticks(np.arange(len(labels)))
-    ax.set_yticklabels(labels, fontsize=FONT_ANNOT)
+    draw_value_heatmap(
+        fig, ax, values,
+        row_labels=labels,
+        col_labels=["Violations"],
+        cbar_label="Number of Violations",
+        annotate=False,
+        cmap=CIVIDIS_R,
+        vmax=max(float(df["count"].max()), 1.0),
+    )
     ax.set_ylabel("Violation Type", fontsize=FONT_LABEL)
     ax.set_title("Violation Frequency", fontsize=FONT_TITLE)
-    max_val = max(df["count"].max(), 1)
-    min_val = df["count"].min() if not df.empty else 0
-    midpoint = min_val + (max_val - min_val) * 0.50
-    for i, val in enumerate(df["count"]):
-        color = "white" if val > midpoint else "#222222"
-        ax.text(0, i, f"{int(val)}", ha="center", va="center", fontsize=FONT_ANNOT, color=color)
-    cbar = fig.colorbar(im, ax=ax, fraction=0.08, pad=0.04)
-    cbar.set_label("Number of Violations", fontsize=FONT_ANNOT)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task29_heatmap.svg"))
 
 
 def task29_pie_chart(df: pd.DataFrame, output_dir: str):
     """Pie chart: proportion of violation move types."""
-    colors = [GREY_MED if mt == "Model Move" else GREY_DARK if mt == "Log Move" else GREY_LIGHT for mt in df["move_type"]]
+    colors = [_VTYPE_COLOR.get(mt, GREY_LIGHT) for mt in df["move_type"]]
     labels = list(df["move_type"])
+
+    # The count in the wedge, as every other idiom of this task carries it. The
+    # share stays too, but as the angle — that is the pie's encoding, not an
+    # extra number. Without the count the pie was the one idiom a reader could
+    # not take an absolute figure from.
+    counts = list(df["count"])
+    total = float(sum(counts)) or 1.0
 
     fig, ax = plt.subplots(figsize=(8, 6))
     wedges, _texts, autotexts = ax.pie(
         df["count"],
         colors=colors,
         startangle=90,
-        autopct=lambda pct: f"{pct:.1f}%" if pct >= 1 else "",
+        autopct=lambda pct: (f"{int(round(pct / 100.0 * total))}"
+                             if pct >= 1 else ""),
         pctdistance=0.68,
         wedgeprops=dict(edgecolor="white", linewidth=2),
         textprops=dict(fontsize=FONT_ANNOT),
@@ -221,14 +240,16 @@ def task29_pie_chart(df: pd.DataFrame, output_dir: str):
 
 
 def task29_table(df: pd.DataFrame, output_dir: str):
-    """Table: violation type, count and percentage."""
-    total = int(df["count"].sum())
+    """Table: the violation types and their counts."""
+    # Count only. The percentage column and the Total row were two numbers no
+    # other idiom of this task carries — the bar chart, heatmap, matrix and pie
+    # chart all show counts — and a table that adds a derived measure is not the
+    # same information in another encoding, which is what this task varies.
     cell_text = [
-        [row["violation_type"].replace("\n", " "), f"{int(row['count'])}", f"{row['percentage']:.2f}%"]
+        [row["violation_type"].replace("\n", " "), f"{int(row['count'])}"]
         for _, row in df.iterrows()
     ]
-    cell_text.append(["Total", f"{total}", "100.00%" if total else "0.00%"])
-    col_labels = ["Violation Type", "Count", "Percentage"]
+    col_labels = ["Violation Type", "Number of Violations"]
 
     fig_h = max(2.6, 1.2 + len(cell_text) * 0.55)
     fig, ax = plt.subplots(figsize=(8, fig_h))
@@ -240,7 +261,6 @@ def task29_table(df: pd.DataFrame, output_dir: str):
         bbox=[0.05, 0.05, 0.90, 0.78],
         font_size=10,
         scale_xy=(1, 1.7),
-        highlight_last_row=True,
     )
     ax.set_title("Violation Type Summary", fontsize=FONT_TITLE, pad=12)
     fig.tight_layout(pad=1.2)
@@ -451,8 +471,12 @@ def task29_sunburst(alignments, output_dir: str):
             theta = np.deg2rad(mid_angle)
             x, y = r_mid * np.cos(theta), r_mid * np.sin(theta)
             short = label if len(label) <= 14 else label[:12] + "…"
-            ax.text(x, y, short, ha="center", va="center",
-                    fontsize=fontsize, color=contrasting_text_color(colors[i]))
+            # The count under the name. The sunburst carried neither a number
+            # nor a share, so it was the only idiom here a reader could read
+            # nothing off but rank.
+            ax.text(x, y, f"{short}\n{int(val)}", ha="center", va="center",
+                    fontsize=fontsize, color=contrasting_text_color(colors[i]),
+                    linespacing=1.15)
 
     _annotate_ring(ring1.values, list(ring1.index), 0.35, FONT_ANNOT, inner_colors, min_frac=0.04)
     _annotate_ring(outer_values,

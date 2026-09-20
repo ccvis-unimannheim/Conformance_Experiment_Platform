@@ -88,7 +88,12 @@ LEVEL_PARAM = {
         {"value": "log",   "label": "Log level — sub-logs split by a condition"},
     ],
     "default": "trace",
-    "required": False,
+    # A fixed-option select whose default silently decides what is drawn.
+    # Required so /specify marks it and refuses an empty one: the choice is
+    # always in force, and without the asterisk an admin cannot tell it was
+    # made for them. Contrast the parameters that stay optional, where an
+    # empty value has a stated meaning their own label gives.
+    "required": True,
 }
 
 PARAM_SPEC = [
