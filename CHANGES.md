@@ -2,6 +2,23 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: /new Says What Zip a Bundle Experiment Actually Has (2026-09-20)
+
+### Problem solved
+
+Stepping back to /new for a bundle experiment offered *Replace* and *Discard*
+without saying what either would act on: no file name, no task count, no
+link back to see the images. An admin who had uploaded more than one zip while
+setting things up had no way to tell which one this was.
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `ProViFrontend/.../admin/experiments/new/page.js` | Loading a bundle experiment also reads its `idioms_imported_from` / `idioms_imported_at` / task count into a small card: the zip's file name (or the experiment it was exported from, for an older manifest with no file name), how many tasks, when, and links to review it on Overview or download it. `discardBundle`'s confirmation names the file when known and points at downloading a copy first, since a discarded zip cannot be recovered from this experiment afterwards. |
+
+`eslint` — no errors.
+
 ## Session: Replace a Bundle Experiment's Zip Without Starting Over (2026-09-20)
 
 ### Problem solved
