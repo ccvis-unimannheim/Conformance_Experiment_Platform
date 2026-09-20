@@ -12,7 +12,7 @@ Idiom mapping (all share the same data payload: one scalar, %, 1 d.p.):
     tile_metric – headline numeric value in a bordered tile
     bar_chart   – single bar on a 0–1 scale, value labelled
     table       – two-column table: Metric | Value (one row only)
-    matrix      – single-cell colour-intensity encoding on a 0–1 scale
+    matrix      – single white cell, ruled into a grid, fitness as text (colourless)
     gauge_chart – single bounded value as a filled half-circle arc (0–100%)
 
 boxplot was removed: a trace-level distribution exposes median, IQR, and outliers
@@ -38,13 +38,14 @@ PARAM_SPEC = []
 
 import os
 import matplotlib.pyplot as plt
-from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.colors import ListedColormap
 from matplotlib.patches import FancyBboxPatch, Wedge
 
 from shared import (
     save_svg, make_table, render_fitness_tile_metric, render_empty_state_svg,
     alignment_pairs_to_rows, parse_bpmn_model, render_bpmn_annotated, contrasting_text_color,
-    GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    draw_cell_grid,
+    GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 # Reuse: task20's tree-building + decision-tree renderer for the Tree idiom.
@@ -54,11 +55,16 @@ import tasks.task20 as task20
 def task06_bar_chart(df, output_dir: str):
     """Single bar of the overall mean fitness (0–1), value labelled — so the
     fitness reads off as a number, exactly as clearly as on the tile / heatmap /
-    table (no binning, no fitness bands)."""
+    table (no binning, no fitness bands).
+
+    One bar, one log — there is no second group to pair it against the way
+    task01/task03 pair Conformant/Non-conformant, so it takes the same solid
+    GREY_DARK task02 draws its own single "Overall" bar in, not GREY_MED, which
+    sits in cividis's olive-grey middle and read as a muted, secondary value."""
     mean_fitness = float(df["fitness"].mean()) if len(df) else 0.0
 
     fig, ax = plt.subplots(figsize=(4.5, 5))
-    bar = ax.bar(["Overall"], [mean_fitness], color=GREY_MED, edgecolor="white", width=0.4)[0]
+    bar = ax.bar(["Overall"], [mean_fitness], color=GREY_DARK, edgecolor="white", width=0.4)[0]
     ax.text(bar.get_x() + bar.get_width() / 2, mean_fitness + 0.018, f"{mean_fitness:.3f}",
             ha="center", va="bottom", fontsize=FONT_TITLE, fontweight="bold", color=GREY_DARK)
     ax.set_ylim(0, 1.12)
@@ -73,25 +79,25 @@ def task06_bar_chart(df, output_dir: str):
 
 
 def task06_matrix(df, output_dir: str):
-    """Single-cell matrix of the overall mean fitness, light→dark grey.
+    """Single-cell matrix of the overall mean fitness.
 
-    Colour-encodes the mean fitness on a fixed 0–1 scale and labels the cell with
-    the actual fitness value (0–1). Drawn as a tidy square cell (aspect='equal')
-    so it reads as one metric tile, not a stretched block.
+    Colourless, as tasks 01, 03, 04 and 27-32 now draw theirs: a white cell
+    ruled into a grid, the fitness carried by the printed number alone, no
+    colorbar. With a colour scale this was a heatmap that also printed its
+    number — one variable encoded twice. Drawn as a tidy square cell
+    (aspect='equal') so it reads as one metric tile, not a stretched block.
     """
     fitness = float(df["fitness"].mean()) if len(df) else 0.0
 
-    cmap = LinearSegmentedColormap.from_list("grey_scale", [GREY_LIGHTER, GREY_DARK])
-    fig, ax = plt.subplots(figsize=(4.5, 4.5))
-    im = ax.imshow([[fitness]], cmap=cmap, vmin=0.0, vmax=1.0, aspect="equal")
-    text_color = "white" if fitness > 0.55 else GREY_DARK
+    fig, ax = plt.subplots(figsize=(4.0, 4.0))
+    # Still an image, so the axes keep the geometry draw_cell_grid rules against
+    # — same construction as shared.draw_value_heatmap(colorless=True).
+    ax.imshow([[0.0]], cmap=ListedColormap(["white"]), vmin=0, vmax=1, aspect="equal")
+    draw_cell_grid(ax, 1, 1)
     ax.text(0, 0, f"{fitness:.3f}", ha="center", va="center",
-            fontsize=28, fontweight="bold", color=text_color)
+            fontsize=28, fontweight="bold", color=GREY_DARK)
     ax.set_xticks([])
     ax.set_yticks([])
-    cbar = fig.colorbar(im, ax=ax, orientation="vertical", fraction=0.046, pad=0.04)
-    cbar.set_label("Mean Fitness (0–1)", fontsize=FONT_LABEL)
-    cbar.set_ticks([0.0, 0.25, 0.5, 0.75, 1.0])
     ax.set_title("Overall Mean Fitness", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task06_matrix.svg"))

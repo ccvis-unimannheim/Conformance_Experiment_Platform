@@ -75,6 +75,20 @@ Four pre-existing `react/no-unescaped-entities` errors fixed along the way
 `py_compile` and `eslint` — no errors left under `admin/experiments` or
 `components/Admin`. Not exercised in a browser.
 
+## Session: task06's Bar Chart and Matrix Follow the Same Fix (2026-09-20)
+
+| Area | Change |
+|------|--------|
+| Bar chart | Its one "Overall" bar was `GREY_MED`, cividis's olive-grey middle — the same colour the review has been moving other idioms off of. task02 draws the same shape (one "Overall" bar, one log, no second group to pair it against) in `GREY_DARK`; task06 now matches it. |
+| Matrix | Was a single cell shaded on a light→dark grey scale with a colorbar — the value encoded twice, once by shade and once by the printed number. Now colourless: a white cell ruled by `draw_cell_grid` (the same helper tasks 01, 03, 04 and 27-32 use), the fitness carried by the number alone, no colorbar. |
+
+`LinearSegmentedColormap` and the two-tone `GREY_LIGHT`/`GREY_LIGHTER` import it
+needed are gone with it.
+
+### Verification
+
+`py_compile`. Not regenerated.
+
 ## Session: task04's Table Keeps Its Log Moves, and Its Order (2026-09-20)
 
 ### Every idiom now states the degree of conformance
