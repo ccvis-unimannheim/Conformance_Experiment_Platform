@@ -173,6 +173,42 @@ task. A log move of a modelled activity — the common case — could never reac
 Separately, the rows sit in model order, so a trace that runs two activities out
 of order read exactly like one that runs them in order. The chevron shows that
 difference; the table dropped it.
+## Session: task29's Grid Idioms Follow the Grouping Strategy (2026-09-20)
+
+### Problem solved
+
+Half of task29 answered the admin's parameters and half did not. The matrix,
+stacked bar, parallel sets and sunburst took `alignments` straight and built
+activity × move type through `_task29_activity_type_pivot`, capped at the top 15
+activities, whatever the strategy said. With "By move type" chosen, the bar
+chart, table and pie chart showed two categories while the matrix beside them
+showed fifteen activities.
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| Shared grid | `_strategy_grid(df, strategy)` returns (rows, move types, counts) from the same summary frame the other idioms read, so `grouping_strategy` and `selection` arrive. Columns are always the two move types, in fixed order — that is the axis these idioms share and what the admin reads across the x axis. Rows are the other half of the group: the activity under "activity" and "pattern" (`_row_activity` splits the label or parses the pattern), a single "All Violations" row under "move_type", where there is no other half. |
+| Matrix, heatmap | Both draw that grid: move type across, the count in the cell. The matrix prints it on white cells, the heatmap carries it as cividis colour without numbers. Under "By move type" that is one row of two cells, which is the same two numbers the bar chart shows. |
+| Stacked bar | Upright, one bar per grid row split by move type, segment counts inside and the row total above. It used to lie on its side with the activities down the y axis, against every other bar chart in the platform. |
+| Bar chart | `alpha=0.88` removed. It washed the navy and the yellow toward each other and toward the background; every other bar chart here draws its categories solid. |
+| Tick labels | `_rotate_tick_labels` measures the width one category gets against the widest label's longest line, at 0.6 em per character, and turns the labels upright only when they would not fit. Two move types across a 9-inch axis stay horizontal; fifteen activities turn. The bar chart and the stacked bar share it. |
+
+### Verification
+
+Generating three times, once per strategy: the grid is (1, 2) under "move_type"
+and (2, 2) under "activity" and "pattern" on BPIC12-A, columns always the two
+move types. Comparing normalised SVGs between two strategies, six of the eight
+idioms now differ where four did before. The rotation rule returns False for two
+and four bars, True for eight and fifteen. No `opacity` attribute is left in the
+bar chart's SVG.
+
+### Open point
+
+`parallel_sets` and `sunburst` still ignore the strategy — both need two
+dimensions to draw at all, and "By move type" has only one. What they should
+show under that strategy is undecided.
+
 ## Session: task29's Idioms Agree on Vocabulary, Palette and Numbers (2026-09-20)
 
 ### Changes
