@@ -127,6 +127,34 @@ task. A log move of a modelled activity — the common case — could never reac
 Separately, the rows sit in model order, so a trace that runs two activities out
 of order read exactly like one that runs them in order. The chevron shows that
 difference; the table dropped it.
+## Session: Three Parameters That Changed Nothing (2026-09-20)
+
+### Problem solved
+
+task30's "How many violation patterns to show" had no effect on any idiom, and
+the feeling that /specify does little turned out to be right in four places. An
+audit of every task — the keys each `PARAM_SPEC` declares against the keys its
+dispatcher entry in `create_all_visualizations.py` actually reads — found four
+declared-but-unplumbed parameters across four tasks. Everything else it flagged
+reaches its task through a class helper (`trace_alignment.pick_rule`,
+`violation_profile`'s selection helpers) and is live.
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| task30 `pattern_top_n` | Declared in `PARAM_SPEC`, never passed. `_aggregate_patterns` has taken a `top_n` all along and nobody gave it one, so every figure ranked the module default of 10 whatever the admin typed. Threaded: dispatcher -> `generate(pattern_top_n=...)` -> `_aggregate_patterns(top_n=...)`, and the log line now names the number in force. |
+| task13, task20, task21 | They declared `split_strategy` and `group_cap` through `grouping_params()` and their `generate()` signatures have no such arguments — two controls on /specify that changed nothing. All three bucket through task13's `_bucket_rates`: quartiles for a numeric attribute, top categories for a categorical one. That is a rule settled in code, so they now declare `attribute_params()` and offer only what they can act on. No figure changes. |
+| `attribute_class` required | "Level the attributes are taken from" was optional with a silent default of "trace", so leaving it blank produced case-level attributes the admin never asked for and /specify showed no asterisk. It is required now: the frontend marks it and refuses to generate on an empty one. The picker under it stays optional — an empty attribute selection means "every attribute of this log that can be grouped", and its own label says so. |
+
+### Verification
+
+`pattern_top_n` cut to 2, 3, 5 and 10 over a five-pattern frame gives 2, 3, 5
+and 5 rows. Three `generate` runs on BPIC12-A at 3, default and 20 all log the
+number in force; that log holds only three distinct patterns, so the cut is not
+visible there. `PARAM_SPEC` keys after the change: task13, task20 and task21
+carry the attribute block alone, task30 keeps all seven.
+
 ## Session: task33 Is Four Panel Idioms, and Names Its Attribute on the Axis (2026-09-20)
 
 ### Changes

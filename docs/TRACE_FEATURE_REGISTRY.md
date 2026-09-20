@@ -255,11 +255,11 @@ has no cap).
 |---|---|---|---|---|
 | task01 | `outcome_activity` | `binary` | fitness | `missing_policy`, `conformant_threshold` |
 | task07 | `time_granularity` | `ordered_bins` | fitness | `group_cap`, `missing_policy` |
-| task13 | shared block | admin | violation_rate | — |
+| task13 | attribute block only | fixed (`_bucket_rates`) | violation_rate | — |
 | task15 | shared block | admin | fitness | — |
 | task16 | shared block | admin | violation_rate | — |
-| task20 | shared block | admin | violation_rate | — |
-| task21 | shared block, no log level | admin | violation_rate | — |
+| task20 | attribute block only | fixed (`_bucket_rates`) | violation_rate | — |
+| task21 | attribute block only, no log level | fixed (`_bucket_rates`) | violation_rate | — |
 | task22 | shared block, no log level | admin | fitness | — |
 | task30 | shared block | admin | patterns | `pattern_top_n` |
 | task33 | shared block | admin | fitness | — |
@@ -271,6 +271,15 @@ picker per level, the split strategy and the group cap. **These eight tasks ask
 the admin exactly the same thing and differ only in what they measure per
 group** — that is the rule, and one call enforces it, so they cannot drift apart
 a parameter at a time.
+
+**"Attribute block only" is `attribute_params()`**, the same block without the
+split slot. task13, task20 and task21 bucket through task13's `_bucket_rates`
+— quartiles for a numeric attribute, the top categories for a categorical one
+— which is settled in code. They declared `split_strategy` and `group_cap`
+anyway and their `generate()` signatures never took either, so /specify showed
+two controls that changed no figure. Offering only what a task can act on
+outranks all eight asking the identical question: a control that does nothing
+is worse than a missing one, because the admin cannot tell.
 
 The single exception is the level. task21 and task22 pass
 `levels=TRACE_COMPARING_LEVELS`, dropping the log level: they compare traces to

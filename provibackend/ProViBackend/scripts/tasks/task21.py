@@ -79,7 +79,13 @@ def validate_params(log, params) -> list:
 
 # No log level: this task compares traces to each other, and a log-level
 # attribute has the same value for all of them.
-PARAM_SPEC = [*trace_features.grouping_params(
+#: `attribute_params`, not `grouping_params`: the split slot's two parameters
+#: reached no drawing here. These three bucket through task13's `_bucket_rates`
+#: — quartiles for a numeric attribute, the top categories for a categorical one
+#: — which is a rule settled in code, not one the admin sets. Declaring
+#: `split_strategy` and `group_cap` anyway put two controls on /specify that
+#: changed nothing about the figures.
+PARAM_SPEC = [*trace_features.attribute_params(
     levels=trace_features.TRACE_COMPARING_LEVELS)]
 import os
 import numpy as np

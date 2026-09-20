@@ -1093,7 +1093,13 @@ ATTRIBUTE_CLASS_PARAM = {
     "widget": "select-one",
     "options": [ATTRIBUTE_LEVELS[k] for k in ALL_LEVELS],
     "default": "trace",
-    "required": False,
+    # Required, so /specify marks it and refuses to generate on an empty one.
+    # It decides which picker is even shown, and `selected_keys` falls back to
+    # "trace" when it is empty — silently, so an admin who left it blank got
+    # case-level attributes without having asked for them. The picker below it
+    # stays optional: an empty attribute selection has a stated meaning, and
+    # its own label states it.
+    "required": True,
 }
 
 
