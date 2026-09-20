@@ -666,11 +666,27 @@ a common baseline, the table as text.
 
 **Goal · Means · Characteristics:** Present · Present · Process conformance per rule
 
-**Description:** Which concrete violations of guidelines are predominant in my process? Based on concrete guidelines (e.g., LTL-formulas), we first have to calculate the average grade of conformance to each of these guidelines. These averages are presented in cunjuction (e.g., as a colored declarative process model).
+**Description:** Which guideline violations are predominant in my process?
+
+The addendum was dropped — "based on concrete guidelines (e.g. LTL-formulas),
+compute the average conformance per guideline and present them in conjunction
+(e.g. as a coloured declarative process model)". The declarative half had
+already gone from the code, and the two idioms that depended on it drew an
+empty state on every run.
 
 | Idiom (Excel label) | Canonical key | Priority |
 |---|---|---|
-| Flow Chart+ (BPMN / Petri Net / DFG) | `flow_chart_elaborate` | Medium/Reviewed |
+| Bar Chart | `bar_chart` | Added |
+| Table | `table` | Added |
+| Pie Chart | `pie_chart` | Added |
+
+The spreadsheet lists `flow_chart_elaborate`, which this module never
+implemented; with no declarative model there is nothing for it to colour. What
+separates this task from task11, task29 and task32 — all reading the same
+`violation_profile.profile()` — is the word *predominant*, so the
+`prominence_threshold` is the subject: every idiom ranks the groups by share of
+all violations, shows where the cut falls and pools the rest into one entry.
+Matrix, heatmap, stacked bar and parallel sets are left to those three tasks.
 
 ## task37
 
@@ -684,9 +700,6 @@ a common baseline, the table as text.
 | Stacked Bar Graph | `stacked_bar` | High |
 | Line Graph | `line_graph` | High |
 | Horizon Chart | `horizon_chart` | High |
-| Scatter Plot (Dotted Chart) | `scatter_plot` | Medium/Reviewed |
-| Box and Whisker Plot | `boxplot` | High |
 | Table | `table` | Medium/Reviewed |
-| Table & Bar Chart | `table_bar_chart` | Medium/Reviewed |
 | Heatmap | `heatmap` | High |
 | Calendar | `calendar` | High |

@@ -2,6 +2,70 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: Task 36 Rebuilt Around the Predominance Cut (2026-09-20)
+
+### Problem solved
+
+task36's question lost its addendum, and with it the declarative framing. That
+framing had already gone from the code: `_extract_data` read
+`violation_profile.profile()` like its siblings, and the heatmap and network
+diagram, which need activity-pair constraints, rendered a byte-identical
+18,754-byte empty state on every run. task36 had one working idiom.
+
+Without the addendum, task11 (Describe · Summarize), task29 (Explore ·
+Summarize), task32 (Present · Compare) and task36 all read the same profile.
+task32 separates itself with a sub-log axis; task36 has only the word
+*predominant*, which is a threshold on the same numbers rather than different
+numbers. **So the threshold is now the subject.** Every idiom ranks the groups
+by share of all violations, shows where `prominence_threshold` cuts, and pools
+everything below it into one "all other violations" entry — still shown,
+because "everything else together is 14%" is part of the answer.
+
+`prominence_threshold` becomes required here, uniquely among the tasks that
+offer it. It is the only thing separating task36 from task11, and an empty
+field used to be silently ignored, which produced task11's figures under
+task36's question.
+
+Three idioms: `bar_chart` (ranked, with the cut drawn as a line rather than
+applied as a filter — a group just under it is part of the answer by being
+just under it), `table` (the numbers plus a column saying which qualify) and
+`pie_chart` (share of the whole, which is what "predominant" asks for). Unlike
+task25, showing the share is the point: this task presents its answer.
+
+Also fixed: under the `activity` strategy `profile()` returns the activity in
+`group` and the move type in `series`, so an activity violated both ways gave
+two rows named alike. `_label` joins them.
+
+Verified on BPIC12-A across all three grouping strategies: 2, 3 and 3 rows,
+and at a 20% cut the third group correctly pools into "All other violations".
+
+### Files changed
+
+- `provibackend/ProViBackend/scripts/tasks/task36.py` — rewritten; the Declare
+  machinery, `task36_heatmap` and `task36_network_diagram` deleted.
+- `provibackend/ProViBackend/scripts/create_all_visualizations.py` — the task36
+  lambda no longer passes `model_path`.
+- `docs/TASK_IDIOM_MAPPING.md`
+
+## Session: Task 37 Idiom Set Cut to Four (2026-09-20)
+
+### Problem solved
+
+Deleted `boxplot`, `scatter_plot` and `table_bar_chart`, leaving `bar_chart`,
+`heatmap`, `table` and `stacked_bar`. The three renderers, their calls in
+`generate`, their `IDIOMS` entries and the module docstring's idiom list go
+with them; `pandas` was imported only by the deleted code. No shared helper
+became unused.
+
+`docs/TASK_IDIOM_MAPPING.md` still lists `line_graph`, `horizon_chart` and
+`calendar` for task37. Those were never in `IDIOMS` — a pre-existing mismatch,
+left alone here.
+
+### Files changed
+
+- `provibackend/ProViBackend/scripts/tasks/task37.py`
+- `docs/TASK_IDIOM_MAPPING.md`
+
 ## Session: Remove the Overview Page's Import Button (2026-09-20)
 
 ### Problem solved
