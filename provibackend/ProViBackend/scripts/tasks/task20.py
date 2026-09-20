@@ -37,7 +37,7 @@ IDIOMS = [
 
 
 # What this task measures per group, and how it cuts the log — task
-# properties rather than admin choices (see docs/TRACE_FEATURE_REGISTRY.md).
+# properties rather than admin choices.
 RESPONSE_MEASURE = "violation_rate"
 SPLIT_STRATEGY = None  # admin chooses
 import trace_features
@@ -845,8 +845,8 @@ _ATTR_SUPTITLE = "Guideline-Violation Rate by Candidate Attribute"
 # twice.
 #
 # Only task33 asks for it. The default stays because task15, task16, task20 and
-# task22 have tuned screenshots in the running experiment
-# (docs/CONFORMANCE_ATTRIBUTE_CLASS.md), and moving a label moves the layout. When
+# task22 have tuned screenshots in the running experiment, and moving a label
+# moves the layout. When
 # those tasks come up for review, the switch is what to delete: it exists to
 # keep one change out of four other tasks, not because two placements are
 # right.

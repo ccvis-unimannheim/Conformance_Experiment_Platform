@@ -1,7 +1,7 @@
 """
 Experiment schema bridge: legacy flat ``task_configs`` <-> grouped ``task_instances``.
 
-Background (see docs/ADMIN_EXPERIMENT_SETUP.md): the canonical shape is now
+Background: the canonical shape is now
 ``task_instances`` — one entry per task, holding that task's idiom list plus the
 shared parameters and answer shape. The old ``task_configs`` (one
 row per task×idiom) is kept *mirrored* during the transition so the participant,

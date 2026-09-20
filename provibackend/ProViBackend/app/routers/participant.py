@@ -61,8 +61,7 @@ def _trial_contract_fields(task_instances_by_task_id: dict, task_id: str) -> dic
 
     Reads the answer shape the admin configured on /answer-format
     (`answer_format`, `number_kind`, `answer_options`). Falls back to
-    free-text/free_text/[] when the instance has no format set
-    (docs/PARTICIPANT_TRIAL_CONTRACT.md "Fallback").
+    free-text/free_text/[] when the instance has no format set.
     """
     ti = task_instances_by_task_id.get(task_id) or {}
     answer_format = ti.get("answer_format") or FALLBACK_ANSWER_FORMAT

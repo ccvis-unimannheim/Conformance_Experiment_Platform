@@ -224,8 +224,7 @@ def binary_split(log, attribute: str):
 
 #: Spellings a saved move type can arrive in. The short codes are what
 #: ``log.violations`` and task11's saved selections use, and "Move on Model" is
-#: the pre-unification long form (see the move-name note in
-#: docs/CONFORMANCE_ATTRIBUTE_CLASS.md), still present in selections saved then.
+#: the pre-unification long form, still present in selections saved then.
 _MOVE_TYPE_ALIASES = {
     "mom": "Model Move", "move on model": "Model Move", "model move": "Model Move",
     "mol": "Log Move", "move on log": "Log Move", "log move": "Log Move",

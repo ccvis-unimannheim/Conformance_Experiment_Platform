@@ -1151,8 +1151,8 @@ def grouping_params(multi: bool = True, levels=ALL_LEVELS, strategy=None) -> lis
 
     Which attributes, taken from which level, cut into groups how. Every task in
     the family declares exactly this and differs only in what it measures per
-    group — see docs/TRACE_FEATURE_REGISTRY.md. One call, so the eight of them
-    cannot drift apart parameter by parameter.
+    group. One call, so the eight of them cannot drift apart parameter by
+    parameter.
     """
     return [*attribute_params(multi=multi, levels=levels),
             *split_params_for(strategy)]

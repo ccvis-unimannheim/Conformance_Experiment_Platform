@@ -31,7 +31,7 @@ Design (settled):
                               rate.
     Attributes are ranked by strength.
 
-Scope = the 7 "High" idioms (Priority column of docs/TASK_IDIOM_MAPPING.md). Stems written here → canonical slug after the
+Scope = the 7 "High" idioms. Stems written here → canonical slug after the
 pipeline rename (see create_all_visualizations._FILE_RENAME):
     task13_bar_chart.svg                      → bar_chart
     task13_table.svg                          → table
@@ -60,7 +60,7 @@ IDIOMS = ["bar_chart", "table", "parallel_sets",
           ]
 
 # What this task measures per group, and how it cuts the log — task
-# properties rather than admin choices (see docs/TRACE_FEATURE_REGISTRY.md).
+# properties rather than admin choices.
 RESPONSE_MEASURE = "violation_rate"
 SPLIT_STRATEGY = None  # admin chooses
 

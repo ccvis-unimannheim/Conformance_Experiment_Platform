@@ -27,7 +27,7 @@ IDIOMS = ["bar_chart", "table", "parallel_sets", "stacked_bar", "matrix",
 
 
 # What this task measures per group, and how it cuts the log — task
-# properties rather than admin choices (see docs/TRACE_FEATURE_REGISTRY.md).
+# properties rather than admin choices.
 RESPONSE_MEASURE = "patterns"
 SPLIT_STRATEGY = None  # admin chooses
 import trace_features
