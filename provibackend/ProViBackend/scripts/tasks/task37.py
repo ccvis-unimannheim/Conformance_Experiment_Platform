@@ -2,13 +2,37 @@
 tasks/task37.py – Task 37: Present · Summarize · Process conformance
 
 Question: How do fitness values of traces differ when applying two different
-techniques to compute them? What is the overall trend of trace fitness?
+techniques to compute them?
 
-Visualizations (all SVG, cividis palette from shared.py):
-  bar_chart   – mean/median comparison: T1 vs T2
-  heatmap     – 2D density: T1 bucket × T2 bucket
-  table       – per-trace detail: T1, T2, delta, classification
-  stacked_bar – fitness bucket distribution: T1 row and T2 row
+**The second half of the question is gone.** It used to continue "What is the
+overall trend of trace fitness?", which is a question about time, and the two
+idioms that answered it — line graph and horizon chart — are not in IDIOMS.
+The wording promised something no idiom offered.
+
+**One payload, drawn four ways.** Every idiom reads the same table: how many
+traces the alignment technique puts in band X while token-based replay puts
+them in band Y. That joint distribution is the answer to "how do the values
+differ" — it says not just that the two techniques spread the log
+differently but which traces they disagree about, and each technique's own
+distribution is the row or column sum, so nothing is lost by it.
+
+  bar_chart   – grouped bars: one group per alignment band, one bar per replay band
+  heatmap     – the same table as colour, alignment band × replay band
+  table       – the same table as numbers
+  stacked_bar – one row per alignment band, segments by replay band
+
+The four used to carry four different payloads: mean and median plus four
+log-level scalars nobody else had; the joint distribution; 200 of the log's
+13,087 traces one by one; and the two separate distributions. A participant's
+answer depended on which idiom they drew, which is the one thing the
+experiment must not vary.
+
+**Colour means the replay band, everywhere it means anything.** It used to
+mean the technique in the bar chart, the band in the stacked bar, a count in
+the heatmap and the sign of a delta in the table. The technique is now carried
+by position alone — an axis or a row — in every idiom. The heatmap is the
+documented exception: a heatmap encodes its value as continuous colour, which
+is what makes it a heatmap rather than a matrix.
 """
 
 import logging
@@ -89,25 +113,23 @@ import matplotlib.ticker as mticker
 
 from matplotlib.colors import to_hex
 
-from shared import (save_svg, draw_value_heatmap, make_table, GREY_DARK, GREY_MED, GREY_LIGHT,
-                    GREY_LIGHTER, CIVIDIS, FONT_TITLE, FONT_LABEL, FONT_ANNOT)
+from shared import (save_svg, draw_value_heatmap, make_table, contrasting_text_color,
+                    GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS,
+                    FONT_TITLE, FONT_LABEL, FONT_ANNOT)
 
 # ── Cividis palette ───────────────────────────────────────────────────────────
-_C_DARK   = GREY_DARK
-_C_MED    = GREY_MED
-_C_LIGHT  = GREY_LIGHT
-_C_XLIGHT = GREY_LIGHTER
-_C_T1     = GREY_DARK    # Alignment-based (dark navy)
-_C_T2     = GREY_MED     # Token-based Replay (olive-grey)
+_C_DARK = GREY_DARK
+#: There is no per-technique colour. `_C_T1`/`_C_T2` gave the two techniques a
+#: dark navy and an olive-grey, which is the same channel the bands use, so a
+#: reader moving from the bar chart to the stacked bar met the same two
+#: colours meaning two different things.
 
 # Default fitness bands (4), overridden per experiment by `conformance_bins`.
 _DEFAULT_EDGES = [0.0, 0.25, 0.5, 0.75, 1.01]
 _BUCKETS       = [(0.0, 0.25), (0.25, 0.5), (0.5, 0.75), (0.75, 1.01)]
-_BUCKET_LABELS = ["[0, 0.25)", "[0.25, 0.5)", "[0.5, 0.75)", "[0.75, 1.0]"]
 #: Dark → light across however many bands there are, so the ramp reads the same
 #: at four bands as at five.
 _BUCKET_RAMP   = [GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER]
-_BUCKET_COLORS = list(_BUCKET_RAMP)
 
 
 def _bands_from_edges(edges):
@@ -151,20 +173,7 @@ def _bucket_idx(v: float, buckets=None) -> int:
     return len(buckets) - 1
 
 
-def _fitness_stats(vals, buckets_def=None):
-    a = np.array(vals, dtype=float)
-    buckets = [int(np.sum((a >= lo) & (a < hi))) for lo, hi in (buckets_def or _BUCKETS)]
-    return {
-        "mean":    float(np.mean(a)),
-        "median":  float(np.median(a)),
-        "std":     float(np.std(a)),
-        "min":     float(np.min(a)),
-        "max":     float(np.max(a)),
-        "buckets": buckets,
-    }
-
-
-# ── Data extraction ───────────────────────────────────────────────────────────
+# ── Data extraction ────────────────────────────────────────────────────────
 
 def _compute_tbr_fitness(log, model_path):
     """Token-based replay fitness per trace. Returns list[float] or None on failure."""
@@ -175,86 +184,55 @@ def _compute_tbr_fitness(log, model_path):
         tbr = pm4py.conformance_diagnostics_token_based_replay(log, net, im, fm)
         return [float(r.get("trace_fitness", 0.0)) for r in tbr]
     except Exception as e:
-        logger.warning(f"Task37: token-based replay failed ({e}); single-technique mode.")
+        logger.warning(f"Task37: token-based replay failed ({e}); no comparison possible.")
         return None
 
 
-def _compute_log_fitness_tbr(log, model_path):
-    """TBR log-level fitness via pm4py.fitness_token_based_replay(). Returns dict or None."""
-    try:
-        import pm4py
-        bpmn_graph = pm4py.read_bpmn(model_path)
-        net, im, fm = pm4py.convert_to_petri_net(bpmn_graph)
-        return pm4py.fitness_token_based_replay(log, net, im, fm)
-    except Exception as e:
-        logger.warning(f"Task37: TBR log-fitness failed ({e}).")
-        return None
+def _joint(t1, t2, buckets):
+    """counts[i][j] = traces in alignment band i and replay band j.
 
-
-def _compute_log_fitness_aln(log, model_path):
-    """Alignment log-level fitness via pm4py.fitness_alignments(). Returns dict or None.
-
-    pm4py.fitness_alignments() re-runs the alignment algorithm internally to
-    compute the cost-weighted aggregate:
-        log_fitness = 1 - sum(move_costs) / sum(worst_case_costs)
-    This is different from mean(trace_fitness) because it weights by trace length.
+    The one payload. Its row sums are the alignment technique's own
+    distribution and its column sums are the replay technique's, so an idiom
+    drawing this draws both.
     """
-    try:
-        import pm4py
-        bpmn_graph = pm4py.read_bpmn(model_path)
-        net, im, fm = pm4py.convert_to_petri_net(bpmn_graph)
-        return pm4py.fitness_alignments(log, net, im, fm)
-    except Exception as e:
-        logger.warning(f"Task37: ALN log-fitness failed ({e}).")
-        return None
+    nb = len(buckets)
+    m = np.zeros((nb, nb), dtype=int)
+    for v1, v2 in zip(t1, t2):
+        m[_bucket_idx(v1, buckets), _bucket_idx(v2, buckets)] += 1
+    return m
 
 
 def _extract_data(log, alignments, model_path=None, conformance_bins=None):
+    """The joint band table, or ``matrix=None`` when only one technique ran.
+
+    The log-level scalars this used to gather — ``fitness_alignments`` and
+    ``fitness_token_based_replay``, both cost-weighted — are gone with the box
+    the bar chart printed them in. They were four numbers one idiom out of four
+    carried, and ``fitness_alignments`` re-ran the whole alignment to get them.
+    """
     n = len(alignments)
     buckets, bucket_labels, bucket_colors = _bands_from_edges(_parse_bins(conformance_bins))
 
-    # T1: alignment-based (trace-level)
+    # T1: alignment-based, already computed upstream and cached.
     t1 = [float(aln.get("fitness", 0.0)) for aln in alignments]
 
-    # T2: token-based replay (trace-level, optional)
+    # T2: token-based replay. Needs the model; without it there is no second
+    # technique and so no comparison to draw.
     t2 = None
-    tbr_log = None
-    aln_log = None
     if model_path:
         t2 = _compute_tbr_fitness(log, model_path)
         if t2 is not None and len(t2) != n:
             logger.warning("Task37: TBR length mismatch — discarding T2.")
             t2 = None
-        if t2 is not None:
-            tbr_log = _compute_log_fitness_tbr(log, model_path)
-        # T1 log-level: pm4py.fitness_alignments() (cost-weighted, re-runs alignment)
-        aln_log = _compute_log_fitness_aln(log, model_path)
-
-    delta = [t1[i] - t2[i] for i in range(n)] if t2 is not None else None
-
-    t1_perc_fit = sum(1 for f in t1 if f >= 1.0) / n * 100 if n > 0 else 0.0
-    t2_perc_fit = (sum(1 for f in t2 if f >= 1.0) / n * 100
-                   if t2 is not None and n > 0 else None)
-
-    t1_log_fitness = aln_log.get("log_fitness") if aln_log else None
-    t2_log_fitness = tbr_log.get("log_fitness") if tbr_log else None
 
     return {
-        "n_traces":       n,
-        "t1":             t1,
-        "t2":             t2,
-        "delta":          delta,
-        "t1_stats":       _fitness_stats(t1, buckets),
-        "t2_stats":       _fitness_stats(t2, buckets) if t2 is not None else None,
-        "buckets":        buckets,
-        "bucket_labels":  bucket_labels,
-        "bucket_colors":  bucket_colors,
-        "t1_name":        "Alignment-based",
-        "t2_name":        "Token-based Replay",
-        "t1_perc_fit":    t1_perc_fit,
-        "t2_perc_fit":    t2_perc_fit,
-        "t1_log_fitness": t1_log_fitness,   # ALN cost-weighted log fitness
-        "t2_log_fitness": t2_log_fitness,   # TBR cost-weighted log fitness
+        "n_traces":      n,
+        "matrix":        _joint(t1, t2, buckets) if t2 is not None else None,
+        "buckets":       buckets,
+        "bucket_labels": bucket_labels,
+        "bucket_colors": bucket_colors,
+        "t1_name":       "Alignment-based",
+        "t2_name":       "Token-based Replay",
     }
 
 
@@ -266,327 +244,227 @@ def _save_empty(output_dir, filename, message="No data available"):
     save_svg(fig, os.path.join(output_dir, filename))
 
 
-def _no_data(output_dir, name):
-    _save_empty(output_dir, f"task37_{name}.svg", "No alignment data available.")
+def _no_data(output_dir, name, message="No alignment data available."):
+    _save_empty(output_dir, f"task37_{name}.svg", message)
 
 
-# ── Idiom 1: Bar Chart ────────────────────────────────────────────────────────
+#: One title over all four, as the question is one question. Each idiom used to
+#: name itself instead — "Fitness Comparison", "Fitness Bucket Agreement",
+#: "Per-Trace Fitness Detail", "Fitness Bucket Distribution Comparison" — and
+#: three of those named a payload the other three did not have.
+_TITLE = "Trace Fitness Band by Technique"
+
+#: Only ``matrix`` is ever missing, and always for the same reason.
+_NO_T2 = ("Token-based replay needs a process model.\n"
+          "Without it there is only one technique to show.")
+
+
+def _axis_labels(data):
+    return (f"{data['t1_name']} fitness band",
+            f"{data['t2_name']} fitness band")
+
+
+def _legend_patches(labels, colors):
+    return [mpatches.Patch(color=c, label=l) for c, l in zip(colors, labels)]
+
+
+# ── Idiom 1: Bar Chart ─────────────────────────────────────────────────────
 
 def task37_bar_chart(data, output_dir):
-    """Trace-level and log-level fitness comparison: T1 vs T2.
+    """One group per alignment band, one bar per replay band.
 
-    Three metric groups:
-      Avg. Trace Fitness  – mean of individual trace fitness values (trace-level aggregate)
-      Median Trace Fitness – median of individual trace fitness values
-      % Fitting Traces    – proportion of traces with fitness = 1.0 (log-level, right y-axis)
-
-    The distinction between trace-level (per-case) and log-level (whole-log)
-    is central to conformance checking: a log can have a high average trace
-    fitness while most traces have non-zero violations, or vice versa.
+    The counts as length, which is the channel a reader compares most
+    accurately — the heatmap's colour and the stacked bar's proportions say
+    the same thing less precisely, and that difference in precision is the
+    encoding the experiment is there to measure.
     """
-    if data["n_traces"] == 0:
-        _no_data(output_dir, "bar_chart"); return
+    m = data.get("matrix")
+    if m is None:
+        _no_data(output_dir, "bar_chart", _NO_T2)
+        return
 
-    has_t2  = data["t2"] is not None
-    t1_s    = data["t1_stats"]
-    t2_s    = data["t2_stats"]
+    labels = data["bucket_labels"]
+    colors = data["bucket_colors"]
+    nb = len(labels)
+    x = np.arange(nb)
+    width = 0.8 / nb
+    ymax = max(int(m.max()), 1)
 
-    # ── Left axis: trace-level metrics ───────────────────────────────────────
-    metrics_left  = ["Avg. Trace\nFitness", "Median Trace\nFitness"]
-    t1_left  = [t1_s["mean"], t1_s["median"]]
-    t2_left  = [t2_s["mean"], t2_s["median"]] if has_t2 else None
-
-    # ── Right axis: log-level % fitting traces ────────────────────────────────
-    t1_pf = data.get("t1_perc_fit", 0.0)
-    t2_pf = data.get("t2_perc_fit")
-
-    x   = np.arange(len(metrics_left))
-    w   = 0.35 if has_t2 else 0.5
-
-    fig, ax = plt.subplots(figsize=(11, 5))
+    fig, ax = plt.subplots(figsize=(max(9.0, 1.9 * nb + 2.6), 6.0))
     ax.set_facecolor("#fafbfc")
+    for j in range(nb):
+        vals = m[:, j]
+        ax.bar(x + (j - (nb - 1) / 2) * width, vals, width * 0.92,
+               color=colors[j], edgecolor="white", linewidth=0.8,
+               label=labels[j])
+        for xi, v in zip(x, vals):
+            if v:
+                ax.text(xi + (j - (nb - 1) / 2) * width, v + ymax * 0.015,
+                        f"{int(v):,}", ha="center", va="bottom",
+                        fontsize=FONT_ANNOT - 1, color=_C_DARK, rotation=90)
 
-    # Trace-level bars
-    bars1 = ax.bar(x - w / 2 if has_t2 else x, t1_left, width=w,
-                   color=_C_T1, edgecolor="white", label=data["t1_name"])
-    for b, v in zip(bars1, t1_left):
-        ax.text(b.get_x() + b.get_width() / 2, v + 0.012,
-                f"{v:.3f}", ha="center", va="bottom",
-                fontsize=FONT_ANNOT, color=_C_DARK)
-
-    if has_t2:
-        bars2 = ax.bar(x + w / 2, t2_left, width=w,
-                       color=_C_T2, edgecolor="white", label=data["t2_name"])
-        for b, v in zip(bars2, t2_left):
-            ax.text(b.get_x() + b.get_width() / 2, v + 0.012,
-                    f"{v:.3f}", ha="center", va="bottom",
-                    fontsize=FONT_ANNOT, color=_C_DARK)
-
+    xlabel, ylabel = _axis_labels(data)
     ax.set_xticks(x)
-    ax.set_xticklabels(metrics_left, fontsize=FONT_LABEL)
-    ax.set_ylabel("Fitness (trace-level)", fontsize=FONT_LABEL)
-    ax.set_ylim(0, 1.18)
-    ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%.2f"))
+    ax.set_xticklabels(labels, fontsize=FONT_ANNOT)
+    ax.set_xlabel(xlabel, fontsize=FONT_LABEL)
+    ax.set_ylabel("Traces", fontsize=FONT_LABEL)
+    ax.set_ylim(0, ymax * 1.18)
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{int(v):,}"))
+    ax.set_title(_TITLE, fontsize=FONT_TITLE)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-
-    # Log-level annotation box
-    t1_logf = data.get("t1_log_fitness")
-    t2_logf = data.get("t2_log_fitness")
-    pf_lines = ["Log-level metrics"]
-    pf_lines.append(f"  % Fitting  {data['t1_name']}: {t1_pf:.1f}%")
-    if has_t2 and t2_pf is not None:
-        pf_lines.append(f"  % Fitting  {data['t2_name']}: {t2_pf:.1f}%")
-    if t1_logf is not None:
-        pf_lines.append(f"  Log fitness (ALN, cost-wtd): {t1_logf:.4f}")
-    if has_t2 and t2_logf is not None:
-        pf_lines.append(f"  Log fitness (TBR, cost-wtd): {t2_logf:.4f}")
-    ax.set_title(
-        f"Fitness Comparison  ·  {data['n_traces']:,} traces  "
-        f"(bars = trace-level · box = log-level)",
-        fontsize=FONT_TITLE,
-    )
-    if has_t2:
-        ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.25),
-                  ncol=2, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
-
-    # Log-level annotation placed below the x-axis to avoid overlapping bars
+    ax.legend(title=ylabel, loc="upper right", fontsize=FONT_ANNOT,
+              title_fontsize=FONT_ANNOT, frameon=True, framealpha=0.9)
     fig.tight_layout(pad=1.2)
-    fig.subplots_adjust(bottom=0.22)
-    fig.text(0.5, 0.01, "   ".join(pf_lines),
-             ha="center", va="bottom",
-             fontsize=FONT_ANNOT, color=_C_DARK,
-             bbox=dict(boxstyle="round,pad=0.5", fc="#f0f0f0", ec="#cccccc", lw=0.8))
-
     save_svg(fig, os.path.join(output_dir, "task37_bar_chart.svg"))
 
 
-# ── Idiom 2: Box Plot ─────────────────────────────────────────────────────────
+# ── Idiom 2: Heatmap ───────────────────────────────────────────────────────
 
 def task37_heatmap(data, output_dir):
-    """2D heatmap: T1 fitness bucket (rows) × T2 fitness bucket (cols).
-    Diagonal cells = techniques agree on the bucket."""
-    if data["n_traces"] == 0:
-        _no_data(output_dir, "heatmap"); return
-    if data["t2"] is None:
-        _save_empty(output_dir, "task37_heatmap.svg",
-                    "Heatmap requires two techniques.\n"
-                    "Token-based replay not available (no model path).")
+    """The same table as continuous colour.
+
+    Drawn by shared.draw_value_heatmap, which is where the platform's heatmap
+    rules live: the reversed ramp, so the busiest cell is the darkest one, and
+    no per-cell numbers — a heatmap is the colour reading of a table and a
+    matrix is the number reading of it. The colourbar carries the scale.
+
+    The boxed diagonal is gone. It marked the cells where the techniques agree,
+    which is a reading of the table no other idiom was given, and the whole
+    point of the row and column labels is that a participant can find those
+    cells themselves.
+    """
+    m = data.get("matrix")
+    if m is None:
+        _no_data(output_dir, "heatmap", _NO_T2)
         return
 
-    t1 = data["t1"]
-    t2 = data["t2"]
-    n  = data["n_traces"]
-    nb = len(data.get("buckets") or _BUCKETS)
+    labels = data["bucket_labels"]
+    xlabel, ylabel = _axis_labels(data)
 
-    mat = np.zeros((nb, nb), dtype=int)
-    for v1, v2 in zip(t1, t2):
-        mat[_bucket_idx(v1, data.get("buckets")), _bucket_idx(v2, data.get("buckets"))] += 1
-
-    labels = data.get("bucket_labels") or _BUCKET_LABELS
-    fig, ax = plt.subplots(figsize=(9, 7.5))
-    # shared.draw_value_heatmap, which is where the platform's heatmap rules
-    # live: the reversed ramp, so the busiest cell is the darkest one rather
-    # than the one yellow square in a navy field this drew before; and no
-    # per-cell numbers, because a heatmap is the colour reading of a table and
-    # a matrix is the number reading of it. The colourbar carries the scale.
+    fig, ax = plt.subplots(figsize=(max(8.0, 1.6 * len(labels) + 4.0), 7.0))
     draw_value_heatmap(
-        fig, ax, mat,
+        fig, ax, m.T,
         row_labels=labels, col_labels=labels,
-        xlabel=f"{data['t1_name']} fitness bucket",
+        xlabel=xlabel,
         cbar_label="Traces",
         annotate=False,
-        vmax=max(int(mat.max()), 1),
+        vmax=max(int(m.max()), 1),
     )
-
-    # Highlight diagonal (agreement)
-    for k in range(nb):
-        ax.add_patch(plt.Rectangle(
-            (k - 0.5, k - 0.5), 1, 1,
-            fill=False, edgecolor=_C_MED, linewidth=2.0,
-        ))
-
-    ax.set_ylabel(f"{data['t2_name']} fitness bucket", fontsize=FONT_LABEL)
-    ax.set_title(
-        f"Fitness Bucket Agreement  ·  {n:,} traces\n"
-        f"Boxed diagonal = techniques agree on bucket",
-        fontsize=FONT_TITLE,
-    )
-
+    ax.set_ylabel(ylabel, fontsize=FONT_LABEL)
+    ax.set_title(_TITLE, fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task37_heatmap.svg"))
 
 
-# ── Idiom 5: Table (per-trace detail) ────────────────────────────────────────
+# ── Idiom 3: Table ─────────────────────────────────────────────────────────
 
 def task37_table(data, output_dir):
-    """Per-trace detail table: Trace # | T1 | T2 | Δ | Classification.
+    """The same table as numbers, one row per alignment band.
 
-    Directly supports "inspect differences in the trace fitness values":
-    each row = one trace, showing T1 and T2 fitness side-by-side so the
-    reader can identify individual traces where the two techniques disagree.
-    Sorted by |Δ| descending so the largest disagreements appear first.
-    Capped at 50 rows for readability.
+    It used to list traces one by one — 200 of the log's 13,087, stratified
+    by fitness level. That is both more than its siblings (which trace, by
+    name) and less (a sample, where they describe the whole log), and the
+    question is about the log.
     """
-    if data["n_traces"] == 0:
-        _no_data(output_dir, "table"); return
+    m = data.get("matrix")
+    if m is None:
+        _no_data(output_dir, "table", _NO_T2)
+        return
 
-    t1     = data["t1"]
-    t2     = data["t2"]
-    has_t2 = t2 is not None
-    n      = data["n_traces"]
-    MAX    = 50
+    labels = data["bucket_labels"]
+    xlabel, ylabel = _axis_labels(data)
+    nb = len(labels)
 
-    def classify(v):
-        if v >= 0.75: return "High"
-        if v >= 0.5:  return "Medium"
-        if v >= 0.25: return "Low"
-        return "Very Low"
+    col_labels = [xlabel] + labels
+    cell_text = [[labels[i]] + [f"{int(m[i, j]):,}" for j in range(nb)]
+                 for i in range(nb)]
 
-    # Stratified sampling: group traces by unique (T1_rounded, T2_rounded) pair,
-    # then round-robin across groups so all fitness levels are represented.
-    # Within each group, sort by |Δ| desc to surface the most interesting traces.
-    from collections import defaultdict
-    groups: dict = defaultdict(list)
-    for i in range(n):
-        key = (round(t1[i], 3), round(t2[i], 3) if has_t2 else None)
-        groups[key].append(i)
-
-    # Sort groups: most disagreement first, then by T1 ascending
-    def _group_sort_key(k):
-        delta = abs(k[0] - k[1]) if k[1] is not None else 0.0
-        return (-delta, k[0])
-
-    group_keys = sorted(groups.keys(), key=_group_sort_key)
-    n_groups   = len(group_keys)
-    per_group  = max(1, MAX // n_groups)
-
-    # Round-robin: take `per_group` traces from each group
-    order = []
-    for key in group_keys:
-        members = sorted(groups[key],
-                         key=lambda i: abs(t1[i] - (t2[i] if has_t2 else t1[i])),
-                         reverse=True)
-        order.extend(members[:per_group])
-
-    # Fill remaining slots in |Δ| desc order (no duplicates)
-    if len(order) < MAX:
-        shown = set(order)
-        remaining = sorted(
-            (i for i in range(n) if i not in shown),
-            key=lambda i: abs(t1[i] - (t2[i] if has_t2 else t1[i])),
-            reverse=True,
-        )
-        order.extend(remaining[: MAX - len(order)])
-
-    order = order[:MAX]
-
-    rows = []
-    for i in order:
-        row = [str(i + 1), f"{t1[i]:.3f}"]
-        if has_t2:
-            delta = t1[i] - t2[i]
-            row += [f"{t2[i]:.3f}", f"{delta:+.3f}"]
-        row.append(classify(t1[i]))
-        rows.append(row)
-
-    if has_t2:
-        col_headers = ["Trace #", data["t1_name"], data["t2_name"], "Δ (T1−T2)", "Fitness Level (T1)"]
-        col_widths  = [0.10, 0.19, 0.19, 0.16, 0.36]
-    else:
-        col_headers = ["Trace #", data["t1_name"], "Fitness Level"]
-        col_widths  = [0.12, 0.28, 0.60]
-
-    n_rows = len(rows)
-    fig_h  = max(4.0, n_rows * 0.42 + 1.8)
-    fig, ax = plt.subplots(figsize=(13, fig_h))
+    fig_w = max(9.0, 2.0 + 1.5 * (nb + 1))
+    fig_h = max(3.4, 1.6 + nb * 0.52)
+    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
     ax.axis("off")
-    # shared.make_table, as every other table in the platform. Drawn by hand
-    # this had its own zebra stripe (#f5f5f5 against the shared #F0F0F0), its
-    # own cell borders and its own row height, so the one idiom a participant
-    # is meant to recognise across tasks looked slightly different here.
-    tbl = make_table(ax, cell_text=rows, col_labels=col_headers,
-                     bbox=[0.015, 0.04, 0.97, 0.90], col_widths=col_widths,
-                     cell_loc="center", font_size=FONT_ANNOT, cell_pad=0.06)
-
-    # The delta column keeps the reading it had: dark where the first technique
-    # scores higher, grey where the second does.
-    if has_t2:
-        for r, row in enumerate(rows, start=1):
-            try:
-                tbl[r, 3].set_text_props(
-                    color=_C_DARK if float(row[3]) >= 0 else _C_MED)
-            except (ValueError, KeyError):
-                pass
-
-    sort_note = f"stratified by fitness level  ·  {n_groups} unique value groups"
-    title = f"Per-Trace Fitness Detail  ·  {n:,} traces  ·  {sort_note}"
-    if n > MAX:
-        title += f"  ({MAX} shown)"
-    ax.set_title(title, fontsize=FONT_TITLE, pad=14)
+    make_table(
+        ax,
+        cell_text=cell_text,
+        col_labels=col_labels,
+        bbox=[0.03, 0.05, 0.94, 0.84],
+        cell_loc="center",
+        font_size=FONT_ANNOT,
+        scale_xy=(1, 1.6),
+        zebra=True,
+    )
+    ax.set_title(_TITLE, fontsize=FONT_TITLE, pad=24)
+    ax.text(0.5, 0.95, f"Columns: {ylabel}", transform=ax.transAxes,
+            ha="center", va="bottom", fontsize=FONT_ANNOT, color=_C_DARK)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task37_table.svg"))
 
 
-# ── Idiom 9: Stacked Bar ──────────────────────────────────────────────────────
+# ── Idiom 4: Stacked Bar ───────────────────────────────────────────────────
 
 def task37_stacked_bar(data, output_dir):
-    """100% stacked bars: one row per technique, 4 fitness buckets each."""
-    if data["n_traces"] == 0:
-        _no_data(output_dir, "stacked_bar"); return
+    """One row per alignment band, split into replay bands.
 
-    has_t2 = data["t2"] is not None
-    n      = data["n_traces"]
-    rows   = [(data["t1_name"], data["t1_stats"])]
-    if has_t2:
-        rows.append((data["t2_name"], data["t2_stats"]))
+    Proportions within each row, which is the reading a stacked bar gives: of
+    the traces the alignment technique put in this band, where did replay put
+    them. The row's own size is printed beside it, because a proportion of an
+    unknown total is not the payload the other three carry.
+    """
+    m = data.get("matrix")
+    if m is None:
+        _no_data(output_dir, "stacked_bar", _NO_T2)
+        return
 
-    nb = len(data.get("buckets") or _BUCKETS)
+    labels = data["bucket_labels"]
+    colors = data["bucket_colors"]
+    xlabel, ylabel = _axis_labels(data)
+    nb = len(labels)
 
-    fig, ax = plt.subplots(figsize=(13, 2.8 + 1.2 * len(rows)))
+    fig, ax = plt.subplots(figsize=(max(9.5, 1.4 * nb + 6.0), max(3.6, nb * 0.9 + 2.2)))
     ax.set_facecolor("#fafbfc")
 
-    patches = [mpatches.Patch(color=c, label=l)
-               for c, l in zip(data.get("bucket_colors") or _BUCKET_COLORS,
-                               data.get("bucket_labels") or _BUCKET_LABELS)]
-
-    for y_pos, (label, stats) in enumerate(rows):
+    for i in range(nb):
+        row_total = int(m[i].sum())
         left = 0.0
-        for bi in range(nb):
-            frac = stats["buckets"][bi] / n * 100
-            cnt  = stats["buckets"][bi]
-            clr  = (data.get("bucket_colors") or _BUCKET_COLORS)[bi]
-            ax.barh(y_pos, frac, left=left, color=clr,
-                    edgecolor="white", linewidth=1.0, height=0.5)
-            if frac > 5:
-                txt_clr = "white" if int(clr[1:3], 16) < 150 else _C_DARK
-                ax.text(left + frac / 2, y_pos,
-                        f"{frac:.1f}%\n({cnt:,})",
-                        ha="center", va="center",
-                        fontsize=FONT_ANNOT, color=txt_clr, linespacing=1.4)
+        for j in range(nb):
+            if not row_total:
+                continue
+            frac = m[i, j] / row_total * 100
+            if frac <= 0:
+                continue
+            ax.barh(i, frac, left=left, color=colors[j], edgecolor="white",
+                    linewidth=1.0, height=0.55)
+            if frac >= 7:
+                ax.text(left + frac / 2, i, f"{frac:.0f} %", ha="center",
+                        va="center", fontsize=FONT_ANNOT,
+                        color=contrasting_text_color(colors[j]))
             left += frac
+        ax.text(101, i, f"{row_total:,} traces", ha="left", va="center",
+                fontsize=FONT_ANNOT, color=_C_DARK)
 
     ax.set_xlim(0, 100)
-    ax.set_yticks(range(len(rows)))
-    ax.set_yticklabels([r[0] for r in rows], fontsize=FONT_LABEL)
-    ax.set_xlabel("Proportion of traces (%)", fontsize=FONT_LABEL)
-    ax.set_title(
-        f"Fitness Bucket Distribution Comparison  ·  {n:,} total traces",
-        fontsize=FONT_TITLE,
-    )
+    ax.set_ylim(-0.6, nb - 0.4)
+    ax.invert_yaxis()
+    ax.set_yticks(range(nb))
+    ax.set_yticklabels(labels, fontsize=FONT_ANNOT)
+    ax.set_ylabel(xlabel, fontsize=FONT_LABEL)
+    ax.set_xlabel("Share of the band's traces (%)", fontsize=FONT_LABEL)
+    ax.set_title(_TITLE, fontsize=FONT_TITLE)
     ax.spines[["top", "right", "left"]].set_visible(False)
     ax.xaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    ax.legend(handles=patches, loc="lower center",
-              bbox_to_anchor=(0.5, -0.25), ncol=4,
-              fontsize=FONT_ANNOT, frameon=True, framealpha=0.9)
-
+    ax.legend(handles=_legend_patches(labels, colors), title=ylabel,
+              loc="lower center", bbox_to_anchor=(0.5, -0.32), ncol=min(nb, 5),
+              fontsize=FONT_ANNOT, title_fontsize=FONT_ANNOT,
+              frameon=True, framealpha=0.9)
     fig.tight_layout(pad=1.2)
+    fig.subplots_adjust(right=0.86)
     save_svg(fig, os.path.join(output_dir, "task37_stacked_bar.svg"))
 
 
-# ── Public entry point ────────────────────────────────────────────────────────
+# ── Public entry point ─────────────────────────────────────────────────────
 
 def generate(log, alignments, output_dir, model_path=None, conformance_bins=None,
              **kwargs):
@@ -597,11 +475,17 @@ def generate(log, alignments, output_dir, model_path=None, conformance_bins=None
     if not alignments:
         logger.warning("      Skipped Task 37: no alignments provided.")
         for name in IDIOMS:
-            _save_empty(output_dir, f"task37_{name}.svg", "No alignment data available.")
+            _no_data(output_dir, name)
         return
 
     data = _extract_data(log, alignments, model_path, conformance_bins)
     logger.info(f"      -> Fitness bands: {', '.join(data['bucket_labels'])}")
+    if data["matrix"] is None:
+        logger.warning("      Task 37: no second technique — nothing to compare.")
+    else:
+        agree = int(np.trace(data["matrix"]))
+        logger.info(f"      -> {agree:,} of {data['n_traces']:,} traces in the same band "
+                    f"under both techniques.")
 
     task37_bar_chart(data, output_dir)
     task37_heatmap(data, output_dir)
