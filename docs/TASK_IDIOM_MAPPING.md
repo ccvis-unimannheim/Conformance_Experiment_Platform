@@ -67,7 +67,6 @@ Source: *Conformance Checking Tasks Working Table.xlsx* + *Task_Idiom_Complete_M
 |---|---|---|
 | Bar Chart | `bar_chart` | Medium/Reviewed |
 | Stacked Bar Graph | `stacked_bar` | Medium/Reviewed |
-| Line Graph | `line_graph` | Medium/Reviewed |
 | Horizon Chart | `horizon_chart` | Medium/Reviewed |
 | Scatter Plot (Dotted Chart) | `scatter_plot` | Medium/Reviewed |
 | Box and Whisker Plot | `boxplot` | Medium/Reviewed |

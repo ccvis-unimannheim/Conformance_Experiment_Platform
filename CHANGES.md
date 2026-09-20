@@ -2,6 +2,90 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: task04's Table Keeps Its Log Moves, and Its Order (2026-09-20)
+
+### Every idiom now states the degree of conformance
+
+task04's question is its label — *How does the **overall degree** of conformance
+with a set of guidelines differ between multiple logs or traces?* Its
+`seed_data` description asked a different one ("**where** each conforms to or
+deviates from the guideline"), and that is the text the participant reads, so
+the two pulled the task apart: `bar_chart` and `matrix` answered the label,
+`table` and the two flow charts answered the description.
+
+| File | Change |
+|------|--------|
+| `app/seed_data.py` | task04's description follows the label: "Compare how far the traces conform to the guideline overall, and by how much they differ." |
+| `scripts/tasks/task04.py` | New `_trace_caption`. The chevron labels each strip `"Trace 1 — Fitness 0.571"`, the BPMN subtitles each panel the same way, and the table gains a leading `Fitness (0-1)` row. The alignment idioms now answer the question on their own instead of leaving a participant to infer a degree by counting moves — which fitness, a normalised alignment cost, is not. |
+
+All three are opt-in behind `show_fitness=False`: task09, task14, task27,
+task28 and task34 reuse these renderers to ask about the deviations themselves,
+and a fitness number there would be a payload none of their other idioms carry.
+Only task04 passes `show_fitness=True`.
+
+### line_graph removed
+
+The x axis is the compared traces, which have no order: "Trace 1", "Trace 2" is
+the order the pick rule returned them in, not a sequence in the data. A line and
+a filled area between them draw a trend that does not exist — change the rule
+and the same two traces slope the other way. The bar chart carries the same
+fitness values without claiming one. task04 is down to five idioms, two of them
+fitness (`bar_chart`, `matrix`).
+
+Excel remark: *removed - traces have no order, so the line implies a trend that
+is not there; the Bar Chart shows the same fitness values*.
+
+
+### Problem solved
+
+`_task04_move_map` returned `{activity name: colour}`, so an activity taking
+part in two moves of one trace kept only the last. In the order-to-cash log
+Trace 2 executes an extra `Ship Order` (log move, step 5) and later skips the
+modelled `Ship Order` (model move, step 7): the model move overwrote the log
+move, and the table showed `Ship Order → Model Move` with no trace of the
+insertion. The chevron drew it in navy and the BPMN drew it as a badge, so the
+three alignment idioms contradicted each other — on exactly the deviation the
+`Ship Order|Model Move` violation parameter names.
+
+`task04_table` had a guard meant to catch this (`if c == GREY_DARK and a not in
+activities`), but it only fired for an inserted activity that is *not* a model
+task. A log move of a modelled activity — the common case — could never reach it.
+
+Separately, the rows sit in model order, so a trace that runs two activities out
+of order read exactly like one that runs them in order. The chevron shows that
+difference; the table dropped it.
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| `_task04_move_map` → `_task04_move_steps` | Returns `[(activity, move type, step)]` in alignment order instead of a name-keyed dict. Nothing is overwritten, because nothing is keyed by name. |
+| `_task04_row_cells` (new) | Turns those steps into `row label → "step · move type"`. A log move takes the row label `"<activity> (inserted)"`, so it cannot collide with the model task of the same name — the same separation the BPMN idiom makes by drawing it as an external badge rather than colouring the node. |
+| `task04_table` | Builds its rows from those cells. The `Ship Order (inserted)` row now appears, `—` where a trace does not make that move. Columns are headed `"<trace> (step · move)"` and each cell leads with the step, which is what lets a reader see that Trace 2 ran `Issue Invoice` (4) before `Prepare Shipment` (6) while Trace 1 skipped both. Figure width per trace column 2.1 → 2.7 for the longer cells. |
+| Module docstring | Said `table – Trace \| Fitness, one row per trace`, which has not been what the renderer draws for some time, and claimed information equivalence across all idioms. It now names the two families — fitness (`bar_chart`, `line_graph`, `matrix`) and alignment (`table`, the two flow charts) — says they are not equivalent to each other, and says what the three alignment idioms each can and cannot express. |
+
+### Known limit
+
+An activity that appears twice in the **same** role in one trace (a modelled
+loop executed twice) still keeps only its first occurrence. One row per activity
+is what makes this a table rather than a second chevron; the collision that
+mattered — log move against model move — is the one that is fixed.
+
+### Reaches the other tasks in this class
+
+`task04_table` is also drawn by task09, task27 and task34. The log-move fix and
+the step numbers reach their tables too — correctly, since the collision was a
+defect, but **their move tables change with this commit**, and any baseline
+recorded for them predates it. The fitness row does not reach them.
+
+### Verification
+
+`py_compile` on task04 and on every module that reuses its renderers (task09,
+task14, task27, task34). The expected Trace 2 column was worked through by hand
+against the rendered chevron in the admin preview (steps 1-8, log move at 5,
+model move at 7); `pyflakes` is not installed in this environment. Not
+regenerated — **no figure in this section has been rendered**.
+
 ## Session: task04 Colours Its Traces, and Drops Two Idioms (2026-09-20)
 
 ### Changes
