@@ -101,8 +101,20 @@ _VTYPE_COLOR = {
     "Model Move": _C_LIGHT,
     "Log Move":   _C_MED,
 }
+# Conformant + violation types, in display order — used where an idiom shows
+# every move a trace makes, not just its violations (e.g. task09_matrix).
+_ALL_TYPES = ["Synchronous Move"] + _VTYPES
+_MISSING_TOKENS = {"-", "None", "(skip)", ""}
 
 _TOP_N = 12   # max activities displayed
+
+
+def _activity_for_row(row):
+    """Activity label for one trace-alignment row, whatever its move type."""
+    if row["moveType"] == "Model Move":
+        return str(row["model_move"])
+    lm = str(row["log_move"])
+    return lm if lm not in _MISSING_TOKENS else str(row["model_move"])
 
 # Shared heading for flow_chart_basic/flow_chart_elaborate_bpmn/table/matrix —
 # every idiom now reads the same chosen trace(s), so they share one heading.
@@ -416,30 +428,34 @@ def task09_table_bar_chart(activity_type, activity_totals, n_violations, output_
 
 # ── Idiom 8: Matrix ───────────────────────────────────────────────────────────
 
-def task09_matrix(activity_type, activity_totals, trace_label, output_dir):
-    """Activity × violation-type matrix for one trace. Cell = count.
+def task09_matrix(activity_type, ordered_acts, trace_label, output_dir):
+    """Activity × move-type matrix for one trace. Cell = count.
+
+    Every activity the trace touches, synchronous moves included — not just
+    the violating ones, so the matrix reads as "what happened at each step"
+    rather than only "where it deviated" (that narrower view is what the
+    Model Move / Log Move columns already show on their own).
 
     Colorless (shared.draw_rate_matrix's strict-matrix mode), same as task28's
     own matrix idiom: the payload is the printed number, not a colour scale —
     a colour-coded count on top of the number would encode the same value
     twice, which is what a Heatmap idiom is for, not a Matrix one.
     """
-    if not activity_totals:
+    if not ordered_acts:
         _no_violations(output_dir, "matrix")
         return
 
-    top_acts = _top_activities(activity_totals, _TOP_N)
-    short_labels = [_short_label(a, 30) for a in top_acts]
+    short_labels = [_short_label(a, 30) for a in ordered_acts]
 
     mat = np.array([
-        [activity_type.get((a, vt), 0) for vt in _VTYPES]
-        for a in top_acts
+        [activity_type.get((a, vt), 0) for vt in _ALL_TYPES]
+        for a in ordered_acts
     ], dtype=float)
 
-    fig_h = max(4, len(top_acts) * 0.6 + 2)
-    fig, ax = plt.subplots(figsize=(7, fig_h))
+    fig_h = max(4, len(ordered_acts) * 0.6 + 2)
+    fig, ax = plt.subplots(figsize=(7.5, fig_h))
 
-    draw_rate_matrix(fig, ax, mat, short_labels, _VTYPES,
+    draw_rate_matrix(fig, ax, mat, short_labels, _ALL_TYPES,
                      xlabel="Move Type", cell_fmt="{:.0f}", colorless=True,
                      rotate_xticks=15)
 
@@ -1248,16 +1264,27 @@ def generate(log, alignments, output_dir, model_path=None,
                           uniform_width=True, title=_TITLE)
         # matrix reads one representative trace — the first of the traces
         # already chosen for the chevron/model/table trio above — not the
-        # whole log every other idiom here never touches anyway.
+        # whole log every other idiom here never touches anyway. Every
+        # activity the trace touches, synchronous moves included (built from
+        # its own rows, not _extract_data, which only ever counts violations).
         rep = records[0]
-        rep_type, rep_totals, _rep_types, _rep_n = _extract_data(
-            [alignments[rep["trace_index"]]])
-        task09_matrix(rep_type, rep_totals, rep["label"], output_dir)
+        rep_type = Counter()
+        rep_acts, seen = [], set()
+        for row in rep["rows"]:
+            act = _activity_for_row(row)
+            rep_type[(act, row["moveType"])] += 1
+            if act not in seen:
+                seen.add(act)
+                rep_acts.append(act)
+        task09_matrix(rep_type, rep_acts[:_TOP_N], rep["label"], output_dir)
     else:
         logger.warning("      task09: no traces to align — keeping the aggregate figures only.")
         task09_flow_chart_basic(activity_type, activity_totals, alignments, output_dir)
         task09_flow_chart_elaborate_bpmn(activity_type, activity_totals, model_path, output_dir)
         task09_table(activity_type, activity_totals, type_totals, n_violations, output_dir)
-        task09_matrix(activity_type, activity_totals, "Whole Log", output_dir)
+        # No single trace to read rows from here, so this fallback keeps the
+        # whole-log, violation-only aggregate matrix has always used.
+        task09_matrix(activity_type, _top_activities(activity_totals, _TOP_N),
+                      "Whole Log", output_dir)
     # task09_flow_chart_and_table(activity_type, activity_totals, type_totals, n_violations, alignments, output_dir)
     # task09_flow_chart_elaborate_bpmn_table(activity_type, activity_totals, type_totals, n_violations, model_path, output_dir)
