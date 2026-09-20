@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../../components/Admin/Toast";
-import { IdiomImportButton, IdiomImportResult } from "../../../../components/Admin/IdiomImport";
 import { queueWizardSave } from "../../../../utils/wizardSave";
 
 function getId(obj) {
@@ -53,9 +52,31 @@ function entryApplies(entry, vals) {
   });
 }
 
+// An entry whose candidates only make sense once a sibling parameter is set
+// (the values of *this* attribute, not of every attribute in the log) declares
+// `options_filter: {param, prefix}`. Its source lists every "<key><prefix>
+// <value>" pair — /specify bakes a param's options in once per dataset, so the
+// source cannot narrow itself to a choice made afterwards — and this keeps the
+// ones belonging to the sibling's current value. Nothing is offered until the
+// sibling is set: every option would be wrong.
+function filterOptions(entry, options, siblings) {
+  const rule = entry.options_filter;
+  if (!rule) return options;
+  const key = (siblings || {})[rule.param];
+  if (!key) return [];
+  const prefix = `${key}${rule.prefix ?? ""}`;
+  return options
+    .filter((o) => String(typeof o === "string" ? o : o.value).startsWith(prefix))
+    // The field is already scoped to the attribute, so repeating it in every
+    // row is noise. Only the label changes; the stored value keeps the pair.
+    .map((o) => (typeof o === "string"
+      ? { value: o, label: o.slice(prefix.length) }
+      : { ...o, label: String(o.label ?? o.value).slice(prefix.length) }));
+}
+
 // Generic param widget — renders per PARAM_SPEC entry (see docs/ADMIN_EXPERIMENT_SETUP.md).
-function ParamField({ entry, value, onChange }) {
-  const options = entry.options || [];
+function ParamField({ entry, value, onChange, siblings }) {
+  const options = filterOptions(entry, entry.options || [], siblings);
   const [optionFilter, setOptionFilter] = useState("");
 
   if (entry.widget === "select-one") {
@@ -101,10 +122,13 @@ function ParamField({ entry, value, onChange }) {
   if (entry.widget === "select-many") {
     const selected = Array.isArray(value) ? value : [];
     if (options.length === 0) {
+      const waitingFor = entry.options_filter && !(siblings || {})[entry.options_filter.param];
       return (
         <div className="flex flex-col gap-1">
           <p className="text-sm text-on-surface/60 italic">
-            No candidates available for this dataset yet.
+            {waitingFor
+              ? "Choose the attribute above first — these are its values."
+              : "No candidates available for this dataset yet."}
           </p>
           {entry.options_error && (
             <p className="text-xs text-red-700 font-mono break-all">{entry.options_error}</p>
@@ -118,27 +142,6 @@ function ParamField({ entry, value, onChange }) {
       } else {
         onChange([...selected, optValue]);
       }
-    }
-    // Admin convenience: auto-select one option from each of the first N distinct
-    // variants (needs a per-option `variant` field from the backend).
-    const hasVariants = options.some((o) => typeof o === "object" && o.variant != null);
-    const showVariantPick = entry.variant_autoselect && hasVariants;
-    const autoselectCount = entry.autoselect_count ?? 10;
-    function pickFromVariants() {
-      const seen = new Set();
-      const picked = [];
-      for (const opt of options) {
-        if (typeof opt !== "object" || opt.variant == null) continue;
-        if (seen.has(opt.variant)) continue;
-        seen.add(opt.variant);
-        picked.push(opt.value);
-        if (picked.length >= autoselectCount) break;
-      }
-      onChange(picked);
-    }
-    function toggleVariantPick(checked) {
-      if (checked) pickFromVariants();
-      else onChange([]);
     }
     // Trace picker: the chart labels traces by running number ("Trace 1..N") in
     // selection order, so surface the "Trace N → id" mapping for the admin.
@@ -157,21 +160,6 @@ function ParamField({ entry, value, onChange }) {
         });
     return (
       <div className="flex flex-col gap-1">
-        {showVariantPick && (
-          <label className="flex items-center gap-2 text-sm text-on-surface cursor-pointer">
-            <input
-              type="checkbox"
-              onChange={(e) => toggleVariantPick(e.target.checked)}
-              className="accent-primary"
-            />
-            <span>
-              Pick from different Variants
-              <span className="text-on-surface-variant font-normal ml-1">
-                (auto-select {autoselectCount} traces across distinct variants)
-              </span>
-            </span>
-          </label>
-        )}
         {isTracePicker && selected.length > 0 && (
           <div className="text-xs border border-border-subtle rounded-lg px-3 py-2 bg-gray-50">
             <span className="font-semibold text-on-surface">
@@ -304,8 +292,6 @@ function SpecifyContent() {
   const [paramValues, setParamValues] = useState({}); // task_id -> { [key]: value }
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
-  const [importResult, setImportResult] = useState(null); // see IdiomImportResult
-  const [discarding, setDiscarding] = useState(false);
 
   const pollRef = useRef(null);
 
@@ -339,6 +325,13 @@ function SpecifyContent() {
       if (!idiomsRes.ok) throw new Error(`Idioms HTTP ${idiomsRes.status}`);
 
       const [exp, tasks, idioms] = await Promise.all([expRes.json(), tasksRes.json(), idiomsRes.json()]);
+
+      // An experiment built from an uploaded zip has no dataset and nothing to
+      // generate, so this step does not apply to it.
+      if (exp.bundle_only) {
+        router.replace(`/admin/experiments/overview?experiment_id=${encodeURIComponent(experimentId)}`);
+        return;
+      }
 
       const tMap = {};
       tasks.forEach((t) => { tMap[getId(t)] = t; });
@@ -412,7 +405,14 @@ function SpecifyContent() {
 
   function setParamValue(taskId, key, value) {
     setParamValues((prev) => {
-      const next = { ...prev, [taskId]: { ...(prev[taskId] || {}), [key]: value } };
+      const own = { ...(prev[taskId] || {}), [key]: value };
+      // A selection made from another attribute's values is not a selection
+      // from this one's: the pairs it holds are no longer on offer, so they
+      // would sit in the payload unseen and unremovable.
+      for (const entry of paramSpecs[taskId] || []) {
+        if (entry.options_filter?.param === key) own[entry.key] = [];
+      }
+      const next = { ...prev, [taskId]: own };
       const updatedInstances = taskInstances.map((ti) => ({
         ...ti,
         parameters: isImported(ti) ? ti.parameters || {} : next[ti.task_id] || {},
@@ -567,30 +567,6 @@ function SpecifyContent() {
     router.push(`/admin/experiments/idiom?experiment_id=${encodeURIComponent(experimentId)}`);
   }
 
-  async function handleDiscardImport() {
-    if (!window.confirm(
-      "Discard the imported images? Every uploaded and imported image of this experiment is removed, " +
-      "the parameters become editable again, and the affected tasks have to be generated."
-    )) return;
-    setDiscarding(true);
-    try {
-      const res = await fetch(`/api/admin/experiments/${encodeURIComponent(experimentId)}/idioms/overrides`, {
-        method: "DELETE",
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(typeof body?.detail === "string" ? body.detail : `HTTP ${res.status}`);
-      }
-      setImportResult(null);
-      showToast("Import discarded. Set the parameters and generate the visualizations.");
-      await init();
-    } catch (e) {
-      showToast(`Could not discard the import: ${e.message}`, true);
-    } finally {
-      setDiscarding(false);
-    }
-  }
-
   const allReady = taskInstances.length > 0 && taskInstances.every((ti) => ti.generation_status === "ready");
   const importedCount = taskInstances.filter(isImported).length;
   // Nothing left for Generate to draw once every task shows its imported images.
@@ -617,61 +593,23 @@ function SpecifyContent() {
           </div>
           <p className="font-body-lg text-body-lg text-secondary max-w-2xl">
             Set any task-specific hyperparameters, then generate the visualizations for the
-            selected idioms. Tasks with no parameters are ready to generate immediately. To reuse
-            the exact images of an earlier experiment instead, import them below.
+            selected idioms. Tasks with no parameters are ready to generate immediately.
           </p>
         </div>
 
-        {/* Import: the images of an earlier experiment, with their parameters */}
-        {!loading && taskInstances.length > 0 && (
-          <div className="bg-white rounded-lg border border-border-subtle shadow-sm p-5 flex flex-col gap-4">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="max-w-2xl">
-                <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">
-                  Images from an earlier experiment
-                </p>
-                <p className="text-xs text-on-surface-variant">
-                  Import the zip downloaded from an earlier experiment&apos;s Overview page to show participants
-                  exactly its images. Each task takes the parameters its images were drawn with, and those
-                  parameters are then locked. A task whose images come from a different dataset than this
-                  experiment&apos;s is rejected. Tasks not in the zip are generated as usual.
-                </p>
-              </div>
-              <IdiomImportButton
-                experimentId={experimentId}
-                mode="specify"
-                label="Import from a previous export"
-                disabled={generating || discarding}
-                onImported={init}
-                onResult={setImportResult}
-                showToast={showToast}
-              />
-            </div>
-
-            {importedCount > 0 && (
-              <div className="flex flex-wrap items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-                <p className="text-xs text-amber-800">
-                  <span className="font-semibold">
-                    {importedCount} task{importedCount !== 1 ? "s use" : " uses"} imported images
-                  </span>{" "}
-                  — their parameters are locked below.
-                </p>
-                <button
-                  type="button"
-                  onClick={handleDiscardImport}
-                  disabled={discarding || generating}
-                  className="flex items-center gap-1 text-xs font-semibold text-amber-800 hover:underline disabled:opacity-40"
-                >
-                  <span className="material-symbols-outlined text-sm">restart_alt</span>
-                  {discarding ? "Discarding…" : "Discard import"}
-                </button>
-              </div>
-            )}
-
-            <IdiomImportResult result={importResult} mode="specify" />
+        {/* Tasks whose images were imported keep their locked parameters below.
+            Importing itself lives on /new (a whole experiment from a zip) and
+            on /overview (swapping images into this one). */}
+        {!loading && importedCount > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+            <p className="text-xs text-amber-800">
+              <span className="font-semibold">
+                {importedCount} task{importedCount !== 1 ? "s use" : " uses"} imported images
+              </span>{" "}
+              — their parameters are locked below. Revert them on the Overview page to edit these again.
+            </p>
           </div>
         )}
-
 
 
         {/* Task cards */}
@@ -759,6 +697,7 @@ function SpecifyContent() {
                             <ParamField
                               entry={entry}
                               value={vals[entry.key]}
+                              siblings={vals}
                               onChange={(v) => setParamValue(ti.task_id, entry.key, v)}
                             />
                           </div>
@@ -784,7 +723,7 @@ function SpecifyContent() {
         <div className="max-w-[1140px] mx-auto px-8 py-4 flex justify-between items-center">
           <button
             onClick={goBackToIdioms}
-            disabled={generating || discarding}
+            disabled={generating}
             title={generating ? "Wait for the generation to finish." : undefined}
             className="text-sm text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
@@ -793,7 +732,7 @@ function SpecifyContent() {
           <div className="flex items-center gap-3">
             <button
               onClick={handleGenerate}
-              disabled={generating || loading || discarding || nothingToGenerate}
+              disabled={generating || loading || nothingToGenerate}
               title={nothingToGenerate ? "Every task shows imported images — nothing to generate." : undefined}
               className="flex items-center gap-2 text-sm font-semibold border border-border-subtle text-on-surface-variant px-6 py-2.5 rounded-lg hover:bg-surface-container transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >

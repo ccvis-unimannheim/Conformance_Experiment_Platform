@@ -159,8 +159,6 @@ def _parse_alignment(result):
         if ll == ">>" and ml == ">>":
             continue
         act, mt = classify_step(ll, ml)
-        if mt == "Mismatch Move":
-            continue
         if mt is None:
             mt = "Synchronous"
             act = ll

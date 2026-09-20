@@ -401,8 +401,8 @@ def task35_flow_chart_elaborate_bpmn_table(activity_type, activity_totals, n_vio
     tbl_fig, tbl_ax = plt.subplots(figsize=(tbl_w_in, tbl_h_in))
     tbl_ax.axis("off")
 
-    col_headers = ["Activity", "Skipped (MoM)", "Inserted (MoL)", "Mismatch", "Total", "% of All"]
-    col_widths  = [0.34, 0.14, 0.14, 0.12, 0.10, 0.10]
+    col_headers = ["Activity", "Skipped (MoM)", "Inserted (MoL)", "Total", "% of All"]
+    col_widths  = [0.40, 0.16, 0.16, 0.13, 0.15]
     t = 0.94; l = 0.02; tw = 0.96
     row_h = (t - 0.06) / (n_rows + 1)
 
@@ -419,10 +419,9 @@ def task35_flow_chart_elaborate_bpmn_table(activity_type, activity_totals, n_vio
     for i, act in enumerate(top_acts):
         mom   = activity_type.get((act, "Model Move"), 0)
         mol   = activity_type.get((act, "Log Move"),   0)
-        mm    = activity_type.get((act, "Mismatch Move"), 0)
-        total = mom + mol + mm
+        total = mom + mol
         pct   = total / n_violations * 100 if n_violations > 0 else 0
-        row_vals = [_short(act, 32), mom, mol, mm, total, f"{pct:.1f}%"]
+        row_vals = [_short(act, 32), mom, mol, total, f"{pct:.1f}%"]
         y_top = t - (i + 2) * row_h
         x     = l
         bg    = "#f5f5f5" if i % 2 == 0 else "white"

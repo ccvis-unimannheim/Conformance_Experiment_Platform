@@ -58,6 +58,24 @@ def _param_spec():
 
 PARAM_SPEC = _param_spec()
 
+
+def validate_params(log, params) -> list:
+    """Check that a sub-process attribute is named and splits this log in two.
+
+    "Do the main violations differ between sub-processes" has no answer without
+    saying what a sub-process is, and an attribute with one value throughout
+    yields a single group — the breakdown would then repeat the ranking above
+    it. Same check as task05, which splits the same way.
+    """
+    attr = (params or {}).get("split_attribute")
+    if not attr:
+        return ["Pick the attribute that defines the sub-processes to compare."]
+    import violation_profile
+    if violation_profile.binary_split(log, attr) is None:
+        return [f"Attribute '{attr}' does not split this log into two sub-logs."]
+    return []
+
+
 import os
 import numpy as np
 import pandas as pd

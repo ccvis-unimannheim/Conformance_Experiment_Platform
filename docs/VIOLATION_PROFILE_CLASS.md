@@ -16,7 +16,7 @@ The seven tasks already differed in exactly one way: what a violation is counted
 
 | strategy | unit | what drew it before |
 |---|---|---|
-| `move_type` | Model Move / Log Move / Mismatch | task29's bar, pie and table |
+| `move_type` | Model Move / Log Move | task29's bar, pie and table |
 | `activity` | one activity, split by move type | task11's tuned screenshots |
 | `pattern` | "Log Move on Ship Order" as one unit | task23's tables |
 

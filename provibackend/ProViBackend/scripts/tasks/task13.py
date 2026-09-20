@@ -70,10 +70,7 @@ def validate_params(log, params) -> list:
     return trace_features.validate_attribute_class(params, multi=True)
 
 
-PARAM_SPEC = [
-    *trace_features.attribute_params(),
-    *trace_features.split_params_for(),
-]
+PARAM_SPEC = [*trace_features.grouping_params()]
           # "flow_chart_table", "flow_chart_elaborate_table"  # commented out
 
 
@@ -687,7 +684,6 @@ def task13_flow_chart_elaborate_bpmn_table(ctx, ranking, model_path, output_dir)
         title="Where Violations Sit (flow) & Which Attributes Explain Them (table)",
         legend_items=[
             (GREY_MED,    "#444444", 3, "Model move (skipped step)"),
-            (GREY_LIGHT,  "#444444", 3, "Mismatch move"),
             (GREY_LIGHTER,   "#666666", 2, "Conform (synchronous)"),
             ("white", "#888888", 2, "Not on this trace"),
         ],

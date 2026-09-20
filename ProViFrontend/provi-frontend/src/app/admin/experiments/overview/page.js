@@ -60,7 +60,7 @@ function IdiomPreviewModal({ experimentId, taskKey, idiomKey, idiomLabel, datase
           {status === "unavailable" && (
             <div className="flex flex-col items-center gap-3">
               <span className="material-symbols-outlined text-4xl text-on-surface-variant">image_not_supported</span>
-              <p className="text-sm text-on-surface-variant text-center">Preview not available.<br/><span className="text-xs">Generate the visualizations on the Specify step first.</span></p>
+              <p className="text-sm text-on-surface-variant text-center">Preview not available.<br/><span className="text-xs">Generate the visualizations on the Specify step, or upload an image for this idiom.</span></p>
             </div>
           )}
           <img
@@ -123,7 +123,7 @@ function imageSourceNote(idiom, ti, uploaded, datasetTitle) {
 // Import here keeps this experiment's parameters: a task whose zip parameters
 // differ is rejected. Importing images together with their parameters happens
 // on the Specify step.
-function IdiomFilesPanel({ experimentId, editable, overrides, importInfo, onChanged, showToast }) {
+function IdiomFilesPanel({ experimentId, editable, bundleOnly, overrides, importInfo, onChanged, showToast }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null); // see IdiomImportResult
 
@@ -159,18 +159,17 @@ function IdiomFilesPanel({ experimentId, editable, overrides, importInfo, onChan
             them or reproduce the study. Importing a downloaded zip keeps those images fixed, even if the
             experiment is regenerated.
           </p>
-          {editable && (
+          {editable && !bundleOnly && (
             <p className="text-xs text-on-surface-variant mt-2">
               <span className="font-semibold text-on-surface">Import here only takes images that match this experiment:</span>{" "}
               a task is rejected if its images come from a different dataset or were drawn with different
-              parameters than the ones set on the Specify step. To import images together with their own
-              parameters, use Import on the{" "}
-              <Link
-                href={`/admin/experiments/specify?experiment_id=${encodeURIComponent(experimentId)}`}
-                className="text-primary hover:underline"
-              >
-                Specify step
-              </Link>.
+              parameters than the ones set on the Specify step. It changes the images and those tasks&apos;
+              parameters, and asks before it does. To use a zip with its own tasks, idioms and settings
+              instead, create a new experiment from it on the{" "}
+              <Link href="/admin/experiments/new" className="text-primary hover:underline">
+                Create New Experiment
+              </Link>{" "}
+              page.
             </p>
           )}
         </div>
@@ -182,7 +181,7 @@ function IdiomFilesPanel({ experimentId, editable, overrides, importInfo, onChan
             <span className="material-symbols-outlined text-sm">download</span>
             Download Idioms
           </a>
-          {editable && (
+          {editable && !bundleOnly && (
             <IdiomImportButton
               experimentId={experimentId}
               mode="overview"
@@ -206,9 +205,11 @@ function IdiomFilesPanel({ experimentId, editable, overrides, importInfo, onChan
                 {from?.experiment_name ? ` from "${from.experiment_name}"` : from?.file ? ` from ${from.file}` : ""}
               </>
             )}
-            . They stay in place when the experiment is regenerated.
+            {bundleOnly
+              ? ". This experiment has no dataset, so these are the only images it has."
+              : ". They stay in place when the experiment is regenerated."}
           </p>
-          {editable && (
+          {editable && !bundleOnly && (
             <button
               type="button"
               onClick={handleRevertAll}
@@ -223,6 +224,259 @@ function IdiomFilesPanel({ experimentId, editable, overrides, importInfo, onChan
       )}
 
       <IdiomImportResult result={result} mode="overview" />
+    </div>
+  );
+}
+
+// A PARAM_SPEC entry only applies when the parameters it depends on have the
+// values it names — the mirror of entryApplies() on the Specify page, so this
+// page lists exactly the controls that page showed.
+function entryApplies(entry, values) {
+  const cond = entry.visible_if;
+  if (!cond) return true;
+  return Object.entries(cond).every(([key, want]) => {
+    const have = values?.[key];
+    return Array.isArray(want) ? want.includes(have) : have === want;
+  });
+}
+
+function showParamValue(value) {
+  if (value === undefined || value === null || value === "") return null;
+  if (Array.isArray(value)) return value.length ? value.join(", ") : null;
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  return String(value);
+}
+
+const PARAMS_SHOWN = 4;
+
+// One line of "label: value" for the preview modal's caption.
+function paramSummary(spec, values) {
+  const entries = Object.entries(values || {});
+  if (entries.length === 0) return null;
+  const labels = new Map((spec || []).map((e) => [e.key, e.label || e.key]));
+  return entries
+    .map(([key, value]) => [labels.get(key) || key, showParamValue(value)])
+    .filter(([, value]) => value !== null)
+    .map(([label, value]) => `${label}: ${value}`)
+    .join(" · ") || null;
+}
+
+// The hyperparameters this task was generated with. Reviewing an experiment
+// before publishing means checking what participants will be shown, and the
+// parameters decide what the figures say — they were only visible on /specify,
+// and in the preview modal as raw keys.
+function TaskParametersSection({ spec, values, imported, editable, bundleOnly, experimentId }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!spec || spec.length === 0) return null;
+
+  const rows = spec
+    .filter((entry) => entryApplies(entry, values))
+    .map((entry) => {
+      const set = showParamValue(values?.[entry.key]);
+      return {
+        key: entry.key,
+        label: entry.label || entry.key,
+        value: set ?? showParamValue(entry.default) ?? "—",
+        isDefault: set === null,
+      };
+    });
+  if (rows.length === 0) return null;
+
+  const shown = expanded ? rows : rows.slice(0, PARAMS_SHOWN);
+
+  return (
+    <div className="p-5">
+      <div className="flex items-center justify-between mb-3 gap-3">
+        <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
+          Parameters
+          <span className="ml-2 font-normal normal-case tracking-normal text-primary">({rows.length})</span>
+        </p>
+        {editable && !bundleOnly && !imported && (
+          <Link
+            href={`/admin/experiments/specify?experiment_id=${encodeURIComponent(experimentId)}`}
+            className="text-xs text-primary border border-primary/30 px-3 py-1.5 rounded hover:bg-blue-50 transition-colors flex-shrink-0"
+          >
+            Change on Specify
+          </Link>
+        )}
+      </div>
+
+      {imported && (
+        <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-3 py-2 mb-3">
+          These are the parameters the imported images were drawn with, so they cannot be edited.
+        </p>
+      )}
+
+      <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-2">
+        {shown.map((row) => (
+          <div key={row.key} className="min-w-0">
+            <dt className="text-xs text-on-surface-variant truncate" title={row.label}>{row.label}</dt>
+            <dd className="text-xs font-medium text-on-surface break-words">
+              {row.value}
+              {row.isDefault && <span className="ml-1 font-normal text-on-surface-variant">(default)</span>}
+            </dd>
+          </div>
+        ))}
+      </dl>
+
+      {rows.length > PARAMS_SHOWN && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-2 text-xs text-primary hover:underline"
+        >
+          {expanded ? "Show fewer" : `+${rows.length - PARAMS_SHOWN} more`}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Name, design and task order, changeable while the experiment is a draft.
+// The wizard asks for these on /new, which an experiment built from a zip never
+// visits — and which shows a dataset table that route has no use for, so
+// stepping back there is not the answer. Saved one field at a time, so a
+// half-finished edit cannot be published by accident.
+function ExperimentSettingsCard({ experiment, experimentId, editable, showToast, onSaved }) {
+  const [name, setName] = useState(experiment.name || "");
+  const [busy, setBusy] = useState(false);
+  const design = experiment.design_type || "between";
+  const randomised = (experiment.within_sequence_mode || "fixed") === "random";
+
+  async function save(fields) {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/experiments/${encodeURIComponent(experimentId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fields),
+      });
+      if (!res.ok) throw new Error(await errorMessage(res));
+      await onSaved();
+    } catch (e) {
+      showToast(`Could not save: ${e.message}`, true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="bg-white border border-border-subtle rounded-lg p-5">
+      <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">
+        Experiment settings
+      </p>
+      <p className="text-xs text-on-surface-variant mb-3">
+        {editable
+          ? "How the tasks are shown to participants. Changing the design changes how idioms are allocated, so it is only possible while this is a draft."
+          : "Read-only: participants have been assigned under these settings."}
+      </p>
+
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold text-on-surface w-44">Name</span>
+          <input
+            type="text"
+            value={name}
+            disabled={!editable || busy}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={() => {
+              const next = name.trim();
+              if (next && next !== experiment.name) save({ name: next });
+            }}
+            className="flex-1 min-w-[12rem] text-xs px-3 py-2 rounded border border-border-subtle disabled:bg-surface-container"
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold text-on-surface w-44">Study design</span>
+          <div className="flex gap-2 flex-1 min-w-[12rem]">
+            {[
+              { value: "between", label: "Between-subjects", title: "One idiom per task, balanced across participants." },
+              { value: "within", label: "Within-subjects", title: "Every participant sees all idioms of every task." },
+            ].map(({ value, label, title }) => (
+              <button
+                key={value}
+                type="button"
+                title={title}
+                disabled={!editable || busy || design === value}
+                onClick={() => save({ design_type: value })}
+                className={`text-xs px-3 py-2 rounded border transition-colors ${
+                  design === value
+                    ? "border-primary text-primary bg-primary/5 font-semibold"
+                    : "border-border-subtle text-on-surface-variant hover:bg-surface-container disabled:opacity-40"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <label className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold text-on-surface w-44">Task order</span>
+          <span className="flex items-center gap-2 text-xs text-on-surface-variant">
+            <input
+              type="checkbox"
+              checked={randomised}
+              disabled={!editable || busy}
+              onChange={() => save({ within_sequence_mode: randomised ? "fixed" : "random" })}
+            />
+            Randomised per participant
+          </span>
+        </label>
+      </div>
+    </div>
+  );
+}
+
+// What participants meet before the tasks. Every experiment has these, set or
+// not: an experiment that skipped those wizard steps — one built from a zip
+// always does — is on the defaults, which is a choice the admin never made.
+// The card says what each is now and links to the step that changes it.
+function ParticipantFlowCard({ experiment, experimentId }) {
+  const q = `?experiment_id=${encodeURIComponent(experimentId)}`;
+  const sections = (list, all) => (list ? list.length : all);
+  const prequestionnaire = sections(experiment.prequestionnaire_sections, 4);
+  const concepts = sections(experiment.concept_sections, 4);
+  const taskintro = sections(experiment.taskintro_sections, 6);
+  const knowledge = experiment.knowledge_questions_configured
+    ? `${(experiment.knowledge_question_ids || []).length} selected`
+    : "all system questions (default)";
+
+  const rows = [
+    {
+      label: "Pre-questionnaire",
+      value: prequestionnaire === 0 ? "skipped" : `${prequestionnaire} section(s)`,
+      href: `/admin/experiments/prequestionnaire${q}`,
+    },
+    { label: "Knowledge questions", value: knowledge, href: `/admin/experiments/knowledge${q}` },
+    {
+      label: "Intro pages",
+      value: `Key Concepts: ${concepts === 0 ? "skipped" : `${concepts} section(s)`} · `
+        + `Before You Begin: ${taskintro === 0 ? "skipped" : `${taskintro} section(s)`}`,
+      href: `/admin/experiments/concepts${q}`,
+    },
+  ];
+
+  return (
+    <div className="bg-white border border-border-subtle rounded-lg p-5">
+      <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">
+        Participant flow
+      </p>
+      <p className="text-xs text-on-surface-variant mb-3">
+        What participants see before the tasks. Anything not set here uses the platform&apos;s defaults.
+      </p>
+      <div className="flex flex-col divide-y divide-border-subtle">
+        {rows.map((row) => (
+          <div key={row.label} className="flex flex-wrap items-center gap-2 py-2">
+            <span className="text-xs font-semibold text-on-surface w-44">{row.label}</span>
+            <span className="text-xs text-on-surface-variant flex-1 min-w-[10rem]">{row.value}</span>
+            <Link href={row.href} className="text-xs text-primary hover:underline">
+              View / change
+            </Link>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -286,6 +540,8 @@ function ExperimentOverviewContent() {
   // Formats that present a closed option set (from /admin/answer-formats).
   const [optionFormats, setOptionFormats] = useState(new Set());
   const [datasetTitleById, setDatasetTitleById] = useState({});
+  // task_key -> PARAM_SPEC, for naming each task's parameters below.
+  const [paramSpecByTaskKey, setParamSpecByTaskKey] = useState({});
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("draft");
 
@@ -387,12 +643,41 @@ function ExperimentOverviewContent() {
           idiomIds: idiomsByTask[tid] || [],
         }))
       );
+      await loadParamSpecs(taskOrder, tMap, tiMap);
       await loadOverrides();
     } catch (e) {
       showToast(`Could not load experiment: ${e.message}`, true);
     } finally {
       setLoading(false);
     }
+  }
+
+  // The hyperparameters each task was generated with, read back through the
+  // same PARAM_SPEC the Specify page renders, so the review step names them as
+  // that step did instead of showing raw keys. Custom tasks have no generator
+  // and no spec.
+  async function loadParamSpecs(taskOrder, tMap, tiMap) {
+    const keys = new Map(); // task_key -> dataset_id, one request per task
+    taskOrder.forEach((tid) => {
+      const taskKey = tMap[tid]?.task_key;
+      if (taskKey && !tMap[tid]?.is_custom && !keys.has(taskKey)) {
+        keys.set(taskKey, tiMap[tid]?.dataset_id || "");
+      }
+    });
+    const specs = {};
+    await Promise.all(
+      [...keys].map(async ([taskKey, datasetId]) => {
+        try {
+          const res = await fetch(
+            `/api/admin/tasks/${encodeURIComponent(taskKey)}/param-spec?dataset_id=${encodeURIComponent(datasetId)}`
+          );
+          if (res.ok) specs[taskKey] = (await res.json()).param_spec || [];
+        } catch {
+          // No spec — the task's parameters section is simply left out.
+        }
+      })
+    );
+    setParamSpecByTaskKey(specs);
   }
 
   async function loadOverrides() {
@@ -592,6 +877,18 @@ function ExperimentOverviewContent() {
           </p>
         </div>
 
+        {/* Built from an uploaded zip: there is no dataset and nothing to generate. */}
+        {experiment?.bundle_only && (
+          <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 text-blue-900 rounded-lg px-4 py-3">
+            <span className="material-symbols-outlined text-base">folder_zip</span>
+            <p className="text-xs">
+              <span className="font-semibold">This experiment&apos;s images come from an uploaded zip.</span>{" "}
+              Its tasks, idioms and images are the ones in that file, so it has no dataset and no
+              Specify step — there is nothing to generate. Replace a single image below to change one.
+            </p>
+          </div>
+        )}
+
         {/* Metadata strip */}
         {experiment && (
           <div className={`border rounded-lg p-5 flex flex-wrap items-center gap-6 ${
@@ -636,9 +933,22 @@ function ExperimentOverviewContent() {
         )}
 
         {experiment && (
+          <ExperimentSettingsCard
+            experiment={experiment}
+            experimentId={experimentId}
+            editable={status === "draft"}
+            showToast={showToast}
+            onSaved={init}
+          />
+        )}
+
+        {experiment && <ParticipantFlowCard experiment={experiment} experimentId={experimentId} />}
+
+        {experiment && (
           <IdiomFilesPanel
             experimentId={experimentId}
             editable={status === "draft"}
+            bundleOnly={!!experiment.bundle_only}
             overrides={overrides}
             importInfo={importInfo}
             onChanged={refreshImages}
@@ -768,7 +1078,9 @@ function ExperimentOverviewContent() {
                                     <span className="material-symbols-outlined text-[16px]">upload</span>
                                   </button>
                                 )}
-                                {idiom && status === "draft" && overrides.has(`${task.task_key}/${idiom.idiom_key}`) && (
+                                {/* A bundle experiment has no generated image to go back to. */}
+                                {idiom && status === "draft" && !experiment?.bundle_only
+                                  && overrides.has(`${task.task_key}/${idiom.idiom_key}`) && (
                                   <button
                                     onClick={() => revertImage(task.task_key, idiom.idiom_key)}
                                     title="Revert to the generated image"
@@ -784,9 +1096,10 @@ function ExperimentOverviewContent() {
                                       idiomKey: idiom.idiom_key,
                                       idiomLabel: resolveIdiomLabel(task.task_key, idiom.idiom_key, idiom.label),
                                       datasetTitle: datasetTitleById[ti?.dataset_id] || null,
-                                      paramsSummary: ti?.parameters && Object.keys(ti.parameters).length > 0
-                                        ? Object.entries(ti.parameters).map(([k, v]) => `${k}: ${v}`).join(", ")
-                                        : null,
+                                      // Named as the Specify page named them, not by raw key.
+                                      paramsSummary: paramSummary(
+                                        paramSpecByTaskKey[task.task_key], ti?.parameters
+                                      ),
                                     })}
                                     title="Preview this idiom"
                                     className="text-on-surface-variant hover:text-primary transition-colors p-0.5 rounded flex-shrink-0"
@@ -800,6 +1113,16 @@ function ExperimentOverviewContent() {
                         </div>
                       )}
                     </div>
+
+                    {/* What this task's figures were drawn with */}
+                    <TaskParametersSection
+                      spec={paramSpecByTaskKey[task.task_key]}
+                      values={ti?.parameters}
+                      imported={!!ti?.images_imported_from}
+                      editable={status === "draft"}
+                      bundleOnly={!!experiment?.bundle_only}
+                      experimentId={experimentId}
+                    />
 
                     {/* Answer Format */}
                     <div className="p-5">
@@ -922,7 +1245,7 @@ function ExperimentOverviewContent() {
               <h2 className="text-h2 text-on-surface">Another experiment is published</h2>
             </div>
             <p className="text-body-sm text-on-surface-variant">
-              "<span className="font-semibold">{publishConflict.name || publishConflict.experiment_name || "(unnamed)"}</span>" is currently published. Only one experiment can be published at a time.
+              &quot;<span className="font-semibold">{publishConflict.name || publishConflict.experiment_name || "(unnamed)"}</span>&quot; is currently published. Only one experiment can be published at a time.
             </p>
             <p className="text-body-sm text-on-surface-variant">
               Publishing this experiment will mark the existing one as <span className="font-semibold">finished</span>. Continue?

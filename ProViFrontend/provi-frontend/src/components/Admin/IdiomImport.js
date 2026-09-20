@@ -2,12 +2,23 @@
 
 import { useRef, useState } from "react";
 
-// Import of an idiom bundle zip (see backend routers/idiom_bundle.py). Two modes:
-//   specify  — the images come with the parameters they were drawn with, which
-//              replace this experiment's;
-//   overview — this experiment's parameters stay, and tasks whose parameters
-//              differ from the zip's are rejected.
-// Both reject tasks exported from a different dataset.
+// Import of an idiom bundle zip into an experiment that already exists (see
+// backend routers/idiom_bundle.py), from the Overview page: this experiment's
+// parameters stay, and a task whose parameters — or dataset — differ from the
+// zip's is rejected. Building a whole experiment out of a zip is the other
+// route, on /new.
+//
+// The import changes what participants will see, so it asks first and says
+// exactly what it touches: the images and the matched tasks' parameters, and
+// nothing else the admin has set up here.
+
+const CONFIRM_TEXT =
+  "Import the images of this zip into this experiment?\n\n" +
+  "• The images participants see are replaced for every task the zip matches, and pinned: " +
+  "regenerating will not overwrite them.\n" +
+  "• Those tasks' parameters are locked to the values the images were drawn with.\n" +
+  "• A task whose parameters or dataset differ from the zip's is rejected and left as it is.\n\n" +
+  "Your answer formats, task wording and the tasks and idioms this experiment uses are not changed.";
 
 async function readError(res) {
   const body = await res.json().catch(() => null);
@@ -31,6 +42,7 @@ export function IdiomImportButton({ experimentId, mode, label = "Import Idioms",
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
+    if (!window.confirm(CONFIRM_TEXT)) return;
     setBusy(true);
     onResult(null);
     try {
@@ -131,7 +143,9 @@ export function IdiomImportResult({ result, mode }) {
 
       {mode === "overview" && paramsRejected && (
         <p className="text-on-surface-variant">
-          To import images together with the parameters they were drawn with, use Import on the Specify step instead.
+          To use these images with the parameters they were drawn with, create a new experiment from the
+          zip instead — <span className="font-medium">Start from a downloaded zip</span> on the
+          Create New Experiment page.
         </p>
       )}
     </div>

@@ -37,8 +37,6 @@ from shared import (
 )
 
 
-import trace_features
-
 PARAM_SPEC = [
     {
         "key": "time_granularity",
@@ -54,7 +52,6 @@ PARAM_SPEC = [
         "default": DEFAULT_TIME_GRANULARITY,
         "required": True,
     },
-    *trace_features.split_params_for('ordered_bins'),
 ]
 
 

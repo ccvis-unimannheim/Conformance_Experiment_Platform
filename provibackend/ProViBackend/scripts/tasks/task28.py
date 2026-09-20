@@ -96,7 +96,6 @@ TASK28_HEADER_COLOR = GREY_DARK
 TASK28_SYNC_ROW_COLOR = GREY_LIGHTER
 TASK28_MODEL_ROW_COLOR = GREY_LIGHT
 TASK28_LOG_ROW_COLOR = GREY_MED
-TASK28_MISMATCH_ROW_COLOR = GREY_MED
 TASK28_TABLE_EDGE_COLOR = "#FFFFFF"
 TASK28_TABLE_COL_LABELS = ["Step", "Log Move", "Model Move", "Status"]
 TASK28_TABLE_COL_WIDTHS = [0.065, 0.375, 0.375, 0.185]
@@ -150,8 +149,6 @@ def _task28_status_color(move_type: str) -> str:
         return TASK28_MODEL_ROW_COLOR
     if move_type == "Log Move":
         return TASK28_LOG_ROW_COLOR
-    if move_type == "Mismatch Move":
-        return TASK28_MISMATCH_ROW_COLOR
     return TASK28_SYNC_ROW_COLOR
 
 
@@ -295,8 +292,6 @@ def _trace_act_status(rows):
             status[str(r["model_move"])] = "skipped"
         elif mt == "Log Move":
             status[str(r["log_move"])] = "extra"
-        elif mt == "Mismatch Move":
-            status[str(r["log_move"])] = "mismatch"
     return status
 
 
@@ -315,8 +310,7 @@ def task28_flow_chart_elaborate_bpmn(ctx: dict, model_path: str, output_dir: str
         return
 
     status = _trace_act_status(ctx["rows"])
-    fills = {"conform": GREY_LIGHTER, "skipped": GREY_LIGHT,
-             "extra": GREY_DARK, "mismatch": GREY_MED}
+    fills = {"conform": GREY_LIGHTER, "skipped": GREY_LIGHT, "extra": GREY_DARK}
 
     def node_style_fn(eid, elem):
         name = elem.get("name", "")
@@ -356,12 +350,12 @@ def task28_flow_chart_elaborate_bpmn(ctx: dict, model_path: str, output_dir: str
 # a single trace with the chevron / table / BPMN idioms above.
 #
 # A "deviation" is the conformance algorithm's own classification, not a value
-# judgment: Model Move (activity skipped), Log Move (extra activity), Mismatch.
+# judgment: Model Move (activity skipped) or Log Move (extra activity).
 # ===========================================================================
 
 TOP_N = 12
-MOVE_TYPES = ["Model Move", "Log Move", "Mismatch Move"]
-MOVE_TYPE_COLORS = {"Model Move": GREY_DARK, "Log Move": GREY_MED, "Mismatch Move": GREY_LIGHT}
+MOVE_TYPES = ["Model Move", "Log Move"]
+MOVE_TYPE_COLORS = {"Model Move": GREY_DARK, "Log Move": GREY_MED}
 _MOVE_RANK = {m: i for i, m in enumerate(MOVE_TYPES)}
 
 

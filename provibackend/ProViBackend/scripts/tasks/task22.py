@@ -32,9 +32,11 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "stacked_bar", "scatter_plot",
-          "flow_chart_elaborate_table", "table", "table_bar_chart",
-          "parallel_sets"]
+IDIOMS = [
+    "bar_chart", "stacked_bar",
+    "flow_chart_elaborate_table", "table", "table_bar_chart",
+    "parallel_sets",
+]
 
 
 # What this task measures per group, and how it cuts the log — task
@@ -47,13 +49,14 @@ _SPLIT_SUPTITLE = "Conformance Explained by Candidate Attribute"
 import trace_features
 
 def validate_params(log, params) -> list:
-    return trace_features.validate_attribute_class(params, multi=True)
+    return trace_features.validate_attribute_class(
+        params, multi=True, levels=trace_features.TRACE_COMPARING_LEVELS)
 
 
-PARAM_SPEC = [
-    *trace_features.attribute_params(),
-    *trace_features.split_params_for(),
-]
+# No log level: this task compares traces to each other, and a log-level
+# attribute has the same value for all of them.
+PARAM_SPEC = [*trace_features.grouping_params(
+    levels=trace_features.TRACE_COMPARING_LEVELS)]
 import os
 import numpy as np
 import pandas as pd
@@ -391,7 +394,8 @@ def generate(log, fitness_df, alignments, output_dir: str, model_path: str = Non
 
     compare_attribute = attrs[0] if attrs else ""
     groups, assignment, meta = split_by_attribute(
-        log, compare_attribute, max_groups=group_cap or MAX_CATEGORICAL_GROUPS)
+        log, compare_attribute, max_groups=group_cap or MAX_CATEGORICAL_GROUPS,
+        strategy=split_strategy)
     if groups is None:
         available = _available_case_attributes(log)
         logger.error(
@@ -426,5 +430,4 @@ def generate(log, fitness_df, alignments, output_dir: str, model_path: str = Non
 
     # One grouping only: these read a distribution, not a per-bucket summary.
     task22_stacked_bar(trace_df, groups, compare_attribute, output_dir)
-    task22_scatter_plot(trace_df, groups, meta, compare_attribute, output_dir)
     task22_flow_chart_elaborate_table(stats_df, act_viol, model_path, compare_attribute, output_dir)

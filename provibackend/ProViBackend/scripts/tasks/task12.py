@@ -7,7 +7,7 @@ Question: In what percentage of traces do violations occur?
 Visualizations (all SVG, cividis palette from shared.py):
   tile_metric     – KPI tiles: % conformant · % deviating
   bar_chart       – 2 horizontal bars with counts + %
-  stacked_bar     – single 100% bar subdivided into 5 violation-profile categories
+  stacked_bar     – single 100% bar subdivided into violation-profile categories
   table           – detailed breakdown: conformant + deviating sub-categories
 
   Commented out of IDIOMS/generate() for now:
@@ -69,22 +69,20 @@ _C_LIGHT  = GREY_LIGHT
 _C_XLIGHT = GREY_LIGHTER
 _HDR_BG   = GREY_DARK
 
-# 5-category colors (conformant + 4 deviating subcategories)
+# Category colors (conformant + the deviating subcategories)
 _CAT_COLORS = {
     "conformant": GREY_LIGHTER,  # yellow-green (best)
     "mom_only":   GREY_MED,      # olive-grey   (skipped mandatory step)
     "mol_only":   GREY_DARK,     # dark navy    (extra unexpected step)
-    "mm_only":    GREY_LIGHT,    # light olive  (mismatch)
     "mixed":      GREY_DARK,     # dark navy    (multiple violation types)
 }
 _CAT_LABELS = {
     "conformant": "Conformant",
     "mom_only":   "Deviating — Skipped only (MoM)",
     "mol_only":   "Deviating — Extra only (MoL)",
-    "mm_only":    "Deviating — Mismatch only (MM)",
     "mixed":      "Deviating — Mixed types",
 }
-_CAT_ORDER = ["conformant", "mom_only", "mol_only", "mm_only", "mixed"]
+_CAT_ORDER = ["conformant", "mom_only", "mol_only", "mixed"]
 
 
 # ── Data extraction ───────────────────────────────────────────────────────────
@@ -153,7 +151,6 @@ def _extract_data(alignments, violation_patterns=None):
 _MOVE_COLORS = {
     "Model Move": GREY_DARK,
     "Log Move": GREY_MED,
-    "Mismatch Move": GREY_LIGHT,
 }
 
 

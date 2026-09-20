@@ -72,7 +72,7 @@ been removed; task25 is now the single `flow_chart_elaborate`.
 The counts come from the centrally computed alignments — a synchronous move is
 behaviour the model prescribes and the log records; a model move (prescribed,
 not executed) and a log move (executed, not prescribed) are both deviations of
-that activity; a mismatch move deviates on both its labels.
+that activity.
 
 ### The number it supports is not task06's number
 

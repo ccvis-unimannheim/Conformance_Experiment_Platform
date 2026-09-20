@@ -477,8 +477,10 @@ export default function AdminPage() {
                           <div className="flex items-center gap-2 ml-2 flex-shrink-0">
                             {status === "draft" && (() => {
                               const current = LEGACY_STEPS[exp.current_step] ?? exp.current_step;
-                              const step = WIZARD_STEPS.includes(current)
-                                ? current
+                              // An experiment built from a zip has no Specify step to resume at.
+                              const resolved = exp.bundle_only && current === "specify" ? "overview" : current;
+                              const step = WIZARD_STEPS.includes(resolved)
+                                ? resolved
                                 : (exp.task_configs && exp.task_configs.length > 0 ? "idiom" : "knowledge");
                               const href = `/admin/experiments/${step}?experiment_id=${encodeURIComponent(expId)}`;
                               return (
@@ -598,7 +600,7 @@ export default function AdminPage() {
               })}
             </ul>
             <p className="text-xs text-on-surface-variant">
-              If any are used by experiments, you'll get a chance to confirm before they're force-deleted.
+              If any are used by experiments, you&apos;ll get a chance to confirm before they&apos;re force-deleted.
             </p>
             <div className="flex justify-end gap-3 mt-2">
               <button type="button" onClick={() => setDsDeleteConfirmOpen(false)}

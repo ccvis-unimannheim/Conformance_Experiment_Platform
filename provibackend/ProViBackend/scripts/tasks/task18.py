@@ -92,7 +92,7 @@ from tasks.task28 import build_task28_context
 TOP_N = 12   # responsible activities kept where an idiom would otherwise crowd
 
 # Move-type palette (matches task29).
-_MOVE_COLORS = {"Model Move": GREY_MED, "Log Move": GREY_DARK, "Mismatch Move": GREY_LIGHT}
+_MOVE_COLORS = {"Model Move": GREY_MED, "Log Move": GREY_DARK}
 
 _EMPTY_STEMS = [
     ("task18_flow_chart_elaborate_bpmn_table.svg", "Responsible Activities on the Model"),
@@ -504,7 +504,7 @@ def task18_parallel_sets(resp, output_dir):
     has_other = len(by_activity) > len(top_activities)
     left_labels = top_activities + (["Other"] if has_other else [])
 
-    move_types = ["Model Move", "Log Move", "Mismatch Move"]
+    move_types = ["Model Move", "Log Move"]
     present_moves = [mt for mt in move_types if any(r["move_type"] == mt for r in records)]
     matrix = np.zeros((len(left_labels), len(present_moves)))
     left_index = {a: i for i, a in enumerate(left_labels)}

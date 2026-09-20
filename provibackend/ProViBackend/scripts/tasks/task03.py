@@ -85,7 +85,7 @@ from matplotlib import gridspec
 
 from shared import (
     save_svg, make_table, auto_col_widths,
-    draw_composition_stacked_bars, contrasting_text_color,
+    draw_composition_stacked_bars,
     render_empty_state_svg,
     GREY_DARK, GREY_LIGHTER, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
@@ -443,11 +443,12 @@ def task03_stacked_bar(panels, output_dir: str):
 
 
 def task03_matrix(panels, output_dir: str):
-    """Numeric grid per attribute — each column filled with its conformance-group
-    colour, the same cividis dark-blue / yellow the bar_chart and stacked_bar use
-    (uniform per column, so it encodes the GROUP, not the value: distinct from a
-    value-encoded heatmap). Rows = buckets, columns = conformance group, cells =
-    share (%) of that group's traces in the bucket."""
+    """Numeric grid per attribute — rows = buckets, columns = conformance group,
+    cells = share (%) of that group's traces in the bucket.
+
+    Colourless: white cells ruled into a grid, the share carried by the printed
+    number alone, as in tasks 27-32. The column headers already name the group,
+    so filling each column with its bar_chart colour encoded that a second time."""
     path = os.path.join(output_dir, "task03_matrix.svg")
     if not panels or all(b is None for (_, _, b) in panels):
         label = panels[0][0] if panels else "Throughput time"
@@ -461,8 +462,9 @@ def task03_matrix(panels, output_dir: str):
     fig_h = 0.55 * max_rows + 2.8
     fig, axes = plt.subplots(1, ncols, figsize=(7.0 if ncols == 1 else ncols * 4.5, fig_h),
                              squeeze=False)
-    col_fill = [_COLOR_CONFORM, _COLOR_NON_CONFORM]  # dark blue (Conformant), yellow (Non-conformant)
-    col_text = [contrasting_text_color(c) for c in col_fill]
+    # Same grey as draw_cell_grid rules the shared colourless matrices with; on a
+    # white fill it is the rule, not the fill, that makes the cells a grid.
+    cell_rule = "#CCCCCC"
 
     for ax, (attr_label, attr_title, buckets) in zip(axes[0], panels):
         if buckets is None:
@@ -476,15 +478,12 @@ def task03_matrix(panels, output_dir: str):
                         dtype=float)
         n_rows = len(tt_labels)
 
-        # Cells filled with their group's full bar_chart colour; the fill is
-        # uniform within a column, so it encodes the group — never the cell value
-        # the way a heatmap does. Text colour adapts so the shares stay legible.
         for ri in range(n_rows):
             for ci in range(n_group_cols):
-                ax.add_patch(plt.Rectangle((ci, ri), 1, 1, facecolor=col_fill[ci],
-                                           edgecolor="white", linewidth=1.0))
+                ax.add_patch(plt.Rectangle((ci, ri), 1, 1, facecolor="white",
+                                           edgecolor=cell_rule, linewidth=0.8))
                 ax.text(ci + 0.5, ri + 0.5, f"{data[ri, ci]:.0f}%",
-                        ha="center", va="center", fontsize=FONT_ANNOT, color=col_text[ci])
+                        ha="center", va="center", fontsize=FONT_ANNOT, color=GREY_DARK)
 
         ax.set_xlim(0, n_group_cols)
         ax.set_ylim(0, n_rows)

@@ -62,7 +62,7 @@ import matplotlib.patches as mpatches
 
 from matplotlib.colors import Normalize, to_hex
 from shared import most_common_stable, save_svg, GREY_DARK, GREY_MED, CIVIDIS, CIVIDIS_R, FONT_TITLE, FONT_ANNOT
-from shared import MOVE_LOG, MOVE_MODEL, MOVE_MISMATCH, contrasting_text_color
+from shared import MOVE_LOG, MOVE_MODEL, contrasting_text_color
 
 # ── Cividis palette ──────────────────────────────────────────────────────────
 _C_DARK   = GREY_DARK      # dark navy   (highest emphasis)
@@ -125,7 +125,6 @@ def _classify_step(observed_raw, expected_raw):
         Synchronous Move  – both log and model agree (fit, ignored)
         Model Move        – model fires a transition the trace skipped
         Log Move          – trace has an event the model doesn't expect
-        Mismatch Move     – both present but different labels (rare)
     """
     obs = _extract_label(observed_raw)
     exp = _extract_label(expected_raw)
@@ -137,7 +136,10 @@ def _classify_step(observed_raw, expected_raw):
     if not obs_skip and not exp_skip:
         if obs == exp:
             return None                    # Synchronous Move (fit)
-        return f"Mismatch Move: {obs}"     # rare in proper alignments
+        # Both sides carry a label and they differ: pm4py's alignments do not
+        # produce this, and the step contains a log move on `obs` (the model
+        # move on `exp` is counted when the step is parsed as rows elsewhere).
+        return f"Log Move: {obs}"
     if obs_skip:
         return f"Model Move: {exp}"        # model expected exp, trace skipped it
     return f"Log Move: {obs}"              # trace has obs, model didn't expect it
@@ -405,9 +407,7 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count,
 
     # Node colours by move type, as on every other task.
     def node_color(label):
-        if "Model Move" in label: return MOVE_MODEL
-        if "Log Move"   in label: return MOVE_LOG
-        return MOVE_MISMATCH
+        return MOVE_MODEL if "Model Move" in label else MOVE_LOG
 
     colors = [node_color(n) for n in nodes_ordered]
 
@@ -454,7 +454,6 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count,
     legend_handles = [
         mpatches.Patch(color=MOVE_MODEL,    label="Model Move (skipped activity)"),
         mpatches.Patch(color=MOVE_LOG,      label="Log Move (extra activity)"),
-        mpatches.Patch(color=MOVE_MISMATCH, label="Mismatch Move"),
     ]
     ax.legend(handles=legend_handles, loc="lower right",
               fontsize=FONT_ANNOT, frameon=True, framealpha=0.95)

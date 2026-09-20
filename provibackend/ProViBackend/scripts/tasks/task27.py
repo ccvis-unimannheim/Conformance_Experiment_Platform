@@ -264,9 +264,6 @@ def _variant_relations(rep_rows) -> dict:
             bump(row["model_move"], _REL_SKIPPED)
         elif mt == "Log Move":
             bump(row["log_move"], _REL_UNEXPECTED)
-        else:  # Mismatch: model side skipped, log side unexpected
-            bump(row["model_move"], _REL_SKIPPED)
-            bump(row["log_move"], _REL_UNEXPECTED)
     return rel
 
 

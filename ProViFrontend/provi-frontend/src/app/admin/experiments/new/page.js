@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import AdminNav from "../../../../components/Admin/AdminNav";
 import ExperimentDetailsForm from "../../../../components/Admin/ExperimentDetailsForm";
 import DatasetSelectTable from "../../../../components/Admin/DatasetSelectTable";
+import BundleStartCard from "../../../../components/Admin/BundleStartCard";
 import { queueWizardSave } from "../../../../utils/wizardSave";
 
 export default function NewExperimentPage() {
@@ -197,6 +198,20 @@ export default function NewExperimentPage() {
             Set up your research environment by defining project details and choosing your dataset(s).
           </p>
         </div>
+
+        {/* The other route: an experiment whose images are already drawn. It
+            creates the experiment itself and leaves this page. */}
+        <BundleStartCard
+          name={name}
+          designType={designType}
+          randomizeOrder={randomizeOrder}
+          onCreated={(data) => {
+            const next = data.needs_answer_format ? "answer-format" : "overview";
+            router.push(
+              `/admin/experiments/${next}?experiment_id=${encodeURIComponent(data.experiment_id)}`
+            );
+          }}
+        />
 
         <div className="space-y-section-gap">
           <ExperimentDetailsForm

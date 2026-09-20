@@ -47,10 +47,7 @@ def validate_params(log, params) -> list:
     return trace_features.validate_attribute_class(params, multi=True)
 
 
-PARAM_SPEC = [
-    *trace_features.attribute_params(),
-    *trace_features.split_params_for(),
-]
+PARAM_SPEC = [*trace_features.grouping_params()]
 import os
 import numpy as np
 import pandas as pd
@@ -345,7 +342,8 @@ def generate(log, fitness_df, output_dir, alignments=None,
 
     compare_attribute = attrs[0] if attrs else ""
     groups, assignment, meta = split_by_attribute(
-        log, compare_attribute, max_groups=group_cap or MAX_CATEGORICAL_GROUPS)
+        log, compare_attribute, max_groups=group_cap or MAX_CATEGORICAL_GROUPS,
+        strategy=split_strategy)
     if groups is None:
         logger.error(f"      task33: attribute '{compare_attribute}' not found.")
         for fname, title in _ALL_FNAMES_TITLES:

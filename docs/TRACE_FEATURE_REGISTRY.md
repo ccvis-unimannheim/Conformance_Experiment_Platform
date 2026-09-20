@@ -217,8 +217,8 @@ conformant while its fitness is below 1.
 "% conformant" is **not** a response. Removing it is what lets slot 3 disappear
 from most tasks.
 
-Violation types are alignment-based control-flow only: Move on Model, Move on
-Log, Mismatch Move. Data guards, resource SoD and time SLAs are out of scope as
+Violation types are alignment-based control-flow only: Move on Model and Move
+on Log. Data guards, resource SoD and time SLAs are out of scope as
 violations — they may still appear in slot 1 as grouping features.
 
 ---
@@ -253,32 +253,63 @@ has no cap).
 |---|---|---|---|---|
 | task01 | `outcome_activity` | `binary` | fitness | `missing_policy`, `conformant_threshold` |
 | task07 | `time_granularity` | `ordered_bins` | fitness | `group_cap`, `missing_policy` |
-| task13 | `attribute_set` | admin | violation_rate | `split_strategy`, `group_cap`, `missing_policy` |
-| task15 | `attribute_set` | admin | fitness | same |
-| task16 | `attribute_set` | admin | violation_rate | same |
-| task20 | `attribute_set` | admin | violation_rate | same |
-| task21 | `attribute_set` | admin | violation_rate | same |
-| task22 | `compare_attribute` | admin | fitness | same |
-| task30 | `compare_attribute` | admin | patterns | same + `pattern_top_n` |
-| task33 | `compare_attribute` | admin | fitness | same |
+| task13 | shared block | admin | violation_rate | — |
+| task15 | shared block | admin | fitness | — |
+| task16 | shared block | admin | violation_rate | — |
+| task20 | shared block | admin | violation_rate | — |
+| task21 | shared block, no log level | admin | violation_rate | — |
+| task22 | shared block, no log level | admin | fitness | — |
+| task30 | shared block | admin | patterns | `pattern_top_n` |
+| task33 | shared block | admin | fitness | — |
 
-All ten are wired. task15 and task16 were converted from whole-log views to
-attribute splits, which means their panel idioms (table, bar chart, table+bar,
-parallel sets) now render the same kernel as task20's through the same
-renderers, differing in wording and in the idioms each keeps. Their model and
-per-trace idioms stay log-level: a BPMN annotated with overall violations has no
-per-bucket form.
+### One predictor side, eight response sides
 
-`attribute_set` is multi-select everywhere except task30, which keeps a single
-`compare_attribute`. Not an oversight: its response is `patterns`, whose panel is
-a pattern-by-group matrix rather than one value per bucket, so it needs a panel
-shape the shared renderers do not have. Every other task in the class analyses
-as many attributes as the admin selects, one panel each.
+"Shared block" is `trace_features.grouping_params()`: the attribute level, one
+picker per level, the split strategy and the group cap. **These eight tasks ask
+the admin exactly the same thing and differ only in what they measure per
+group** — that is the rule, and one call enforces it, so they cannot drift apart
+a parameter at a time.
 
-The consequence is deliberate but worth restating for experiment design: task16
-and task20 now draw the same thing, as do task15, task22 and task33. A class is
-the sampling unit — drawing two members into one study shows a participant the
-same chart twice.
+The single exception is the level. task21 and task22 pass
+`levels=TRACE_COMPARING_LEVELS`, dropping the log level: they compare traces to
+each other, and a log-level attribute holds one value for the whole log, so it
+puts every trace in the same group. `validate_attribute_class` reads the same
+tuple, so a level a task does not offer cannot arrive from an older saved
+configuration and be acted on.
+
+task30 used to be the other exception, with a single `compare_attribute`,
+because its response is `patterns` — a pattern-by-group matrix rather than one
+value per bucket, which the shared panel renderers have no shape for. It now
+takes the same multi-select picker and cuts the log by the **first** selected
+attribute, the rule task22 and task33 already use for their distribution idioms.
+The picker is the family's; what the response can draw decides how much of the
+selection is used.
+
+### Only what the admin selected
+
+Every figure here draws the attributes the selection resolves to and nothing
+else; an empty selection falls back to the canonical set, which the picker's
+own label states. task21 used to break this: it ranked task18's responsible
+activities — `PATIENT_REGISTERED (Log Move)` — alongside the attributes on one
+axis, so an admin who picked two attributes saw ten candidates. An activity is
+not an attribute. **Showing only what was selected outranks keeping the members
+of a class distinct from one another**, and the overlap that rule creates is
+accepted rather than worked around.
+
+### The duplicates are deliberate
+
+task13, task16, task20 and task21 now share both sides; so do task15, task22
+and task33. That is the intended state and not something to tidy away: the two
+sides are the design, and two tasks that agree on both are the same
+visualization asked under two task IDs. It matters for experiment design rather
+than for the code — a class is the sampling unit, so drawing two members of one
+group into a single study shows a participant the same chart twice.
+
+task15 and task16 were converted from whole-log views to attribute splits, which
+is why their panel idioms (table, bar chart, table+bar, parallel sets) render
+the same kernel as task20's through the same renderers, differing in wording and
+in the idioms each keeps. Their model and per-trace idioms stay log-level: a
+BPMN annotated with overall violations has no per-bucket form.
 
 ---
 
