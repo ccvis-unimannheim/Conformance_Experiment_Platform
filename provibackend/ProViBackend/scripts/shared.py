@@ -1337,20 +1337,30 @@ def render_conformance_line_graph(df, out_path, *,
     ax.fill_between(x, y, alpha=0.18, color=line_color)
     ax.plot(x, y, color=line_color, linewidth=1.8, marker="o", markersize=4)
 
+    overall_mean = df["fitness"].mean()
+    ax.axhline(overall_mean, color=mean_color, linewidth=1.2, linestyle="--",
+               zorder=2)
+
     if value_labels:
         # Alternate the label above/below its marker by position, not by value:
         # two adjacent points close in time and in fitness (the common case at
         # day granularity) would otherwise stack their labels on top of each
         # other. This gives every pair of neighbours opposite offsets.
+        #
+        # The offset alone is not enough: a point well below the mean gets its
+        # label pushed up into the mean line, which then strikes through the
+        # digits. Each label carries its own background patch so it stays
+        # readable over whatever it lands on — the mean line, the trend line or
+        # the fill — and sits above all three.
         for i, (xi, yi) in enumerate(zip(x, y)):
             above = i % 2 == 0
             ax.annotate(f"{yi * 100:.1f}%", (xi, yi),
                         textcoords="offset points", xytext=(0, 7 if above else -9),
                         ha="center", va="bottom" if above else "top",
-                        fontsize=FONT_ANNOT - 1, color=GREY_DARK)
+                        fontsize=FONT_ANNOT - 1, color=GREY_DARK, zorder=5,
+                        bbox=dict(boxstyle="round,pad=0.18", facecolor="white",
+                                  edgecolor="none", alpha=0.78))
 
-    overall_mean = df["fitness"].mean()
-    ax.axhline(overall_mean, color=mean_color, linewidth=1.2, linestyle="--")
     # Off to the side rather than in the plot area (legend's "best" corner
     # placement could as easily land the label mid-line, over the fill or a
     # value label), matching render_conformance_horizon_chart's mean label.
