@@ -639,36 +639,15 @@ def _resolve_bundle_idiom(idiom_key: str, zip_idiom: dict, task_key: str,
     return idiom.id
 
 
-@router.post("/experiments/from-bundle", tags=["admin"])
-async def create_experiment_from_bundle(
-    file: UploadFile,
-    name: str = Form(""),
-    design_type: str = Form("between"),
-    within_sequence_mode: str = Form("fixed"),
-    created_by: str = Form("admin"),
-):
-    """Build a whole draft experiment from an idiom bundle zip.
-
-    The wizard's other route picks a dataset and generates images from it; this
-    one takes an experiment that already has its images. The zip decides which
-    tasks it asks and which idioms each task is shown as, so there is no dataset
-    to choose and nothing to generate: the experiment is marked `bundle_only`
-    (see the field's comment in data_schemas.py), and every task is `ready` the
-    moment it is created.
-
-    A version-3 zip also carries each task's answer shape, so such an experiment
-    can go straight to /overview and be published. An older zip has none, and
-    the response says so (`needs_answer_format`) — the answer format has to be
-    chosen before publishing, as for any other experiment.
+def _build_bundle_pieces(manifest: dict, by_task: dict, rejected: list[dict],
+                         experiment_id: str) -> dict | None:
+    """Everything a bundle experiment needs from a parsed zip, targeting
+    `experiment_id` (a fresh id for a new experiment, or an existing one being
+    replaced). Returns None (with `rejected` explaining why) if nothing in the
+    zip could be used — nothing is written to the database either way; this
+    only reads the Task/Idiom collections and, for an idiom this server has
+    never seen, creates its document (needed before the instances can name it).
     """
-    try:
-        content = await file.read()
-    finally:
-        await file.close()
-    zf, manifest = _open_bundle(content)
-    by_task, rejected = _bundle_payload(zf)
-
-    experiment_id = str(uuid.uuid4())
     instances: list[dict] = []
     custom_tasks: list[dict] = []
     overrides: dict[str, dict] = {}
@@ -730,10 +709,94 @@ async def create_experiment_from_bundle(
         overrides[task_key] = payload
 
     if not instances:
+        return None
+    return {
+        "instances": instances, "custom_tasks": custom_tasks, "overrides": overrides,
+        "task_overrides": task_overrides, "imported": imported,
+        "needs_answer_format": needs_answer_format,
+    }
+
+
+def _write_bundle_images(experiment_id: str, overrides: dict[str, dict]) -> None:
+    for task_key, payload in overrides.items():
+        for image in payload["images"]:
+            idiom_files.write_override(experiment_id, task_key, image["idiom_key"],
+                                       image["ext"], image["data"])
+        if payload["traces"]:
+            target = idiom_files.override_dir(experiment_id, task_key)
+            target.mkdir(parents=True, exist_ok=True)
+            (target / idiom_files.TRACES_FILENAME).write_bytes(payload["traces"])
+
+
+def _clear_bundle_content(experiment_id: str) -> None:
+    """Remove a bundle experiment's images and the idioms recreated for it,
+    leaving its Experiment document untouched — the caller decides what
+    replaces them (nothing, for discard-bundle; a new zip's pieces, for a
+    replace)."""
+    idiom_files.remove_all_overrides(experiment_id)
+    db = dbc.connect_to_database()
+    # Idiom documents that exist only for this experiment (recreated from a
+    # zip): nothing else can reach them, and their image has just gone.
+    db["Idiom"].delete_many({"is_custom": True, "experiment_id": experiment_id})
+
+
+@router.post("/experiments/from-bundle", tags=["admin"])
+async def create_experiment_from_bundle(
+    file: UploadFile,
+    name: str = Form(""),
+    design_type: str = Form("between"),
+    within_sequence_mode: str = Form("fixed"),
+    created_by: str = Form("admin"),
+    experiment_id: str = Form(""),
+):
+    """Build a draft experiment from an idiom bundle zip — a new one, or, given
+    `experiment_id`, replacing an existing bundle experiment's tasks, idioms
+    and images wholesale with a different zip's.
+
+    The wizard's other route picks a dataset and generates images from it; this
+    one takes an experiment that already has its images. The zip decides which
+    tasks it asks and which idioms each task is shown as, so there is no dataset
+    to choose and nothing to generate: the experiment is marked `bundle_only`
+    (see the field's comment in data_schemas.py), and every task is `ready` the
+    moment it is created.
+
+    A version-3 zip also carries each task's answer shape, so such an experiment
+    can go straight to /overview and be published. An older zip has none, and
+    the response says so (`needs_answer_format`) — the answer format has to be
+    chosen before publishing, as for any other experiment.
+
+    Replacing checks nothing in the old zip; it fully trusts the new one, the
+    same as building fresh. The old images and recreated idioms are removed
+    only once the new zip is confirmed to yield at least one task, so a bad
+    replacement zip leaves the experiment exactly as it was.
+    """
+    replacing = None
+    if experiment_id:
+        replacing = _get_experiment(experiment_id)
+        _require_draft(replacing)
+        if not replacing.get("bundle_only"):
+            raise HTTPException(status_code=409, detail=(
+                "This experiment was not built from a bundle — there is nothing to replace. "
+                "Upload a zip on a new draft instead."
+            ))
+
+    try:
+        content = await file.read()
+    finally:
+        await file.close()
+    zf, manifest = _open_bundle(content)
+    by_task, rejected = _bundle_payload(zf)
+
+    new_id = experiment_id or str(uuid.uuid4())
+    pieces = _build_bundle_pieces(manifest, by_task, rejected, new_id)
+    if pieces is None:
         raise HTTPException(status_code=400, detail={
             "message": "No task in the zip could be turned into an experiment.",
             "rejected": rejected,
         })
+    instances, custom_tasks = pieces["instances"], pieces["custom_tasks"]
+    overrides, task_overrides = pieces["overrides"], pieces["task_overrides"]
+    imported, needs_answer_format = pieces["imported"], pieces["needs_answer_format"]
 
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
     source = manifest.get("experiment") or {}
@@ -747,48 +810,63 @@ async def create_experiment_from_bundle(
     for inst in instances:
         inst["images_imported_from"] = origin
 
-    for task_key, payload in overrides.items():
-        for image in payload["images"]:
-            idiom_files.write_override(experiment_id, task_key, image["idiom_key"],
-                                       image["ext"], image["data"])
-        if payload["traces"]:
-            target = idiom_files.override_dir(experiment_id, task_key)
-            target.mkdir(parents=True, exist_ok=True)
-            (target / idiom_files.TRACES_FILENAME).write_bytes(payload["traces"])
+    if replacing:
+        _clear_bundle_content(experiment_id)
+    _write_bundle_images(new_id, overrides)
 
-    experiment = ds.Experiment(
-        _id=experiment_id,
-        name=(name or "").strip() or source.get("name") or "Imported experiment",
-        type="CC",
-        status="draft",
-        design_type=design_type,
-        between_factors=[],
-        within_factors=[],
-        stratification_fields=[],
-        between_balance_mode="random",
-        within_sequence_mode=within_sequence_mode,
-        dataset_ids=[],
-        task_instances=[ds.TaskInstance(**inst) for inst in instances],
-        task_configs=[ds.TaskConfig(**tc) for tc in task_instances_to_configs(instances)],
-        task_overrides=task_overrides,
-        custom_tasks=custom_tasks,
-        bundle_only=True,
-        current_step="overview",
-        created_by=created_by,
-        created_at=now,
-    )
-    doc = experiment.model_dump(by_alias=True)
-    doc["idioms_imported_at"] = now
-    doc["idioms_imported_from"] = {k: v for k, v in origin.items() if k != "imported_at"}
-    dbc.create_document("Experiment", doc)
+    if replacing:
+        fields = {
+            "task_instances": [ds.TaskInstance(**inst).model_dump() for inst in instances],
+            "task_configs": task_instances_to_configs(instances),
+            "task_overrides": task_overrides,
+            "custom_tasks": custom_tasks,
+            "idioms_imported_at": now,
+            "idioms_imported_from": {k: v for k, v in origin.items() if k != "imported_at"},
+        }
+        if (name or "").strip():
+            fields["name"] = name.strip()
+        if design_type:
+            fields["design_type"] = design_type
+        if within_sequence_mode:
+            fields["within_sequence_mode"] = within_sequence_mode
+        dbc.update_document("Experiment", {"_id": experiment_id}, {"$set": fields})
+        message = f"Replaced this experiment's content — {len(instances)} task(s) from the new zip."
+    else:
+        experiment = ds.Experiment(
+            _id=new_id,
+            name=(name or "").strip() or source.get("name") or "Imported experiment",
+            type="CC",
+            status="draft",
+            design_type=design_type,
+            between_factors=[],
+            within_factors=[],
+            stratification_fields=[],
+            between_balance_mode="random",
+            within_sequence_mode=within_sequence_mode,
+            dataset_ids=[],
+            task_instances=[ds.TaskInstance(**inst) for inst in instances],
+            task_configs=[ds.TaskConfig(**tc) for tc in task_instances_to_configs(instances)],
+            task_overrides=task_overrides,
+            custom_tasks=custom_tasks,
+            bundle_only=True,
+            current_step="overview",
+            created_by=created_by,
+            created_at=now,
+        )
+        doc = experiment.model_dump(by_alias=True)
+        doc["idioms_imported_at"] = now
+        doc["idioms_imported_from"] = {k: v for k, v in origin.items() if k != "imported_at"}
+        dbc.create_document("Experiment", doc)
+        message = f"Created an experiment with {len(instances)} task(s) from the zip."
 
-    return JSONResponse(status_code=201, content={
-        "message": f"Created an experiment with {len(instances)} task(s) from the zip.",
-        "experiment_id": experiment_id,
+    return JSONResponse(status_code=200 if replacing else 201, content={
+        "message": message,
+        "experiment_id": new_id,
         "tasks": len(instances),
         "imported": imported,
         "rejected": rejected,
         "needs_answer_format": needs_answer_format,
+        "replaced": bool(replacing),
     })
 
 
@@ -808,11 +886,7 @@ async def discard_bundle(experiment_id: str):
     if not exp.get("bundle_only"):
         raise HTTPException(status_code=409, detail="This experiment was not built from a bundle.")
 
-    idiom_files.remove_all_overrides(experiment_id)
-    db = dbc.connect_to_database()
-    # Idiom documents that exist only for this experiment (recreated from the
-    # zip): nothing else can reach them, and their image has just gone.
-    db["Idiom"].delete_many({"is_custom": True, "experiment_id": experiment_id})
+    _clear_bundle_content(experiment_id)
     dbc.update_document("Experiment", {"_id": experiment_id}, {"$set": {
         "bundle_only": False,
         "dataset_ids": [],

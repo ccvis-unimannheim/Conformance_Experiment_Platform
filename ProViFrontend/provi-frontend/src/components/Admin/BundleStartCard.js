@@ -18,8 +18,16 @@ import { useRef, useState } from "react";
  * can swap the dataset table below for a note while this card is in use — a
  * zip route has no use for a dataset, and showing both at once is exactly the
  * "so what does this mean" the two name fields caused.
+ *
+ * `replaceExperimentId`, given, turns this into replacing that (already
+ * bundle-only) experiment's tasks, idioms and images with a different zip's,
+ * instead of creating a new experiment — the copy, the confirmation and the
+ * request both change accordingly; the wiring (upload, error, partial-result
+ * states) is shared.
  */
-export default function BundleStartCard({ name, designType, randomizeOrder, open, onToggle, onCreated }) {
+export default function BundleStartCard({
+  name, designType, randomizeOrder, open, onToggle, onCreated, replaceExperimentId,
+}) {
   const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -36,6 +44,11 @@ export default function BundleStartCard({ name, designType, randomizeOrder, open
       setError("Choose a .zip file — the one downloaded from this platform, not a single image.");
       return;
     }
+    if (replaceExperimentId && !window.confirm(
+      "Replace this experiment's tasks, idioms and images with this zip's? The ones it has now — " +
+      "including any single image you replaced by hand — are gone once the new zip is confirmed to " +
+      "hold at least one usable task; nothing changes if it doesn't."
+    )) return;
     setBusy(true);
     setError(null);
     setRejected([]);
@@ -46,6 +59,7 @@ export default function BundleStartCard({ name, designType, randomizeOrder, open
       body.append("name", (name || "").trim());
       body.append("design_type", designType || "between");
       body.append("within_sequence_mode", randomizeOrder ? "random" : "fixed");
+      if (replaceExperimentId) body.append("experiment_id", replaceExperimentId);
       const res = await fetch("/api/admin/experiments/from-bundle", { method: "POST", body });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -83,10 +97,14 @@ export default function BundleStartCard({ name, designType, randomizeOrder, open
         <span className="material-symbols-outlined text-primary text-[20px]">folder_zip</span>
         <span className="flex-1">
           <span className="text-body-sm font-medium text-on-surface">
-            Already have the images? Start from a downloaded zip
+            {replaceExperimentId
+              ? "Replace with a different zip"
+              : "Already have the images? Start from a downloaded zip"}
           </span>
           <span className="block text-body-xs text-secondary">
-            Skips choosing a dataset, selecting idioms and generating — the zip already holds them.
+            {replaceExperimentId
+              ? "Swaps out every task, idiom and image this experiment has for a different zip's."
+              : "Skips choosing a dataset, selecting idioms and generating — the zip already holds them."}
           </span>
         </span>
         <span className="material-symbols-outlined text-secondary text-[20px]">
@@ -145,7 +163,9 @@ custom-a1b2c3/my_idiom.png ← tasks you added yourself work the same way`}
               disabled={!file || busy}
               className="px-4 py-2 rounded-lg bg-primary text-on-primary text-body-sm font-medium disabled:opacity-50"
             >
-              {busy ? "Creating…" : "Create experiment from zip"}
+              {busy
+                ? (replaceExperimentId ? "Replacing…" : "Creating…")
+                : (replaceExperimentId ? "Replace with this zip" : "Create experiment from zip")}
             </button>
           </div>
 
@@ -157,8 +177,8 @@ custom-a1b2c3/my_idiom.png ← tasks you added yourself work the same way`}
           {partial && (
             <div className="text-body-xs rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900">
               <p className="font-medium mb-1">
-                The experiment was created with {partial.tasks} task{partial.tasks !== 1 ? "s" : ""}, but
-                part of the zip was not used.
+                {replaceExperimentId ? "Replaced with" : "The experiment was created with"} {partial.tasks}{" "}
+                task{partial.tasks !== 1 ? "s" : ""}, but part of the zip was not used.
               </p>
               <p>
                 Check the list below. If something is missing, delete the experiment on the admin page

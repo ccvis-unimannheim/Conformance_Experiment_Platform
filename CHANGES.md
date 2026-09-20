@@ -2,6 +2,28 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: Replace a Bundle Experiment's Zip Without Starting Over (2026-09-20)
+
+### Problem solved
+
+Stepping back to /new for an experiment built from a zip showed only "this
+experiment needs no dataset" and a *Discard* button — no way to say "wrong zip,
+here's the right one" short of discarding (which also drops the tasks and
+idioms) or deleting the whole draft from the admin page. `POST
+/admin/experiments/from-bundle` also always minted a new `experiment_id`, which
+is why the upload card was hidden whenever a draft was already open: uploading
+there would have silently created an unrelated second experiment.
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `provibackend/.../app/routers/idiom_bundle.py` | `POST /admin/experiments/from-bundle` takes an optional `experiment_id`: given one, it replaces that (already `bundle_only`) draft's tasks, idioms and images with the new zip's instead of creating a new experiment, keeping its name/design unless the form changes them. The new zip is fully parsed and confirmed to yield at least one task before anything of the old one is removed, so a bad replacement leaves the experiment as it was. Shared logic (`_build_bundle_pieces`, `_write_bundle_images`, `_clear_bundle_content`) now also backs `discard-bundle`. |
+| `ProViFrontend/.../components/Admin/BundleStartCard.js` | New `replaceExperimentId` prop switches the copy, adds a confirmation before uploading, and sends the id along. |
+| `ProViFrontend/.../admin/experiments/new/page.js` | The bundle-experiment panel says the uploaded zip is saved and offers *Replace with a different zip* next to *Discard*. |
+
+`py_compile` and `eslint` — no errors.
+
 ## Session: A Bundle Experiment's Bar and "Previous Step" Match What It Has (2026-09-20)
 
 ### Problem solved
