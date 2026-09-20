@@ -600,11 +600,7 @@ This task is similar to ``Present: Present Guideline violations'', but rather th
 | Idiom (Excel label) | Canonical key | Priority |
 |---|---|---|
 | Bar Chart | `bar_chart` | Medium/Reviewed |
-| Stacked Bar Graph | `stacked_bar` | Medium/Reviewed |
-| Scatter Plot (Dotted Chart) | `scatter_plot` | Medium/Reviewed |
-| Box and Whisker Plot | `boxplot` | Medium/Reviewed |
 | Table | `table` | Medium/Reviewed |
-| Table & Bar Chart | `table_bar_chart` | Medium/Reviewed |
 | Matrix | `matrix` | Medium/Reviewed |
 | Heatmap | `heatmap` | Medium/Reviewed |
 | Calendar | `calendar` | Medium/Reviewed |

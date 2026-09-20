@@ -79,6 +79,34 @@ task. A log move of a modelled activity — the common case — could never reac
 Separately, the rows sit in model order, so a trace that runs two activities out
 of order read exactly like one that runs them in order. The chevron shows that
 difference; the table dropped it.
+## Session: task33 Is Four Panel Idioms, and Names Its Attribute on the Axis (2026-09-20)
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| Idioms removed | Box and whisker plot, scatter plot, stacked bar, table & bar chart. Four left: `bar_chart`, `table`, `matrix`, `heatmap`, all four task20's panel renderers handed fitness instead of a violation rate. The first three read a per-trace distribution, which is more than the mean per bucket their neighbours show, and they could only ever do it for the *first* attribute selected — so a two-attribute selection gave four figures about both attributes and three about one. |
+| task33 shrinks | With those three gone, everything they used went too: `_build_trace_df`, `_group_stats`, `_band_rates`, `_fine_bin_rates`, `_group_colors`, `_FITNESS_BANDS`, `_GROUP_PALETTE`, `_FIT_THRESHOLD`, the `split_by_attribute` import and the `_ALL_FNAMES_TITLES` empty-state table. The second half of `generate` cut the log a second way purely to log per-group stats; task20's renderers do their own bucketing and handle the empty case themselves. task33 draws nothing of its own now, and says so. |
+| Matrix | `colorless=True`: white cells ruled into a grid, the value carried by the number, as in tasks 01, 03 and 27-34. The panels alternate between a flat yellow and a flat blue wash which, by the renderer's own docstring, "carries no data" — it tells the panels apart, which their labels already do. A reader cannot know a colour means nothing without being told, and the heatmap beside it uses colour for the value. The wash stays the default for the other four tasks. |
+| Attribute name | It is a subplot title: centred over the bar chart, centred over the matrix and heatmap, left-aligned above the table, and inside the table a generic "Attribute Value" header. Four placements for one thing, and over the grids it reads as a floating caption. `attribute_on_axis=True` puts it on the axis its own buckets sit on instead — x on the bar chart, y on the matrix and heatmap, and the header of the table column holding its values. |
+| Vocabulary | task33 passes `value_label_header` explicitly, so the measure is "Mean Fitness" everywhere. task20 title-cases `value_label` into the header when none is given, which put "Mean fitness" on the bar chart's axis and "Mean Fitness" on the matrix beside it. |
+| Title | `_SPLIT_SUPTITLE` is "Mean Fitness by Attribute". "Process Conformance by Candidate Attribute" was task20's vocabulary, where the attributes are candidate root causes; in task33 the admin has chosen the attribute. |
+
+**Scoped to task33.** Both live in task20's shared renderers, which task15,
+task16, task20 and task22 also call, and those four have tuned screenshots in
+the running experiment (CONFORMANCE_ATTRIBUTE_CLASS.md). So each is an opt-in
+keyword — `colorless` on the matrix, `attribute_on_axis` on all five — and only
+task33 sets them. Two styles in one renderer is the price; when those tasks come
+up for review, the switches are what to delete.
+
+### Verification
+
+`pyflakes` against HEAD on both files: task33 clean, task20 unchanged from its
+four pre-existing warnings. Both modes rendered from two synthetic panels — the
+case where the matrix draws both of its alternating washes. Every colour in
+task33's matrix SVG: `#ffffff` cells, `#cccccc` grid, `#243c6e` text. task20's,
+with the same data and no keywords: `#e5cf52` and `#243c6e` washes, as before.
+
 ## Session: The Variant Rule Says That It Only Picks Violators (2026-09-20)
 
 ### Changes
