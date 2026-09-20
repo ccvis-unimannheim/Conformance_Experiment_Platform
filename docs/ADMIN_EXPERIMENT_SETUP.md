@@ -219,12 +219,15 @@ platform and put back in (`app/routers/idiom_bundle.py`, paths in
   `uploaded`, `custom`, `legacy`). `git_commit` is filled from the backend's
   `GIT_COMMIT` environment variable, which the deploy does not set yet.
 - **Import** (`POST …/idioms/import?mode=specify|overview`) — puts such a zip
-  into this experiment or any other with the same tasks and idioms. The Overview
-  page is the one place that offers it (in `overview` mode, asking first and
-  saying what it changes); `specify` mode is still implemented, but the Specify
-  page no longer imports — a zip with its own tasks and settings builds a new
-  experiment on /new instead. Files are
-  matched by `task_key` and `idiom_key`, never by experiment id. The manifest is
+  into this experiment or any other with the same tasks and idioms, matched by
+  `task_key` and `idiom_key`, never by experiment id. No page calls it any more
+  — the Overview page's *Import* button that offered `overview` mode is gone,
+  and the Specify page never called it (`specify` mode is only reachable
+  directly against the API now). A zip with its own tasks, idioms and settings
+  builds a whole new experiment on /new instead; swapping one experiment's
+  images for another's is a single-image *Replace* on Overview, or *Replace
+  with a different zip* on /new for a bundle experiment. The endpoint and its
+  checks stay, since nothing about them changed. The manifest is
   required, because every task is checked against it before any of its files is
   taken:
   - **Dataset** (both modes): a task exported from a different dataset is
