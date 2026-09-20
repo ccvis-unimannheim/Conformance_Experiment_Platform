@@ -127,6 +127,83 @@ task. A log move of a modelled activity — the common case — could never reac
 Separately, the rows sit in model order, so a trace that runs two activities out
 of order read exactly like one that runs them in order. The chevron shows that
 difference; the table dropped it.
+## Session: task29's Idioms Agree on Vocabulary, Palette and Numbers (2026-09-20)
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| Vocabulary | `TASK29_TYPE_LABELS` mapped the move types onto "Model Move (Missing in Log)" and "Log Move (Unexpected in Log)". task04, task34 and every move table say "Model Move" and "Log Move"; a reader comparing two idioms of one task should not have to decide whether "Unexpected in Log" is a third kind of move. |
+| Palette | `_VTYPE_COLOR` is `PAIR_COLORS` — cividis navy and cividis bright yellow, as task31 and task32 use them. It was `GREY_MED` over `GREY_DARK`: two neighbours in cividis's dark half, which read as one emphasis level rather than two categories, and left the bright secondary unused. The bar chart and pie chart read the same map instead of repeating the colour rule inline. |
+| Heatmap | Was the last greyscale figure in the task (`cmap="Greys"`) and printed the count in every cell, encoding one variable twice and leaving the matrix with nothing of its own. It goes through `draw_value_heatmap` now: cividis, `annotate=False`, colorbar. Matrix = annotated grid, Heatmap = continuous colour, as shared.py has it. |
+| Table | The Percentage column and the Total row are gone. No other idiom of this task carries either, and a table that adds a derived measure is not the same information in another encoding — which is what this task varies. |
+| Pie chart | The wedges carry the count now, not the share. The share is still there as the angle, which is the pie's encoding; without the count it was the one idiom here a reader could take no absolute figure from. |
+| Sunburst | Each ring label carries its count. It had neither a number nor a share, so rank was all it showed. |
+
+### Verification
+
+Eight SVGs render. Labels come out "Model Move" / "Log Move"; `_VTYPE_COLOR` is
+`{'Model Move': '#243c6e', 'Log Move': '#e5cf52'}`. Decoding the embedded
+rasters: the heatmap's cells are cividis (navy to yellow) where they were greys,
+and the matrix's single raster colour is pure white — it has been colourless
+since the tasks 27-31 round.
+
+### Open point: four idioms ignore the admin's parameters
+
+Generating twice on BPIC12-A, once per `grouping_strategy`, and comparing the
+normalised SVGs:
+
+| reacts to the strategy | ignores it, byte-identical |
+|---|---|
+| bar_chart, heatmap, pie_chart, table | matrix, stacked_bar, parallel_sets, sunburst |
+
+The first four read `task29_violation_summary_dataframe`, which honours
+`grouping_strategy` and `selection`. The other four take `alignments` straight
+and build activity × move type through `_task29_activity_type_pivot`, capped at
+the top 15 activities. So under the default strategy four idioms show two rows
+and four show fifteen activities × two types: not the same information in
+another encoding, and half the task does not answer the parameter at all. Left
+as it is pending a decision on which of the two the task is about.
+
+## Session: The Choices That Were Made For You Now Carry an Asterisk (2026-09-20)
+
+### Problem solved
+
+task32's "How violations are grouped" silently defaulted to "By move type", with
+no asterisk to say a choice was in force. Auditing every declared parameter for
+the same shape — a fixed-option select, a non-empty default, `required: False`,
+and no statement anywhere of what empty means — found exactly five, reaching
+eleven tasks between them.
+
+### Changes
+
+| Parameter | Declared by | Default that was applied in silence |
+|---|---|---|
+| `grouping_strategy` | task05, task29, task32, task36 | By move type (Model Move / Log Move) |
+| `trace_selection_mode` | task04, task09, task14, task24, task27, task28, task34 | Automatically, by a rule |
+| `trace_pick_rule` | task04, task09, task14, task28, task34 | the task's own historical rule |
+| `perspective` | task09, task28 | Control flow |
+| `analysis_level` | task04 | Trace level |
+
+All five are `required: True` now, so /specify marks them and both the page and
+`admin.py` refuse to generate on an empty one. `trace_pick_rule` keeps its
+`visible_if`, and both checks skip a hidden entry, so naming the traces by hand
+never blocks on a rule that is not on screen.
+
+Nothing else changed. The parameters that stay optional are the ones whose empty
+value has a meaning their own label states — `split_strategy` ("empty = ranges
+for numbers and dates, one group per value otherwise"), `violation_pattern`
+("empty = any deviation"), the attribute pickers ("empty = every attribute of
+this log that can be grouped") — and the numeric fields, which cannot be empty
+in a meaningful way.
+
+### Verification
+
+Re-running the audit: no fixed-option select with a silent default is left
+without an asterisk. Every task declaring one of the five imports and reports
+`required: True` — 4, 7, 5, 2 and 1 tasks respectively, plus the nine carrying
+`attribute_class` from the session before.
+
 ## Session: Three Parameters That Changed Nothing (2026-09-20)
 
 ### Problem solved

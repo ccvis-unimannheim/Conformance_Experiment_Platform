@@ -78,7 +78,12 @@ GROUPING_STRATEGY_PARAM = {
         {"value": "pattern",   "label": "Not grouped — one unit per 'Move on Activity'"},
     ],
     "default": "move_type",
-    "required": False,
+    # A fixed-option select whose default silently decides what is drawn.
+    # Required so /specify marks it and refuses an empty one: the choice is
+    # always in force, and without the asterisk an admin cannot tell it was
+    # made for them. Contrast the parameters that stay optional, where an
+    # empty value has a stated meaning their own label gives.
+    "required": True,
 }
 
 #: One per strategy, and only the one matching `grouping_strategy` applies.
