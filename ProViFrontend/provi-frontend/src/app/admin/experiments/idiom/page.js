@@ -481,9 +481,15 @@ function IdiomSelectionContent() {
     }
 
     // Custom idioms are fixed uploaded images — there is nothing to generate
-    // from a dataset, so an experiment made only of them skips Specify.
+    // from a dataset, so an experiment made only of them skips Specify. A
+    // bundle experiment skips it unconditionally: its idioms are as likely to
+    // reuse a built-in idiom_key (not custom) as an unfamiliar one, so "every
+    // idiom is custom" is the wrong test there — it has no dataset to generate
+    // from at all, whatever its idioms are called. Getting this wrong sent a
+    // bundle experiment on to /specify, which immediately bounces back here
+    // (see specify/page.js), an infinite loop between the two pages.
     const byId = new Map(allIdioms.map((i) => [getId(i), i]));
-    const onlyCustom = selectedTasks.every((t) =>
+    const onlyCustom = bundleOnly || selectedTasks.every((t) =>
       (taskIdiomMap[getId(t)] || []).every((iid) => byId.get(iid)?.is_custom)
     );
 
@@ -494,7 +500,9 @@ function IdiomSelectionContent() {
         return;
       }
       if (onlyCustom) {
-        showToast("Every selected idiom is an uploaded image — no visualizations to generate.");
+        if (!bundleOnly) {
+          showToast("Every selected idiom is an uploaded image — no visualizations to generate.");
+        }
         router.push(`/admin/experiments/answer-format?experiment_id=${encodeURIComponent(experimentId)}`);
         return;
       }
