@@ -17,10 +17,10 @@ of them names the violation type:
     heatmap, matrix            – the same counts as "Activity (Move Type)"
                                  × traces, the heatmap as colour, the
                                  matrix as numbers
-    table                      – the traces' alignments, one row per step
+    table                      – the same counts again, as text
     flow_chart_basic           – chevron strip per trace
     flow_chart_elaborate       – BPMN coloured by the traces' violations
-      (with more than one trace chosen, these last three are drawn side by side
+      (with more than one trace chosen, these last two are drawn side by side
        by task04's renderers)
 """
 
@@ -72,6 +72,7 @@ from matplotlib.colors import to_hex, Normalize
 from shared import (
     save_svg,
     make_table,
+    auto_col_widths,
     CIVIDIS,
     CIVIDIS_R,
     GREY_MED, GREY_LIGHTER, GREY_DARK,
@@ -425,37 +426,45 @@ def task34_bar_chart(ctxs, output_dir):
 
 # ── Idiom 3: table — alignment table for worst-fitness trace ──────────────────
 
-def task34_table(ctx, output_dir):
-    """Two-column table: Activity | Type — one row per alignment step, in trace order.
+def task34_table(ctxs, output_dir):
+    """The payload as text: "Activity (Move Type)" down, traces across.
 
-    Lists each step's activity together with its move type (Model Move / Log
-    Move / Synchronous Move) instead of a single aggregate violation count,
-    so the reader can see what actually happened at each step.
+    It used to list one row per alignment step, and for more than one trace
+    task04's move-type table took over. Both said things the bar chart, heatmap
+    and matrix beside them could not. They named Synchronous Moves, which are
+    conformant steps and which the other three do not count at all; and
+    task04's table carried one move type per activity and trace, built from a
+    map of activity to colour, so an activity both skipped and inserted in the
+    same trace lost one of the two. The bar chart drew both bars, the table one
+    cell.
+
+    A count per cell instead of a move type per cell is what removes the
+    collapse: the pair is the row, so there is nothing left to overwrite.
     """
-    rows = ctx["rows"]
-    if not rows:
+    keys, labels, counts = _build_canonical_payload(ctxs)
+    if not keys or not counts.any():
         _no_violations(output_dir, "table")
         return
 
-    cell_text = []
-    for r in rows:
-        mt = r["moveType"]
-        act = r["model_move"] if mt == "Model Move" else r["log_move"]
-        cell_text.append([act, _MOVE_DISPLAY.get(mt, mt)])
+    cell_text = [[_category(k)] + [f"{int(v)}" for v in counts[i]]
+                 for i, k in enumerate(keys)]
+    col_labels = ["Activity (Move Type)"] + labels
 
-    fig_h = max(3.5, 1.2 + len(cell_text) * 0.42)
-    fig, ax = plt.subplots(figsize=(9, fig_h))
+    fig_h = max(3.0, 1.2 + len(cell_text) * 0.46)
+    fig_w = max(7.0, 4.2 + 1.6 * len(labels))
+    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
     ax.axis("off")
     make_table(
         ax,
         cell_text=cell_text,
-        col_labels=["Activity", "Type"],
-        bbox=[0.05, 0.05, 0.90, 0.82],
-        col_widths=[0.60, 0.40],
-        font_size=11,
+        col_labels=col_labels,
+        bbox=[0.03, 0.05, 0.94, 0.88],
+        col_widths=auto_col_widths(col_labels, cell_text),
+        font_size=10.5,
         scale_xy=(1, 1.7),
+        zebra=True,
     )
-    ax.set_title("Activity Violations", fontsize=FONT_TITLE, pad=12)
+    ax.set_title(_VIOLATION_TITLE, fontsize=FONT_TITLE, pad=12)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task34_table.svg"))
 
@@ -700,7 +709,7 @@ def _select_ctxs(ctxs, log, alignments, *, trace_ids=None, rule="worst_fitness",
 
 
 def _multi_trace_alignment_figures(log, alignments, shown, model_path, output_dir):
-    """Chevron, BPMN and move table for more than one trace.
+    """Chevron and BPMN for more than one trace.
 
     Drawn by task04's renderers rather than by stacked copies of task34's
     single-trace ones: comparing traces is task04's figure, and two tasks
@@ -717,10 +726,6 @@ def _multi_trace_alignment_figures(log, alignments, shown, model_path, output_di
     task04.task04_flow_chart_elaborate(
         records, model_path, output_dir,
         filename="task34_flow_chart_elaborate.svg")
-    task04.task04_table(
-        records, model_path, output_dir,
-        filename="task34_table.svg",
-        title="Violations by Activity Across Traces")
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -732,9 +737,9 @@ def generate(log, alignments, output_dir, model_path=None, violated_activity=Non
 
     The task presents "one trace or few traces simultaneously". With one trace —
     the default — every idiom draws that trace, as it always has. With more, the
-    three trace-alignment idioms (chevron, BPMN, move table) draw all of them
-    side by side through task04's renderers, and the per-activity summaries
-    (bar chart, heatmap, matrix) give each trace its own bar or column. Every
+    two trace-alignment idioms (chevron, BPMN) draw all of them side by side
+    through task04's renderers, and the per-activity summaries (bar chart,
+    table, heatmap, matrix) give each trace its own bar or column. Every
     idiom therefore speaks about the same traces, and names the same move
     types.
 
@@ -783,10 +788,10 @@ def generate(log, alignments, output_dir, model_path=None, violated_activity=Non
 
     drawn = shown or [worst]
     task34_bar_chart(drawn,                         output_dir)
+    task34_table(drawn,                             output_dir)
     if len(shown) > 1:
         _multi_trace_alignment_figures(log, alignments, shown, model_path, output_dir)
     else:
-        task34_table(worst,                         output_dir)
         task34_flow_chart_basic(worst,              output_dir)
         task34_flow_chart_elaborate(worst,          model_path, output_dir)
     task34_heatmap(drawn,                           output_dir)

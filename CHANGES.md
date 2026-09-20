@@ -19,14 +19,16 @@ the task's idioms answered a question the other half could not.
 | Stacked bar removed | Its bars split on the move type, which is now the category itself, so every bar would have held a single segment. Six idioms left. |
 | Trace numbering | `_build_canonical_payload` labelled traces from `ctx["trace_label"]`, which counts positions in the whole log. The move table numbers the shown traces 1..N through `trace_alignment.trace_records`, so matrix, bar chart and heatmap named ids nothing else mentioned. All of them use the running number now, and `traces.json` with them — the sidecar must not desync from the figures. |
 | Vocabulary | `_MOVE_DISPLAY` is the one spelling: "Synchronous Move", "Model Move", "Log Move". The stacked bar's legend and a dead `_move_legend()` carried their own "(skipped)" / "(extra)" / "(conform)" glosses, which read as if "extra" were a third kind of move. |
+| Table | Its own now, not task04's, and built from the same payload as the other three: `Activity (Move Type)` down, traces across, a count per cell. Both tables it replaces said things their neighbours could not. They listed Synchronous Moves — conformant steps the aggregates do not count — and task04's `_task04_move_map` is activity × colour, one move type per cell, so an activity both skipped and inserted in the same trace lost one of the two: the bar chart drew two bars where the table showed one cell. A count per cell removes the collapse, because the pair is the row. task04's own table is untouched. |
 | Grid width | `_grid_size` sizes the heatmap and the matrix from the longest row label instead of a fixed margin, which cropped the now longer category names. |
 | Idiom mapping | task34's table in TASK_IDIOM_MAPPING.md still listed flow chart & table, flow chart+ & table, table & bar chart and parallel sets, deleted the session before. |
 
 ### Verification
 
 `py_compile` and `pyflakes` against HEAD — the only two warnings are the
-pre-existing unused imports. Bar chart, heatmap, matrix and table rendered from
-two synthetic contexts: three categories, traces labelled "Trace 1" / "Trace 2".
+pre-existing unused imports. Bar chart, table, heatmap and matrix rendered from
+two synthetic contexts, one of which holds two moves on one activity: three
+categories, traces labelled "Trace 1" / "Trace 2".
 
 ## Session: task34's Idioms All Speak About the Chosen Traces (2026-09-20)
 
