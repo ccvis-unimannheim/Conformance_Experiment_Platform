@@ -1313,6 +1313,9 @@ def render_conformance_line_graph(df, out_path, *,
     (opt-in so callers that prefer an uncluttered trend line are unaffected).
     line_color / mean_color: the trend line with its fill, and the overall-mean
     line. The defaults are the grey ones task10 was drawn with.
+
+    The y-axis is a fixed 0-100% range, not zoomed to this series' own min/max —
+    see render_conformance_horizon_chart, which matches it.
     """
     import matplotlib.ticker as _mticker
 
@@ -1343,7 +1346,7 @@ def render_conformance_line_graph(df, out_path, *,
 
     overall_mean = df["fitness"].mean()
     ax.axhline(overall_mean, color=mean_color, linewidth=1.2,
-               linestyle="--", label=f"Overall mean: {overall_mean:.2f}")
+               linestyle="--", label=f"Overall mean: {overall_mean:.1%}")
 
     g = apply_time_axis(ax, time_granularity)
     ax.set_ylim(-0.05, 1.1)
@@ -1372,6 +1375,12 @@ def render_conformance_horizon_chart(df, out_path, *,
     value_labels: when True, annotate each time bin with its mean-fitness
     percentage (same opt-in semantics as render_conformance_line_graph), so the
     horizon chart lets participants read off exact values like the line graph.
+
+    The y-axis is the same fixed 0-100% range render_conformance_line_graph
+    uses, not zoomed to this series' own min/max: the same swing has to look
+    the same size on both idioms of this task, or which one a participant sees
+    changes how large they judge "how conformance changes over time" to be for
+    identical data.
     """
     import matplotlib.ticker as _mticker
 
@@ -1410,12 +1419,11 @@ def render_conformance_horizon_chart(df, out_path, *,
                         xytext=(0, 7 if above else -7),
                         ha="center", va="bottom" if above else "top",
                         fontsize=FONT_ANNOT - 1, color=GREY_DARK)
-    ax.annotate(f"Mean: {mean_val:.0%}", xy=(1.01, mean_val),
+    ax.annotate(f"Mean: {mean_val:.1%}", xy=(1.01, mean_val),
                 xycoords=("axes fraction", "data"),
                 fontsize=FONT_ANNOT, color="#555555", va="center")
 
-    y_pad = max((y.max() - y.min()) * (0.28 if value_labels else 0.15), 0.02)
-    ax.set_ylim(max(0.0, y.min() - y_pad), min(1.0, y.max() + y_pad))
+    ax.set_ylim(-0.05, 1.1)
     ax.yaxis.set_major_formatter(_mticker.PercentFormatter(xmax=1.0))
 
     g = apply_time_axis(ax, time_granularity)
