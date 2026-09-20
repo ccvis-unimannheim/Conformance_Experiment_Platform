@@ -234,14 +234,6 @@ function OptionsEditor({ datasetId, format, options, onChange, showToast }) {
             given once one row is filled, so a participant may leave a row blank rather
             than guess.
           </p>
-          <p>
-            Rows are written by hand on purpose: the labels are the participant&apos;s only
-            statement of the question, and every source that could fill them names its
-            candidates with the very counts this format asks for
-            (&quot;Ship Order · Model Move (412 traces, 31%)&quot;), which would print the
-            answer on the question. For the same reason, keep the labels final before
-            publishing — each one is the key its numbers are recorded under.
-          </p>
         </div>
       )}
 
