@@ -1338,15 +1338,25 @@ def render_conformance_line_graph(df, out_path, *,
     ax.plot(x, y, color=line_color, linewidth=1.8, marker="o", markersize=4)
 
     if value_labels:
-        for xi, yi in zip(x, y):
+        # Alternate the label above/below its marker by position, not by value:
+        # two adjacent points close in time and in fitness (the common case at
+        # day granularity) would otherwise stack their labels on top of each
+        # other. This gives every pair of neighbours opposite offsets.
+        for i, (xi, yi) in enumerate(zip(x, y)):
+            above = i % 2 == 0
             ax.annotate(f"{yi * 100:.1f}%", (xi, yi),
-                        textcoords="offset points", xytext=(0, 7),
-                        ha="center", va="bottom", fontsize=FONT_ANNOT - 1,
-                        color=GREY_DARK)
+                        textcoords="offset points", xytext=(0, 7 if above else -9),
+                        ha="center", va="bottom" if above else "top",
+                        fontsize=FONT_ANNOT - 1, color=GREY_DARK)
 
     overall_mean = df["fitness"].mean()
-    ax.axhline(overall_mean, color=mean_color, linewidth=1.2,
-               linestyle="--", label=f"Overall mean: {overall_mean:.1%}")
+    ax.axhline(overall_mean, color=mean_color, linewidth=1.2, linestyle="--")
+    # Off to the side rather than in the plot area (legend's "best" corner
+    # placement could as easily land the label mid-line, over the fill or a
+    # value label), matching render_conformance_horizon_chart's mean label.
+    ax.annotate(f"Overall mean: {overall_mean:.1%}", xy=(1.01, overall_mean),
+                xycoords=("axes fraction", "data"),
+                fontsize=FONT_ANNOT, color=mean_color, va="center")
 
     g = apply_time_axis(ax, time_granularity)
     ax.set_ylim(-0.05, 1.1)
@@ -1358,7 +1368,6 @@ def render_conformance_line_graph(df, out_path, *,
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.4)
     ax.set_axisbelow(True)
-    ax.legend(frameon=False, fontsize=FONT_ANNOT)
 
     fig.tight_layout()
     save_svg(fig, out_path)

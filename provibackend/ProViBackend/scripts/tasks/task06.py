@@ -3,7 +3,7 @@ tasks/task06.py – Task ID 6: Describe / Derive / Process conformance
 (overall degree of conformance between the given event log and the guideline).
 
 The task asks a single question — the overall degree of conformance, i.e. the
-mean fitness expressed as a percentage. All five idioms encode exactly the same
+mean fitness expressed as a percentage. All four idioms encode exactly the same
 scalar: Fitness (%, 1 d.p.). No idiom exposes additional distribution statistics
 (min, max, std, trace count) so that the only experimental variable between
 conditions is visual encoding, not information quantity.
@@ -12,8 +12,10 @@ Idiom mapping (all share the same data payload: one scalar, %, 1 d.p.):
     tile_metric – headline numeric value in a bordered tile
     bar_chart   – single bar on a 0–1 scale, value labelled
     table       – two-column table: Metric | Value (one row only)
-    matrix      – single white cell, ruled into a grid, fitness as text (colourless)
     gauge_chart – single bounded value as a filled half-circle arc (0–100%)
+
+matrix was removed: a single colourless cell carrying one number said nothing
+a table row did not already say, just in a grid instead of two columns.
 
 boxplot was removed: a trace-level distribution exposes median, IQR, and outliers
 that are absent from the other conditions, violating information equivalence.
@@ -30,7 +32,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["tile_metric", "bar_chart", "table", "matrix", "gauge_chart"]
+IDIOMS = ["tile_metric", "bar_chart", "table", "gauge_chart"]
 
 
 PARAM_SPEC = []
@@ -38,13 +40,11 @@ PARAM_SPEC = []
 
 import os
 import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap
 from matplotlib.patches import FancyBboxPatch, Wedge
 
 from shared import (
     save_svg, make_table, render_fitness_tile_metric, render_empty_state_svg,
     alignment_pairs_to_rows, parse_bpmn_model, render_bpmn_annotated, contrasting_text_color,
-    draw_cell_grid,
     GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
@@ -76,31 +76,6 @@ def task06_bar_chart(df, output_dir: str):
     ax.set_axisbelow(True)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task06_bar_chart.svg"))
-
-
-def task06_matrix(df, output_dir: str):
-    """Single-cell matrix of the overall mean fitness.
-
-    Colourless, as tasks 01, 03, 04 and 27-32 now draw theirs: a white cell
-    ruled into a grid, the fitness carried by the printed number alone, no
-    colorbar. With a colour scale this was a heatmap that also printed its
-    number — one variable encoded twice. Drawn as a tidy square cell
-    (aspect='equal') so it reads as one metric tile, not a stretched block.
-    """
-    fitness = float(df["fitness"].mean()) if len(df) else 0.0
-
-    fig, ax = plt.subplots(figsize=(4.0, 4.0))
-    # Still an image, so the axes keep the geometry draw_cell_grid rules against
-    # — same construction as shared.draw_value_heatmap(colorless=True).
-    ax.imshow([[0.0]], cmap=ListedColormap(["white"]), vmin=0, vmax=1, aspect="equal")
-    draw_cell_grid(ax, 1, 1)
-    ax.text(0, 0, f"{fitness:.3f}", ha="center", va="center",
-            fontsize=28, fontweight="bold", color=GREY_DARK)
-    ax.set_xticks([])
-    ax.set_yticks([])
-    ax.set_title("Overall Mean Fitness", fontsize=FONT_TITLE)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task06_matrix.svg"))
 
 
 def task06_table(df, output_dir: str):
@@ -266,14 +241,13 @@ def task06_tree(log, alignments, output_dir: str):
 def generate(df, output_dir: str, log=None, alignments=None, model_path=None):
     """Generate all Task ID 6 SVGs into output_dir.
 
-    All five idioms derive from the same scalar (overall mean fitness, 0–1, 3 d.p.).
+    All four idioms derive from the same scalar (overall mean fitness, 0–1, 3 d.p.).
     log/alignments/model_path are accepted for signature compatibility but unused
-    by the five core idioms."""
+    by the four core idioms."""
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 6 visualizations ---")
 
     task06_tile_metric(df, output_dir)
     task06_bar_chart(df, output_dir)
     task06_table(df, output_dir)
-    task06_matrix(df, output_dir)
     task06_gauge_chart(df, output_dir)

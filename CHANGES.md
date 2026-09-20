@@ -2,6 +2,83 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: task07's Line Graph Moves Its Mean Label, Unstacks Its Value Labels (2026-09-20)
+
+Two style fixes to `render_conformance_line_graph` (`scripts/shared.py`), to
+match `render_conformance_horizon_chart`:
+
+| Area | Change |
+|------|--------|
+| Mean label | Was a legend entry (`ax.legend()`), whose "best"-corner placement had put it centred over the plot, on top of the fill and near value labels. Now an `ax.annotate` at the right edge (`xy=(1.01, mean), xycoords=("axes fraction", "data")`), the same construction the horizon chart's "Mean: 95.3%" label already uses — same position, same style. |
+| Value labels | All offset the same fixed `(0, 7)` points above their marker, so two points close in time and fitness (the common case at day granularity) stacked their percentages on top of each other, e.g. "94.0%94.5%". They now alternate above/below by position (even index above, odd below), giving every pair of neighbours opposite offsets. |
+
+`ax.legend()` is no longer called — nothing else needed a legend on this axis.
+
+`py_compile`; not regenerated.
+
+## Session: task06 Drops matrix (2026-09-20)
+
+A single colourless cell carrying one number (the just-decolourised task06
+matrix) said nothing task06's own table row did not already say — the same
+scalar, "Fitness: 0.979", just laid out as a 1×1 grid instead of two columns.
+Removed: `IDIOMS`, `task06_matrix`, its call in `generate()`, and the imports
+(`ListedColormap`, `draw_cell_grid`) nothing else in the module used. task06
+is down to four idioms: `tile_metric`, `bar_chart`, `table`, `gauge_chart`.
+`docs/TASK_IDIOM_MAPPING.md` never listed a Matrix row for task06, so it is
+unchanged.
+
+`py_compile` only; not regenerated.
+
+## Session: task04 Drops bar_chart and matrix (2026-09-20)
+
+### Problem solved
+
+task04's trace-level idioms split into two families: `bar_chart`/`matrix`
+stated only each trace's fitness (3 numbers); `table`/`flow_chart_basic`/
+`flow_chart_elaborate` stated the same fitness *and* the full activity-by-
+activity alignment behind it. A participant given one of the first two could
+answer only the numeric half of the question; one given any of the other
+three could see every deviation as well. That is not a difference in
+encoding — the kind every other idiom in this task is allowed to have — but
+in how much material a participant had to work with, the same imbalance the
+review keeps removing elsewhere (task01's box plot, task06's colour scale,
+this task's own former heatmap and table_bar_chart).
+
+### Changes
+
+`scripts/tasks/task04.py`:
+- `IDIOMS`: `["flow_chart_basic", "flow_chart_elaborate", "table"]` —
+  `bar_chart` and `matrix` are gone.
+- `task04_bar_chart` and `task04_matrix` deleted, along with the two calls to
+  them in `generate()`.
+- Orphaned imports removed: `draw_value_heatmap`, `categorical_colors`,
+  `numpy` (nothing else in the module used any of them), and the `TITLE`
+  constant they alone referenced.
+- Module docstring rewritten: no more two-family split. The three remaining
+  idioms are not perfectly equivalent to each other either (the chevron
+  carries alignment order, the BPMN carries model structure without it, the
+  table carries order as a step number), but all three carry the same two
+  things — the fitness number and the full alignment — which is the property
+  that matters here.
+- `generate()`'s comment now says plainly that every remaining idiom needs
+  `alignments`; the `tdf` fallback (built without alignments) now only feeds
+  the `traces.json` sidecar and the log line, since nothing else consumes it.
+
+Checked that this cannot silently produce a blank task04: every path that
+used to leave `selected` empty (an empty log, or `trace_ids` matching no
+case in this log) already hits the earlier `if tdf.empty: return` guard,
+because the same `trace_ids`/log-emptiness that empties `selected` also
+empties `tdf`'s own fallback construction. `trace_alignment.pick_indices`
+itself never returns an empty pool for a non-empty log — the "no trace
+violates" case falls back to showing conformant traces rather than
+returning nothing.
+
+`docs/TASK_IDIOM_MAPPING.md`: the `Bar Chart` and `Matrix` rows under task04.
+
+### Verification
+
+`py_compile`. Not regenerated.
+
 ## Session: task07's Two Idioms Now Agree on How Big a Swing Looks (2026-09-20)
 
 ### Problem solved
