@@ -41,17 +41,58 @@ comparison are the same kind of object, which is what lets one renderer draw
 them both. The directly-follows graph stays inside pm4py — a step towards the
 model, not something this platform draws.
 
-Three idioms. Each shows the desired model as BPMN and the discovered model in
+Two idioms. Each shows the desired model as BPMN and the discovered model in
 that idiom's own encoding:
 
 - `flow_chart_elaborate` — the discovered model as a second BPMN panel.
-- `flow_chart_basic` — the discovered model as a chevron strip.
-- `table` — the discovered model as its list of steps.
+- `table` — the discovered model's activities with, per row, how each one
+  occurs: always, optional, any order with X, either this or Y, repeatable.
+
+**The chevron was added and then removed.** A model discovered from several
+variants branches — the sample's process tree carries seven XOR nodes and one
+AND — and a chevron strip says "these steps, in this order, all of them".
+Flattened into one it did not simplify the model, it misstated it, and a
+participant holding it against the guideline would have found differences that
+were artefacts of the flattening. For the table this is a question of wording,
+which a column can answer; for the chevron it is a question of encoding, which
+a cell cannot.
+
+**The table reads the miner's process tree, not a flattened sequence.**
+`_discover_model` now returns the tree alongside the parsed BPMN — the BPMN is
+converted from that same tree, so the two idioms describe one discovery rather
+than two runs of the miner that could disagree. `_block_rows` walks the tree
+and gives each activity at most two conditions: the innermost operator that
+says something about it, and the letter of an enclosing block that holds more
+than one activity, so rows that are optional *together* can be seen to be.
+
+"Optional" does not win over a condition that says something else. Almost every
+activity in a mined model sits inside some `X(tau, ...)` wrapper, so taking the
+innermost condition reported "Optional" for an activity whose real news is that
+it runs in any order with another. Listing every enclosing operator instead was
+worse: the tree nests six deep on the sample and a row read "optional,
+optional, any order, optional".
+
+Sample output:
+
+```
+ 1  Receive Order      Always
+ 2  Check Credit       Optional
+ 3  Confirm Order      Optional (block A)
+ 4  Issue Invoice      Optional · any order with Prepare Shipment (block A)
+ 5  Prepare Shipment   Optional · any order with Issue Invoice (block A)
+ 6  Ship Order         Optional (block A)
+ 7  Cancel Order       Either this or Receive Payment (block E)
+```
+
+The inductive miner emits sequence, XOR, AND and loop; pm4py has an inclusive
+OR operator but the miner does not produce it, so no `inclusiveGateway` appears
+in these models. `_condition` handles OR anyway, because nothing in the
+platform guarantees the miner stays the same.
 
 The desired side is always the BPMN, because it is the only notation here that
-shows concurrency: a guideline redrawn as a chevron strip or a list of steps
-would claim an order its gateways do not prescribe. What the experiment varies
-is how the *discovered* model is presented.
+shows concurrency: a guideline redrawn as a flat list of steps would claim an
+order its gateways do not prescribe. What the experiment varies is how the
+*discovered* model is presented.
 
 **Nothing marks the differences.** The first version painted three categories
 onto both models — in both, only in the desired one, only in the discovered
@@ -69,37 +110,70 @@ frequency, so a filter that drops infrequent paths has nothing left to drop.
 Two parameters over one decision would only let an admin set them against each
 other.
 
-**The discovered model is re-laid-out.** pm4py's auto-layout spread it over
-5806 × 1985 units against the guideline's 1385 × 256 — four times as wide,
-ten times as tall, with long detours between neighbouring nodes. `_relayout`
-replaces the geometry: nodes keep their size and go into columns by
-longest-path depth, each column centred vertically; edges become short
-orthogonal runs, and a backward edge drops below the diagram and returns.
-Result on the sample: 2573 × 154. The width that remains is the discovered
-model's own shape — nineteen sequential layers against the guideline's ten
-with parallel branches — not wasted space, and that difference is itself part
-of the answer.
+**Both sides are captioned in one lettering.** "Desired model (guideline)" and
+"Discovered model" are drawn in the same typeface, size and colour in both
+idioms; the table's caption used to be a column header. `compose_bpmn_panels`
+gained an opt-in `table_subtitle` for it.
+
+The caption no longer names what the model was discovered from ("from 625
+trace(s) of the 8 most frequent variant(s)"). That is how the admin configured
+the task, not something a participant is asked about, and it made the caption a
+different length in every idiom. The selection is still logged for the admin.
+
+**The discovered model is simplified and re-laid-out.**
+
+`_simplify` removes the gateways the miner leaves behind that route nothing.
+A gateway with one way in and one way out goes, and its neighbours are joined;
+a gateway whose single outgoing flow is the only way into another gateway of
+the same kind merges with it, because a join immediately followed by a split is
+one router drawn as two. Both come out of how a process tree nests: every
+optional activity becomes its own split/join pair, and nesting them puts the
+pairs back to back. Neither reduction changes which sequences the model allows,
+and genuine splits and joins are left alone, so the choices and the concurrency
+survive. On the sample, 14 exclusive gateways became 12.
+
+`_relayout` then replaces pm4py's geometry, which spread the model over
+5871 × 2339 units against the guideline's 1385 × 256 — four times as wide,
+ten times as tall, with long detours between neighbouring nodes. Nodes keep
+their size and go into columns by longest-path depth, each column centred
+vertically. An edge between neighbouring columns is a short orthogonal run; a
+backward edge drops below the diagram; an edge that skips a column rises above
+it into a lane of its own, stepping sideways into the gap beside its column
+first, because rising straight from a node's top edge crosses whatever else
+stands in that column. Longer spans take the outer lanes so the lanes do not
+cross.
+
+Result on the sample: 2671 × 154, and **no edge segment passes through a node
+box that is not its own endpoint** — measured, not estimated; the first
+lane-routing attempt left two such crossings and they are what the sideways
+step fixes. The width that remains is the discovered model's own shape, not
+wasted space, and that difference is itself part of the answer.
 
 ### Files changed
 
 - `provibackend/ProViBackend/scripts/tasks/task24.py` — rewritten.
-  `_discover_model`, `_named_tasks`, `_depths`, `_relayout`, `_linearise`,
+  `_discover_model`, `_named_tasks`, `_depths`, `_simplify`, `_relayout`,
+  `_block_rows` and its tree helpers,
   `_difference_summary`, `_plain_node_style`, the SVG-stacking helpers and the
   three idiom renderers added; `_discover_dfg`, `_compute_diff`,
   `_build_diff_panel` and `_model_task_edges` deleted. `IDIOMS` now holds
   canonical keys — it declared the `flow_chart_elaborate_bpmn` file stem,
   which is not a key the Idiom collection knows.
+- `provibackend/ProViBackend/scripts/shared.py` — `compose_bpmn_panels` gained
+  `table_subtitle` (opt-in; None keeps every existing caller's uncaptioned
+  table).
 - `docs/TASK_IDIOM_MAPPING.md` — the two added idioms, and why.
 
 ### Known costs
 
-`_linearise` presses a graph into a line for the chevron and the table: two
-models differing only in whether A and B are concurrent produce the same strip
-and the same step numbers. That is exactly why the desired side of every idiom
-stays a BPMN. Depth is the longest path from the start event, not the shortest
-— with an exclusive choice the shortest path reaches post-choice activities
-through whichever branch is briefest, which put "Close Case" ahead of the long
-branch's activities on the sample guideline.
+The table names at most two conditions per activity. An activity that is both
+repeatable and an alternative to another reports the repetition and leaves the
+alternative to the block letter and to the BPMN panel above it.
+
+`_depths` orders the re-laid-out BPMN by longest path from the start event, not
+shortest — with an exclusive choice the shortest path reaches post-choice
+activities through whichever branch is briefest, which put "Close Case" ahead
+of the long branch's activities on the sample guideline.
 
 The two BPMN panels are drawn at their natural size on one canvas, so a
 discovered model with more layers than the guideline appears wider than it.
