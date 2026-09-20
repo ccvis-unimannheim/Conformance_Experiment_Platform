@@ -71,7 +71,7 @@ fully conformant log is a finding, not a failure.
 | `violation_gap` | Traces spread across the violation counts present, both ends always included: at three traces, counts 3, 2 and 1. Within one count the trace touching the most distinct activities wins, so the strips stay substantial. Fewer distinct counts than traces asked for → topped up from the most-violating end. |
 | `worst_fitness` | Most violations first, then lowest fitness. In a data or resource perspective every trace has the same alignment fitness, so the violation count is what ranks them at all. |
 | `first_nonconformant` | The violating traces in log order. |
-| `most_frequent_variants` | The most frequent activity sequences, most frequent first — still only the violating ones. |
+| `most_frequent_variants` | The most frequent activity sequences, most frequent first — still only the violating ones, which the option's label now says too ("The most frequent variants that violate the guideline"). The other three read as violation rules by themselves. |
 
 There is no "conformant and non-conformant in equal number" rule: that is
 task27's whole question rather than one way of answering it, so task27 has no

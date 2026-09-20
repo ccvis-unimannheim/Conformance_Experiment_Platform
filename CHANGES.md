@@ -54,6 +54,41 @@ task. A log move of a modelled activity — the common case — could never reac
 Separately, the rows sit in model order, so a trace that runs two activities out
 of order read exactly like one that runs them in order. The chevron shows that
 difference; the table dropped it.
+## Session: The Variant Rule Says That It Only Picks Violators (2026-09-20)
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| `PICK_RULES` | "The most frequent trace variants" is now "The most frequent variants that violate the guideline". `pick_indices` filters every rule to the traces that violate before any of them ranks anything — the tasks in this class present violations, and a conformant trace answers nothing there. The other three labels carry that by themselves; this one read as if it ranged over the whole log, so an admin picking it saw fewer variants than the log's frequency order would suggest and had no way to tell why. The stored value is unchanged, so existing experiments keep working. |
+
+### Verification
+
+`py_compile`. The label is data, read straight into the /specify select.
+
+## Session: task34 Shows Every Trace That Was Asked For (2026-09-20)
+
+### Problem solved
+
+Asking for four traces gave three, or fewer depending on the rule; naming four
+by hand gave one. Every idiom agreed with every other, so the figures looked
+consistent — they were consistently short.
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| The drop | `_build_contexts` keeps a pool of the 30 most-violating traces, and `_select_ctxs` looked each chosen trace up in it with `by_index[i]`, skipping whatever was missing. Anything outside the pool was discarded without a word, whether the admin had named it or a rule had picked it. On BPIC12-A: four hand-picked traces came back as one, and `most_frequent_variants` returned index 7549 — a frequent variant with few violations, nowhere near the top 30 — which left three of four. |
+| The fix | `_context_at(alignments, i)` builds one trace's context on demand; `_select_ctxs` falls back to it for any index the pool does not hold. `_build_contexts` is now only the fallback pool and what `violated_activity` narrows, and says so. |
+| Short selections | A log can hold fewer distinct violating variants than the admin asked for — the rules keep one trace per activity sequence. `generate` logs that case instead of leaving the figure quietly short. |
+
+### Verification
+
+On BPIC12-A (13087 traces), before and after: four hand-picked traces 1 -> 4,
+`most_frequent_variants` at count 4 3 -> 4, `worst_fitness` and
+`first_nonconformant` 4 -> 4. Two full `generate` runs, by rule and by hand,
+write six SVGs and a `traces.json` holding four traces.
+
 ## Session: Every task34 Idiom Names the Violation Type (2026-09-20)
 
 ### Problem solved
