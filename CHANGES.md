@@ -2,6 +2,26 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: /new Stops Asking for the Name and Design Twice (2026-09-20)
+
+### Problem solved
+
+Opening "Already have the images? Start from a downloaded zip" on /new showed
+its own Experiment name field and Study design picker, right below the page's
+own Name field and Experiment Settings section asking the same two things —
+two name boxes, two design pickers, with no visible link between them and the
+dataset table still sitting there as if it applied. An admin choosing the zip
+route had no way to tell what any of it meant.
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `ProViFrontend/.../components/Admin/BundleStartCard.js` | Its own Name / Study design / Randomise controls removed; it now reads `name`, `designType`, `randomizeOrder` from the page and states what it will use them as. `open` is a prop the page controls instead of the card's own state. |
+| `ProViFrontend/.../admin/experiments/new/page.js` | Experiment Settings (design, trial order) moved above the fork so it reads as shared by both routes rather than duplicated in one of them. While the zip card is open, the dataset table is replaced by a one-line note instead of sitting there unused. |
+
+`eslint` — no errors or warnings on either file.
+
 ## Session: Jumping to an Earlier Step Returns There Instead of Marching Forward (2026-09-20)
 
 ### Problem solved
