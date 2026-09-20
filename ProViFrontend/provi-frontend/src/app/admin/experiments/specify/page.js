@@ -328,8 +328,11 @@ function SpecifyContent() {
 
       // An experiment built from an uploaded zip has no dataset and nothing to
       // generate, so this step does not apply to it.
+      // Its neighbour, not /overview: this page is only ever reached by
+      // stepping back, and bouncing forward would trap the admin in a loop
+      // between the two.
       if (exp.bundle_only) {
-        router.replace(`/admin/experiments/overview?experiment_id=${encodeURIComponent(experimentId)}`);
+        router.replace(`/admin/experiments/idiom?experiment_id=${encodeURIComponent(experimentId)}`);
         return;
       }
 
@@ -583,7 +586,7 @@ function SpecifyContent() {
 
   return (
     <div className="bg-surface text-on-surface min-h-screen flex flex-col">
-      <ExperimentSetupHeader />
+      <ExperimentSetupHeader experimentId={experimentId} step="specify" />
 
       <main className="flex-grow max-w-[1140px] mx-auto w-full px-8 py-10 flex flex-col gap-8">
         {/* Page heading */}

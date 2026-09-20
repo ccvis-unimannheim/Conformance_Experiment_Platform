@@ -2,8 +2,12 @@ import Link from "next/link";
 import Image from "next/image";
 import ProViLogo from "../../public/images/logo-no-background.png";
 import UMALogo from "../../public/images/Logo_UMA_EN_RGB.png";
+import WizardSteps from "./WizardSteps";
 
-export default function ExperimentSetupHeader() {
+// `experimentId` / `step` make the header carry the wizard's step bar, so every
+// step of this draft is one click away. A page that passes neither renders the
+// header alone, as before.
+export default function ExperimentSetupHeader({ experimentId, step, bundleOnly = false }) {
   return (
     <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-50">
       <div className="flex justify-between items-center w-full h-16 px-8 max-w-screen-2xl mx-auto">
@@ -38,6 +42,7 @@ export default function ExperimentSetupHeader() {
           </span>
         </div>
       </div>
+      {step && <WizardSteps experimentId={experimentId} current={step} bundleOnly={bundleOnly} />}
     </header>
   );
 }

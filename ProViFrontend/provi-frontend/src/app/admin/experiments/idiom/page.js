@@ -304,6 +304,7 @@ function IdiomSelectionContent() {
   const [taskIdiomKeys, setTaskIdiomKeys] = useState({});
   const [taskIdiomMap, setTaskIdiomMap] = useState({});
   const [datasetIds, setDatasetIds] = useState([]);
+  const [bundleOnly, setBundleOnly] = useState(false);
 
   // Preview modal state
   const [previewModal, setPreviewModal] = useState(null); // { taskKey, idiomKey, idiomLabel, isCustom }
@@ -335,6 +336,7 @@ function IdiomSelectionContent() {
       taskIds = draft.task_configs.map((tc) => tc.task_id);
       existingConfigs = draft.task_configs;
       setDatasetIds(draft.dataset_ids || []);
+      setBundleOnly(!!draft.bundle_only);  // no Specify step in the step bar
     } catch (e) {
       showToast(`Could not load draft experiment: ${e.message}`, true);
       return;
@@ -497,7 +499,7 @@ function IdiomSelectionContent() {
 
   return (
     <div className="bg-surface text-on-surface min-h-screen flex flex-col">
-      <ExperimentSetupHeader />
+      <ExperimentSetupHeader experimentId={experimentId} step="idiom" bundleOnly={bundleOnly} />
 
       <main className="flex-grow max-w-[1140px] mx-auto w-full px-8 py-10 flex flex-col gap-8">
         {/* Page heading */}

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import AdminNav from "../../../../components/Admin/AdminNav";
+import WizardSteps from "../../../../components/Admin/WizardSteps";
 import { queueWizardSave } from "../../../../utils/wizardSave";
 
 // ── Add Question Modal ──────────────────────────────────────────────────────
@@ -128,7 +129,7 @@ function AddQuestionModal({ onClose, onSaved }) {
         <label className="flex items-center gap-3 cursor-pointer select-none">
           <input type="checkbox" checked={includeIdk} onChange={(e) => setIncludeIdk(e.target.checked)}
             className="w-4 h-4 text-primary rounded border-outline-variant cursor-pointer" />
-          <span className="text-sm text-on-surface">Append "I don't know" option</span>
+          <span className="text-sm text-on-surface">Append &quot;I don&apos;t know&quot; option</span>
         </label>
 
         {error && <p className="text-body-sm text-error">{error}</p>}
@@ -273,6 +274,7 @@ export default function KnowledgeSetupPage() {
   return (
     <div className="bg-surface text-on-surface min-h-screen flex flex-col antialiased">
       <AdminNav activeLink="experiment-setup" />
+      <WizardSteps experimentId={experimentId} current="knowledge" />
 
       <main className="flex-grow max-w-[900px] mx-auto w-full px-6 py-12 pb-32">
         <div className="mb-12 flex items-start justify-between gap-6">
@@ -381,7 +383,7 @@ export default function KnowledgeSetupPage() {
 
               {customQs.length === 0 ? (
                 <p className="text-body-sm text-secondary">
-                  No custom questions yet. Click "Add Question" to create one.
+                  No custom questions yet. Click &quot;Add Question&quot; to create one.
                 </p>
               ) : (
                 <div className="space-y-3">

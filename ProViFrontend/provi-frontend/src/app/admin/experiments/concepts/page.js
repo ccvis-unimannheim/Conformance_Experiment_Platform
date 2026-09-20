@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import AdminNav from "../../../../components/Admin/AdminNav";
+import WizardSteps from "../../../../components/Admin/WizardSteps";
 import ProcessModelImage from "../../../../components/General/ProcessModelImage";
 import IntroCitation from "../../../../components/General/IntroCitation";
 import { queueWizardSave } from "../../../../utils/wizardSave";
@@ -235,6 +236,7 @@ export default function IntroPagesSetupPage() {
   return (
     <div className="bg-surface text-on-surface min-h-screen flex flex-col antialiased">
       <AdminNav activeLink="experiment-setup" />
+      <WizardSteps experimentId={experimentId} current="concepts" />
 
       <main className="flex-grow max-w-[900px] mx-auto w-full px-6 py-12 pb-32">
         <div className="mb-8">
