@@ -23,9 +23,17 @@ violations" entry. The reader is told which violations are predominant, which
 is what Present · Present means.
 
 Idioms:
-  bar_chart  – groups ranked by occurrences, with the predominance cut drawn
-  table      – the same numbers as text, with a column saying which qualify
-  pie_chart  – each group's share of all violations, the remainder pooled
+  bar_chart  — groups ranked by occurrences, with the predominance cut drawn
+  table      — the same numbers as text, with the cut stated above them
+
+Neither idiom says which groups qualify. Both state where the cut falls and
+leave the reading to the participant, which is the judgement the task is
+asking for.
+
+A pie chart was offered and is gone: the cut applies to each slice on its own,
+and a circle has nowhere to put it — judging every slice's width against one
+reference, spread around the whole circle, is the comparison pie charts are
+worst at. It could show the shares but not the question asked about them.
 
 Deliberately absent: matrix, heatmap, stacked bar and parallel sets. task11,
 task29 and task32 already draw those over this same profile, and a fourth set
@@ -39,7 +47,7 @@ Public API:
 import logging
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "table", "pie_chart"]
+IDIOMS = ["bar_chart", "table"]
 
 
 def _param_spec():
@@ -74,17 +82,19 @@ from matplotlib.colors import to_hex
 
 from shared import (
     save_svg, render_empty_state_svg, make_table, auto_col_widths,
-    contrasting_text_color, CIVIDIS_R, GREY_LIGHT, GREY_DARK,
+    CIVIDIS_R, GREY_LIGHT, GREY_DARK,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 #: One title over all three.
 _TITLE = "Predominant Guideline Violations"
 
-#: What everything under the cut is pooled into. One entry rather than a long
-#: tail: the question is which violations dominate, and a figure that lists
-#: twenty groups at half a percent each answers a different one. It is still
-#: shown, because "everything else together is 8%" is part of the answer.
+#: What everything not named in its own right is pooled into. One entry rather
+#: than a long tail: the question is which violations dominate, and a figure
+#: that lists twenty groups at half a percent each answers a different one. It
+#: is still shown, because "everything else together is 8%" is part of the
+#: answer — and because with it the shares add up to 100, which is what makes
+#: the label true.
 _OTHER = "All other violations"
 
 #: The default when an admin's threshold does not reach the figures. It cannot
@@ -106,31 +116,52 @@ def _label(group, series) -> str:
 
 
 def _ranking(alignments, n_traces, strategy, selection, threshold):
-    """[(label, count, pct, is_predominant)], largest share first.
+    """``([(label, count, pct, is_predominant)], total)``, largest share first.
 
     Every group at or above ``threshold`` percent of all violation occurrences
-    in its own right; everything below pooled into one `_OTHER` entry, which
-    carries the summed count and share and is never counted as predominant.
+    is named in its own right; everything else is pooled into one `_OTHER`
+    entry, which carries the summed count and share and is never predominant.
+
+    **One denominator, and it is the whole log.** The profile is read
+    *unselected*, so ``pct_count`` — whose denominator is every violation
+    occurrence in the log, by design — is the share of a total the rows
+    actually add up to. ``selection`` still decides which groups may be named;
+    the ones it excludes go into `_OTHER` instead of vanishing.
+
+    Reading the selected profile instead left the figures with two
+    denominators: the shares were of the whole log while the rows covered only
+    the selection, so a column of them summed to 62.9% on BPIC-style data, the
+    pooled entry claimed to be "all other violations" while a third of them
+    were unaccounted for, and the bar chart's cut — drawn at
+    ``threshold/100 * sum(shown counts)`` — sat at two thirds of where the
+    threshold had actually been applied.
     """
     import violation_profile
 
-    profile = violation_profile.profile(alignments, strategy,
-                                        selection=selection, n_traces=n_traces)
+    profile = violation_profile.profile(alignments, strategy, n_traces=n_traces)
     if profile.empty:
-        return []
+        return [], 0
+
+    total = int(profile["count"].sum())
+    nameable = None
+    if selection:
+        chosen = violation_profile.profile(alignments, strategy,
+                                           selection=selection, n_traces=n_traces)
+        nameable = {(r["group"], r["series"]) for _, r in chosen.iterrows()}
 
     profile = profile.sort_values("pct_count", ascending=False)
-    rows, other_count, other_pct = [], 0, 0.0
+    rows, other_count = [], 0
     for _, row in profile.iterrows():
-        if float(row["pct_count"]) >= threshold:
+        key = (row["group"], row["series"])
+        if float(row["pct_count"]) >= threshold and (nameable is None or key in nameable):
             rows.append((_label(row["group"], row["series"]),
                          int(row["count"]), float(row["pct_count"]), True))
         else:
             other_count += int(row["count"])
-            other_pct += float(row["pct_count"])
     if other_count:
-        rows.append((_OTHER, other_count, other_pct, False))
-    return rows
+        rows.append((_OTHER, other_count,
+                     other_count / total * 100 if total else 0.0, False))
+    return rows, total
 
 
 def _colors(rows) -> list:
@@ -173,54 +204,53 @@ def task36_bar_chart(rows, threshold, total, output_dir: str):
     labels = [r[0] for r in rows]
     counts = [r[1] for r in rows]
     colors = _colors(rows)
-    y = np.arange(len(rows))
-    xmax = max(counts)
+    x = np.arange(len(rows))
+    ymax = max(counts)
 
-    fig, ax = plt.subplots(figsize=(max(9.0, 5.0 + 0.085 * max(len(l) for l in labels)),
-                                    max(3.4, len(rows) * 0.62 + 2.0)))
+    fig, ax = plt.subplots(figsize=(max(8.5, 1.4 * len(rows) + 2.4), 6.2))
     ax.set_facecolor("#fafbfc")
-    ax.barh(y, counts, 0.62, color=colors, edgecolor="white", linewidth=0.8)
-    for yi, (_lbl, count, pct, _pre) in zip(y, rows):
-        ax.text(count + xmax * 0.015, yi, _annot(count, pct), ha="left",
-                va="center", fontsize=FONT_ANNOT, color=GREY_DARK)
+    ax.bar(x, counts, 0.62, color=colors, edgecolor="white", linewidth=0.8)
+    for xi, (_lbl, count, pct, _pre) in zip(x, rows):
+        ax.text(xi, count + ymax * 0.02, _annot(count, pct), ha="center",
+                va="bottom", fontsize=FONT_ANNOT, color=GREY_DARK)
 
     # The cut, in the axis's own unit: a share of all violation occurrences is
     # that share of the total count.
     cut = threshold / 100.0 * total
-    if 0 < cut <= xmax * 1.05:
-        ax.axvline(cut, color=GREY_DARK, linestyle="--", linewidth=1.2, zorder=3)
-        ax.text(cut, len(rows) - 0.35, f"  Predominance cut: {threshold:g} %",
-                rotation=90, va="top", ha="left", fontsize=FONT_ANNOT - 1,
-                color=GREY_DARK)
+    if 0 < cut <= ymax * 1.05:
+        ax.axhline(cut, color=GREY_DARK, linestyle="--", linewidth=1.2, zorder=3)
+        ax.text(len(rows) - 0.4, cut, f" Predominance cut: {threshold:g} %",
+                va="bottom", ha="right", fontsize=FONT_ANNOT - 1, color=GREY_DARK)
 
-    ax.set_yticks(y)
-    ax.set_yticklabels(labels, fontsize=FONT_ANNOT)
-    ax.invert_yaxis()
-    ax.set_xlabel("Violation occurrences", fontsize=FONT_LABEL)
-    ax.set_xlim(0, xmax * 1.28)
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, fontsize=FONT_ANNOT, rotation=28, ha="right")
+    ax.set_ylabel("Violation occurrences", fontsize=FONT_LABEL)
+    ax.set_ylim(0, ymax * 1.16)
     ax.set_title(_TITLE, fontsize=FONT_TITLE)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task36_bar_chart.svg"))
 
 
 def task36_table(rows, threshold, total, output_dir: str):
-    """The same numbers as text, with the verdict spelled out.
+    """The same numbers as text, with the cut stated above them.
 
-    The last column is what the bar chart draws as a line and the pie as
-    colour: whether this group reaches the cut.
+    **The verdict column is gone.** It read "Yes" or "—" per row, which is the
+    judgement the task asks the participant to make — the table answered the
+    question instead of posing it, while the bar chart beside it only drew the
+    line and left the reading to them. The threshold is now a caption in the
+    same words the bar chart's line carries, so both idioms state where the cut
+    falls and neither applies it.
     """
     if not rows:
         _empty(output_dir, "table", "No violations found.")
         return
 
-    cell_text = [[label, f"{count:,}", f"{pct:.1f} %",
-                  "Yes" if predominant else "—"]
-                 for label, count, pct, predominant in rows]
-    col_labels = ["Violation", "Occurrences", "Share of all violations",
-                  f"Predominant (≥ {threshold:g} %)"]
+    cell_text = [[label, f"{count:,}", f"{pct:.1f} %"]
+                 for label, count, pct, _predominant in rows]
+    col_labels = ["Violation", "Occurrences", "Share of all violations"]
 
     fig_h = max(3.0, 1.2 + len(cell_text) * 0.46)
     fig_w = max(9.0, 5.4 + 0.085 * max(len(r[0]) for r in rows))
@@ -236,50 +266,12 @@ def task36_table(rows, threshold, total, output_dir: str):
         scale_xy=(1, 1.7),
         zebra=True,
     )
-    ax.set_title(_TITLE, fontsize=FONT_TITLE, pad=12)
+    ax.set_title(_TITLE, fontsize=FONT_TITLE, pad=24)
+    ax.text(0.5, 0.955, f"Predominance cut: {threshold:g} % of all violation occurrences",
+            transform=ax.transAxes, ha="center", va="bottom",
+            fontsize=FONT_ANNOT, color=GREY_DARK)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task36_table.svg"))
-
-
-def task36_pie_chart(rows, threshold, total, output_dir: str):
-    """Each group's share of all violations; the pooled remainder in neutral.
-
-    "Predominant" is a share, and this is the idiom that encodes a share
-    directly. Unlike task25, showing it is the point: this task presents the
-    answer rather than having it derived.
-    """
-    if not rows:
-        _empty(output_dir, "pie_chart", "No violations found.")
-        return
-
-    counts = [r[1] for r in rows]
-    colors = _colors(rows)
-
-    fig, ax = plt.subplots(figsize=(9.5, 6.5))
-    wedges, _texts, autotexts = ax.pie(
-        counts,
-        colors=colors,
-        startangle=90,
-        autopct=lambda pct: f"{pct:.1f} %" if pct >= 4 else "",
-        pctdistance=0.68,
-        wedgeprops=dict(edgecolor="white", linewidth=2),
-        textprops=dict(fontsize=FONT_ANNOT),
-    )
-    for color, autotext in zip(colors, autotexts):
-        autotext.set_color(contrasting_text_color(color))
-
-    for wedge, (label, count, pct, _pre) in zip(wedges, rows):
-        mid = np.deg2rad((wedge.theta1 + wedge.theta2) / 2.0)
-        text = label if pct >= 4 else f"{label} — {_annot(count, pct)}"
-        ax.annotate(text, xy=(np.cos(mid) * 0.85, np.sin(mid) * 0.85),
-                    xytext=(np.cos(mid) * 1.18, np.sin(mid) * 1.18),
-                    ha="left" if np.cos(mid) >= 0 else "right", va="center",
-                    fontsize=FONT_ANNOT,
-                    arrowprops=dict(arrowstyle="-", color="#999999", linewidth=0.8))
-
-    ax.set_title(_TITLE, fontsize=FONT_TITLE)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task36_pie_chart.svg"))
 
 
 # ---------------------------------------------------------------------------
@@ -299,19 +291,17 @@ def generate(log, alignments, output_dir: str, grouping_strategy: str = "move_ty
         return
 
     threshold = float(prominence_threshold) if prominence_threshold else _DEFAULT_THRESHOLD
-    rows = _ranking(alignments, len(log) if log is not None else len(alignments),
-                    grouping_strategy, selection, threshold)
+    rows, total = _ranking(alignments, len(log) if log is not None else len(alignments),
+                           grouping_strategy, selection, threshold)
     if not rows:
         logger.warning("      Skipped Task 36: no violations in the alignments.")
         for key in IDIOMS:
             _empty(output_dir, key, "No violations found.")
         return
 
-    total = sum(count for _l, count, _p, _pre in rows)
     n_pre = sum(1 for r in rows if r[3])
     logger.info(f"      -> {len(rows)} row(s), {n_pre} predominant at "
                 f"{threshold:g}% of {total:,} violation occurrences.")
 
     task36_bar_chart(rows, threshold, total, output_dir)
     task36_table(rows, threshold, total, output_dir)
-    task36_pie_chart(rows, threshold, total, output_dir)

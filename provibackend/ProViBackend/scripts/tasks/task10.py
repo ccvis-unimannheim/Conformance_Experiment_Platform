@@ -86,7 +86,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
 from shared import (
-    save_svg, make_table,
+    save_svg, make_table, auto_col_widths, draw_value_heatmap,
     make_conformance_labels,
     CONFORMANCE_BINS, CONFORMANCE_LABELS,
     GREY_MED, GREY_DARK, CIVIDIS_R,
@@ -341,6 +341,7 @@ def task10_pie_chart(range_df: pd.DataFrame, output_dir: str):
 
 def task10_table(range_df: pd.DataFrame, output_dir: str):
     """Table: Conformance Category | Percentage of Traces (no counts, no total row)."""
+    col_labels = ["Conformance Category", "Percentage of Traces"]
     cell_text = [
         [row["range"], f"{row['percentage']:.1f}%"]
         for _, row in range_df.iterrows()
@@ -351,11 +352,11 @@ def task10_table(range_df: pd.DataFrame, output_dir: str):
     make_table(
         ax,
         cell_text=cell_text,
-        col_labels=["Conformance Category", "Percentage of Traces"],
+        col_labels=col_labels,
         bbox=[0.05, 0.05, 0.90, 0.78],
-        col_widths=[0.60, 0.40],
-        font_size=11,
-        scale_xy=(1, 1.7),
+        col_widths=auto_col_widths(col_labels, cell_text),
+        font_size=10,
+        cell_pad=0.09,
     )
     ax.set_title("Conformance Category Distribution", fontsize=FONT_TITLE, pad=12)
     fig.tight_layout(pad=1.2)
@@ -420,42 +421,23 @@ def task10_heatmap(range_df: pd.DataFrame, output_dir: str):
     """MATRIX (displayed as "Matrix" — see utils/idiomLabels.js / label_overrides.py):
     one annotated cell per conformance category.
 
-    Cell colour is by category rank, matching stacked_bar / pie_chart's
-    convention (low = yellow, high = dark blue) rather than by the cell's own
-    value — so, unlike a true value-scaled heatmap, there's no colour-bar. An
-    empty (0%) category gets a shared neutral grey instead of its rank
-    colour, so it doesn't read as data where there is none. No separate
-    colour legend either — each cell already carries its own category label
-    on the x-axis directly below it.
+    Drawn by shared.draw_value_heatmap(colorless=True), the same helper every
+    other task's matrix uses: white cells, a ruled grid, and the printed
+    percentage as the only encoding. A category with no traces prints 0.0%
+    like any other cell, so nothing is carried by fill.
     """
     path = os.path.join(output_dir, "task10_heatmap.svg")
     n = len(range_df)
-    rank_colors = _category_rank_colors(n)
-    col_labels = list(range_df["range"])
-    percentages = list(range_df["percentage"])
-    # GREY_LIGHT(ER) etc. are cividis tones, not neutral greys, so they'd still
-    # blend into the rank palette — an actual neutral grey is what reads as
-    # "no data" against a yellow-to-blue ramp.
-    empty_fill, empty_text = "#dcdcdc", "#8a8a8a"
-    colors = [rank_colors[i] if percentages[i] > 0 else empty_fill for i in range(n)]
 
     fig, ax = plt.subplots(figsize=(max(8, n * 1.6), 2.8))
-    for i, (color, pct) in enumerate(zip(colors, percentages)):
-        ax.add_patch(plt.Rectangle((i, 0), 1, 1, facecolor=color,
-                                   edgecolor="white", linewidth=1.5))
-        tc = contrasting_text_color(color) if pct > 0 else empty_text
-        ax.text(i + 0.5, 0.5, f"{pct:.1f}%", ha="center", va="center",
-                fontsize=FONT_ANNOT, color=tc)
-    ax.set_xlim(0, n)
-    ax.set_ylim(0, 1)
-    ax.set_xticks([i + 0.5 for i in range(n)])
-    ax.set_xticklabels(col_labels, fontsize=FONT_ANNOT)
-    ax.set_yticks([0.5])
-    ax.set_yticklabels(["Percentage\nof Traces"], fontsize=FONT_ANNOT - 1)
-    ax.set_xlabel("Conformance Category", fontsize=FONT_LABEL)
-    ax.tick_params(length=0)
-    for spine in ax.spines.values():
-        spine.set_visible(False)
+    draw_value_heatmap(
+        fig, ax,
+        [list(range_df["percentage"])],
+        ["Percentage\nof Traces"],
+        list(range_df["range"]),
+        xlabel="Conformance Category",
+        colorless=True,
+    )
     ax.set_title("Conformance Category Distribution", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, path)

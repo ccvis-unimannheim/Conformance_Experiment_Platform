@@ -86,7 +86,7 @@ import matplotlib.patches as mpatches
 import matplotlib.colors as mcolors
 import matplotlib.cm as cm
 
-from shared import most_common_stable, save_svg, draw_rate_matrix, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS_R, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
+from shared import most_common_stable, save_svg, make_table, auto_col_widths, draw_rate_matrix, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS_R, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
 
 # ── Cividis palette ───────────────────────────────────────────────────────────
 _C_DARK   = GREY_DARK
@@ -299,43 +299,26 @@ def task09_table(activity_type, activity_totals, type_totals, n_violations, outp
         rows.append([_short_label(a, 32), mom, mol, total, f"{pct:.1f}%"])
 
     col_headers = ["Activity", "Model Move", "Log Move", "Total", "% of All"]
-    col_widths  = [0.40, 0.16, 0.14, 0.14, 0.16]
+    cell_text = [[str(v) for v in row] for row in rows]
 
     n_rows  = len(rows)
     fig_h   = max(3.5, n_rows * 0.48 + 2.0)
     fig, ax = plt.subplots(figsize=(14, fig_h))
     ax.axis("off")
 
-    t = 0.94
-    b = 0.06
-    l = 0.02
-    table_w = 0.96
-    row_h = (t - b) / (n_rows + 1)
-
-    x = l
-    for hdr, cw in zip(col_headers, col_widths):
-        ax.add_patch(plt.Rectangle((x, t - row_h), cw * table_w, row_h,
-                                   fc=_HDR_BG, ec="white", linewidth=0.5,
-                                   transform=ax.transAxes, clip_on=False))
-        ax.text(x + cw * table_w * 0.5, t - row_h * 0.5, hdr,
-                ha="center", va="center", fontsize=FONT_ANNOT,
-                color="white", fontweight="bold", transform=ax.transAxes)
-        x += cw * table_w
-
-    for i, row in enumerate(rows):
-        y_top = t - (i + 2) * row_h
-        x = l
-        bg = "#f5f5f5" if i % 2 == 0 else "white"
-        for j, (val, cw) in enumerate(zip(row, col_widths)):
-            ax.add_patch(plt.Rectangle((x, y_top), cw * table_w, row_h,
-                                       fc=bg, ec="#eeeeee", linewidth=0.4,
-                                       transform=ax.transAxes, clip_on=False))
-            ha = "left" if j == 0 else "center"
-            px = x + 0.008 if j == 0 else x + cw * table_w * 0.5
-            ax.text(px, y_top + row_h * 0.5, str(val),
-                    ha=ha, va="center", fontsize=FONT_ANNOT,
-                    color=_C_DARK, transform=ax.transAxes)
-            x += cw * table_w
+    # Drawn by the shared table helper rather than by hand: the hand-rolled
+    # version fixed each column's share of the width, so a long activity name
+    # ran straight out of its cell. auto_col_widths sizes every column to the
+    # widest string it has to hold.
+    make_table(
+        ax,
+        cell_text=cell_text,
+        col_labels=col_headers,
+        bbox=[0.02, 0.06, 0.96, 0.88],
+        col_widths=auto_col_widths(col_headers, cell_text),
+        font_size=10,
+        cell_pad=0.09,
+    )
 
     ax.set_title(f"top {n_rows} activities", fontsize=FONT_LABEL, pad=10)
     fig.suptitle(_TITLE, fontsize=FONT_TITLE, y=0.99)
