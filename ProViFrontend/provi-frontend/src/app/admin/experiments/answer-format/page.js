@@ -141,7 +141,8 @@ function OptionRows({ options, onChange, wideValue = false, role = "token" }) {
         onClick={() => onChange([...options, emptyOption()])}
         className="self-start text-xs font-semibold text-primary hover:underline flex items-center gap-1"
       >
-        <span className="material-symbols-outlined text-sm">add</span> Add option
+        <span className="material-symbols-outlined text-sm">add</span>
+        {role === "unused" ? " Add row" : " Add option"}
       </button>
     </div>
   );
@@ -214,7 +215,38 @@ function OptionsEditor({ datasetId, format, options, onChange, showToast }) {
         </span>
       </div>
 
+      {/* How to use this format. The rows of a number set are not candidate
+          answers — they are the categories the question is asked about — so
+          they are written by hand: every source that could fill them labels its
+          candidates with the counts this format exists to ask for. */}
+      {role === "unused" && (
+        <div className="text-xs text-on-surface-variant bg-surface-container-low rounded-lg px-3 py-2.5 flex flex-col gap-1.5">
+          <p>
+            <span className="font-semibold text-on-surface">One number per row.</span>{" "}
+            The participant sees every row you write here and fills a number into each —
+            they do not choose between them. Write one row per category the question asks
+            about: the conformance bands, the violation types, the sub-logs.
+          </p>
+          <p>
+            Set <span className="font-semibold">Number kind</span> above to the shape of a
+            single cell — a percentage, a whole count, or a decimal — and say in the task
+            question what the numbers should add up to, if anything. An answer counts as
+            given once one row is filled, so a participant may leave a row blank rather
+            than guess.
+          </p>
+          <p>
+            Rows are written by hand on purpose: the labels are the participant&apos;s only
+            statement of the question, and every source that could fill them names its
+            candidates with the very counts this format asks for
+            (&quot;Ship Order · Model Move (412 traces, 31%)&quot;), which would print the
+            answer on the question. For the same reason, keep the labels final before
+            publishing — each one is the key its numbers are recorded under.
+          </p>
+        </div>
+      )}
+
       {/* Import from the event log */}
+      {role !== "unused" && (
       <div className="flex items-center gap-2 flex-wrap bg-surface-container-low rounded-lg px-3 py-2">
         <span className="text-xs text-on-surface-variant">Import from</span>
         <select
@@ -266,10 +298,13 @@ function OptionsEditor({ datasetId, format, options, onChange, showToast }) {
           </span>
         )}
       </div>
+      )}
 
       {options.length === 0 ? (
         <p className="text-xs text-on-surface-variant italic">
-          No options yet — import a set from the event log, or add them by hand.
+          {role === "unused"
+            ? "No rows yet — add one per category the question asks about."
+            : "No options yet — import a set from the event log, or add them by hand."}
         </p>
       ) : null}
 
