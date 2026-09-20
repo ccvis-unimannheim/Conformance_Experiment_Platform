@@ -15,8 +15,16 @@ technique, and the question is read by comparing them.
 
   bar_chart   – one group per band, two bars in it: one technique each
   heatmap     – the same table as colour, band × technique
+  matrix      – the same grid as numbers, no colour
   table       – the same table as numbers
   stacked_bar – one bar per technique, split into bands
+
+Matrix and heatmap are the platform's two readings of one grid: the heatmap
+carries the value as continuous colour and prints nothing, the matrix prints
+the value and carries no colour (`draw_value_heatmap(annotate=True,
+colorless=True)`). The matrix and the table hold the same numbers in the same
+shape and differ in being a ruled grid or a row-per-band list, which is the
+kind of difference in encoding this experiment exists to measure.
 
 An earlier pass had them draw the *joint* distribution instead — band under
 one technique × band under the other. It carries strictly more (which traces
@@ -44,7 +52,7 @@ the same two colours for something else.
 import logging
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "heatmap", "table", "stacked_bar"]
+IDIOMS = ["bar_chart", "heatmap", "matrix", "table", "stacked_bar"]
 
 #: The bands the fitness axis is cut into — the heatmap's two axes, the stacked
 #: bar's segments and the bucket bar chart. Same parameter as task10's, because
@@ -356,7 +364,39 @@ def task37_heatmap(data, output_dir):
     save_svg(fig, os.path.join(output_dir, "task37_heatmap.svg"))
 
 
-# ── Idiom 3: Table ─────────────────────────────────────────────────────────
+# ── Idiom 3: Matrix ────────────────────────────────────────────────────────
+
+def task37_matrix(data, output_dir):
+    """The same grid as numbers, with no colour.
+
+    The platform's Matrix/Heatmap pair: same call, same grid, opposite
+    channels. Without ``colorless`` a matrix is a heatmap that also prints its
+    numbers, which encodes one variable twice and leaves the two idioms
+    differing only in annotation.
+    """
+    m = data.get("matrix")
+    if m is None:
+        _no_data(output_dir, "matrix", _NO_T2)
+        return
+
+    labels = data["bucket_labels"]
+    names = _tech_names(data)
+
+    fig, ax = plt.subplots(figsize=(7.2, max(3.6, 0.72 * len(labels) + 2.4)))
+    draw_value_heatmap(
+        fig, ax, m,
+        row_labels=labels, col_labels=names,
+        cell_fmt="{:,.0f}",
+        annotate=True,
+        colorless=True,
+    )
+    ax.set_ylabel(_BAND_AXIS, fontsize=FONT_LABEL)
+    ax.set_title(_TITLE, fontsize=FONT_TITLE)
+    fig.tight_layout(pad=1.2)
+    save_svg(fig, os.path.join(output_dir, "task37_matrix.svg"))
+
+
+# ── Idiom 4: Table ─────────────────────────────────────────────────────────
 
 def task37_table(data, output_dir):
     """The same table as numbers, one row per band.
@@ -373,11 +413,12 @@ def task37_table(data, output_dir):
 
     labels = data["bucket_labels"]
     names = _tech_names(data)
-    total = data["n_traces"] or 1
 
+    # Counts alone. The share is the count over a total that is the same for
+    # both columns and every band, so it ranked nothing the counts did not
+    # already rank, and no other idiom printed it.
     col_labels = [_BAND_AXIS] + names
-    cell_text = [[labels[i]] + [f"{int(m[i, k]):,}  ({m[i, k] / total * 100:.1f} %)"
-                                for k in (0, 1)]
+    cell_text = [[labels[i]] + [f"{int(m[i, k]):,}" for k in (0, 1)]
                  for i in range(len(labels))]
 
     fig_h = max(3.2, 1.5 + len(labels) * 0.52)
@@ -399,7 +440,7 @@ def task37_table(data, output_dir):
     save_svg(fig, os.path.join(output_dir, "task37_table.svg"))
 
 
-# ── Idiom 4: Stacked Bar ───────────────────────────────────────────────────
+# ── Idiom 5: Stacked Bar ───────────────────────────────────────────────────
 
 def task37_stacked_bar(data, output_dir):
     """One bar per technique, split into bands.
@@ -419,18 +460,48 @@ def task37_stacked_bar(data, output_dir):
     names = _tech_names(data)
     x = np.arange(2)
 
-    fig, ax = plt.subplots(figsize=(8.0, 6.4))
+    fig, ax = plt.subplots(figsize=(9.0, 6.4))
     ax.set_facecolor("#fafbfc")
+    tallest = max(int(m.sum(axis=0).max()), 1)
+
+    # A segment shorter than this cannot hold its own number.
+    inside_min = tallest * 0.045
+
     bottom = np.zeros(2, dtype=float)
+    outside = {0: [], 1: []}       # (mid, text) per bar, for the thin ones
     for i, (lbl, clr) in enumerate(zip(labels, colors)):
         vals = m[i].astype(float)
         ax.bar(x, vals, 0.46, bottom=bottom, color=clr, edgecolor="white",
                linewidth=1.0, label=lbl)
         for xi, (v, b) in enumerate(zip(vals, bottom)):
-            if v and v / max(m.sum(axis=0).max(), 1) >= 0.045:
+            if not v:
+                continue
+            if v >= inside_min:
                 ax.text(xi, b + v / 2, f"{int(v):,}", ha="center", va="center",
                         fontsize=FONT_ANNOT, color=contrasting_text_color(clr))
+            else:
+                outside[xi].append((b + v / 2, f"{int(v):,}"))
         bottom += vals
+
+    # The thin ones, written beside the bar with a leader. Their true mid-heights
+    # can be closer together than the text is tall, so they are pushed apart
+    # first — a number that has been nudged still points at its own segment.
+    gap = tallest * 0.042
+    for xi, items in outside.items():
+        if not items:
+            continue
+        items.sort()
+        placed = []
+        for mid, text in items:
+            y = mid if not placed else max(mid, placed[-1] + gap)
+            placed.append(y)
+        for (mid, text), y in zip(items, placed):
+            ax.annotate(
+                text, xy=(xi + 0.24, mid), xytext=(xi + 0.40, y),
+                ha="left", va="center", fontsize=FONT_ANNOT, color=_C_DARK,
+                arrowprops=dict(arrowstyle="-", color="#999999", linewidth=0.8,
+                                shrinkA=0, shrinkB=2),
+            )
 
     ax.set_xticks(x)
     ax.set_xticklabels(names, fontsize=FONT_ANNOT)
@@ -474,5 +545,6 @@ def generate(log, alignments, output_dir, model_path=None, conformance_bins=None
 
     task37_bar_chart(data, output_dir)
     task37_heatmap(data, output_dir)
+    task37_matrix(data, output_dir)
     task37_table(data, output_dir)
     task37_stacked_bar(data, output_dir)

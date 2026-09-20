@@ -704,15 +704,17 @@ it (line graph, horizon chart) were never implemented here.
 | Stacked Bar Graph | `stacked_bar` | High |
 | Table | `table` | Medium/Reviewed |
 | Heatmap | `heatmap` | High |
+| Matrix | `matrix` | Added |
 
 `line_graph`, `horizon_chart` and `calendar` are listed in the spreadsheet and
 were never in `IDIOMS`; all three answer the dropped trend question.
 
 All four idioms read one payload: how many traces each technique puts in each
 fitness band — two columns, read by comparing them. The bar chart gives the
-counts as length (two bars per band), the heatmap as colour, the table as
-numbers, the stacked bar as one bar per technique split into bands. Four
-encodings, one answer. Where the bands are on an axis the techniques are told
+counts as length (two bars per band), the heatmap as colour, the matrix as
+numbers on the same grid with no colour, the table as a row per band, the
+stacked bar as one bar per technique split into bands. Five encodings, one
+answer. Where the bands are on an axis the techniques are told
 apart by colour (`PAIR_COLORS`); where the techniques are on the axis the bands
 carry the colour. The fitness bands are the admin's choice
 (`conformance_bins`).
