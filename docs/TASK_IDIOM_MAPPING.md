@@ -692,14 +692,26 @@ has nowhere to put it.
 
 **Goal · Means · Characteristics:** Present · Summarize · Process conformance
 
-**Description:** How do fitness values of traces differ when applying two different techniques to compute them? Further, what is the overall trend of trace fitness in my log? To answer this, we first need to calculate the fitness values of different comutations. Based on that, we visually infer hotspots of trace fitness and also inspect differences in the trace fitness values.
+**Description:** How do fitness values of traces differ when applying two different techniques to compute them?
+
+The addendum was dropped — "Further, what is the overall trend of trace fitness
+in my log?". Trend is a question about time, and the two idioms that answered
+it (line graph, horizon chart) were never implemented here.
 
 | Idiom (Excel label) | Canonical key | Priority |
 |---|---|---|
 | Bar Chart | `bar_chart` | Medium/Reviewed |
 | Stacked Bar Graph | `stacked_bar` | High |
-| Line Graph | `line_graph` | High |
-| Horizon Chart | `horizon_chart` | High |
 | Table | `table` | Medium/Reviewed |
 | Heatmap | `heatmap` | High |
-| Calendar | `calendar` | High |
+
+`line_graph`, `horizon_chart` and `calendar` are listed in the spreadsheet and
+were never in `IDIOMS`; all three answer the dropped trend question.
+
+All four idioms read one payload: how many traces the alignment technique puts
+in fitness band X while token-based replay puts them in band Y. Each technique's
+own distribution is a row or column sum of it. The bar chart gives the counts as
+length, the heatmap as colour, the table as numbers, the stacked bar as
+proportions within each alignment band — four encodings, one answer. Colour means
+the replay band in every idiom that uses it; the technique is carried by position
+alone. The fitness bands are the admin's choice (`conformance_bins`).
