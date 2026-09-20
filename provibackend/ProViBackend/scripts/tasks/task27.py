@@ -118,10 +118,10 @@ import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 
 from shared import (
-    save_svg, alignment_pairs_to_rows, build_variant_df,
+    save_svg, alignment_pairs_to_rows, build_variant_df, make_table,
+    auto_col_widths,
     draw_value_heatmap, render_empty_state_svg, format_threshold,
     contrasting_text_color,
     GREY_DARK, PAIR_COLORS,
@@ -160,13 +160,6 @@ def _split_by_status(vdf, threshold: float = CONFORMANT_DEFAULT):
     return vdf[vdf["fitness"] >= threshold], vdf[vdf["fitness"] < threshold]
 
 
-def _status_legend_handles():
-    return [
-        mpatches.Patch(color=_COLOR_CONFORM,     label="Conformant (fitness = 1.0)"),
-        mpatches.Patch(color=_COLOR_NON_CONFORM, label="Non-conformant (fitness < 1.0)"),
-    ]
-
-
 # ---------------------------------------------------------------------------
 # Visualizations
 # ---------------------------------------------------------------------------
@@ -188,76 +181,79 @@ def _activity_order(alignments) -> list:
     return sorted(positions, key=lambda a: sum(positions[a]) / len(positions[a]))
 
 
-def _activity_trace_payload(frame, alignments, threshold):
-    """(activities, trace_labels, statuses, counts) — the one thing every
-    aggregate idiom draws.
+#: The order the move types are listed in, so the rows of one activity always
+#: come in the same sequence.
+_MOVE_ORDER = {"Synchronous Move": 0, "Model Move": 1, "Log Move": 2}
 
-    A cell is how often that selected trace performs that activity. Rows are
-    the model's activities in model order, columns the selected traces in the
-    order the table and the chevron number them, and ``statuses[j]`` is trace
-    ``j``'s conformance status, which the idioms carry as colour or as part of
-    the column label.
+#: Alignment labels that stand for "nothing on this side".
+_NO_ACTIVITY = {"-", "None", "(skip)", ""}
 
-    This is the table's grid. The aggregates used to collapse the traces into
-    their two status groups, so a column said "2 conformant traces contain
-    Check Credit" while the table beside it said which two and what each did
-    — the same number answering a coarser question. At the trace level the
-    contrast the task asks about is still there, read across the columns, and
-    the whole figure set is now information-equal with the trio.
+
+def _row_activity(row) -> str:
+    """The activity an alignment row is about, whichever side carries it."""
+    return str(row["log_move"] if row["moveType"] == "Log Move"
+               else row["model_move"])
+
+
+def _category(key) -> str:
+    activity, move_type = key
+    return f"{activity} ({move_type})"
+
+
+def _status_payload(frame, alignments, threshold):
+    """(keys, statuses, counts) — the one thing every idiom but the two
+    flow charts draws.
+
+    A key is an (activity, move type) pair; a cell is how many traces of that
+    conformance status perform that activity that way. Columns are the two
+    statuses, which is the comparison the task asks for: the figure reads
+    across as "this is what conformant traces do with Check Credit, this is
+    what non-conformant ones do with it".
+
+    The move type is in the row rather than dropped, because it is the *how*
+    of the difference. Without it the two columns of a shared activity both
+    read "2" and the figure says the groups are alike, when in truth one
+    executed the activity and the other skipped it. With it the rows separate
+    on their own: Synchronous Move rows fill the conformant column, Model Move
+    and Log Move rows the other. Same construction as task34's payload.
+
+    Counted per trace, not per occurrence: an activity a trace performs twice
+    is still one trace doing it, and the columns hold trace counts so the two
+    groups stay comparable.
     """
-    activities = _activity_order(alignments)
-    trace_labels, statuses = [], []
-    columns = []
-    for position, (_, row) in enumerate(frame.iterrows()):
-        # The frame's own label, not a fresh count: _selected_variant_df skips a
-        # trace whose index is out of range, and a fresh count would renumber
-        # the rest away from the chevron and the table.
-        trace_labels.append(row.get("label") or f"Trace {position + 1}")
-        statuses.append(_status(row["fitness"], threshold))
-        columns.append(list(row["variant"]))
-
-    counts = np.zeros((len(activities), len(columns)), dtype=float)
-    for ti, seq in enumerate(columns):
-        for ai, act in enumerate(activities):
-            counts[ai, ti] = seq.count(act)
-    return activities, trace_labels, statuses, counts
-
-
-def _column_labels(trace_labels, statuses):
-    """"Trace 1 (Conformant)" — the grid idioms' column heads.
-
-    The matrix and the heatmap have no colour left to spend on the status
-    (the matrix is colourless, the heatmap's colour is the count), so the
-    status rides in the label. The bar charts say it in colour instead.
-    """
-    return [f"{lbl} ({st})" for lbl, st in zip(trace_labels, statuses)]
-
-
-def _activity_ticks(ax, activities):
-    """Activity names down the y axis, in model order from the top.
-
-    Horizontal bars: the activity names are long enough that on an x axis they
-    needed a 35-degree rotation, and a rotated label is read one word at a
-    time. On the y axis they are flat, and the count axis is the one that
-    carries numbers, which is what an axis is good at.
-    """
-    ax.set_yticks(np.arange(len(activities)))
-    ax.set_yticklabels(activities, fontsize=FONT_ANNOT - 1)
-    ax.invert_yaxis()
-    ax.set_ylabel("Activity (model order)", fontsize=FONT_LABEL)
-
-
-def _trace_legend(ax, trace_labels, statuses):
-    """One patch per status, named once however many traces carry it."""
-    seen, handles = [], []
-    for st in statuses:
-        if st in seen:
+    statuses = ["Conformant", "Non-conformant"]
+    rank = {a: i for i, a in enumerate(_activity_order(alignments))}
+    tally, keys = {}, []
+    for _, row in frame.iterrows():
+        status = _status(row["fitness"], threshold)
+        index = int(row["rep_trace_index"])
+        if index >= len(alignments):
             continue
-        seen.append(st)
-        handles.append(mpatches.Patch(color=_STATUS_COLORS[st], label=st))
-    if handles:
-        ax.legend(handles=handles, loc="lower right", frameon=True,
-                  framealpha=0.9, fontsize=FONT_ANNOT)
+        seen = set()
+        for pair in alignment_pairs_to_rows(alignments[index].get("alignment", [])):
+            activity = _row_activity(pair)
+            if activity in _NO_ACTIVITY:
+                continue
+            key = (activity, pair["moveType"])
+            if key not in tally:
+                tally[key] = {st: 0 for st in statuses}
+                keys.append(key)
+            seen.add(key)
+        for key in seen:
+            tally[key][status] += 1
+
+    keys.sort(key=lambda k: (rank.get(k[0], len(rank)), _MOVE_ORDER.get(k[1], 9)))
+    counts = np.array([[tally[k][st] for st in statuses] for k in keys],
+                      dtype=float).reshape(len(keys), len(statuses))
+    return keys, statuses, counts
+
+
+def _category_ticks(ax, keys):
+    """The activity/move-type pairs along the x axis, angled so they stay apart."""
+    ax.set_xticks(np.arange(len(keys)))
+    ax.set_xticklabels([_category(k) for k in keys], rotation=35, ha="right",
+                       fontsize=FONT_ANNOT - 1)
+    ax.set_xlabel("Activity (Move Type), in model order", fontsize=FONT_LABEL)
 
 
 def _no_activities(output_dir, idiom_key):
@@ -265,107 +261,136 @@ def _no_activities(output_dir, idiom_key):
                            _TASK27_TITLE, "No activities found.")
 
 
-def _grid_figsize(activities, columns):
-    return (max(6.0, 3.6 + 1.45 * len(columns)),
-            max(3.4, len(activities) * 0.5 + 2.0))
+def _bar_figsize(keys):
+    return (max(8.0, len(keys) * 1.05 + 2.0), 6.0)
+
+
+def _grid_figsize(keys):
+    widest = max((len(_category(k)) for k in keys), default=10)
+    return (max(6.0, 3.6 + widest * 0.105), max(3.4, len(keys) * 0.46 + 2.0))
 
 
 def task27_bar_chart(frame, alignments, output_dir: str,
                      threshold: float = CONFORMANT_DEFAULT):
-    """Grouped horizontal bars: per activity, one bar per selected trace,
-    coloured by that trace's conformance status."""
-    activities, trace_labels, statuses, counts = _activity_trace_payload(
-        frame, alignments, threshold)
-    if not activities:
+    """Grouped bars: per activity and move type, one bar per status."""
+    keys, statuses, counts = _status_payload(frame, alignments, threshold)
+    if not keys:
         _no_activities(output_dir, "bar_chart")
         return
 
-    y = np.arange(len(activities))
-    n = max(len(trace_labels), 1)
-    bh = 0.78 / n
-    xmax = max(float(counts.max()), 1.0)
-    fig, ax = plt.subplots(figsize=(max(7.5, 4.6 + xmax * 1.1),
-                                    max(4.0, len(activities) * 0.52 + 1.8)))
+    x = np.arange(len(keys))
+    bw = 0.38
+    ymax = max(float(counts.max()), 1.0)
+    fig, ax = plt.subplots(figsize=_bar_figsize(keys))
     ax.set_facecolor("#fafbfc")
-    for ti, (lbl, st) in enumerate(zip(trace_labels, statuses)):
-        off = (ti - (n - 1) / 2) * bh
-        ax.barh(y + off, counts[:, ti], bh * 0.9, color=_STATUS_COLORS[st],
-                edgecolor="white", linewidth=0.6)
-        for yi, val in zip(y, counts[:, ti]):
+    for si, status in enumerate(statuses):
+        off = (si - 0.5) * bw
+        ax.bar(x + off, counts[:, si], bw * 0.92, color=_STATUS_COLORS[status],
+               edgecolor="white", linewidth=0.6, label=status)
+        for xi, val in zip(x, counts[:, si]):
             if val > 0:
-                ax.text(val + xmax * 0.02, yi + off, lbl, ha="left", va="center",
-                        fontsize=FONT_ANNOT - 2, color=GREY_DARK)
+                ax.text(xi + off, val + ymax * 0.02, f"{int(val)}", ha="center",
+                        va="bottom", fontsize=FONT_ANNOT - 1, color=GREY_DARK)
 
-    _activity_ticks(ax, activities)
-    ax.set_xlabel("Occurrences in the trace", fontsize=FONT_LABEL)
-    ax.xaxis.set_major_locator(plt.MaxNLocator(integer=True))
-    ax.set_xlim(0, xmax * 1.30)
+    _category_ticks(ax, keys)
+    ax.set_ylabel("Traces performing it this way", fontsize=FONT_LABEL)
+    ax.yaxis.set_major_locator(plt.MaxNLocator(integer=True))
+    ax.set_ylim(0, ymax * 1.18)
     ax.set_title(_TASK27_TITLE, fontsize=FONT_TITLE)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    _trace_legend(ax, trace_labels, statuses)
+    ax.legend(loc="upper right", frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task27_bar_chart.svg"))
 
 
 def task27_stacked_bar(frame, alignments, output_dir: str,
                        threshold: float = CONFORMANT_DEFAULT):
-    """The bar chart's counts, stacked instead of side by side.
-
-    Same orientation as the bar chart: the two are a deliberate pair, and a
-    pair that disagreed about which axis holds the activities would vary two
-    things at once."""
-    activities, trace_labels, statuses, counts = _activity_trace_payload(
-        frame, alignments, threshold)
-    if not activities:
+    """The bar chart's counts, stacked instead of side by side."""
+    keys, statuses, counts = _status_payload(frame, alignments, threshold)
+    if not keys:
         _no_activities(output_dir, "stacked_bar")
         return
 
-    y = np.arange(len(activities))
-    fig, ax = plt.subplots(figsize=(max(7.5, 4.6 + float(counts.sum(axis=1).max()) * 0.9),
-                                    max(4.0, len(activities) * 0.52 + 1.8)))
+    x = np.arange(len(keys))
+    fig, ax = plt.subplots(figsize=_bar_figsize(keys))
     ax.set_facecolor("#fafbfc")
-    lefts = np.zeros(len(activities))
-    for ti, (lbl, st) in enumerate(zip(trace_labels, statuses)):
-        vals = counts[:, ti]
-        ax.barh(y, vals, 0.62, left=lefts, color=_STATUS_COLORS[st],
-                edgecolor="white", linewidth=0.8)
-        for yi, (v, b) in enumerate(zip(vals, lefts)):
+    bottoms = np.zeros(len(keys))
+    for si, status in enumerate(statuses):
+        vals = counts[:, si]
+        ax.bar(x, vals, 0.6, bottom=bottoms, color=_STATUS_COLORS[status],
+               edgecolor="white", linewidth=0.5, label=status)
+        for xi, (v, b) in enumerate(zip(vals, bottoms)):
             if v > 0:
-                ax.text(b + v / 2, yi, lbl.replace("Trace ", "T"), ha="center",
-                        va="center", fontsize=FONT_ANNOT - 2,
-                        color=contrasting_text_color(_STATUS_COLORS[st]))
-        lefts += vals
+                ax.text(xi, b + v / 2, f"{int(v)}", ha="center", va="center",
+                        fontsize=FONT_ANNOT - 1,
+                        color=contrasting_text_color(_STATUS_COLORS[status]))
+        bottoms += vals
 
-    xmax = max(float(lefts.max()), 1.0)
-    _activity_ticks(ax, activities)
-    ax.set_xlabel("Occurrences across the selected traces", fontsize=FONT_LABEL)
-    ax.xaxis.set_major_locator(plt.MaxNLocator(integer=True))
-    ax.set_xlim(0, xmax * 1.10)
+    ymax = max(float(bottoms.max()), 1.0)
+    _category_ticks(ax, keys)
+    ax.set_ylabel("Traces performing it this way", fontsize=FONT_LABEL)
+    ax.yaxis.set_major_locator(plt.MaxNLocator(integer=True))
+    ax.set_ylim(0, ymax * 1.16)
     ax.set_title(_TASK27_TITLE, fontsize=FONT_TITLE)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    _trace_legend(ax, trace_labels, statuses)
+    ax.legend(loc="upper right", frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task27_stacked_bar.svg"))
+
+
+def task27_table(frame, alignments, output_dir: str,
+                 threshold: float = CONFORMANT_DEFAULT):
+    """The payload as text: the same crosstab the matrix draws.
+
+    It used to be task04's per-trace move table, which put the traces across
+    the top while every idiom beside it compared the two status groups — the
+    one figure in the set that answered a different question. The per-trace
+    resolution is what the chevron and the BPMN are for.
+    """
+    keys, statuses, counts = _status_payload(frame, alignments, threshold)
+    if not keys:
+        _no_activities(output_dir, "table")
+        return
+
+    cell_text = [[_category(k)] + [f"{int(v)}" if v else "—" for v in counts[i]]
+                 for i, k in enumerate(keys)]
+    col_labels = ["Activity (Move Type)"] + list(statuses)
+
+    fig_h = max(3.0, 1.2 + len(cell_text) * 0.46)
+    fig_w = max(7.0, 4.2 + 1.8 * len(statuses))
+    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+    ax.axis("off")
+    make_table(
+        ax,
+        cell_text=cell_text,
+        col_labels=col_labels,
+        bbox=[0.03, 0.05, 0.94, 0.88],
+        col_widths=auto_col_widths(col_labels, cell_text),
+        font_size=10.5,
+        scale_xy=(1, 1.7),
+        zebra=True,
+    )
+    ax.set_title(_TASK27_TITLE, fontsize=FONT_TITLE, pad=12)
+    fig.tight_layout(pad=1.2)
+    save_svg(fig, os.path.join(output_dir, "task27_table.svg"))
 
 
 def task27_matrix(frame, alignments, output_dir: str,
                   threshold: float = CONFORMANT_DEFAULT):
     """The same counts as numbers on white cells. The heatmap is the
     colour."""
-    activities, trace_labels, statuses, counts = _activity_trace_payload(
-        frame, alignments, threshold)
-    if not activities:
+    keys, statuses, counts = _status_payload(frame, alignments, threshold)
+    if not keys:
         _no_activities(output_dir, "matrix")
         return
 
-    columns = _column_labels(trace_labels, statuses)
-    fig, ax = plt.subplots(figsize=_grid_figsize(activities, columns))
-    draw_value_heatmap(fig, ax, counts, activities, columns,
-                       xlabel="Selected trace", cell_fmt="{:.0f}",
+    fig, ax = plt.subplots(figsize=_grid_figsize(keys))
+    draw_value_heatmap(fig, ax, counts, [_category(k) for k in keys], statuses,
+                       xlabel="Conformance status", cell_fmt="{:.0f}",
                        annotate=True, rotate_xticks=0, colorless=True)
     ax.set_title(_TASK27_TITLE, fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
@@ -375,17 +400,15 @@ def task27_matrix(frame, alignments, output_dir: str,
 def task27_heatmap(frame, alignments, output_dir: str,
                    threshold: float = CONFORMANT_DEFAULT):
     """The same counts as colour. The matrix is the numbers."""
-    activities, trace_labels, statuses, counts = _activity_trace_payload(
-        frame, alignments, threshold)
-    if not activities:
+    keys, statuses, counts = _status_payload(frame, alignments, threshold)
+    if not keys:
         _no_activities(output_dir, "heatmap")
         return
 
-    columns = _column_labels(trace_labels, statuses)
-    fig, ax = plt.subplots(figsize=_grid_figsize(activities, columns))
-    draw_value_heatmap(fig, ax, counts, activities, columns,
-                       xlabel="Selected trace",
-                       cbar_label="Occurrences in the trace",
+    fig, ax = plt.subplots(figsize=_grid_figsize(keys))
+    draw_value_heatmap(fig, ax, counts, [_category(k) for k in keys], statuses,
+                       xlabel="Conformance status",
+                       cbar_label="Traces performing it this way",
                        annotate=False, rotate_xticks=0,
                        vmax=max(float(counts.max()), 1.0))
     ax.set_title(_TASK27_TITLE, fontsize=FONT_TITLE)
@@ -524,14 +547,8 @@ def _task27_alignment_figures(log, alignments, indices, model_path, output_dir):
         # top-15 variants regardless of the selection, so an admin asking for one
         # conformant and one non-conformant variant got a table contradicting the
         # two strips beside it.
-        # No step number and one row per activity, as task28's table does it:
-        # the chevron and the BPMN beside it already carry the order, and a row
-        # "Check Credit (Log Move)" above a cell "Log Move" said one thing twice.
-        task04.task04_table(
-            records, model_path, output_dir,
-            filename="task27_table.svg",
-            title=_TASK27_TITLE,
-            show_order=False, merge_log_moves=True)
+        # No table here: task27_table draws the status crosstab the rest of
+        # the set draws. Only the chevron and the BPMN stay per trace.
 
 
 def generate(log, fitness_df, alignments, output_dir: str, model_path: str = None,
@@ -601,6 +618,7 @@ def generate(log, fitness_df, alignments, output_dir: str, model_path: str = Non
 
     task27_bar_chart(frame, alignments, output_dir, conformant_threshold)
     task27_stacked_bar(frame, alignments, output_dir, conformant_threshold)
+    task27_table(frame, alignments, output_dir, conformant_threshold)
     task27_matrix(frame, alignments, output_dir, conformant_threshold)
     task27_heatmap(frame, alignments, output_dir, conformant_threshold)
 

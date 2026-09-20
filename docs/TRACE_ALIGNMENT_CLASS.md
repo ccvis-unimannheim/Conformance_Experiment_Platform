@@ -279,27 +279,35 @@ one process already disagree), and pm4py exposes no deterministic tie-break. So:
   under the automatic rule, so the chevron showed two traces and the bar chart
   beside it fifteen variants. The objection to closing that gap was the box
   plot — one value per group is no distribution — and the box plot is gone.
-* **task27's four aggregates carry one payload:** activity × selected trace,
-  the cell counting how often that trace performs that activity
-  (`_activity_trace_payload`) — which is the table's grid, so the aggregates
-  and the trio are now information-equal. The conformance status rides along as
-  colour (bar chart, stacked bar) or in the column label, "Trace 1
-  (Conformant)" (matrix, heatmap), and the contrast the task asks about reads
-  across the columns.
+* **Every task27 idiom but the two flow charts carries one payload:**
+  (activity, move type) × conformance status, the cell counting how many
+  traces of that status perform that activity that way (`_status_payload`).
+  The columns *are* the comparison the task asks for, so each figure reads
+  across as "this is what conformant traces do with Check Credit, this is what
+  non-conformant ones do with it".
 
-  Two steps got here. The aggregates first carried three answers between them:
-  the bar chart and the parallel sets said how *common* each behaviour is, the
-  stacked bar how *long* the traces are, and only the matrix and the heatmap
-  what the traces actually *do*. Frequency and length are differences, but not
-  the behavioural difference the task asks about, so all five moved onto
-  activity × conformance status. That still collapsed the traces into their
-  two groups: a cell said "2 conformant traces contain Check Credit" while the
-  table beside it said which two and what each did. Hence the trace level,
-  as in task28 and task34.
-* **task27's bar chart and stacked bar are horizontal.** The activity names
-  needed a 35-degree rotation on an x axis, and a rotated label is read one
-  word at a time. Both, not one: the pair varies the encoding, and a pair
-  disagreeing about which axis holds the activities would vary two things.
+  The move type is in the row key rather than dropped, because it is the *how*
+  of the difference. Without it both columns of a shared activity read "2" and
+  the figure says the groups are alike, when one executed the activity and the
+  other skipped it. With it the rows separate on their own: Synchronous Move
+  rows fill the conformant column, Model Move and Log Move rows the other.
+  Same construction as task34's payload, and counted per trace rather than per
+  occurrence so the two columns stay comparable.
+
+  Three steps got here. The aggregates first carried three answers between
+  them: the bar chart and the parallel sets said how *common* each behaviour
+  is, the stacked bar how *long* the traces are, and only the matrix and the
+  heatmap what the traces actually *do*. Frequency and length are differences,
+  but not the behavioural difference the task asks about, so all five moved
+  onto activity × conformance status. Plain activities lost the *how*, and a
+  per-trace column axis (tried in between) lost the conformant/non-conformant
+  perspective the task is named after. The pair as the row keeps both.
+* **task27's table is that crosstab, not task04's move table**
+  (`task27_table`). The per-trace table put the traces across the top while
+  every idiom beside it compared the two status groups — the one figure in the
+  set answering a different question. Per-trace resolution is what the chevron
+  and the BPMN are for. It also no longer sits behind the `model_path` check,
+  so a dataset without a reference model keeps its table.
 * **task27 lost eight idioms** — scatterplot, flow chart & table, table & bar
   chart, gantt chart, flow chart+ & table, calendar, the box plot and the
   parallel sets — leaving `bar_chart`, `table`, `matrix`,
@@ -309,10 +317,6 @@ one process already disagree), and pm4py exposes no deterministic tie-break. So:
   the payload above as ribbons, where every cell is 0, 1 or 2: a ribbon of
   width 1 beside one of width 2 is not a readable difference, and the thin ones
   fall below `draw_parallel_sets`'s label threshold and vanish.
-* **task27's table drops the step number and merges the log-move row**
-  (`show_order=False, merge_log_moves=True`), as task28's does. The chevron and
-  the BPMN beside it carry the order, and a row "Check Credit (Log Move)" above
-  a cell reading "Log Move" said one thing twice.
 * **task28** is task09 explored rather than presented. Same parameters, and the
   trace-level trio is literally task09's renderers; the difference is
   `HIGHLIGHT_VIOLATIONS = False`, a task property rather than an admin choice.

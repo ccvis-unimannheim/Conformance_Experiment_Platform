@@ -8,24 +8,19 @@ Tracks files modified or created during development sessions.
 
 Three things, plus what a merge conflict had eaten.
 
-The table carried the step number and a "(step · move)" column head, and an
-activity that was both executed and inserted got a second row labelled
-"Check Credit (Log Move)" above a cell reading "Log Move". task28 already had
-both switches on `task04_table`; task27 was not passing them.
+Every idiom but the two flow charts now draws one payload: (activity, move
+type) × conformance status, the cell counting how many traces of that status
+perform that activity that way. The columns are the comparison the task is
+named after. The move type stays in the row key because it is the *how* of the
+difference — without it both columns of a shared activity read "2" and the
+figure claims the groups are alike, when one executed the activity and the
+other skipped it. Same construction as task34's payload.
 
-The aggregates collapsed the selected traces into their two status groups, so a
-cell said "2 conformant traces contain Check Credit" while the table beside it
-said which two and what each of them did — the same count answering a coarser
-question than the trio next to it. They now draw the table's grid: activity
-× selected trace, the cell counting how often that trace performs that
-activity, status carried as colour (bar charts) or in the column label,
-"Trace 1 (Conformant)" (matrix, heatmap). The whole figure set is
-information-equal, and the contrast the task asks about reads across the
-columns.
-
-The bar chart and the stacked bar turned horizontal. The activity names needed
-a 35-degree rotation on an x axis, and a rotated label is read one word at a
-time; on the y axis they are flat and the count axis carries the numbers.
+The table moved onto that crosstab with them. It was task04's per-trace move
+table, which put the traces across the top while every idiom beside it compared
+the two status groups; per-trace resolution is what the chevron and the BPMN
+are for. It also left the `model_path` branch, so a dataset without a reference
+model keeps its table.
 
 The parallel sets are deleted. They drew the same counts as ribbons, and over a
 handful of selected traces every cell is 0, 1 or 2 — a ribbon of width 1
@@ -44,11 +39,11 @@ removed.
 ### Files changed
 
 - `provibackend/ProViBackend/scripts/tasks/task27.py` — `_activity_status_payload`
-  becomes `_activity_trace_payload`; `_column_labels`, `_trace_legend`,
-  `_grid_figsize` added; `_activity_ticks` moves to the y axis; bar chart and
-  stacked bar redrawn horizontally; `task27_parallel_sets` deleted and dropped
-  from `IDIOMS`; `task04_table` called with `show_order=False,
-  merge_log_moves=True`; imports and docstring repaired.
+  becomes `_status_payload` over (activity, move type) keys; `_row_activity`,
+  `_category`, `_category_ticks`, `_bar_figsize`, `_grid_figsize` added;
+  `task27_table` added and the `task04_table` call dropped;
+  `task27_parallel_sets` and the now-unused `_status_legend_handles` deleted,
+  parallel sets dropped from `IDIOMS`; imports and docstring repaired.
 - `provibackend/ProViBackend/scripts/tasks/task09.py` — `merge_log_moves`
   restored to `alignment_figures`.
 - `docs/TASK_IDIOM_MAPPING.md` — the Parallel Sets row removed from task27.
