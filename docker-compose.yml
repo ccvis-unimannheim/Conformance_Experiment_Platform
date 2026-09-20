@@ -42,10 +42,9 @@ services:
       timeout: 3s
       retries: 10
 
-  # An edit does not always reach the running container: the image holds the copy
-  # of the code made at build time, and a mount can shadow part of it. When a
-  # change refuses to show up, remove the container and its volume and bring the
-  # file back up before you start debugging the code itself.
+  # Due to the use of docker mount, the container sometimes holds an old version
+  # of the code instead of the code currently being developed. When that happens,
+  # delete the container and the volume and re-deploy this compose file.
   provibackend:
     build:
       context: ./provibackend
