@@ -222,27 +222,32 @@ def task05_bar_chart(agg_df: pd.DataFrame, output_dir: str,
 
 def task05_table(agg_df: pd.DataFrame, output_dir: str,
                  labels=("Sub-log 1", "Sub-log 2")):
-    """Table: Pattern | Positive (count / rate) | Negative (count / rate) | Total."""
+    """Table: Pattern | rate per sub-log.
+
+    The rate alone, because that is what the bar chart, the matrix and the
+    heatmap draw. The table used to add the trace count behind each rate and a
+    Total column of counts across both sub-logs, which no other idiom carried —
+    reading the four against each other meant reading past that. The rows are
+    still ordered by that total, it is just no longer a column.
+    """
     cell_text = [
         [
             row["pattern"],
-            f"{int(row['Positive_count'])} ({row['Positive_rate']:.1f}%)",
-            f"{int(row['Negative_count'])} ({row['Negative_rate']:.1f}%)",
-            str(int(row["total"])),
+            f"{row['Positive_rate']:.1f}%",
+            f"{row['Negative_rate']:.1f}%",
         ]
         for _, row in agg_df.iterrows()
     ]
-    heads, head_lines = _wrapped_headers(
-        [f"{labels[0]} (n / rate)", f"{labels[1]} (n / rate)"], 20)
+    heads, head_lines = _wrapped_headers([labels[0], labels[1]], 20)
     fig_h = max(3.5, 1.3 + len(cell_text) * 0.46) + (head_lines - 1) * 0.22
     fig, ax = plt.subplots(figsize=(13, fig_h))
     ax.axis("off")
     make_table(
         ax,
         cell_text=cell_text,
-        col_labels=["Violation Pattern", heads[0], heads[1], "Total"],
+        col_labels=["Violation Pattern", heads[0], heads[1]],
         bbox=[0.01, 0.05, 0.98, 0.80],
-        col_widths=[0.44, 0.21, 0.21, 0.12],
+        col_widths=[0.50, 0.25, 0.25],
         font_size=9.5,
         scale_xy=(1, 1.75),
         cell_pad=0.09,
