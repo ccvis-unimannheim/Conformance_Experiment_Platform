@@ -1529,6 +1529,38 @@ def _keep_imported_parameters(instances: list[dict], existing_by_task_id: dict) 
     return instances
 
 
+def _mark_image_backed_tasks_ready(instances: list, experiment_id: str) -> list:
+    """A task whose every idiom is an uploaded image needs no generation.
+
+    Custom idioms are fixed assets and imported/replaced images win over
+    generated ones (utils/idiom_files), so such a task has everything it will
+    ever have the moment its idioms are chosen. Without this it would sit at
+    "pending" and block publishing, with a Generate step that has nothing to
+    draw — which is why /idiom sends those experiments straight on.
+    """
+    overrides = {(o["task_key"], o["idiom_key"]) for o in idiom_files.list_overrides(experiment_id)}
+    for inst in instances:
+        if inst.get("generation_status") in ("ready", "running"):
+            continue
+        idiom_ids = inst.get("idiom_ids") or []
+        if not idiom_ids:
+            continue
+        task_key = inst.get("task_key") or _task_key_for(inst.get("task_id"))
+        backed = True
+        for iid in idiom_ids:
+            idiom = dbc.get_document("Idiom", {"_id": iid}) or {}
+            if idiom.get("is_custom"):
+                continue
+            if task_key and (task_key, idiom.get("idiom_key")) in overrides:
+                continue
+            backed = False
+            break
+        if backed:
+            inst["generation_status"] = "ready"
+            inst["generation_error"] = None
+    return instances
+
+
 @router.patch("/experiments/{experiment_id}", tags=["admin"])
 async def update_experiment(experiment_id: str, update_data: ds.ExperimentUpdate):
     # Keep task_instances (canonical) and task_configs (legacy mirror) in sync,
@@ -1548,6 +1580,7 @@ async def update_experiment(experiment_id: str, update_data: ds.ExperimentUpdate
                 instances = _keep_state_below_the_task_step(instances, existing_by_task_id)
         instances = _freeze_task_snapshots(instances, existing_by_task_id)
         instances = _keep_imported_parameters(instances, existing_by_task_id)
+        instances = _mark_image_backed_tasks_ready(instances, experiment_id)
         fields["task_instances"] = instances
         fields["task_configs"] = task_instances_to_configs(instances)
     if update_data.status is not None:
@@ -1563,6 +1596,14 @@ async def update_experiment(experiment_id: str, update_data: ds.ExperimentUpdate
     if update_data.within_sequence_mode is not None:
         fields["within_sequence_mode"] = update_data.within_sequence_mode
     if update_data.dataset_ids is not None:
+        # A bundle experiment shows the images of its zip and has nothing to
+        # generate. Attaching a dataset would offer to generate over them.
+        exp = dbc.get_document("Experiment", {"_id": experiment_id}) or {}
+        if exp.get("bundle_only") and update_data.dataset_ids:
+            raise HTTPException(
+                status_code=409,
+                detail="This experiment's images come from an uploaded bundle; it cannot take a dataset.",
+            )
         fields["dataset_ids"] = update_data.dataset_ids
     if not fields:
         raise HTTPException(status_code=400, detail="No fields to update.")
@@ -1840,6 +1881,13 @@ async def generate_experiment_visualizations(experiment_id: str, background_task
     exp = dbc.get_document("Experiment", {"_id": experiment_id})
     if not exp:
         raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
+    if exp.get("bundle_only"):
+        # Not merely nothing to do: generating would need a dataset this
+        # experiment does not have, and would draw over the uploaded images.
+        raise HTTPException(
+            status_code=409,
+            detail="This experiment's images come from an uploaded bundle — there is nothing to generate.",
+        )
     task_instances = exp.get("task_instances", [])
     if not task_instances:
         raise HTTPException(status_code=400, detail="Experiment has no task_instances to generate.")

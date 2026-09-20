@@ -2,6 +2,48 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: An Experiment From an Uploaded Zip (2026-09-20)
+
+### Problem solved
+
+The images of a finished study could be exported and imported back, but only
+into an experiment that had already been set up the same way — a dataset, the
+same tasks, the same idioms, and a generation run whose output the import then
+replaced. An admin who already has the images had no way to say so.
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `provibackend/ProViBackend/app/routers/idiom_bundle.py` | Manifest version 3: each task also records its wording, `is_custom` and answer shape (`answer_format`, `number_kind`, `answer_options`), each idiom its `is_custom`, granularity and renderer. **New `POST /admin/experiments/from-bundle`**: builds a whole draft experiment out of a zip — recreating tasks the question bank does not have and idioms this server does not know, writing the images as overrides, and marking every task `ready`. Reverting an image is refused for such an experiment (there is nothing behind it). Zip reading factored into `_open_bundle`. |
+| `provibackend/ProViBackend/app/routers/admin.py` | Generation and attaching a dataset are refused for a `bundle_only` experiment. New `_mark_image_backed_tasks_ready`: a task whose every idiom is an uploaded image is `ready` when it is saved, so skipping /specify does not block publishing. |
+| `provibackend/ProViBackend/app/datamodels/data_schemas.py` | `Experiment.bundle_only`. |
+| `provibackend/ProViBackend/utils/idiom_files.py` | `BUNDLE_DATASET_ID` (`_bundle`): the placeholder such an experiment carries where a dataset id goes, resolving to its overrides and nothing else. |
+| `ProViFrontend/.../components/Admin/BundleStartCard.js` | **New.** The collapsed "Start from a downloaded zip" panel on /new: the expected layout, the upload, and what was not used. |
+| `ProViFrontend/.../admin/experiments/new/page.js` | Shows it; on success goes to /overview, or /answer-format when the zip carries no formats. |
+| `ProViFrontend/.../admin/experiments/specify/page.js` | Import and *Discard import* removed; a `bundle_only` experiment is redirected to /overview. Imported tasks still show why their parameters are locked. |
+| `ProViFrontend/.../admin/experiments/idiom/page.js` | Next skips /specify when every selected idiom is an uploaded image. |
+| `ProViFrontend/.../admin/experiments/overview/page.js` | A banner for bundle experiments (no dataset, nothing to generate, no revert); import and *Revert all* hidden for them. New *Participant flow* card: what the pre-questionnaire, knowledge questions and intro pages are set to, with links to change them. |
+| `ProViFrontend/.../components/Admin/IdiomImport.js` | Import asks first and lists what it changes — images and the matched tasks' parameters — and what it does not. |
+| `ProViFrontend/.../admin/page.js` | *Continue Editing* never resumes a bundle experiment at /specify. |
+
+`docs/ADMIN_EXPERIMENT_SETUP.md` gains the second route and the /specify skip.
+
+### Verification
+
+`py_compile` over the changed Python files; `eslint` over the changed JS files —
+clean apart from the pre-existing `react/no-unescaped-entities` errors in
+`overview/page.js` (publish-conflict dialog) and `admin/page.js` (dataset
+delete text). **Not run end to end:** no zip was uploaded against a running
+backend.
+
+### Known gaps
+
+- A zip exported before this change (version 1 or 2) carries no answer formats,
+  so an experiment built from one has to be taken through /answer-format.
+- The images of a bundle experiment can be replaced but not reverted, and its
+  tasks and idioms can only be removed on /task and /idiom, not added to.
+
 ## Session: Removed Idioms Leave the Admin Panel, task01 and task03 (2026-09-20)
 
 The idiom review removed three of task01's idioms and two of task03's. They are

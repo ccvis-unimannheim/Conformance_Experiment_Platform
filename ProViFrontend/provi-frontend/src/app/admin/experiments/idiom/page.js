@@ -475,8 +475,20 @@ function IdiomSelectionContent() {
       return;
     }
 
+    // Custom idioms are fixed uploaded images — there is nothing to generate
+    // from a dataset, so an experiment made only of them skips Specify.
+    const byId = new Map(allIdioms.map((i) => [getId(i), i]));
+    const onlyCustom = selectedTasks.every((t) =>
+      (taskIdiomMap[getId(t)] || []).every((iid) => byId.get(iid)?.is_custom)
+    );
+
     try {
       await queueWizardSave(experimentId, "idiom", { task_configs: buildTaskConfigs(taskIdiomMap) });
+      if (onlyCustom) {
+        showToast("Every selected idiom is an uploaded image — no visualizations to generate.");
+        router.push(`/admin/experiments/answer-format?experiment_id=${encodeURIComponent(experimentId)}`);
+        return;
+      }
       router.push(`/admin/experiments/specify?experiment_id=${encodeURIComponent(experimentId)}`);
     } catch (e) {
       showToast(`Failed to save experiment: ${e.message}`, true);

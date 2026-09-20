@@ -16,6 +16,20 @@ workflow the platform no longer has).
 /new → /prequestionnaire → /knowledge → /concepts → /task → /idiom → /specify → /answer-format → /overview → publish
 ```
 
+/new offers a second route: **Start from a downloaded zip**
+(`POST /admin/experiments/from-bundle`). The zip decides the tasks, the idioms
+and — from manifest version 3 — the answer formats, so there is no dataset to
+choose and nothing to generate. Such an experiment is marked `bundle_only`, goes
+straight to /overview (or /answer-format, when an older zip carries no formats),
+and skips /specify; its images can only be replaced, never reverted, since there
+is no generated image behind them. Everything before the tasks
+(/prequestionnaire, /knowledge, /concepts) keeps its defaults, which the
+*Participant flow* card on /overview states and links to.
+
+/idiom also skips /specify when every selected idiom is an uploaded image:
+nothing about such a task is generated, and `PATCH /admin/experiments/{id}`
+marks it `ready` as it is saved.
+
 `/prequestionnaire`, `/knowledge` and `/concepts` configure what participants
 see before the tasks (see [Intro pages](#intro-pages) for `/concepts`); the
 table below covers the task steps.
@@ -205,7 +219,11 @@ platform and put back in (`app/routers/idiom_bundle.py`, paths in
   `uploaded`, `custom`, `legacy`). `git_commit` is filled from the backend's
   `GIT_COMMIT` environment variable, which the deploy does not set yet.
 - **Import** (`POST …/idioms/import?mode=specify|overview`) — puts such a zip
-  into this experiment or any other with the same tasks and idioms. Files are
+  into this experiment or any other with the same tasks and idioms. The Overview
+  page is the one place that offers it (in `overview` mode, asking first and
+  saying what it changes); `specify` mode is still implemented, but the Specify
+  page no longer imports — a zip with its own tasks and settings builds a new
+  experiment on /new instead. Files are
   matched by `task_key` and `idiom_key`, never by experiment id. The manifest is
   required, because every task is checked against it before any of its files is
   taken:
