@@ -176,6 +176,37 @@ def _top_violations(violation_freq, n=_TOP_N):
     return [v for v, _ in most_common_stable(violation_freq, n)]
 
 
+def _axis_violations(violation_freq, cooccurrence, n):
+    """The n violations the three figures are built from, chosen by co-occurrence.
+
+    Ranking them by how many traces contain each one answered a different
+    question from the one the task asks. On the order-to-cash log it spent three
+    of ten rows on violations that never co-occur at all, and left out five
+    pairs that do — including both halves of a pair the table listed on the same
+    page. A violation whose partner fell below the cut was drawn with an empty
+    row and, in the network, no edge at all: the figure said it never co-occurs,
+    which is the opposite of the data.
+
+    Taking the strongest pairs whole fixes both ends of that. Every violation on
+    the axis shares a trace with another one on it, so no row is empty and no
+    node is isolated, and the pairs that get the room are the ones the question
+    is about. A pair that does not fit whole is skipped rather than halved — a
+    later, smaller one may still fit beside what is already there.
+
+    Ranking by frequency remains the fallback for a log where nothing co-occurs,
+    so those figures still draw the violations and their own counts.
+    """
+    chosen, seen = [], set()
+    for (a, b), _cnt in most_common_stable(cooccurrence):
+        missing = [v for v in (a, b) if v not in seen]
+        if not missing or len(seen) + len(missing) > n:
+            continue
+        for v in missing:
+            chosen.append(v)
+            seen.add(v)
+    return chosen if len(chosen) >= 2 else _top_violations(violation_freq, n)
+
+
 def _selected_labels(violation_patterns) -> set:
     """`log.violations` values ("Ship Order|Model Move") as this task's labels.
 
@@ -250,12 +281,12 @@ def _build_cooccur_matrix(top_viols, violation_freq, cooccurrence):
     return mat
 
 
-def task08_heatmap(violation_freq, cooccurrence, output_dir, top_n=_TOP_N):
+def task08_heatmap(violation_freq, cooccurrence, output_dir, axis):
     if not violation_freq:
         _no_violations(output_dir, "heatmap")
         return
 
-    top = _top_violations(violation_freq, top_n)  # same axis as the matrix idiom
+    top = list(axis)
     if len(top) < 2:
         _save_empty(output_dir, "task08_heatmap.svg",
                     "Too few distinct violations for co-occurrence heatmap")
@@ -287,12 +318,12 @@ def task08_heatmap(violation_freq, cooccurrence, output_dir, top_n=_TOP_N):
 # Idiom: Matrix — the same grid as the heatmap, read as numbers instead of colour
 # ---------------------------------------------------------------------------
 
-def task08_matrix(violation_freq, cooccurrence, output_dir, top_n=_TOP_N):
+def task08_matrix(violation_freq, cooccurrence, output_dir, axis):
     if not violation_freq:
         _no_violations(output_dir, "matrix")
         return
 
-    top = _top_violations(violation_freq, top_n)  # same axis as the heatmap idiom
+    top = list(axis)
     if len(top) < 2:
         _save_empty(output_dir, "task08_matrix.svg",
                     "Too few distinct violations for co-occurrence matrix")
@@ -336,8 +367,7 @@ def task08_matrix(violation_freq, cooccurrence, output_dir, top_n=_TOP_N):
 # Idiom 4: Network Diagram — violations as nodes, co-occurrence as edges
 # ---------------------------------------------------------------------------
 
-def task08_network_diagram(violation_freq, cooccurrence, output_dir,
-                           top_n=_TOP_N):
+def task08_network_diagram(violation_freq, cooccurrence, output_dir, axis):
     try:
         import networkx as nx
     except ImportError:
@@ -359,7 +389,7 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir,
     # co-occurs, so a node whose only partner ranks below the cut is drawn with
     # no edge. That is the same gap the matrix shows as a row of zeros — the
     # figures agree — but neither says the pair exists; only the table does.
-    top = _top_violations(violation_freq, top_n)
+    top = list(axis)
     top_set = set(top)
     pairs = [(a, b, cnt) for (a, b), cnt in cooccurrence.items()
              if a in top_set and b in top_set and cnt >= _MIN_COOCCUR]
@@ -585,13 +615,18 @@ def generate(log, alignments, output_dir: str, violation_patterns=None):
                         "No guideline violations detected in this log")
         return
 
+    # One axis, chosen once, for the three figures that have one — so a
+    # participant comparing them is comparing the encoding and not the data.
+    # An admin who named the patterns gets all of them, co-occurring or not:
+    # dropping three of fifteen chosen patterns would answer a question nobody
+    # asked. Left to itself the task picks the violations that co-occur.
+    axis = (_top_violations(violation_freq, axis_n) if axis_n
+            else _axis_violations(violation_freq, cooccurrence, _TOP_N))
+
     # No co-occurrence threshold is drawn anywhere: no pair is flagged high or
     # low, so the analyst decides which correlations are noteworthy. Naming the
     # pairs worth looking at is what choosing the patterns does.
-    task08_heatmap(violation_freq, cooccurrence, output_dir,
-                   top_n=axis_n or _TOP_N)
-    task08_matrix(violation_freq, cooccurrence, output_dir,
-                  top_n=axis_n or _TOP_N)
-    task08_network_diagram(violation_freq, cooccurrence, output_dir,
-                           top_n=axis_n or _TOP_N)
+    task08_heatmap(violation_freq, cooccurrence, output_dir, axis)
+    task08_matrix(violation_freq, cooccurrence, output_dir, axis)
+    task08_network_diagram(violation_freq, cooccurrence, output_dir, axis)
     task08_table(violation_freq, cooccurrence, n_traces, output_dir)
