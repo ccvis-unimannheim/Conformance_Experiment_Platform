@@ -53,6 +53,72 @@ idiom at a time. Removed at the admin's request.
 
 `eslint` — no errors, same two pre-existing warnings.
 
+## Session: Task 25 Derives the Degree from Per-Trace Fitness (2026-09-20)
+
+### Problem solved
+
+task25 and task06 ask verbatim the same question — what is the overall degree
+of conformance between a log and the guidelines — and differ only in that
+task06 states the number and task25 has the analyst derive it. **They had
+different right answers.**
+
+task25 annotated the guideline BPMN with per-activity replay counts. Pooling
+those gives the share of replayed steps that were synchronous, an
+*event*-weighted rate; task06 states the mean of the per-trace alignment
+fitness, which weights every trace equally. On the order-to-cash log the two
+were 93.7% and 95.3%. A participant who solved task25 perfectly missed task06's
+answer key.
+
+Fitness is defined per trace and the overall degree is the mean over traces, so
+the decomposition that adds back up to it is the one by trace. Every idiom now
+shows the distribution of per-trace fitness: which values occur, and how many
+traces have each. `result["fitness"]` is the same field
+`io_helpers.fitness_summary_dataframe` puts in the `fitness` column task06
+reads, so the two tasks cannot drift apart by construction rather than by
+agreement.
+
+**The values are exact, not binned**, so the mean is fully recoverable from any
+figure. This costs nothing: on BPIC12-A all 13,087 traces take **five** distinct
+fitness values — 1.000 (11,497 traces), 0.875 (327), 0.857 (3), 0.833 (69),
+0.818 (1,191), mean 0.9794. A five-row table beats any binning.
+
+**Four idioms, chosen for the contrast.** The bar chart and the table hand over
+the counts for the reader to pool. The pie chart and the stacked bar encode the
+share of the whole directly — the quantity being asked for — one by angle,
+the other by length. A heatmap is excluded because colour cannot be pooled back
+into a mean; a box plot because median and quartiles are already aggregates and
+the mean is not derivable from them; a tile metric and a gauge because they
+*are* the answer.
+
+A slice or segment holding less than 4% of the log cannot carry its label
+inside, and one of the five values covers three traces in thirteen thousand.
+Those get their value and count on a leader line (pie) or in the legend
+(stacked bar), so no idiom silently drops a category the others show.
+
+The derivable mean is logged for whoever sets the answer key. It appears on no
+figure: `total` is only ever a divisor and an axis limit, and `mean` reaches
+nothing but `logger`.
+
+### Files changed
+
+- `provibackend/ProViBackend/scripts/tasks/task25.py` — rewritten.
+  `_fitness_distribution`, `_labels`, `_colors` and the four renderers added;
+  `_task25_activity_replay`, `_annotated_model`, `_node_style_fn`, `_draw`,
+  `task25_flow_chart_elaborate` and the BPMN machinery deleted. `IDIOMS` is
+  `bar_chart`, `table`, `pie_chart`, `stacked_bar`.
+- `provibackend/ProViBackend/scripts/create_all_visualizations.py` — the
+  task25 lambda no longer passes `model_path`; the task does not use a model.
+- `docs/TASK_IDIOM_MAPPING.md` — task25's set, and why it departs from the
+  spreadsheet.
+
+### Known costs
+
+With 87.9% of BPIC12-A's traces at fitness 1.0, the answer may be easy to
+approximate from any of the four ("nearly all perfect, so about 0.98"), which
+limits how well this task separates the encodings. That is a property of this
+dataset's conformance, not of the design; a log with wider spread would
+separate them further.
+
 ## Session: Task 24 Discovers a Model and Compares It (2026-09-20)
 
 ### Problem solved
