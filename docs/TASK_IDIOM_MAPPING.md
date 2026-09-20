@@ -620,16 +620,12 @@ This task is similar to ``Present: Present Guideline violations'', but rather th
 | Bar Chart | `bar_chart` | High |
 | Scatter Plot (Dotted Chart) | `scatter_plot` | High |
 | Flow Chart (Chevron Diagram) | `flow_chart_basic` | Medium/Reviewed |
-| Flow Chart & Table | `flow_chart_table` | High |
 | Flow Chart+ (BPMN / Petri Net / DFG) | `flow_chart_elaborate` | Medium/Reviewed |
-| Flow Chart+ & Table | `flow_chart_elaborate_table` | High |
 | Network Diagram | `network_diagram` | Medium/Reviewed |
 | Tree | `tree` | Medium/Reviewed |
 | Table | `table` | High |
-| Table & Bar Chart | `table_bar_chart` | High |
 | Matrix | `matrix` | Medium/Reviewed |
 | Heatmap | `heatmap` | Medium/Reviewed |
-| Parallel Sets | `parallel_sets` | High |
 
 ## task35
 

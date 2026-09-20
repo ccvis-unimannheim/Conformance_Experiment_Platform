@@ -32,7 +32,6 @@ def task_instances_to_configs(task_instances: list[dict]) -> list[dict]:
             "task_key": inst.get("task_key"),
             "label": inst.get("label"),
             "description": inst.get("description"),
-            "answer_type": inst.get("answer_type"),
         }
         if idiom_ids:
             for idiom_id in idiom_ids:
@@ -60,9 +59,8 @@ def task_configs_to_instances(task_configs: list[dict]) -> list[dict]:
     Rows are grouped by ``task_id`` (preserving first-seen order), collecting
     distinct ``idiom_id`` values into ``idiom_ids``. Parameters and the answer
     shape are left at their defaults — they are authored later in the /specify
-    and /answer-format steps. ``answer_format`` is left ``None`` (the legacy
-    per-task ``Task.answer_type`` is not an answer-format key, so we do not
-    guess a mapping here).
+    and /answer-format steps, so ``answer_format`` is left ``None`` rather than
+    guessed.
     """
     order: list[str] = []
     by_task: dict[str, dict] = {}
@@ -84,7 +82,6 @@ def task_configs_to_instances(task_configs: list[dict]) -> list[dict]:
                 "task_key": tc.get("task_key"),
                 "label": tc.get("label"),
                 "description": tc.get("description"),
-                "answer_type": tc.get("answer_type"),
             }
             order.append(task_id)
         inst = by_task[task_id]

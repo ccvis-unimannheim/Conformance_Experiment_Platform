@@ -8,7 +8,6 @@ import { useState } from "react";
 export default function EditTaskModal({ task, onClose, onSave }) {
   const [label, setLabel] = useState(task.label || "");
   const [description, setDescription] = useState(task.description || "");
-  const [answerType, setAnswerType] = useState(task.answer_type || "single_choice");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -23,7 +22,6 @@ export default function EditTaskModal({ task, onClose, onSave }) {
       await onSave({
         label: label.trim(),
         description: description.trim(),
-        answer_type: answerType,
       });
       onClose();
     } catch (e) {
@@ -82,21 +80,6 @@ export default function EditTaskModal({ task, onClose, onSave }) {
               onChange={(e) => setDescription(e.target.value)}
               className="w-full border border-border-subtle rounded px-3 py-2 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary resize-none"
             />
-          </div>
-          <div>
-            <label className="text-xs font-bold uppercase tracking-wider text-on-surface-variant block mb-1">
-              Answer Type
-            </label>
-            <select
-              value={answerType}
-              onChange={(e) => setAnswerType(e.target.value)}
-              className="w-full border border-border-subtle rounded px-3 py-2 text-sm focus:outline-none focus:border-primary"
-            >
-              <option value="single_choice">Single Choice</option>
-              <option value="multiple_choice">Multiple Choice</option>
-              <option value="numeric">Numeric</option>
-              <option value="text">Free Text</option>
-            </select>
           </div>
         </div>
         {error && (
