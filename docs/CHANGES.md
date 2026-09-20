@@ -2,6 +2,30 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: One Spelling for the docs/ Pointers in Comments (2026-09-21)
+
+The design docs moved under `docs/` a few days ago, but the comments pointing
+at them were written at different times and ended up in two spellings: 20 said
+`docs/ADMIN_EXPERIMENT_SETUP.md`, 11 said `TRACE_FEATURE_REGISTRY.md` with no
+directory. Both let a reader find the file, so neither was broken — but a bare
+filename reads as if the doc sits beside the module, which it has not for some
+time. All 11 now carry the `docs/` prefix, so the 31 pointers in the backend
+agree.
+
+| File | Reference |
+|------|-----------|
+| `tasks/task01.py`, `task07`, `task13`, `task15`, `task16`, `task20`, `task21`, `task22`, `task30`, `task33` | `TRACE_FEATURE_REGISTRY.md` → `docs/TRACE_FEATURE_REGISTRY.md` |
+| `tasks/task20.py` (second one, line 849) | `CONFORMANCE_ATTRIBUTE_CLASS.md` → `docs/CONFORMANCE_ATTRIBUTE_CLASS.md` |
+
+Comments only — no code changed, and nothing reads a `.md` file at runtime:
+a search for `open(...)`, `Path(...)`, `read_text()` and `glob()` over every
+`.py` in the repo finds no `.md` among them. The cross-links *inside* the docs
+are bare filenames too (`[TRACE_FEATURE_REGISTRY.md](TRACE_FEATURE_REGISTRY.md)`),
+which is correct there: those files are siblings in `docs/`, so the links
+resolve. They were left alone.
+
+`py_compile` on all ten modules.
+
 ## Session: The Makefile Goes (2026-09-21)
 
 `make up` / `make down` / `make logs` wrapped three `docker compose` commands
