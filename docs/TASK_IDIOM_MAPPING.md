@@ -499,7 +499,6 @@ This task is similar to ``Present: Present Guideline violations'', but rather th
 | Table | `table` | High |
 | Matrix | `matrix` | Medium/Reviewed |
 | Heatmap | `heatmap` | Medium/Reviewed |
-| Parallel Sets | `parallel_sets` | High |
 
 ## task28
 

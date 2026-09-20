@@ -2,6 +2,57 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: Task 27 on the Trace Level (2026-09-20)
+
+### Problem solved
+
+Three things, plus what a merge conflict had eaten.
+
+The table carried the step number and a "(step · move)" column head, and an
+activity that was both executed and inserted got a second row labelled
+"Check Credit (Log Move)" above a cell reading "Log Move". task28 already had
+both switches on `task04_table`; task27 was not passing them.
+
+The aggregates collapsed the selected traces into their two status groups, so a
+cell said "2 conformant traces contain Check Credit" while the table beside it
+said which two and what each of them did — the same count answering a coarser
+question than the trio next to it. They now draw the table's grid: activity
+× selected trace, the cell counting how often that trace performs that
+activity, status carried as colour (bar charts) or in the column label,
+"Trace 1 (Conformant)" (matrix, heatmap). The whole figure set is
+information-equal, and the contrast the task asks about reads across the
+columns.
+
+The bar chart and the stacked bar turned horizontal. The activity names needed
+a 35-degree rotation on an x axis, and a rotated label is read one word at a
+time; on the y axis they are flat and the count axis carries the numbers.
+
+The parallel sets are deleted. They drew the same counts as ribbons, and over a
+handful of selected traces every cell is 0, 1 or 2 — a ribbon of width 1
+beside one of width 2 is not a readable difference, and the thin ones fall
+below `draw_parallel_sets`'s label threshold and vanish altogether. Seven
+idioms remain.
+
+Restored from the merge: `task27.py`'s `from shared import` had fallen back to
+the pre-rework list, missing `PAIR_COLORS` (an ImportError on every run),
+`CIVIDIS_R` and `contrasting_text_color`; `task09.alignment_figures` had lost
+`merge_log_moves` from its signature while its call to `task04_table` still
+passed it on, which was a NameError in every control-flow call, task09's own
+included. The module docstring still promised the variant fallback the rework
+removed.
+
+### Files changed
+
+- `provibackend/ProViBackend/scripts/tasks/task27.py` — `_activity_status_payload`
+  becomes `_activity_trace_payload`; `_column_labels`, `_trace_legend`,
+  `_grid_figsize` added; `_activity_ticks` moves to the y axis; bar chart and
+  stacked bar redrawn horizontally; `task27_parallel_sets` deleted and dropped
+  from `IDIOMS`; `task04_table` called with `show_order=False,
+  merge_log_moves=True`; imports and docstring repaired.
+- `provibackend/ProViBackend/scripts/tasks/task09.py` — `merge_log_moves`
+  restored to `alignment_figures`.
+- `docs/TASK_IDIOM_MAPPING.md` — the Parallel Sets row removed from task27.
+
 ## Session: Fix the /idiom ↔ /specify Loop for a Bundle Experiment (2026-09-20)
 
 ### Problem solved
