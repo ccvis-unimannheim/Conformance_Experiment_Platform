@@ -910,6 +910,9 @@ async def get_tasks(experiment_id: str | None = None):
     for doc in tasks:
         if "_id" in doc and not isinstance(doc["_id"], str):
             doc["_id"] = str(doc["_id"])
+        # Flag tasks that offer only an uploaded custom idiom (no built-in idioms,
+        # no parameters), so /idiom and /specify can render the right guidance.
+        doc["custom_idiom_only"] = task_registry.is_custom_idiom_only(doc.get("task_key", ""))
     tasks.sort(key=_task_sort_key)
     if experiment_id:
         exp = dbc.get_document("Experiment", {"_id": experiment_id}) or {}
@@ -1072,7 +1075,9 @@ async def get_task_idioms(experiment_id: str | None = None):
             ]
     for task_key, mod in _TASK_MODULES.items():
         skip = _TASK_RENAME_SKIP.get(task_key, set())
-        raw_idioms = list(getattr(mod, "IDIOMS", []))
+        # Custom-idiom-only tasks offer no built-in idioms; only what an admin
+        # uploaded for them is selectable (see task_registry.CUSTOM_IDIOM_ONLY).
+        raw_idioms = [] if task_registry.is_custom_idiom_only(task_key) else list(getattr(mod, "IDIOMS", []))
         canonical = []
         for idiom in raw_idioms:
             if idiom not in skip:
@@ -1111,6 +1116,11 @@ async def get_task_param_spec(task_key: str, dataset_id: str | None = None):
             # Custom tasks have no generation code, so no parameter consumes anything.
             return JSONResponse(content={"task_key": task_key, "param_spec": []})
         raise HTTPException(status_code=404, detail=f"Unknown task '{task_key}'.")
+
+    # Custom-idiom-only tasks expose no configuration: their only visualization
+    # is an uploaded image, so there is nothing to parameterize.
+    if task_registry.is_custom_idiom_only(task_key):
+        return JSONResponse(content={"task_key": task_key, "param_spec": []})
 
     # Copied so a request never mutates the module's PARAM_SPEC, then given
     # candidate `options` where the entry names a dataset-backed `source`.

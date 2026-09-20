@@ -630,9 +630,9 @@ function IdiomSelectionContent() {
                       <p className="text-xs text-on-surface-variant italic">
                         No idioms in database yet. Click <strong>Seed Idioms</strong> above.
                       </p>
-                    ) : taskIdioms.length === 0 && task.is_custom ? (
+                    ) : taskIdioms.length === 0 && (task.is_custom || task.custom_idiom_only) ? (
                       <p className="text-xs text-on-surface-variant italic">
-                        This custom task has no idioms yet. Click <strong>Upload Custom Idiom</strong> above
+                        This task has no idioms yet. Click <strong>Upload Custom Idiom</strong> above
                         and select <strong>{task.task_key}</strong>.
                       </p>
                     ) : taskIdioms.length === 0 ? (
