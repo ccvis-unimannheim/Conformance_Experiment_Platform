@@ -10,16 +10,20 @@ idioms that answered it — line graph and horizon chart — are not in IDIOMS.
 The wording promised something no idiom offered.
 
 **One payload, drawn four ways.** Every idiom reads the same table: how many
-traces the alignment technique puts in band X while token-based replay puts
-them in band Y. That joint distribution is the answer to "how do the values
-differ" — it says not just that the two techniques spread the log
-differently but which traces they disagree about, and each technique's own
-distribution is the row or column sum, so nothing is lost by it.
+traces each technique puts in each fitness band. Two columns, one per
+technique, and the question is read by comparing them.
 
-  bar_chart   – grouped bars: one group per alignment band, one bar per replay band
-  heatmap     – the same table as colour, alignment band × replay band
+  bar_chart   – one group per band, two bars in it: one technique each
+  heatmap     – the same table as colour, band × technique
   table       – the same table as numbers
-  stacked_bar – one row per alignment band, segments by replay band
+  stacked_bar – one bar per technique, split into bands
+
+An earlier pass had them draw the *joint* distribution instead — band under
+one technique × band under the other. It carries strictly more (which traces
+the techniques disagree about), but on real logs the matrix is nearly diagonal,
+so a bar chart of it is a field of empty slots with one tall bar, and the
+comparison the question asks for is not visible as a comparison. Two bars side
+by side is the question.
 
 The four used to carry four different payloads: mean and median plus four
 log-level scalars nobody else had; the joint distribution; 200 of the log's
@@ -27,12 +31,14 @@ log-level scalars nobody else had; the joint distribution; 200 of the log's
 answer depended on which idiom they drew, which is the one thing the
 experiment must not vary.
 
-**Colour means the replay band, everywhere it means anything.** It used to
-mean the technique in the bar chart, the band in the stacked bar, a count in
-the heatmap and the sign of a delta in the table. The technique is now carried
-by position alone — an axis or a row — in every idiom. The heatmap is the
-documented exception: a heatmap encodes its value as continuous colour, which
-is what makes it a heatmap rather than a matrix.
+**Colour.** Two techniques and n bands need two channels, so which one colour
+carries depends on which the idiom puts on its axis: the bar chart and the
+heatmap put the bands on an axis and distinguish the techniques by colour
+(`PAIR_COLORS`, the platform's two-group pair — the heatmap by its count, as
+a heatmap must); the stacked bar puts the techniques on the axis and the bands
+in colour, because a stack is made of bands. The table is colourless. What no
+longer happens is one idiom using colour for the technique while the next uses
+the same two colours for something else.
 """
 
 import logging
@@ -115,7 +121,7 @@ from matplotlib.colors import to_hex
 
 from shared import (save_svg, draw_value_heatmap, make_table, contrasting_text_color,
                     GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS,
-                    FONT_TITLE, FONT_LABEL, FONT_ANNOT)
+                    PAIR_COLORS, FONT_TITLE, FONT_LABEL, FONT_ANNOT)
 
 # ── Cividis palette ───────────────────────────────────────────────────────────
 _C_DARK = GREY_DARK
@@ -188,22 +194,23 @@ def _compute_tbr_fitness(log, model_path):
         return None
 
 
-def _joint(t1, t2, buckets):
-    """counts[i][j] = traces in alignment band i and replay band j.
+def _marginal(t1, t2, buckets):
+    """counts[i] = (traces in band i under T1, under T2).
 
-    The one payload. Its row sums are the alignment technique's own
-    distribution and its column sums are the replay technique's, so an idiom
-    drawing this draws both.
+    The one payload. Both techniques score the same traces, so the two columns
+    have the same total and are directly comparable band by band.
     """
     nb = len(buckets)
-    m = np.zeros((nb, nb), dtype=int)
-    for v1, v2 in zip(t1, t2):
-        m[_bucket_idx(v1, buckets), _bucket_idx(v2, buckets)] += 1
+    m = np.zeros((nb, 2), dtype=int)
+    for v in t1:
+        m[_bucket_idx(v, buckets), 0] += 1
+    for v in t2:
+        m[_bucket_idx(v, buckets), 1] += 1
     return m
 
 
 def _extract_data(log, alignments, model_path=None, conformance_bins=None):
-    """The joint band table, or ``matrix=None`` when only one technique ran.
+    """The band × technique table, or ``matrix=None`` when only one ran.
 
     The log-level scalars this used to gather — ``fitness_alignments`` and
     ``fitness_token_based_replay``, both cost-weighted — are gone with the box
@@ -227,7 +234,7 @@ def _extract_data(log, alignments, model_path=None, conformance_bins=None):
 
     return {
         "n_traces":      n,
-        "matrix":        _joint(t1, t2, buckets) if t2 is not None else None,
+        "matrix":        _marginal(t1, t2, buckets) if t2 is not None else None,
         "buckets":       buckets,
         "bucket_labels": bucket_labels,
         "bucket_colors": bucket_colors,
@@ -252,16 +259,18 @@ def _no_data(output_dir, name, message="No alignment data available."):
 #: name itself instead — "Fitness Comparison", "Fitness Bucket Agreement",
 #: "Per-Trace Fitness Detail", "Fitness Bucket Distribution Comparison" — and
 #: three of those named a payload the other three did not have.
-_TITLE = "Trace Fitness Band by Technique"
+_TITLE = "Trace Fitness per Band, by Technique"
 
 #: Only ``matrix`` is ever missing, and always for the same reason.
 _NO_T2 = ("Token-based replay needs a process model.\n"
           "Without it there is only one technique to show.")
 
+#: Axis title for the bands, used wherever they sit on an axis.
+_BAND_AXIS = "Fitness band"
 
-def _axis_labels(data):
-    return (f"{data['t1_name']} fitness band",
-            f"{data['t2_name']} fitness band")
+
+def _tech_names(data):
+    return [data["t1_name"], data["t2_name"]]
 
 
 def _legend_patches(labels, colors):
@@ -271,11 +280,11 @@ def _legend_patches(labels, colors):
 # ── Idiom 1: Bar Chart ─────────────────────────────────────────────────────
 
 def task37_bar_chart(data, output_dir):
-    """One group per alignment band, one bar per replay band.
+    """One group per band, two bars in it: one technique each.
 
-    The counts as length, which is the channel a reader compares most
-    accurately — the heatmap's colour and the stacked bar's proportions say
-    the same thing less precisely, and that difference in precision is the
+    The counts as length, side by side, which is the channel a reader compares
+    most accurately — the heatmap's colour and the stacked bar's proportions
+    say the same thing less precisely, and that difference in precision is the
     encoding the experiment is there to measure.
     """
     m = data.get("matrix")
@@ -284,38 +293,33 @@ def task37_bar_chart(data, output_dir):
         return
 
     labels = data["bucket_labels"]
-    colors = data["bucket_colors"]
+    names = _tech_names(data)
     nb = len(labels)
     x = np.arange(nb)
-    width = 0.8 / nb
+    width = 0.36
     ymax = max(int(m.max()), 1)
 
-    fig, ax = plt.subplots(figsize=(max(9.0, 1.9 * nb + 2.6), 6.0))
+    fig, ax = plt.subplots(figsize=(max(9.0, 2.1 * nb + 2.6), 6.0))
     ax.set_facecolor("#fafbfc")
-    for j in range(nb):
-        vals = m[:, j]
-        ax.bar(x + (j - (nb - 1) / 2) * width, vals, width * 0.92,
-               color=colors[j], edgecolor="white", linewidth=0.8,
-               label=labels[j])
-        for xi, v in zip(x, vals):
-            if v:
-                ax.text(xi + (j - (nb - 1) / 2) * width, v + ymax * 0.015,
-                        f"{int(v):,}", ha="center", va="bottom",
-                        fontsize=FONT_ANNOT - 1, color=_C_DARK, rotation=90)
+    for k in (0, 1):
+        ax.bar(x + (k - 0.5) * width, m[:, k], width * 0.92,
+               color=PAIR_COLORS[k], edgecolor="white", linewidth=0.8,
+               label=names[k])
+        for xi, v in zip(x, m[:, k]):
+            ax.text(xi + (k - 0.5) * width, v + ymax * 0.015, f"{int(v):,}",
+                    ha="center", va="bottom", fontsize=FONT_ANNOT, color=_C_DARK)
 
-    xlabel, ylabel = _axis_labels(data)
     ax.set_xticks(x)
     ax.set_xticklabels(labels, fontsize=FONT_ANNOT)
-    ax.set_xlabel(xlabel, fontsize=FONT_LABEL)
+    ax.set_xlabel(_BAND_AXIS, fontsize=FONT_LABEL)
     ax.set_ylabel("Traces", fontsize=FONT_LABEL)
-    ax.set_ylim(0, ymax * 1.18)
+    ax.set_ylim(0, ymax * 1.16)
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{int(v):,}"))
     ax.set_title(_TITLE, fontsize=FONT_TITLE)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    ax.legend(title=ylabel, loc="upper right", fontsize=FONT_ANNOT,
-              title_fontsize=FONT_ANNOT, frameon=True, framealpha=0.9)
+    ax.legend(loc="upper right", fontsize=FONT_ANNOT, frameon=True, framealpha=0.9)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task37_bar_chart.svg"))
 
@@ -323,17 +327,12 @@ def task37_bar_chart(data, output_dir):
 # ── Idiom 2: Heatmap ───────────────────────────────────────────────────────
 
 def task37_heatmap(data, output_dir):
-    """The same table as continuous colour.
+    """The same table as continuous colour, one column per technique.
 
     Drawn by shared.draw_value_heatmap, which is where the platform's heatmap
     rules live: the reversed ramp, so the busiest cell is the darkest one, and
     no per-cell numbers — a heatmap is the colour reading of a table and a
     matrix is the number reading of it. The colourbar carries the scale.
-
-    The boxed diagonal is gone. It marked the cells where the techniques agree,
-    which is a reading of the table no other idiom was given, and the whole
-    point of the row and column labels is that a participant can find those
-    cells themselves.
     """
     m = data.get("matrix")
     if m is None:
@@ -341,18 +340,17 @@ def task37_heatmap(data, output_dir):
         return
 
     labels = data["bucket_labels"]
-    xlabel, ylabel = _axis_labels(data)
+    names = _tech_names(data)
 
-    fig, ax = plt.subplots(figsize=(max(8.0, 1.6 * len(labels) + 4.0), 7.0))
+    fig, ax = plt.subplots(figsize=(7.6, max(4.4, 0.8 * len(labels) + 3.0)))
     draw_value_heatmap(
-        fig, ax, m.T,
-        row_labels=labels, col_labels=labels,
-        xlabel=xlabel,
+        fig, ax, m,
+        row_labels=labels, col_labels=names,
         cbar_label="Traces",
         annotate=False,
         vmax=max(int(m.max()), 1),
     )
-    ax.set_ylabel(ylabel, fontsize=FONT_LABEL)
+    ax.set_ylabel(_BAND_AXIS, fontsize=FONT_LABEL)
     ax.set_title(_TITLE, fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task37_heatmap.svg"))
@@ -361,7 +359,7 @@ def task37_heatmap(data, output_dir):
 # ── Idiom 3: Table ─────────────────────────────────────────────────────────
 
 def task37_table(data, output_dir):
-    """The same table as numbers, one row per alignment band.
+    """The same table as numbers, one row per band.
 
     It used to list traces one by one — 200 of the log's 13,087, stratified
     by fitness level. That is both more than its siblings (which trace, by
@@ -374,30 +372,29 @@ def task37_table(data, output_dir):
         return
 
     labels = data["bucket_labels"]
-    xlabel, ylabel = _axis_labels(data)
-    nb = len(labels)
+    names = _tech_names(data)
+    total = data["n_traces"] or 1
 
-    col_labels = [xlabel] + labels
-    cell_text = [[labels[i]] + [f"{int(m[i, j]):,}" for j in range(nb)]
-                 for i in range(nb)]
+    col_labels = [_BAND_AXIS] + names
+    cell_text = [[labels[i]] + [f"{int(m[i, k]):,}  ({m[i, k] / total * 100:.1f} %)"
+                                for k in (0, 1)]
+                 for i in range(len(labels))]
 
-    fig_w = max(9.0, 2.0 + 1.5 * (nb + 1))
-    fig_h = max(3.4, 1.6 + nb * 0.52)
-    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+    fig_h = max(3.2, 1.5 + len(labels) * 0.52)
+    fig, ax = plt.subplots(figsize=(10.0, fig_h))
     ax.axis("off")
     make_table(
         ax,
         cell_text=cell_text,
         col_labels=col_labels,
-        bbox=[0.03, 0.05, 0.94, 0.84],
+        bbox=[0.04, 0.06, 0.92, 0.84],
+        col_widths=[0.28, 0.36, 0.36],
         cell_loc="center",
         font_size=FONT_ANNOT,
         scale_xy=(1, 1.6),
         zebra=True,
     )
-    ax.set_title(_TITLE, fontsize=FONT_TITLE, pad=24)
-    ax.text(0.5, 0.95, f"Columns: {ylabel}", transform=ax.transAxes,
-            ha="center", va="bottom", fontsize=FONT_ANNOT, color=_C_DARK)
+    ax.set_title(_TITLE, fontsize=FONT_TITLE, pad=20)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task37_table.svg"))
 
@@ -405,12 +402,12 @@ def task37_table(data, output_dir):
 # ── Idiom 4: Stacked Bar ───────────────────────────────────────────────────
 
 def task37_stacked_bar(data, output_dir):
-    """One row per alignment band, split into replay bands.
+    """One bar per technique, split into bands.
 
-    Proportions within each row, which is the reading a stacked bar gives: of
-    the traces the alignment technique put in this band, where did replay put
-    them. The row's own size is printed beside it, because a proportion of an
-    unknown total is not the payload the other three carry.
+    Vertical, with the techniques on the x axis and the counts running up, so
+    it reads the same way round as the bar chart beside it. It used to lie on
+    its side with a row per band, which put the bands on the axis the bar chart
+    uses for the same thing and the techniques nowhere.
     """
     m = data.get("matrix")
     if m is None:
@@ -419,48 +416,35 @@ def task37_stacked_bar(data, output_dir):
 
     labels = data["bucket_labels"]
     colors = data["bucket_colors"]
-    xlabel, ylabel = _axis_labels(data)
-    nb = len(labels)
+    names = _tech_names(data)
+    x = np.arange(2)
 
-    fig, ax = plt.subplots(figsize=(max(9.5, 1.4 * nb + 6.0), max(3.6, nb * 0.9 + 2.2)))
+    fig, ax = plt.subplots(figsize=(8.0, 6.4))
     ax.set_facecolor("#fafbfc")
+    bottom = np.zeros(2, dtype=float)
+    for i, (lbl, clr) in enumerate(zip(labels, colors)):
+        vals = m[i].astype(float)
+        ax.bar(x, vals, 0.46, bottom=bottom, color=clr, edgecolor="white",
+               linewidth=1.0, label=lbl)
+        for xi, (v, b) in enumerate(zip(vals, bottom)):
+            if v and v / max(m.sum(axis=0).max(), 1) >= 0.045:
+                ax.text(xi, b + v / 2, f"{int(v):,}", ha="center", va="center",
+                        fontsize=FONT_ANNOT, color=contrasting_text_color(clr))
+        bottom += vals
 
-    for i in range(nb):
-        row_total = int(m[i].sum())
-        left = 0.0
-        for j in range(nb):
-            if not row_total:
-                continue
-            frac = m[i, j] / row_total * 100
-            if frac <= 0:
-                continue
-            ax.barh(i, frac, left=left, color=colors[j], edgecolor="white",
-                    linewidth=1.0, height=0.55)
-            if frac >= 7:
-                ax.text(left + frac / 2, i, f"{frac:.0f} %", ha="center",
-                        va="center", fontsize=FONT_ANNOT,
-                        color=contrasting_text_color(colors[j]))
-            left += frac
-        ax.text(101, i, f"{row_total:,} traces", ha="left", va="center",
-                fontsize=FONT_ANNOT, color=_C_DARK)
-
-    ax.set_xlim(0, 100)
-    ax.set_ylim(-0.6, nb - 0.4)
-    ax.invert_yaxis()
-    ax.set_yticks(range(nb))
-    ax.set_yticklabels(labels, fontsize=FONT_ANNOT)
-    ax.set_ylabel(xlabel, fontsize=FONT_LABEL)
-    ax.set_xlabel("Share of the band's traces (%)", fontsize=FONT_LABEL)
+    ax.set_xticks(x)
+    ax.set_xticklabels(names, fontsize=FONT_ANNOT)
+    ax.set_ylabel("Traces", fontsize=FONT_LABEL)
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{int(v):,}"))
     ax.set_title(_TITLE, fontsize=FONT_TITLE)
-    ax.spines[["top", "right", "left"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    ax.legend(handles=_legend_patches(labels, colors), title=ylabel,
-              loc="lower center", bbox_to_anchor=(0.5, -0.32), ncol=min(nb, 5),
+    ax.legend(handles=_legend_patches(labels, colors), title=_BAND_AXIS,
+              loc="center left", bbox_to_anchor=(1.02, 0.5),
               fontsize=FONT_ANNOT, title_fontsize=FONT_ANNOT,
               frameon=True, framealpha=0.9)
     fig.tight_layout(pad=1.2)
-    fig.subplots_adjust(right=0.86)
     save_svg(fig, os.path.join(output_dir, "task37_stacked_bar.svg"))
 
 
@@ -480,12 +464,13 @@ def generate(log, alignments, output_dir, model_path=None, conformance_bins=None
 
     data = _extract_data(log, alignments, model_path, conformance_bins)
     logger.info(f"      -> Fitness bands: {', '.join(data['bucket_labels'])}")
-    if data["matrix"] is None:
+    m = data["matrix"]
+    if m is None:
         logger.warning("      Task 37: no second technique — nothing to compare.")
     else:
-        agree = int(np.trace(data["matrix"]))
-        logger.info(f"      -> {agree:,} of {data['n_traces']:,} traces in the same band "
-                    f"under both techniques.")
+        moved = int(np.abs(m[:, 0] - m[:, 1]).sum() // 2)
+        logger.info(f"      -> {moved:,} of {data['n_traces']:,} traces sit in a "
+                    f"different band under the two techniques.")
 
     task37_bar_chart(data, output_dir)
     task37_heatmap(data, output_dir)
