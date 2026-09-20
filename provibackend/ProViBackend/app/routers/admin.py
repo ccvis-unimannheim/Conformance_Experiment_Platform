@@ -987,7 +987,7 @@ async def update_task(task_id: str, update_data: ds.TaskUpdate,
     if not fields:
         raise HTTPException(status_code=400, detail="No fields to update.")
     wording = {k: v for k, v in fields.items()
-               if k in ("label", "description", "answer_type")}
+               if k in ("label", "description")}
     shared = {k: v for k, v in fields.items() if k not in wording}
     if dbc.get_document("Task", {"_id": task_id}) is None:
         # Experiment-scoped custom task: edit it in place on its experiment.
@@ -1049,7 +1049,6 @@ async def create_custom_task(experiment_id: str, body: ds.CustomTaskCreate):
         "task_key": f"custom-{uuid.uuid4().hex[:6]}",
         "label": label,
         "description": body.description.strip(),
-        "answer_type": "text",
         "is_custom": True,
     }
     dbc.update_document("Experiment", {"_id": experiment_id}, {"$push": {"custom_tasks": task}})
@@ -1498,7 +1497,7 @@ def _freeze_task_snapshots(instances: list[dict], existing_by_task_id: dict) -> 
             continue
         existing = existing_by_task_id.get(task_id) or {}
         # Legacy frozen wording survives every save; nothing writes it any more.
-        for field in ("label", "description", "answer_type"):
+        for field in ("label", "description"):
             if not inst.get(field) and existing.get(field):
                 inst[field] = existing[field]
         if inst.get("task_key"):

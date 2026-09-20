@@ -116,6 +116,8 @@ def main() -> int:
         {"task_instances": {"$exists": True}},
         {"$unset": {"task_instances.$[].label": "",
                     "task_instances.$[].description": "",
+                    # Removed from the model with the Edit dialog's field; old
+                    # instances may still carry one.
                     "task_instances.$[].answer_type": ""}},
     )
     print(f"Cleared the frozen snapshot on {cleared.modified_count} experiment(s). "

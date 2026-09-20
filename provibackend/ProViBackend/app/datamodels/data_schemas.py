@@ -208,7 +208,6 @@ class TaskConfig(BaseModel):
     task_key: Optional[str] = None
     label: Optional[str] = None
     description: Optional[str] = None
-    answer_type: Optional[str] = None
 
 class OptionItem(BaseModel):
     """One option in the closed set a participant chooses from / fills in."""
@@ -240,7 +239,6 @@ class TaskInstance(BaseModel):
     task_key: Optional[str] = None
     label: Optional[str] = None
     description: Optional[str] = None
-    answer_type: Optional[str] = None
 
 class Experiment(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -258,7 +256,7 @@ class Experiment(BaseModel):
     task_configs: List[TaskConfig] = []      # legacy flat view (mirror of task_instances)
     task_instances: List[TaskInstance] = []  # canonical: one entry per task
     # Questions this experiment asks in its own words: task_id -> {label,
-    # description, answer_type}, written when an admin edits a task on /task or
+    # description}, written when an admin edits a task on /task or
     # /overview. Every task missing here is asked in the shared question bank's
     # words, so a correction to seed_data.py reaches it (app/task_wording.py).
     task_overrides: Dict[str, Dict[str, str]] = {}
@@ -311,7 +309,6 @@ class Task(BaseModel):
     task_key: str
     label: str
     description: str
-    answer_type: str
 
 class CustomTaskCreate(BaseModel):
     """An experiment-scoped task added from /admin/experiments/task."""
@@ -321,7 +318,6 @@ class CustomTaskCreate(BaseModel):
 class TaskUpdate(BaseModel):
     label: str | None = None
     description: str | None = None
-    answer_type: str | None = None
     rubric: str | None = None
 
 class Question(BaseModel):
