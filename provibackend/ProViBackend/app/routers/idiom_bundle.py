@@ -796,6 +796,43 @@ async def create_experiment_from_bundle(
     })
 
 
+@router.post("/experiments/{experiment_id}/discard-bundle", tags=["admin"])
+async def discard_bundle(experiment_id: str):
+    """Undo a bundle upload, leaving an empty draft that can take a dataset.
+
+    The zip supplied this experiment's tasks, idioms and images; undoing it has
+    to take all three, since a task from the zip has no generator to fall back
+    on and an idiom recreated from it has no image but the one being removed.
+    What survives is what the admin typed: the name, the design and the task
+    order. The experiment stops being `bundle_only`, so /new offers the dataset
+    table again and the wizard runs as it does for any other experiment.
+    """
+    exp = _get_experiment(experiment_id)
+    _require_draft(exp)
+    if not exp.get("bundle_only"):
+        raise HTTPException(status_code=409, detail="This experiment was not built from a bundle.")
+
+    idiom_files.remove_all_overrides(experiment_id)
+    db = dbc.connect_to_database()
+    # Idiom documents that exist only for this experiment (recreated from the
+    # zip): nothing else can reach them, and their image has just gone.
+    db["Idiom"].delete_many({"is_custom": True, "experiment_id": experiment_id})
+    dbc.update_document("Experiment", {"_id": experiment_id}, {"$set": {
+        "bundle_only": False,
+        "dataset_ids": [],
+        "task_instances": [],
+        "task_configs": [],
+        "custom_tasks": [],
+        "idioms_imported_at": None,
+        "idioms_imported_from": None,
+        "current_step": "new",
+    }})
+    return JSONResponse(content={
+        "message": "The uploaded images were discarded. Choose a dataset to set this experiment up.",
+        "experiment_id": experiment_id,
+    })
+
+
 # ---------------------------------------------------------------------------
 # Single-image replacements
 # ---------------------------------------------------------------------------

@@ -71,6 +71,7 @@ export default function TaskSelectionPage() {
   const [allTasks,    setAllTasks]    = useState([]);
   const [loadError,   setLoadError]   = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
+  const [bundleOnly, setBundleOnly] = useState(false);
 
   // Filter state: null = no filter for that dim
   const [filterState, setFilterState] = useState({ goal: null, means: null, chars: null });
@@ -102,6 +103,7 @@ export default function TaskSelectionPage() {
     fetch(`/api/admin/experiments/${encodeURIComponent(experimentId)}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((exp) => {
+        setBundleOnly(!!exp?.bundle_only);  // no Specify step in the step bar
         const saved = exp?.task_instances?.length
           ? exp.task_instances.map((ti) => ti.task_id)
           : (exp?.task_configs || []).map((tc) => tc.task_id);
@@ -265,7 +267,7 @@ export default function TaskSelectionPage() {
 
   return (
     <div className="bg-surface text-on-surface min-h-screen flex flex-col">
-      <ExperimentSetupHeader />
+      <ExperimentSetupHeader experimentId={experimentId} step="task" bundleOnly={bundleOnly} />
 
       <main className="flex-grow max-w-[1140px] mx-auto w-full px-8 py-10 flex flex-col gap-8">
         {/* Page heading */}

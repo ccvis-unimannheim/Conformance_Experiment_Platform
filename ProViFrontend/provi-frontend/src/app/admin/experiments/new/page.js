@@ -6,6 +6,7 @@ import AdminNav from "../../../../components/Admin/AdminNav";
 import ExperimentDetailsForm from "../../../../components/Admin/ExperimentDetailsForm";
 import DatasetSelectTable from "../../../../components/Admin/DatasetSelectTable";
 import BundleStartCard from "../../../../components/Admin/BundleStartCard";
+import WizardSteps from "../../../../components/Admin/WizardSteps";
 import { queueWizardSave } from "../../../../utils/wizardSave";
 
 export default function NewExperimentPage() {
@@ -32,6 +33,9 @@ export default function NewExperimentPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
+  // This draft's images came from an uploaded zip: it has no dataset, and
+  // taking one would mean generating over those images (the backend refuses).
+  const [bundleOnly, setBundleOnly] = useState(false);
 
   // Fill the form from the draft being edited, so stepping back shows what was
   // entered rather than a blank page that would overwrite it on the next edit.
@@ -45,9 +49,34 @@ export default function NewExperimentPage() {
         setSelectedIds(new Set(exp.dataset_ids || []));
         if (exp.design_type) setDesignType(exp.design_type);
         setRandomizeOrder((exp.within_sequence_mode || "random") === "random");
+        setBundleOnly(!!exp.bundle_only);
       })
       .catch(() => {});
   }, [resumedId]);
+
+  // Undo a bundle upload: the images, the tasks and idioms that came with them
+  // go, and the experiment can take a dataset like any other.
+  async function discardBundle() {
+    if (!window.confirm(
+      "Discard the uploaded images? This experiment's tasks, idioms and images all came from that " +
+      "zip, so all three are removed and it starts again from choosing a dataset. Its name and " +
+      "study design are kept. Download the zip again from the source experiment if you need it."
+    )) return;
+    try {
+      const res = await fetch(
+        `/api/admin/experiments/${encodeURIComponent(resumedId)}/discard-bundle`,
+        { method: "POST" }
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(typeof body.detail === "string" ? body.detail : `HTTP ${res.status}`);
+      }
+      setBundleOnly(false);
+      setSelectedIds(new Set());
+    } catch (e) {
+      setSubmitError(e.message);
+    }
+  }
 
   useEffect(() => {
     fetch(`/api/admin/datasets`)
@@ -139,7 +168,8 @@ export default function NewExperimentPage() {
       setSubmitError("Please enter an experiment name.");
       return;
     }
-    if (selectedIds.size === 0) {
+    // A bundle experiment has no dataset by design, and already exists.
+    if (!bundleOnly && selectedIds.size === 0) {
       setSubmitError("Please select at least one dataset.");
       return;
     }
@@ -188,6 +218,7 @@ export default function NewExperimentPage() {
   return (
     <div className="bg-surface text-on-surface min-h-screen flex flex-col antialiased">
       <AdminNav activeLink="experiment-setup" />
+      <WizardSteps experimentId={resumedId} current="new" bundleOnly={bundleOnly} />
 
       <main className="flex-grow max-w-[900px] mx-auto w-full px-6 py-12 pb-32">
         <div className="mb-12">
@@ -200,18 +231,22 @@ export default function NewExperimentPage() {
         </div>
 
         {/* The other route: an experiment whose images are already drawn. It
-            creates the experiment itself and leaves this page. */}
-        <BundleStartCard
-          name={name}
-          designType={designType}
-          randomizeOrder={randomizeOrder}
-          onCreated={(data) => {
-            const next = data.needs_answer_format ? "answer-format" : "overview";
-            router.push(
-              `/admin/experiments/${next}?experiment_id=${encodeURIComponent(data.experiment_id)}`
-            );
-          }}
-        />
+            creates the experiment itself and leaves this page, so it is offered
+            only for a new experiment — uploading a zip while editing a draft
+            would silently build a second one. */}
+        {!resumedId && (
+          <BundleStartCard
+            name={name}
+            designType={designType}
+            randomizeOrder={randomizeOrder}
+            onCreated={(data) => {
+              const next = data.needs_answer_format ? "answer-format" : "overview";
+              router.push(
+                `/admin/experiments/${next}?experiment_id=${encodeURIComponent(data.experiment_id)}`
+              );
+            }}
+          />
+        )}
 
         <div className="space-y-section-gap">
           <ExperimentDetailsForm
@@ -220,13 +255,35 @@ export default function NewExperimentPage() {
             onChange={handleFormChange}
           />
 
-          <DatasetSelectTable
-            pairs={pairs}
-            selectedIds={selectedIds}
-            onToggle={handleToggle}
-            isLoading={loadingPairs}
-            error={pairsError}
-          />
+          {bundleOnly ? (
+            <section className="bg-surface-container-lowest p-gutter rounded-xl border border-outline-variant">
+              <h2 className="text-h2 text-primary mb-3">Dataset</h2>
+              <p className="text-body-sm text-secondary mb-2">
+                This experiment shows the images of the zip it was created from, so it needs no
+                dataset — nothing is generated for it, and a dataset cannot be added while that is
+                the case.
+              </p>
+              <p className="text-body-sm text-secondary mb-4">
+                To build it from a dataset instead, discard those images first. Its tasks and idioms
+                came from the zip as well, so they go with them; the name and study design stay.
+              </p>
+              <button
+                type="button"
+                onClick={discardBundle}
+                className="px-4 py-2 rounded-lg border border-outline-variant text-body-sm hover:border-primary/50"
+              >
+                Discard the uploaded images and choose a dataset
+              </button>
+            </section>
+          ) : (
+            <DatasetSelectTable
+              pairs={pairs}
+              selectedIds={selectedIds}
+              onToggle={handleToggle}
+              isLoading={loadingPairs}
+              error={pairsError}
+            />
+          )}
         </div>
 
         <section className="mt-section-gap bg-surface-container-lowest p-gutter rounded-xl border border-outline-variant">

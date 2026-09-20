@@ -2,6 +2,31 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: A Step Bar for the Setup Wizard (2026-09-20)
+
+### Problem solved
+
+Each wizard step linked only to its neighbour, so returning from /overview to
+the first step meant pressing *Previous Step* eight times. An experiment built
+from a zip could not get back at all: /specify, the step it skips, redirected
+forward to /overview, so stepping back bounced between the two.
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `ProViFrontend/.../components/Admin/WizardSteps.js` | **New.** The nine steps as a bar, the current one marked, every other one a link. A bundle experiment's bar leaves out Specify. Without an experiment id (a draft not yet created) the steps show but do not link. |
+| `ProViFrontend/.../components/Admin/ExperimentSetupHeader.js` | Renders the bar when given `experimentId` and `step`. |
+| `ProViFrontend/.../admin/experiments/{new,prequestionnaire,knowledge,concepts,task,idiom,specify,answer-format,overview}/page.js` | Each names its step; the four that carry `AdminNav` render the bar themselves. /specify redirects a bundle experiment to /idiom (its neighbour) instead of /overview, and /answer-format's *Previous Step* points at /idiom for one. |
+| `ProViFrontend/.../admin/experiments/new/page.js` | For a bundle experiment the dataset table is replaced by why there is none and a *Discard the uploaded images* action; Next no longer demands a dataset. The upload card is hidden while editing an existing draft, where it would have built a second experiment. |
+| `provibackend/.../app/routers/idiom_bundle.py` | **New `POST /admin/experiments/{id}/discard-bundle`**: removes the images, the idioms recreated for that experiment and the tasks that came with them, and clears `bundle_only`, leaving an empty draft with its name and design that can take a dataset. |
+
+Four pre-existing `react/no-unescaped-entities` errors fixed along the way
+(knowledge page, dataset upload modal).
+
+`py_compile` and `eslint` — no errors left under `admin/experiments` or
+`components/Admin`. Not exercised in a browser.
+
 ## Session: task04's Table Keeps Its Log Moves, and Its Order (2026-09-20)
 
 ### Every idiom now states the degree of conformance

@@ -337,6 +337,7 @@ function AnswerFormatContent() {
   const [defaultNumberKind, setDefaultNumberKind] = useState("decimal");
   const [rubricsByTask, setRubricsByTask] = useState({});
   const [loading, setLoading] = useState(true);
+  const [bundleOnly, setBundleOnly] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const [toast, setToast] = useState({ visible: false, message: "", isError: false });
@@ -369,6 +370,7 @@ function AnswerFormatContent() {
       const [exp, tasks, idioms] = await Promise.all([
         expRes.json(), tasksRes.json(), idiomsRes.json(),
       ]);
+      setBundleOnly(!!exp.bundle_only);  // no Specify step in the step bar
 
       if (formatsRes.ok) {
         const fmt = await formatsRes.json();
@@ -504,7 +506,7 @@ function AnswerFormatContent() {
 
   return (
     <div className="bg-surface text-on-surface min-h-screen flex flex-col">
-      <ExperimentSetupHeader />
+      <ExperimentSetupHeader experimentId={experimentId} step="answer-format" bundleOnly={bundleOnly} />
 
       <main className="flex-grow max-w-[1140px] mx-auto w-full px-8 py-10 flex flex-col gap-8">
         <div className="flex flex-col gap-1">
@@ -609,7 +611,7 @@ function AnswerFormatContent() {
       <div className="border-t border-border-subtle bg-white sticky bottom-0">
         <div className="max-w-[1140px] mx-auto px-8 py-4 flex justify-between items-center">
           <Link
-            href={`/admin/experiments/specify${experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""}`}
+            href={`/admin/experiments/${bundleOnly ? "idiom" : "specify"}${experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""}`}
             className="text-sm text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors"
           >
             <span className="material-symbols-outlined text-sm">arrow_back</span> Previous Step

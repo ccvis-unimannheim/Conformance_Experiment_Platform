@@ -853,7 +853,11 @@ function ExperimentOverviewContent() {
 
   return (
     <div className="bg-surface text-on-surface min-h-screen flex flex-col">
-      <ExperimentSetupHeader />
+      <ExperimentSetupHeader
+        experimentId={experimentId}
+        step="overview"
+        bundleOnly={!!experiment?.bundle_only}
+      />
 
       <main className="flex-grow max-w-[1140px] mx-auto w-full px-8 py-10 flex flex-col gap-8">
         {/* Published banner */}

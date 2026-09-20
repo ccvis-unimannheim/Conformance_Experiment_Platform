@@ -190,7 +190,7 @@ const UploadDatasetModal = ({ existingDatasets, onClose, onUploaded }) => {
               <h2 className="text-h2 text-on-surface">Dataset name already exists</h2>
             </div>
             <p className="text-body-sm text-on-surface-variant">
-              A dataset named "<span className="font-semibold">{conflict.title}</span>" already exists. How would you like to proceed?
+              A dataset named &quot;<span className="font-semibold">{conflict.title}</span>&quot; already exists. How would you like to proceed?
             </p>
             <div className="flex justify-end gap-3 mt-2 flex-wrap">
               <button

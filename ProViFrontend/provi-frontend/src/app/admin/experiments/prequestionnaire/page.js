@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import AdminNav from "../../../../components/Admin/AdminNav";
+import WizardSteps from "../../../../components/Admin/WizardSteps";
 import { queueWizardSave } from "../../../../utils/wizardSave";
 
 const ALL_SECTIONS = [
@@ -110,6 +111,7 @@ export default function PrequestionnairePage() {
   return (
     <div className="bg-surface text-on-surface min-h-screen flex flex-col antialiased">
       <AdminNav activeLink="experiment-setup" />
+      <WizardSteps experimentId={experimentId} current="prequestionnaire" />
 
       <main className="flex-grow max-w-[900px] mx-auto w-full px-6 py-12 pb-32">
         <div className="mb-12">
