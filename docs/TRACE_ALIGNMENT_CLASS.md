@@ -299,15 +299,28 @@ one process already disagree), and pm4py exposes no deterministic tie-break. So:
   to stay on the first trace, on the argument that stacking one of those per
   trace answers a different question — but the chevron, BPMN and move table
   beside them showed all of the chosen traces, so one figure set spoke about
-  different traces depending on which idiom you read. bar_chart and stacked_bar
-  now give each trace its own bar per activity, heatmap and matrix its own
-  column; `_build_canonical_payload` returns the whole (activity × trace) table
-  they share.
-* **task34 lost four idioms** — flow chart & table, table & bar chart, flow
-  chart+ & table and parallel sets — leaving `bar_chart`, `stacked_bar`,
+  different traces depending on which idiom you read. bar_chart, heatmap and
+  matrix now give each trace its own bar or column; `_build_canonical_payload`
+  returns the table they share, and labels the traces "Trace 1".."Trace N" the
+  way `trace_records` labels them for the chevron, BPMN and move table — they
+  used to carry the trace's position in the whole log, an id no other idiom
+  mentioned.
+* **task34 names the move type in every idiom.** The chevron, the BPMN and the
+  move table always said whether a step was a Model Move or a Log Move; the
+  aggregates counted violations per activity and did not. The aggregates' unit
+  is now the pair, labelled `Activity (Move Type)` — the move type folded into
+  the category rather than given an axis of its own, which would have doubled
+  every bar and column for information the pair carries anyway. Only pairs that
+  occur get a row. Every idiom also spells the types the one way task04 does:
+  "Synchronous Move", "Model Move", "Log Move", without the "(skipped)" and
+  "(extra)" glosses the legends used to add.
+* **task34 lost five idioms** — flow chart & table, table & bar chart, flow
+  chart+ & table, parallel sets and the stacked bar — leaving `bar_chart`,
   `table`, `flow_chart_basic`, `flow_chart_elaborate`, `heatmap` and `matrix`.
-  Its per-activity idioms stand upright, with the activities on the x axis, and
-  all four carry one title that names neither a trace nor a fitness.
+  The stacked bar went with the move type moving into the category: each of its
+  bars would have held a single segment. Its per-activity idioms stand upright,
+  with the categories on the x axis, and all three carry one title that names
+  neither a trace nor a fitness.
 * **task35** keeps aggregating over the whole log and is trimmed to
   `flow_chart_elaborate`; the Petri-net and DFG variants re-drew the same
   annotation in another notation, which is a notation comparison, not this task.

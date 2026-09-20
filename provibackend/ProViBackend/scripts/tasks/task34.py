@@ -10,11 +10,13 @@ trace_alignment), among the traces violating violation_pattern when one is set.
 experiments specified before it existed.) "The trace" below is the first one
 chosen.
 
-IDIOMS — every one of them speaks about every chosen trace:
-    bar_chart                  – violations per activity, one bar per trace
-    stacked_bar                – the same, each bar split Model Move / Log Move
-    heatmap, matrix            – the same counts as activities × traces, the
-                                 heatmap as colour, the matrix as numbers
+IDIOMS — every one of them speaks about every chosen trace, and every one
+of them names the violation type:
+    bar_chart                  – violations per "Activity (Move Type)", one
+                                 bar per trace
+    heatmap, matrix            – the same counts as "Activity (Move Type)"
+                                 × traces, the heatmap as colour, the
+                                 matrix as numbers
     table                      – the traces' alignments, one row per step
     flow_chart_basic           – chevron strip per trace
     flow_chart_elaborate       – BPMN coloured by the traces' violations
@@ -27,7 +29,6 @@ logger = logging.getLogger(__name__)
 
 IDIOMS = [
     "bar_chart",
-    "stacked_bar",
     "table",
     "flow_chart_basic",
     "flow_chart_elaborate",
@@ -115,8 +116,12 @@ _T04_ALIGN_STYLE = {
     "Log Move":   ("#333333", 3),
 }
 
-# Display labels shown to admins/participants (internal _MOVE_COLORS keys stay
-# as returned by shared.classify_step so they keep matching across tasks).
+# The one vocabulary every idiom names a move type with. Plain, without the
+# "(skipped)" / "(extra)" glosses the legends used to add: task04 and the move
+# table say "Model Move" and "Log Move", so a reader comparing two idioms of the
+# same task should not have to decide whether "extra" is a third thing.
+# (Internal keys stay as shared.classify_step returns them so they keep matching
+# across tasks.)
 _MOVE_DISPLAY = {
     "Synchronous":   "Synchronous Move",
     "Model Move": "Model Move",
@@ -198,55 +203,74 @@ def _build_contexts(alignments, max_traces=30):
     return ctxs[:max_traces]
 
 
-def _trace_activity_violations(rows):
-    """Per-activity {mom, mol} counts for one trace."""
-    counts = {}
-    for r in rows:
-        mt = r["moveType"]
-        a  = r["activity"]
-        if a == ">>" or mt not in ("Model Move", "Log Move"):
-            continue
-        counts.setdefault(a, {"mom": 0, "mol": 0})
-        if mt == "Model Move": counts[a]["mom"] += 1
-        else:                     counts[a]["mol"] += 1
-    return counts
+_MOVE_KEYS = ("Model Move", "Log Move")
+
+
+def _category(key) -> str:
+    """The row name the aggregate idioms use: "Ship Order (Log Move)".
+
+    The move type belongs in the label rather than on an axis of its own.
+    The chevron, the BPMN and the move table all say which kind of violation
+    a step is; without it here, three idioms of one task answered a question
+    the other three could not. Folding it into the category costs no encoding
+    channel - only the pairs that actually occur get a row - where a second
+    axis would have doubled every bar and every column.
+    """
+    activity, move_type = key
+    return f"{activity} ({_MOVE_DISPLAY.get(move_type, move_type)})"
 
 
 def _build_canonical_payload(ctxs):
-    """(acts, labels, totals, mom, mol) over every shown trace.
+    """(keys, trace_labels, counts) over every shown trace.
 
-    The single data source behind bar_chart, stacked_bar, heatmap and matrix, so
-    the four cannot disagree. ``acts`` is the union of the traces' activities in
-    first-seen order; the three arrays are (n_activities x n_traces).
+    The single data source behind bar_chart, heatmap and matrix, so the three
+    cannot disagree. A key is an ``(activity, move type)`` pair - the union
+    over the traces, in first-seen order - and ``counts`` is
+    (n_keys x n_traces).
 
-    These four used to draw the first selected trace only, however many the admin
-    asked for — the chevron, BPMN and move table showed all of them, so the same
-    figure set spoke about different traces depending on which idiom you read.
+    These used to draw the first selected trace only, however many the admin
+    asked for, while the chevron, BPMN and move table showed all of them, so
+    the same figure set spoke about different traces depending on which idiom
+    you read.
     """
-    acts, seen = [], set()
+    keys, seen = [], set()
     for ctx in ctxs:
         for r in ctx["rows"]:
-            a = r["activity"]
-            if a and a != ">>" and a not in seen:
-                seen.add(a)
-                acts.append(a)
+            a, mt = r["activity"], r["moveType"]
+            if not a or a == ">>" or mt not in _MOVE_KEYS or (a, mt) in seen:
+                continue
+            seen.add((a, mt))
+            keys.append((a, mt))
 
-    labels = [ctx["trace_label"] for ctx in ctxs]
-    mom = np.zeros((len(acts), len(ctxs)), dtype=float)
-    mol = np.zeros_like(mom)
+    # "Trace 1".."Trace N" over the traces actually drawn, the running number
+    # trace_alignment.trace_records gives the chevron, BPMN and move table.
+    # The context's own trace_label counts positions in the whole log, so
+    # these idioms used to name ids the other three never mentioned.
+    labels = [f"Trace {i + 1}" for i in range(len(ctxs))]
+    at = {k: i for i, k in enumerate(keys)}
+    counts = np.zeros((len(keys), len(ctxs)), dtype=float)
     for ti, ctx in enumerate(ctxs):
-        per_act = _trace_activity_violations(ctx["rows"])
-        for ai, act in enumerate(acts):
-            counts = per_act.get(act)
-            if counts:
-                mom[ai, ti] = counts["mom"]
-                mol[ai, ti] = counts["mol"]
-    return acts, labels, mom + mol, mom, mol
+        for r in ctx["rows"]:
+            row = at.get((r["activity"], r["moveType"]))
+            if row is not None:
+                counts[row, ti] += 1
+    return keys, labels, counts
 
 
 def _trace_colors(n: int) -> list:
     """One colour per shown trace, navy through cividis's yellow end."""
     return [to_hex(CIVIDIS_R(0.12 + 0.76 * i / max(n - 1, 1))) for i in range(n)]
+
+
+def _grid_size(row_labels, col_labels):
+    """(height, width) for the heatmap and the matrix, which share a grid.
+
+    The width follows the longest row label: carrying the move type makes
+    them half as long again, and a fixed margin cropped them.
+    """
+    longest = max((len(r) for r in row_labels), default=10)
+    return (max(3.4, len(row_labels) * 0.5 + 2.0),
+            max(5.2, len(col_labels) * 1.5 + 1.6 + longest * 0.105))
 
 
 def _no_violations(output_dir, idiom_key):
@@ -276,6 +300,17 @@ def _draw_alignment_table(ax, rows, bbox, font_size=10.5):
     )
 
 
+def _wrap_category(key, width: int = 14) -> str:
+    """A tick label for one ``(activity, move type)`` key, over several lines.
+
+    The move type always gets a line of its own, so the eye can run along the
+    axis and compare it without reading the whole name first.
+    """
+    activity, move_type = key
+    return (_wrap_activity(activity, width)
+            + f"\n({_MOVE_DISPLAY.get(move_type, move_type)})")
+
+
 def _wrap_activity(name: str, width: int = 14) -> str:
     """Break a long activity name so upright bars keep their tick labels apart."""
     words, lines, cur = str(name).split(), [], ""
@@ -289,14 +324,6 @@ def _wrap_activity(name: str, width: int = 14) -> str:
     if cur:
         lines.append(cur)
     return "\n".join(lines)
-
-
-def _move_legend():
-    return [
-        mpatches.Patch(color=_MOVE_COLORS["Synchronous"],   label="Synchronous (conform)"),
-        mpatches.Patch(color=_MOVE_COLORS["Model Move"], label="Model Move (skipped)"),
-        mpatches.Patch(color=_MOVE_COLORS["Log Move"],   label="Log Move (extra)"),
-    ]
 
 
 def _chevron_nodes(rows, colors=None):
@@ -350,29 +377,30 @@ def _log_move_badges(rows, task_names):
 # ── Idiom 1: bar_chart — most violated activities (log-level) ────────────────
 
 def task34_bar_chart(ctxs, output_dir):
-    """Grouped bars: violations per activity, one bar per shown trace.
+    """Grouped bars: violations per "Activity (Move Type)", one bar
+    per shown trace.
 
     Upright, activities along the x axis. It used to lie on its side, which put
     the activities on the y axis and read against every other bar chart in the
     platform.
     """
-    acts, labels, totals, _mom, _mol = _build_canonical_payload(ctxs)
-    if not acts or not totals.any():
+    keys, labels, totals = _build_canonical_payload(ctxs)
+    if not keys or not totals.any():
         _no_violations(output_dir, "bar_chart")
         return
 
     colors = _trace_colors(len(labels))
-    fig_w = max(9.0, len(acts) * 1.15 + 2.0)
+    fig_w = max(9.0, len(keys) * 1.35 + 2.0)
     fig, ax = plt.subplots(figsize=(fig_w, 5.4))
     ax.set_facecolor("#fafbfc")
 
-    x = draw_grouped_rate_bars(ax, len(acts), labels, totals, colors)
+    x = draw_grouped_rate_bars(ax, len(keys), labels, totals, colors)
 
     vmax = float(totals.max())
     bw = 0.76 / max(len(labels), 1)
     offsets = (np.arange(len(labels)) - (len(labels) - 1) / 2.0) * bw
     for ti in range(len(labels)):
-        for ai in range(len(acts)):
+        for ai in range(len(keys)):
             val = totals[ai, ti]
             if val > 0:
                 ax.text(x[ai] + offsets[ti], val + vmax * 0.02, f"{int(val)}",
@@ -380,7 +408,7 @@ def task34_bar_chart(ctxs, output_dir):
                         color=CAT_STRONG)
 
     ax.set_xticks(x)
-    ax.set_xticklabels([_wrap_activity(a) for a in acts], fontsize=FONT_ANNOT)
+    ax.set_xticklabels([_wrap_category(k) for k in keys], fontsize=FONT_ANNOT)
     ax.set_ylabel("Number of Violations", fontsize=FONT_LABEL)
     ax.yaxis.set_major_locator(plt.MaxNLocator(integer=True))
     ax.set_ylim(0, max(vmax * 1.18, 1.0))
@@ -393,69 +421,6 @@ def task34_bar_chart(ctxs, output_dir):
 
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task34_bar_chart.svg"))
-
-
-# ── Idiom 2: stacked_bar — per-activity violations in representative trace ─────
-
-def task34_stacked_bar(ctxs, output_dir):
-    """The bar chart's counts, each bar split into Model Move and Log Move.
-
-    Upright like the bar chart, and one bar per shown trace within each activity.
-    """
-    acts, labels, totals, mom, mol = _build_canonical_payload(ctxs)
-    if not acts or not totals.any():
-        _no_violations(output_dir, "stacked_bar")
-        return
-
-    order = np.argsort(-totals.sum(axis=1), kind="stable")
-    acts = [acts[i] for i in order]
-    totals, mom, mol = totals[order], mom[order], mol[order]
-
-    n_traces = len(labels)
-    bw = 0.76 / max(n_traces, 1)
-    offsets = (np.arange(n_traces) - (n_traces - 1) / 2.0) * bw
-    x = np.arange(len(acts))
-
-    fig_w = max(9.0, len(acts) * 1.15 + 2.0)
-    fig, ax = plt.subplots(figsize=(fig_w, 5.4))
-    ax.set_facecolor("#fafbfc")
-
-    for ti in range(n_traces):
-        ax.bar(x + offsets[ti], mom[:, ti], bw * 0.92, color=CAT_SOFT,
-               edgecolor="white",
-               label="Model Move (skipped)" if ti == 0 else "_nolegend_")
-        ax.bar(x + offsets[ti], mol[:, ti], bw * 0.92, bottom=mom[:, ti],
-               color=CAT_MID, edgecolor="white",
-               label="Log Move (extra)" if ti == 0 else "_nolegend_")
-
-    vmax = float(totals.max())
-    for ti in range(n_traces):
-        for ai in range(len(acts)):
-            tot = totals[ai, ti]
-            if tot > 0:
-                ax.text(x[ai] + offsets[ti], tot + vmax * 0.02, f"{int(tot)}",
-                        ha="center", va="bottom", fontsize=FONT_ANNOT - 1,
-                        color=CAT_STRONG)
-
-    ax.set_xticks(x)
-    ax.set_xticklabels([_wrap_activity(a) for a in acts], fontsize=FONT_ANNOT)
-    ax.set_ylabel("Number of Violations", fontsize=FONT_LABEL)
-    ax.yaxis.set_major_locator(plt.MaxNLocator(integer=True))
-    ax.set_ylim(0, max(vmax * 1.18, 1.0))
-    ax.set_title(_VIOLATION_TITLE, fontsize=FONT_TITLE, pad=8)
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.45, zorder=0)
-    ax.set_axisbelow(True)
-
-    handles, lbls = ax.get_legend_handles_labels()
-    if n_traces > 1:
-        handles += [mpatches.Patch(facecolor="white", edgecolor="#cccccc",
-                                   label=f"bars per activity: {', '.join(labels)}")]
-        lbls += [f"bars per activity: {', '.join(labels)}"]
-    ax.legend(handles, lbls, loc="upper right", fontsize=FONT_ANNOT,
-              frameon=True, framealpha=0.9)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task34_stacked_bar.svg"))
 
 
 # ── Idiom 3: table — alignment table for worst-fitness trace ──────────────────
@@ -502,16 +467,19 @@ def task34_table(ctx, output_dir):
 # ── Idiom 6: heatmap — top-20 traces × activities ─────────────────────────────
 
 def task34_heatmap(ctxs, output_dir):
-    """Activities x shown traces, the count as colour. The matrix is the numbers."""
-    acts, labels, totals, _mom, _mol = _build_canonical_payload(ctxs)
-    if not acts or not totals.any():
+    """"Activity (Move Type)" x traces, the count as colour.
+
+    The matrix is the same grid with the numbers instead.
+    """
+    keys, labels, totals = _build_canonical_payload(ctxs)
+    if not keys or not totals.any():
         _no_violations(output_dir, "heatmap")
         return
 
-    fig_h = max(3.4, len(acts) * 0.5 + 2.0)
-    fig_w = max(5.2, len(labels) * 1.5 + 3.4)
+    rows = [_category(k) for k in keys]
+    fig_h, fig_w = _grid_size(rows, labels)
     fig, ax = plt.subplots(figsize=(fig_w, fig_h))
-    draw_value_heatmap(fig, ax, totals, acts, labels,
+    draw_value_heatmap(fig, ax, totals, rows, labels,
                        xlabel="Trace",
                        cbar_label="Number of Violations",
                        annotate=False, vmax=max(float(totals.max()), 1.0))
@@ -645,16 +613,20 @@ def _build_activity_cooccurrence(alignments):
 # ── Idiom 10: matrix — activity co-occurrence matrix ─────────────────────────
 
 def task34_matrix(ctxs, output_dir):
-    """Activities x shown traces, the count as a number. The heatmap is the colour."""
-    acts, labels, totals, _mom, _mol = _build_canonical_payload(ctxs)
-    if not acts or not totals.any():
+    """"Activity (Move Type)" x traces, the count as a number on a
+    white cell.
+
+    The heatmap is the same grid in colour.
+    """
+    keys, labels, totals = _build_canonical_payload(ctxs)
+    if not keys or not totals.any():
         _no_violations(output_dir, "matrix")
         return
 
-    fig_h = max(3.4, len(acts) * 0.5 + 2.0)
-    fig_w = max(5.2, len(labels) * 1.5 + 3.4)
+    rows = [_category(k) for k in keys]
+    fig_h, fig_w = _grid_size(rows, labels)
     fig, ax = plt.subplots(figsize=(fig_w, fig_h))
-    draw_value_heatmap(fig, ax, totals, acts, labels,
+    draw_value_heatmap(fig, ax, totals, rows, labels,
                        xlabel="Trace", cell_fmt="{:.0f}",
                        annotate=True, colorless=True)
     ax.set_title(_VIOLATION_TITLE, fontsize=FONT_TITLE)
@@ -762,8 +734,9 @@ def generate(log, alignments, output_dir, model_path=None, violated_activity=Non
     the default — every idiom draws that trace, as it always has. With more, the
     three trace-alignment idioms (chevron, BPMN, move table) draw all of them
     side by side through task04's renderers, and the per-activity summaries
-    (bar, stacked bar, heatmap, matrix) give each trace its own bar or column.
-    Every idiom therefore speaks about the same traces.
+    (bar chart, heatmap, matrix) give each trace its own bar or column. Every
+    idiom therefore speaks about the same traces, and names the same move
+    types.
 
     violation_pattern : str
         "activity|move type" defining the guideline (trace_alignment). Every
@@ -804,13 +777,12 @@ def generate(log, alignments, output_dir, model_path=None, violated_activity=Non
         logger.info(f"      -> {len(shown)} traces shown side by side.")
 
     write_traces_sidecar(output_dir, [{
-        "label":      ctx["trace_label"],
+        "label":      f"Trace {position + 1}",
         "activities": trace_activities(log[ctx["trace_index"]]),
-    } for ctx in (shown or [worst])])
+    } for position, ctx in enumerate(shown or [worst])])
 
     drawn = shown or [worst]
     task34_bar_chart(drawn,                         output_dir)
-    task34_stacked_bar(drawn,                       output_dir)
     if len(shown) > 1:
         _multi_trace_alignment_figures(log, alignments, shown, model_path, output_dir)
     else:
