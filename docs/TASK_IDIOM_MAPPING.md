@@ -450,14 +450,18 @@ This task is similar to ``Present: Present Guideline violations'', but rather th
 | Idiom (Excel label) | Canonical key | Priority |
 |---|---|---|
 | Flow Chart+ (BPMN / Petri Net / DFG) | `flow_chart_elaborate` | High |
-| Flow Chart (Chevron Diagram) | `flow_chart_basic` | Added |
 | Table | `table` | Added |
 
-Priority "Added" marks the two idioms this task has beyond the source
-spreadsheet. The spreadsheet gives task24 one idiom, and one figure cannot be
-compared with anything: the task asks where two models differ, so a set that
-shows the comparison in more than one encoding is what the experiment needs.
-Every other task in this repository has only ever had idioms *removed*.
+Priority "Added" marks the idiom this task has beyond the source spreadsheet.
+The spreadsheet gives task24 one idiom, and one figure cannot be compared with
+anything: the task asks where two models differ, so a set that shows the
+comparison in more than one encoding is what the experiment needs. Every other
+task in this repository has only ever had idioms *removed*.
+
+A chevron diagram was added alongside and then removed again. A model
+discovered from several variants branches, and a chevron strip says "these
+steps, in this order, all of them" — it did not simplify the model, it
+misstated it. The table carries the branching in a column instead.
 
 ## task25
 

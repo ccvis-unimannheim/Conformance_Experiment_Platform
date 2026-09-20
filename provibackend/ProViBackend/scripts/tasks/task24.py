@@ -5,12 +5,18 @@ Discovers a process model from the selected traces and puts it beside the
 reference BPMN that holds the desired behaviour. Finding the differences is the
 participant's work: nothing in these figures marks them.
 
-Every idiom shows the same two things — the desired model as BPMN, and the
+Both idioms show the same two things — the desired model as BPMN, and the
 discovered model in that idiom's own encoding. The desired side is always the
 BPMN because it is the only notation here that shows concurrency, and a
-guideline redrawn as a chevron strip or a list of steps would claim an order
-its gateways do not prescribe. What the experiment varies is how the
-*discovered* model is presented.
+guideline redrawn as a flat list of steps would claim an order its gateways do
+not prescribe. What the experiment varies is how the *discovered* model is
+presented.
+
+The discovered side is read off the miner's process tree, not off a flattened
+sequence: the table names, per activity, whether it always happens, whether it
+is optional, what it runs in parallel with and what it is an alternative to.
+That is the same branching the BPMN panel draws with gateways — one payload,
+two encodings.
 
 Public API:
     generate(log, model_path, output_dir, trace_ids=None,
@@ -21,10 +27,9 @@ Public API:
         trace_ids,
         trace_count – what the model is discovered from
 
-Three idioms:
+Two idioms:
     task24_flow_chart_elaborate_bpmn  →  flow_chart_elaborate  (BPMN + BPMN)
-    task24_flow_chart_basic           →  flow_chart_basic      (BPMN + chevron)
-    task24_table                      →  table                 (BPMN + step list)
+    task24_table                      →  table                 (BPMN + block list)
 """
 
 import logging
@@ -33,7 +38,15 @@ logger = logging.getLogger(__name__)
 #: Canonical idiom keys (create_all_visualizations._FILE_RENAME maps the
 #: flow_chart_elaborate_bpmn file stem onto flow_chart_elaborate). This used to
 #: declare the file stem itself, which is not a key the Idiom collection knows.
-IDIOMS = ["flow_chart_elaborate", "flow_chart_basic", "table"]
+#: The chevron is gone. A model discovered from several variants has choices
+#: and concurrency — the sample's process tree carries seven XOR nodes and one
+#: AND — and a chevron strip says "these steps, in this order, all of them".
+#: Pressed into one it did not simplify the model, it misstated it, and a
+#: participant holding it against the guideline would have found differences
+#: that were artefacts of the flattening. The table can carry the branching in
+#: a column; the chevron would have had to carry it in a cell, which is no
+#: longer a chevron.
+IDIOMS = ["flow_chart_elaborate", "table"]
 
 import trace_alignment
 
@@ -71,20 +84,12 @@ def validate_params(log, params) -> list:
                 "is that trace."]
     return trace_alignment.validate_selection(log, params, min_traces=1, max_traces=15)
 
-import io as _io
 import os
-import re as _re
-import base64 as _base64
 import tempfile
-
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 
 from shared import (
     parse_bpmn_model, compose_bpmn_panels, render_empty_state_svg,
-    draw_chevron_strip, chevron_figure_width,
-    GREY_MED, GREY_DARK, FONT_LABEL,
+    GREY_MED, GREY_DARK,
 )
 
 #: Default number of most-frequent variants the model is discovered from.
@@ -96,10 +101,12 @@ _TASK24_TITLE = "Where the Discovered Model Differs from the Desired Model"
 _DESIRED_LABEL = "Desired model (guideline)"
 
 
-def _discovered_caption(described: str) -> str:
-    """The discovered side's caption, naming what it was discovered from."""
-    return (f"Discovered model (from {described})" if described
-            else "Discovered model (from the selected traces)")
+#: The caption over the discovered side, in every idiom. It used to name what
+#: the model was discovered from ("from 625 trace(s) of the 8 most frequent
+#: variant(s)"), which is how the admin configured the task, not something a
+#: participant is asked about — and it made the caption a different length in
+#: every idiom. The selection is still logged for the admin.
+_DISCOVERED_LABEL = "Discovered model"
 
 
 def _plain_node_style(eid, elem):
@@ -157,18 +164,25 @@ def _discover_model(sublog):
     ``noise_threshold=0.0``: every path in the sub-log enters the model. The
     sub-log is already whole variants picked for their frequency, so there is
     no infrequent behaviour left in it to filter — see PARAM_SPEC.
+
+    Returns ``(parsed BPMN, process tree)``. The tree is the same discovery in
+    the form the table reads: block-structured, so every activity's choices and
+    concurrency can be named without inspecting gateway topology.
     """
     import pm4py
     from pm4py.objects.log.obj import EventLog
 
     # _select_sublog hands back a plain list of traces; the miner wants a log.
     sub = sublog if isinstance(sublog, EventLog) else EventLog(list(sublog))
-    bpmn = pm4py.discover_bpmn_inductive(sub, noise_threshold=0.0)
+    # The tree first, the BPMN converted from it, so the two idioms describe
+    # one discovery rather than two runs of the miner that could disagree.
+    tree = pm4py.discover_process_tree_inductive(sub, noise_threshold=0.0)
+    bpmn = pm4py.convert_to_bpmn(tree)
     handle, path = tempfile.mkstemp(suffix=".bpmn")
     os.close(handle)
     try:
         pm4py.write_bpmn(bpmn, path, auto_layout=True)
-        return _relayout(parse_bpmn_model(path))
+        return _relayout(_simplify(parse_bpmn_model(path))), tree
     finally:
         try:
             os.remove(path)
@@ -185,6 +199,91 @@ def _named_tasks(parsed) -> dict:
     """
     return {eid: e["name"] for eid, e in parsed["elements"].items()
             if e["kind"] == "task" and e.get("name")}
+
+
+def _simplify(parsed) -> dict:
+    """Remove the gateways the miner leaves behind that route nothing.
+
+    Two reductions, applied until neither fires:
+
+    * A gateway with one way in and one way out routes nothing at all, so it
+      goes and its neighbours are joined.
+    * A gateway whose single outgoing flow is the *only* way into another
+      gateway of the same kind is that gateway: a join immediately followed by
+      a split is one router drawn as two. They merge into one.
+
+    Both come out of how a process tree nests: every optional activity becomes
+    its own split/join pair, and nesting them puts the pairs back to back. The
+    sample model ran "Confirm Order" into a run of diamonds before reaching
+    "Ship Order", each of which a reader has to look at and rule out.
+
+    Neither reduction changes which sequences the model allows. A split with
+    two ways out and a join with two ways in are left alone, so the choices
+    and the concurrency this notation exists to show survive intact.
+    """
+    elements = dict(parsed["elements"])
+    flows = dict(parsed["sequence_flows"])
+    shapes = dict(parsed["shapes"])
+
+    while True:
+        incoming, outgoing = {}, {}
+        for fid, sf in flows.items():
+            outgoing.setdefault(sf["source"], []).append(fid)
+            incoming.setdefault(sf["target"], []).append(fid)
+
+        def is_gateway(eid):
+            return str(elements.get(eid, {}).get("kind", "")).endswith("Gateway")
+
+        # (1) the pass-through gateway
+        removable = None
+        for eid in elements:
+            if not is_gateway(eid):
+                continue
+            ins, outs = incoming.get(eid, []), outgoing.get(eid, [])
+            if len(ins) != 1 or len(outs) != 1:
+                continue
+            # One flow that both enters and leaves, or a self-loop, is not a
+            # pass-through; leave it be.
+            if ins[0] == outs[0] or flows[ins[0]]["source"] == eid:
+                continue
+            removable = (eid, ins[0], outs[0])
+            break
+        if removable is not None:
+            eid, flow_in, flow_out = removable
+            flows[flow_in] = {**flows[flow_in], "target": flows[flow_out]["target"]}
+            del flows[flow_out]
+            del elements[eid]
+            shapes.pop(eid, None)
+            continue
+
+        # (2) the join that runs straight into a split of the same kind
+        mergeable = None
+        for fid, sf in flows.items():
+            src, tgt = sf["source"], sf["target"]
+            if src == tgt or not (is_gateway(src) and is_gateway(tgt)):
+                continue
+            if elements[src]["kind"] != elements[tgt]["kind"]:
+                continue
+            if outgoing.get(src) != [fid] or incoming.get(tgt) != [fid]:
+                continue
+            mergeable = (fid, src, tgt)
+            break
+        if mergeable is None:
+            break
+
+        fid, keep, drop = mergeable
+        for other in outgoing.get(drop, []):
+            flows[other] = {**flows[other], "source": keep}
+        del flows[fid]
+        del elements[drop]
+        shapes.pop(drop, None)
+
+    out = dict(parsed)
+    out["elements"] = elements
+    out["sequence_flows"] = flows
+    out["shapes"] = shapes
+    out["edge_pts"] = {fid: parsed["edge_pts"].get(fid, []) for fid in flows}
+    return out
 
 
 def _depths(parsed) -> dict:
@@ -224,7 +323,17 @@ _LAYER_GAP_X = 58.0
 _NARROW_GAP_X = 30.0
 _NARROW_WIDTH = 45.0
 _LAYER_GAP_Y = 34.0
+#: Where an edge goes that does not join two neighbouring columns. A backward
+#: edge drops below the diagram, a skip-ahead edge rises above it, and each
+#: gets its own lane so two of them never share a line.
 _BACK_EDGE_DROP = 34.0
+_SKIP_LANE_GAP = 26.0
+_SKIP_LANE_STEP = 14.0
+#: How far into the gap beside a column a skip-ahead edge steps before it
+#: climbs. Rising straight from a node's top edge would cross whatever else
+#: stands in that node's own column; the gaps between columns are empty by
+#: construction.
+_SKIP_STUB = 14.0
 
 
 def _relayout(parsed) -> dict:
@@ -274,10 +383,38 @@ def _relayout(parsed) -> dict:
             y += box["height"] + _LAYER_GAP_Y
 
     bottom = max(b["y"] + b["height"] for b in placed.values())
+    top = min(b["y"] for b in placed.values())
+
+    # An edge that skips a column would otherwise be drawn as a straight run at
+    # its own height, straight through whatever stands in the columns between
+    # — which is what the miner's skip-this-activity branches all do. They go
+    # over the top instead, one lane each, longest first so the longer spans
+    # sit further out and the lanes do not cross.
+    def span(sf):
+        return depth.get(sf["target"], 0) - depth.get(sf["source"], 0)
+
+    skipping = sorted((fid for fid, sf in flows.items()
+                       if sf["source"] in placed and sf["target"] in placed
+                       and span(sf) > 1),
+                      key=lambda fid: -span(flows[fid]))
+    lane_of = {fid: i for i, fid in enumerate(skipping)}
+
     edge_pts = {}
     for fid, sf in flows.items():
         src, tgt = placed.get(sf["source"]), placed.get(sf["target"])
         if not src or not tgt:
+            continue
+        sxc = src["x"] + src["width"] / 2.0
+        txc = tgt["x"] + tgt["width"] / 2.0
+        if fid in lane_of:
+            lane = top - _SKIP_LANE_GAP - _SKIP_LANE_STEP * lane_of[fid]
+            out_x = src["x"] + src["width"] + _SKIP_STUB
+            in_x = tgt["x"] - _SKIP_STUB
+            src_mid = src["y"] + src["height"] / 2.0
+            tgt_mid = tgt["y"] + tgt["height"] / 2.0
+            edge_pts[fid] = [(src["x"] + src["width"], src_mid), (out_x, src_mid),
+                             (out_x, lane), (in_x, lane),
+                             (in_x, tgt_mid), (tgt["x"], tgt_mid)]
             continue
         sx, sy = src["x"] + src["width"], src["y"] + src["height"] / 2.0
         tx, ty = tgt["x"], tgt["y"] + tgt["height"] / 2.0
@@ -289,8 +426,6 @@ def _relayout(parsed) -> dict:
                 edge_pts[fid] = [(sx, sy), (mid, sy), (mid, ty), (tx, ty)]
         else:
             drop = bottom + _BACK_EDGE_DROP
-            sxc = src["x"] + src["width"] / 2.0
-            txc = tgt["x"] + tgt["width"] / 2.0
             edge_pts[fid] = [(sxc, src["y"] + src["height"]), (sxc, drop),
                              (txc, drop), (txc, tgt["y"] + tgt["height"])]
 
@@ -300,26 +435,128 @@ def _relayout(parsed) -> dict:
     return out
 
 
-def _linearise(parsed) -> list:
-    """The model's named activities in reading order.
+#: How many sibling activities are named before a condition says "and 2 more".
+_MAX_NAMED_SIBLINGS = 3
 
-    Sorted by longest-path depth, ties broken by the layout's y then x; both
-    the guideline's own diagram and the re-laid-out discovered model run left
-    to right.
 
-    A graph pressed into a line loses concurrency and loops: two models that
-    differ only in whether A and B are parallel or sequential produce the same
-    list. That is exactly why the desired side of every idiom stays a BPMN.
+def _tree_leaves(node) -> list:
+    """The activity labels under a process-tree node, in its own order."""
+    if node.operator is None:
+        return [node.label] if node.label is not None else []
+    out = []
+    for child in node.children:
+        out += _tree_leaves(child)
+    return out
+
+
+def _is_tau(node) -> bool:
+    return node.operator is None and node.label is None
+
+
+def _sibling_names(parent, child, limit: int = _MAX_NAMED_SIBLINGS) -> str:
+    """"A, B and 2 more" over the other branches of ``parent``."""
+    names = []
+    for other in parent.children:
+        if other is child or _is_tau(other):
+            continue
+        names += _tree_leaves(other)
+    if not names:
+        return ""
+    if len(names) <= limit:
+        return " and ".join([", ".join(names[:-1]), names[-1]]) if len(names) > 1 else names[0]
+    return ", ".join(names[:limit]) + f" and {len(names) - limit} more"
+
+
+def _condition(parent, child) -> str:
+    """What ``parent`` says about how its child ``child`` occurs."""
+    from pm4py.objects.process_tree.obj import Operator
+
+    op = parent.operator
+    if op == Operator.XOR:
+        real = [c for c in parent.children if not _is_tau(c)]
+        if len(real) == 1:
+            return "Optional"
+        others = _sibling_names(parent, child)
+        skippable = len(real) < len(parent.children)
+        text = f"Either this or {others}" if others else "One of several"
+        return f"{text} (or neither)" if skippable else text
+    if op == Operator.PARALLEL:
+        others = _sibling_names(parent, child)
+        return f"Any order with {others}" if others else "Any order"
+    if op == Operator.LOOP:
+        return "Repeatable"
+    if op == Operator.OR:
+        others = _sibling_names(parent, child)
+        return f"This and/or {others}" if others else "One or more of these"
+    return ""
+
+
+def _block_rows(tree) -> list:
+    """[(activity, condition)] — the discovered model as the table reads it.
+
+    A process tree is a nested sequence, so its activities do have a reading
+    order; what they do not have is a single mandatory one. Each row therefore
+    carries the order *and* the condition attached to it: whether the activity
+    always happens, is optional, runs in any order with others, is an
+    alternative to them, or repeats.
+
+    Two conditions at most per row — the innermost operator that says
+    something about this activity, and, when an outer one spans more than a
+    single activity, its block letter. The tree nests six deep on the sample,
+    and a row that listed every enclosing operator read "optional, optional,
+    any order, optional", which is no more usable than the flat list it
+    replaced.
     """
-    depth = _depths(parsed)
-    shapes = parsed["shapes"]
+    # Letters for the blocks that hold more than one activity, in the order
+    # they first appear, so rows that belong together can be seen to.
+    letters, order = {}, []
 
-    def sort_key(item):
-        eid, _name = item
-        box = shapes.get(eid) or {}
-        return (depth.get(eid, len(shapes)), box.get("x", 0.0), box.get("y", 0.0))
+    def assign(node):
+        if node.operator is not None and len(_tree_leaves(node)) > 1:
+            if id(node) not in letters:
+                order.append(node)
+                letters[id(node)] = chr(ord("A") + len(order) - 1)
+        for child in node.children if node.operator is not None else []:
+            assign(child)
 
-    return [name for _eid, name in sorted(_named_tasks(parsed).items(), key=sort_key)]
+    from pm4py.objects.process_tree.obj import Operator
+    for node in ([tree] if tree.operator is not None else []):
+        for child in node.children:
+            assign(child)
+
+    rows = []
+
+    def walk(node, ancestors):
+        if node.operator is None:
+            if node.label is None:
+                return
+            # Innermost first, but "Optional" does not win over a condition
+            # that says something else: almost every activity in a mined model
+            # sits in some X(tau, ...) wrapper, so stopping at the first one
+            # would have reported "Optional" for an activity whose real news
+            # is that it runs in any order with another.
+            strong, optional = "", False
+            for parent, child in reversed(ancestors):
+                text = _condition(parent, child)
+                if text == "Optional":
+                    optional = True
+                elif text and not strong:
+                    strong = text
+            inner = strong or ("Optional" if optional else "")
+            if strong and optional:
+                inner = f"Optional · {strong[0].lower()}{strong[1:]}"
+            block = ""
+            for parent, _child in ancestors:
+                if parent.operator != Operator.SEQUENCE and id(parent) in letters:
+                    block = f" (block {letters[id(parent)]})"
+                    break
+            rows.append((node.label, (inner or "Always") + block))
+            return
+        for child in node.children:
+            walk(child, ancestors + [(node, child)])
+
+    walk(tree, [])
+    return rows
 
 
 def _difference_summary(desired_order, discovered_order) -> str:
@@ -339,76 +576,6 @@ def _difference_summary(desired_order, discovered_order) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Composition
-# ---------------------------------------------------------------------------
-
-def _svg_dims(svg: str):
-    """(width, height) from an SVG's own attributes, or (None, None)."""
-    match = _re.search(r'<svg[^>]*\bwidth="([\d.]+)[^"]*"[^>]*\bheight="([\d.]+)', svg)
-    return (float(match.group(1)), float(match.group(2))) if match else (None, None)
-
-
-def _desired_panel_svg(desired) -> str:
-    """The guideline BPMN, titled, as an SVG string."""
-    handle, path = tempfile.mkstemp(suffix=".svg")
-    os.close(handle)
-    try:
-        compose_bpmn_panels(
-            [{"parsed": desired, "subtitle": _DESIRED_LABEL,
-              "node_style_fn": _plain_node_style}],
-            path, title=_TASK24_TITLE, legend_items=[],
-            legend_below_panels=False,
-        )
-        with open(path, encoding="utf-8") as fh:
-            return fh.read()
-    finally:
-        try:
-            os.remove(path)
-        except OSError:
-            pass
-
-
-def _figure_to_svg(fig) -> str:
-    buf = _io.BytesIO()
-    fig.savefig(buf, format="svg", bbox_inches="tight")
-    plt.close(fig)
-    buf.seek(0)
-    return buf.read().decode("utf-8")
-
-
-def _stack_svgs(top: str, bottom: str, out_path: str):
-    """Write one SVG with ``bottom`` scaled to ``top``'s width and placed below.
-
-    Both halves go in as embedded images rather than merged markup: each came
-    from a different renderer with its own coordinate system, and the only
-    thing that has to line up is the width.
-    """
-    tw, th = _svg_dims(top)
-    bw, bh = _svg_dims(bottom)
-    if not tw or not bw:
-        with open(out_path, "w", encoding="utf-8") as fh:
-            fh.write(top)
-        return
-    bh_scaled = bh * (tw / bw)
-    total_h = th + bh_scaled
-    b64_top = _base64.b64encode(top.encode()).decode()
-    b64_bottom = _base64.b64encode(bottom.encode()).decode()
-    composite = "\n".join([
-        '<?xml version="1.0" encoding="UTF-8"?>',
-        '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"',
-        f'     width="{tw:.1f}" height="{total_h:.1f}" viewBox="0 0 {tw:.1f} {total_h:.1f}">',
-        '  <rect width="100%" height="100%" fill="white"/>',
-        f'  <image href="data:image/svg+xml;base64,{b64_top}"',
-        f'         x="0" y="0" width="{tw:.1f}" height="{th:.1f}"/>',
-        f'  <image href="data:image/svg+xml;base64,{b64_bottom}"',
-        f'         x="0" y="{th:.1f}" width="{tw:.1f}" height="{bh_scaled:.1f}"/>',
-        '</svg>',
-    ])
-    with open(out_path, "w", encoding="utf-8") as fh:
-        fh.write(composite)
-
-
-# ---------------------------------------------------------------------------
 # Idioms
 # ---------------------------------------------------------------------------
 
@@ -423,7 +590,7 @@ def task24_flow_chart_elaborate_bpmn(desired, discovered, output_dir: str,
         [
             {"parsed": desired, "subtitle": _DESIRED_LABEL,
              "node_style_fn": _plain_node_style},
-            {"parsed": discovered, "subtitle": _discovered_caption(described),
+            {"parsed": discovered, "subtitle": _DISCOVERED_LABEL,
              "node_style_fn": _plain_node_style},
         ],
         os.path.join(output_dir, "task24_flow_chart_elaborate_bpmn.svg"),
@@ -432,33 +599,21 @@ def task24_flow_chart_elaborate_bpmn(desired, discovered, output_dir: str,
     )
 
 
-def task24_flow_chart_basic(desired, discovered, output_dir: str,
-                            described: str = ""):
-    """The guideline as BPMN, the discovered model as a chevron strip below it."""
-    path = os.path.join(output_dir, "task24_flow_chart_basic.svg")
-    activities = _linearise(discovered)
-    if not activities:
-        render_empty_state_svg(path, _TASK24_TITLE, "No activities were discovered.")
-        return
+def task24_table(desired, tree, output_dir: str):
+    """The guideline as BPMN, the discovered model as its blocks below it.
 
-    nodes = [{"label": name, "color": "#ffffff"} for name in activities]
-    fig, ax = plt.subplots(figsize=(chevron_figure_width(nodes), 2.1))
-    draw_chevron_strip(ax, nodes, fontsize=9.5)
-    ax.set_title(_discovered_caption(described), fontsize=FONT_LABEL,
-                 loc="left", pad=8)
-    fig.subplots_adjust(left=0.02, right=0.99, top=0.74, bottom=0.08)
-    _stack_svgs(_desired_panel_svg(desired), _figure_to_svg(fig), path)
-
-
-def task24_table(desired, discovered, output_dir: str, described: str = ""):
-    """The guideline as BPMN, the discovered model as its list of steps below it.
+    The third column is what makes this idiom able to answer the task at all.
+    A model discovered from several variants branches, and a plain list of
+    steps would assert one mandatory order through it; "Optional", "Any order
+    with X", "Either this or Y" is the same branching the BPMN panel above
+    draws with gateways.
 
     compose_bpmn_panels draws a table into the same canvas as the panel, so
     this idiom needs no compositing.
     """
     path = os.path.join(output_dir, "task24_table.svg")
-    activities = _linearise(discovered)
-    if not activities:
+    rows = _block_rows(tree)
+    if not rows:
         render_empty_state_svg(path, _TASK24_TITLE, "No activities were discovered.")
         return
 
@@ -468,8 +623,11 @@ def task24_table(desired, discovered, output_dir: str, described: str = ""):
         path,
         title=_TASK24_TITLE,
         legend_items=[],
-        table_cols=["Step", _discovered_caption(described)],
-        table_rows=[[str(i + 1), name] for i, name in enumerate(activities)],
+        table_subtitle=_DISCOVERED_LABEL,
+        table_cols=["Step", "Activity", "How it occurs"],
+        table_rows=[[str(i + 1), name, condition]
+                    for i, (name, condition) in enumerate(rows)],
+        table_stretch=True,
     )
 
 
@@ -483,8 +641,8 @@ def generate(log, model_path: str, output_dir: str, trace_ids=None,
 
     ``trace_ids`` / ``trace_count`` choose what the model is discovered from —
     the named traces, or every trace of the ``trace_count`` most frequent
-    variants. Each idiom then puts the discovered model under the guideline and
-    leaves the comparing to the participant.
+    variants. Both idioms then put the discovered model under the guideline and
+    leave the comparing to the participant.
     """
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 24 visualizations ---")
@@ -512,16 +670,16 @@ def generate(log, model_path: str, output_dir: str, trace_ids=None,
         return
 
     try:
-        discovered = _discover_model(sublog)
+        discovered, tree = _discover_model(sublog)
     except Exception as e:
         logger.warning(f"      task24: discovery failed: {e}")
         return
 
-    desired_order, discovered_order = _linearise(desired), _linearise(discovered)
-    logger.info(f"      -> {len(desired_order)} desired activity(ies), "
-                f"{len(discovered_order)} discovered; "
-                f"{_difference_summary(desired_order, discovered_order)}.")
+    desired_names = sorted(set(_named_tasks(desired).values()))
+    discovered_names = [name for name, _condition in _block_rows(tree)]
+    logger.info(f"      -> {len(desired_names)} desired activity(ies), "
+                f"{len(set(discovered_names))} discovered; "
+                f"{_difference_summary(desired_names, discovered_names)}.")
 
     task24_flow_chart_elaborate_bpmn(desired, discovered, output_dir, described)
-    task24_flow_chart_basic(desired, discovered, output_dir, described)
-    task24_table(desired, discovered, output_dir, described)
+    task24_table(desired, tree, output_dir)
