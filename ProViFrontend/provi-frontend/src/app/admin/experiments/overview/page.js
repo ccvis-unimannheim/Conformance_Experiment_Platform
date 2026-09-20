@@ -6,7 +6,6 @@ import Link from "next/link";
 import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
 import Toast from "../../../../components/Admin/Toast";
 import EditTaskModal from "../../../../components/Admin/EditTaskModal";
-import { IdiomImportButton, IdiomImportResult } from "../../../../components/Admin/IdiomImport";
 import { resolveIdiomLabel } from "../../../../utils/idiomLabels";
 import { queueWizardSave } from "../../../../utils/wizardSave";
 
@@ -119,13 +118,13 @@ function imageSourceNote(idiom, ti, uploaded, datasetTitle) {
   }
 }
 
-// Export / import of the experiment's idiom images (see backend routers/idiom_bundle.py).
-// Import here keeps this experiment's parameters: a task whose zip parameters
-// differ is rejected. Importing images together with their parameters happens
-// on the Specify step.
+// Export of the experiment's idiom images, and reverting any that were
+// replaced by hand or (on an older experiment) imported — see backend
+// routers/idiom_bundle.py. Bulk import is gone from here; the routes to bring
+// in a whole zip's images are /new (a fresh or replaced bundle experiment)
+// and single-image replace below.
 function IdiomFilesPanel({ experimentId, editable, bundleOnly, overrides, importInfo, onChanged, showToast }) {
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState(null); // see IdiomImportResult
 
   async function handleRevertAll() {
     if (!window.confirm(
@@ -138,7 +137,6 @@ function IdiomFilesPanel({ experimentId, editable, bundleOnly, overrides, import
         method: "DELETE",
       });
       if (!res.ok) throw new Error(await errorMessage(res));
-      setResult(null);
       showToast("Reverted to the generated images.");
       await onChanged();
     } catch (err) {
@@ -155,23 +153,9 @@ function IdiomFilesPanel({ experimentId, editable, bundleOnly, overrides, import
         <div className="max-w-xl">
           <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">Idiom Images</p>
           <p className="text-xs text-on-surface-variant">
-            Download the exact images participants see (with a manifest of how they were produced) to archive
-            them or reproduce the study. Importing a downloaded zip keeps those images fixed, even if the
-            experiment is regenerated.
+            Download the exact images participants see, with a manifest of how they were produced, to
+            archive them or reproduce the study.
           </p>
-          {editable && !bundleOnly && (
-            <p className="text-xs text-on-surface-variant mt-2">
-              <span className="font-semibold text-on-surface">Import here only takes images that match this experiment:</span>{" "}
-              a task is rejected if its images come from a different dataset or were drawn with different
-              parameters than the ones set on the Specify step. It changes the images and those tasks&apos;
-              parameters, and asks before it does. To use a zip with its own tasks, idioms and settings
-              instead, create a new experiment from it on the{" "}
-              <Link href="/admin/experiments/new" className="text-primary hover:underline">
-                Create New Experiment
-              </Link>{" "}
-              page.
-            </p>
-          )}
         </div>
         <div className="flex flex-wrap gap-2">
           <a
@@ -181,16 +165,6 @@ function IdiomFilesPanel({ experimentId, editable, bundleOnly, overrides, import
             <span className="material-symbols-outlined text-sm">download</span>
             Download Idioms
           </a>
-          {editable && !bundleOnly && (
-            <IdiomImportButton
-              experimentId={experimentId}
-              mode="overview"
-              disabled={busy}
-              onImported={onChanged}
-              onResult={setResult}
-              showToast={showToast}
-            />
-          )}
         </div>
       </div>
 
@@ -222,8 +196,6 @@ function IdiomFilesPanel({ experimentId, editable, bundleOnly, overrides, import
           )}
         </div>
       )}
-
-      <IdiomImportResult result={result} mode="overview" />
     </div>
   );
 }

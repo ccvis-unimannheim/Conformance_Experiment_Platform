@@ -2,6 +2,27 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: Remove the Overview Page's Import Button (2026-09-20)
+
+### Problem solved
+
+Overview's *Import Idioms* button imported a zip's images into the current
+experiment, matched by task/idiom and rejected on a dataset or parameter
+mismatch — but the two other routes built this session cover the same ground
+more directly: a whole new experiment from a zip on /new, *Replace with a
+different zip* for a bundle experiment, and single-image *Replace* for one
+idiom at a time. Removed at the admin's request.
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `ProViFrontend/.../admin/experiments/overview/page.js` | *Import Idioms* button and its explanatory paragraph removed from the Idiom Images card; only Download remains there, alongside per-image Replace/Revert and *Revert all*. The now-always-null import-result state and its render are removed with it. |
+| `ProViFrontend/.../components/Admin/IdiomImport.js` | **Deleted** — its Specify-page use was removed earlier this session, and Overview was its last caller. |
+| `docs/ADMIN_EXPERIMENT_SETUP.md` | Says no page calls `POST …/idioms/import` any more; the endpoint and its dataset/parameter checks are unchanged for direct API use. |
+
+`eslint` — no errors, same two pre-existing warnings.
+
 ## Session: Task 24 Discovers a Model and Compares It (2026-09-20)
 
 ### Problem solved
