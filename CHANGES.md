@@ -2,69 +2,112 @@
 
 Tracks files modified or created during development sessions.
 
-## Session: Task 36 Rebuilt Around the Predominance Cut (2026-09-20)
+## Session: task07's Line Graph Moves Its Mean Label, Unstacks Its Value Labels (2026-09-20)
+
+Two style fixes to `render_conformance_line_graph` (`scripts/shared.py`), to
+match `render_conformance_horizon_chart`:
+
+| Area | Change |
+|------|--------|
+| Mean label | Was a legend entry (`ax.legend()`), whose "best"-corner placement had put it centred over the plot, on top of the fill and near value labels. Now an `ax.annotate` at the right edge (`xy=(1.01, mean), xycoords=("axes fraction", "data")`), the same construction the horizon chart's "Mean: 95.3%" label already uses — same position, same style. |
+| Value labels | All offset the same fixed `(0, 7)` points above their marker, so two points close in time and fitness (the common case at day granularity) stacked their percentages on top of each other, e.g. "94.0%94.5%". They now alternate above/below by position (even index above, odd below), giving every pair of neighbours opposite offsets. |
+
+`ax.legend()` is no longer called — nothing else needed a legend on this axis.
+
+`py_compile`; not regenerated.
+
+## Session: task06 Drops matrix (2026-09-20)
+
+A single colourless cell carrying one number (the just-decolourised task06
+matrix) said nothing task06's own table row did not already say — the same
+scalar, "Fitness: 0.979", just laid out as a 1×1 grid instead of two columns.
+Removed: `IDIOMS`, `task06_matrix`, its call in `generate()`, and the imports
+(`ListedColormap`, `draw_cell_grid`) nothing else in the module used. task06
+is down to four idioms: `tile_metric`, `bar_chart`, `table`, `gauge_chart`.
+`docs/TASK_IDIOM_MAPPING.md` never listed a Matrix row for task06, so it is
+unchanged.
+
+`py_compile` only; not regenerated.
+
+## Session: task04 Drops bar_chart and matrix (2026-09-20)
 
 ### Problem solved
 
-task36's question lost its addendum, and with it the declarative framing. That
-framing had already gone from the code: `_extract_data` read
-`violation_profile.profile()` like its siblings, and the heatmap and network
-diagram, which need activity-pair constraints, rendered a byte-identical
-18,754-byte empty state on every run. task36 had one working idiom.
+task04's trace-level idioms split into two families: `bar_chart`/`matrix`
+stated only each trace's fitness (3 numbers); `table`/`flow_chart_basic`/
+`flow_chart_elaborate` stated the same fitness *and* the full activity-by-
+activity alignment behind it. A participant given one of the first two could
+answer only the numeric half of the question; one given any of the other
+three could see every deviation as well. That is not a difference in
+encoding — the kind every other idiom in this task is allowed to have — but
+in how much material a participant had to work with, the same imbalance the
+review keeps removing elsewhere (task01's box plot, task06's colour scale,
+this task's own former heatmap and table_bar_chart).
 
-Without the addendum, task11 (Describe · Summarize), task29 (Explore ·
-Summarize), task32 (Present · Compare) and task36 all read the same profile.
-task32 separates itself with a sub-log axis; task36 has only the word
-*predominant*, which is a threshold on the same numbers rather than different
-numbers. **So the threshold is now the subject.** Every idiom ranks the groups
-by share of all violations, shows where `prominence_threshold` cuts, and pools
-everything below it into one "all other violations" entry — still shown,
-because "everything else together is 14%" is part of the answer.
+### Changes
 
-`prominence_threshold` becomes required here, uniquely among the tasks that
-offer it. It is the only thing separating task36 from task11, and an empty
-field used to be silently ignored, which produced task11's figures under
-task36's question.
+`scripts/tasks/task04.py`:
+- `IDIOMS`: `["flow_chart_basic", "flow_chart_elaborate", "table"]` —
+  `bar_chart` and `matrix` are gone.
+- `task04_bar_chart` and `task04_matrix` deleted, along with the two calls to
+  them in `generate()`.
+- Orphaned imports removed: `draw_value_heatmap`, `categorical_colors`,
+  `numpy` (nothing else in the module used any of them), and the `TITLE`
+  constant they alone referenced.
+- Module docstring rewritten: no more two-family split. The three remaining
+  idioms are not perfectly equivalent to each other either (the chevron
+  carries alignment order, the BPMN carries model structure without it, the
+  table carries order as a step number), but all three carry the same two
+  things — the fitness number and the full alignment — which is the property
+  that matters here.
+- `generate()`'s comment now says plainly that every remaining idiom needs
+  `alignments`; the `tdf` fallback (built without alignments) now only feeds
+  the `traces.json` sidecar and the log line, since nothing else consumes it.
 
-Three idioms: `bar_chart` (ranked, with the cut drawn as a line rather than
-applied as a filter — a group just under it is part of the answer by being
-just under it), `table` (the numbers plus a column saying which qualify) and
-`pie_chart` (share of the whole, which is what "predominant" asks for). Unlike
-task25, showing the share is the point: this task presents its answer.
+Checked that this cannot silently produce a blank task04: every path that
+used to leave `selected` empty (an empty log, or `trace_ids` matching no
+case in this log) already hits the earlier `if tdf.empty: return` guard,
+because the same `trace_ids`/log-emptiness that empties `selected` also
+empties `tdf`'s own fallback construction. `trace_alignment.pick_indices`
+itself never returns an empty pool for a non-empty log — the "no trace
+violates" case falls back to showing conformant traces rather than
+returning nothing.
 
-Also fixed: under the `activity` strategy `profile()` returns the activity in
-`group` and the move type in `series`, so an activity violated both ways gave
-two rows named alike. `_label` joins them.
+`docs/TASK_IDIOM_MAPPING.md`: the `Bar Chart` and `Matrix` rows under task04.
 
-Verified on BPIC12-A across all three grouping strategies: 2, 3 and 3 rows,
-and at a 20% cut the third group correctly pools into "All other violations".
+### Verification
 
-### Files changed
+`py_compile`. Not regenerated.
 
-- `provibackend/ProViBackend/scripts/tasks/task36.py` — rewritten; the Declare
-  machinery, `task36_heatmap` and `task36_network_diagram` deleted.
-- `provibackend/ProViBackend/scripts/create_all_visualizations.py` — the task36
-  lambda no longer passes `model_path`.
-- `docs/TASK_IDIOM_MAPPING.md`
-
-## Session: Task 37 Idiom Set Cut to Four (2026-09-20)
+## Session: task07's Two Idioms Now Agree on How Big a Swing Looks (2026-09-20)
 
 ### Problem solved
 
-Deleted `boxplot`, `scatter_plot` and `table_bar_chart`, leaving `bar_chart`,
-`heatmap`, `table` and `stacked_bar`. The three renderers, their calls in
-`generate`, their `IDIOMS` entries and the module docstring's idiom list go
-with them; `pandas` was imported only by the deleted code. No shared helper
-became unused.
+`task07_line_graph` drew the y-axis on a fixed 0-100% range;
+`task07_horizon_chart` zoomed to `[y.min() - pad, y.max() + pad]`, this
+series' own range. The same data — a conformance rate moving between 90.8%
+and 98.8% — read as a nearly flat line on one idiom and a sharply serrated
+one on the other, purely from the axis choice: a participant given the line
+graph would call conformance "stable, near-constant"; one given the horizon
+chart would call the same numbers "swinging noticeably." task07 answers "how
+does the degree of conformance change over time", so how big a change looks
+is the answer, and it cannot depend on which idiom the participant saw.
 
-`docs/TASK_IDIOM_MAPPING.md` still lists `line_graph`, `horizon_chart` and
-`calendar` for task37. Those were never in `IDIOMS` — a pre-existing mismatch,
-left alone here.
+### Changes
 
-### Files changed
+`scripts/shared.py`:
+- `render_conformance_horizon_chart`: `ax.set_ylim(-0.05, 1.1)`, the same fixed
+  range `render_conformance_line_graph` already used, replacing the
+  data-relative `y_pad` zoom.
+- The mean-value labels on both idioms now read the same way: the line graph's
+  legend was `f"Overall mean: {overall_mean:.2f}"` (a bare fraction, "0.95")
+  while the horizon chart's side label was `f"Mean: {mean_val:.0%}"` ("95%") —
+  same statistic, two formats, next to axes that are both percent-formatted.
+  Both are now `.1%`.
 
-- `provibackend/ProViBackend/scripts/tasks/task37.py`
-- `docs/TASK_IDIOM_MAPPING.md`
+### Verification
+
+`py_compile`. Not regenerated.
 
 ## Session: Remove the Overview Page's Import Button (2026-09-20)
 

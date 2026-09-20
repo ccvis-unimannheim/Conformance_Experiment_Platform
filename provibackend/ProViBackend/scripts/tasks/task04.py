@@ -8,13 +8,8 @@ follows describes the trace level, the default.
 
 Every idiom shows the *same* concrete traces (individual traces, NOT aggregated
 variants), and every one states each trace's fitness — the "overall degree of
-conformance" the task asks about. That is the payload they share:
+conformance" the task asks about — alongside where the difference comes from:
 
-  fitness only — how far apart the traces are
-    * bar_chart        – one bar per trace in that trace's colour, fitness on the y-axis
-    * matrix           – trace × Fitness grid, numbers only (colourless)
-
-  fitness + alignment — and where the difference comes from
     * table                – a leading Fitness row, then activity × trace,
                              cell = "step · move type"
     * flow_chart_basic     – one chevron strip per trace, labelled with its
@@ -23,12 +18,20 @@ conformance" the task asks about. That is the payload they share:
     * flow_chart_elaborate – the BPMN model drawn once per trace, subtitled the
                              same way (needs alignments and the model)
 
-The second family is therefore not information-*equivalent* to the first: it
-adds where the deviations are. Nothing is missing from it, which is what a
-participant needs to answer the question at all. Within it the three differ in
-what they can express: the chevron lays the moves out in alignment order, the
-BPMN adds the model's structure but not that order, and the table carries the
-order as a step number per cell. All three show a log move separately from the
+bar_chart and matrix — fitness alone, no alignment detail — were removed: a
+participant given one of them could answer only the numeric half of the
+question, while one given any of the three above could also see every
+deviation behind that number. That gap was not a difference in encoding, the
+kind every other idiom in this task is allowed to have, but in how much a
+participant had to work with — the same imbalance the review keeps removing
+elsewhere in this platform (task01's box plot, task06's colour scale, this
+task's own former heatmap and table_bar_chart).
+
+The three that remain are not perfectly equivalent to each other either — the
+chevron lays the moves out in alignment order, the BPMN adds the model's
+structure but not that order, and the table carries the order as a step number
+per cell — but all three carry the same two things: the fitness number and the
+full move-by-move alignment. All three show a log move separately from the
 model task of the same name.
 
 The fitness labels are opt-in on the three shared renderers (``show_fitness``),
@@ -65,8 +68,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["flow_chart_basic", "flow_chart_elaborate",
-          "bar_chart", "table", "matrix"]
+IDIOMS = ["flow_chart_basic", "flow_chart_elaborate", "table"]
 
 
 import trace_alignment
@@ -149,7 +151,6 @@ def validate_params(log, params) -> list:
 
 
 import os
-import numpy as np
 import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
@@ -158,11 +159,11 @@ import matplotlib.patches as mpatches
 from matplotlib import gridspec
 
 from shared import (
-    save_svg, make_table, auto_col_widths, draw_value_heatmap,
+    save_svg, make_table, auto_col_widths,
     alignment_pairs_to_rows, chevron_nodes_from_alignment_rows,
     draw_chevron_strip, chevron_figure_width,
     parse_bpmn_model, compose_bpmn_panels, render_empty_state_svg,
-    contrasting_text_color, categorical_colors,
+    contrasting_text_color,
     GREY_MED, GREY_LIGHTER, GREY_DARK,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT,
     trace_activities, write_traces_sidecar,
@@ -170,16 +171,6 @@ from shared import (
 
 # Default number of traces to sample when the admin doesn't pick specific ones.
 SAMPLE_N = 2
-
-# The bar chart gives each compared trace one colour, from `categorical_colors`
-# — cividis's blue and yellow ends, the pair task01 and task03 draw their bars
-# with, extended to the 3-4 traces this task also allows. It encodes WHICH
-# trace, never how conformant it is: the task asks the participant to read
-# conformance off the fitness values, so no idiom here colours a trace by
-# conformance.
-
-# Consistent figure title across every idiom.
-TITLE = "Trace Conformance Fitness"
 
 # Activity-name font in the chevron flow chart. The chevron width has a fixed
 # margin on top of its per-character allowance, so realistic activity names stay
@@ -592,29 +583,6 @@ def task04_flow_chart_elaborate(selected, model_path, output_dir, *,
     )
 
 
-def task04_bar_chart(tdf: pd.DataFrame, output_dir: str):
-    """One bar per trace in that trace's colour; fitness value labelled above it."""
-    fig, ax = plt.subplots(figsize=(max(7, len(tdf) * 0.75), 5))
-    x = np.arange(len(tdf))
-    bars = ax.bar(x, tdf["fitness"], color=categorical_colors(len(tdf)),
-                  edgecolor="white", width=0.65)
-    for bar, val in zip(bars, tdf["fitness"]):
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.012,
-                f"{val:.3f}", ha="center", va="bottom", fontsize=FONT_ANNOT - 1)
-
-    ax.set_xticks(x)
-    ax.set_xticklabels(tdf["label"], rotation=35, ha="right", fontsize=FONT_ANNOT - 1)
-    ax.set_xlabel("Trace", fontsize=FONT_LABEL)
-    ax.set_ylabel("Fitness (0-1)", fontsize=FONT_LABEL)
-    ax.set_title(TITLE, fontsize=FONT_TITLE)
-    ax.set_ylim(0, 1.12)
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
-    ax.set_axisbelow(True)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task04_bar_chart.svg"))
-
-
 def task04_table(selected, model_path, output_dir, *,
                  filename="task04_table.svg",
                  title="Move Type by Activity Across Traces",
@@ -712,28 +680,6 @@ def task04_table(selected, model_path, output_dir, *,
     save_svg(fig, path)
 
 
-def task04_matrix(tdf: pd.DataFrame, output_dir: str):
-    """Trace × Fitness grid: white cells ruled into a grid, each fitness carried
-    by the printed number alone.
-
-    Colourless, as in tasks 01, 03 and 27-32. With a colour scale the matrix
-    would be a heatmap that also prints its numbers — one variable encoded
-    twice."""
-    labels = tdf["label"].tolist()
-    data = tdf["fitness"].values.astype(float).reshape(-1, 1)
-
-    fig_h = max(3.0, 0.5 * len(labels) + 1.4)
-    fig, ax = plt.subplots(figsize=(3.6, fig_h))
-    draw_value_heatmap(
-        fig, ax, data, labels, ["Fitness"],
-        cbar_label="Fitness", cell_fmt="{:.3f}", annotate=True,
-        colorless=True,
-    )
-    ax.set_title(TITLE, fontsize=FONT_TITLE)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task04_matrix.svg"))
-
-
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
@@ -754,8 +700,9 @@ def generate(log, fitness_df, output_dir: str, trace_ids=None, alignments=None, 
     them. Every idiom renders the same traces so the views are directly
     comparable.
 
-    ``alignments`` (optional) enables the trace-level flow-chart idioms, which
-    compare the alignment (conformance) patterns of the traces side by side.
+    ``alignments`` is required at trace level: every remaining idiom is an
+    alignment idiom (chevron, BPMN, the move-type table), so without it none of
+    them has anything to draw.
     """
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 4 visualizations ---")
@@ -769,8 +716,9 @@ def generate(log, fitness_df, output_dir: str, trace_ids=None, alignments=None, 
         return
 
     # Single trace selection shared by EVERY idiom: the admin-selected traces, or
-    # (default) the two traces with the largest violation-count gap. This needs
-    # alignments; without them we fall back to the first SAMPLE_N in log order.
+    # (default) the two traces with the largest violation-count gap. Without
+    # alignments there is nothing for any of them to draw; the tdf fallback below
+    # only feeds the traces.json sidecar and the log line in that case.
     selected = _task04_select_compare_traces(
         log, alignments, fitness_df, trace_ids=trace_ids,
         n=trace_count, rule=trace_pick_rule, pattern=violation_pattern,
@@ -797,11 +745,9 @@ def generate(log, fitness_df, output_dir: str, trace_ids=None, alignments=None, 
         for _, row in tdf.iterrows() if str(row["case_id"]) in case_index
     ])
 
-    task04_bar_chart(tdf, output_dir)
-    task04_matrix(tdf, output_dir)
-
-    # Trace-level pattern comparison — chevron, BPMN and the move-type table of
-    # the same traces (all need the alignments / model).
+    # Every remaining idiom needs the alignments (chevron, BPMN, and the
+    # move-type table) — none of them can be drawn from tdf alone any more, now
+    # that bar_chart and matrix (the two that could) are gone.
     if selected:
         # show_fitness: task04 asks for the overall degree of conformance, so
         # the alignment idioms state it too and every idiom of this task can

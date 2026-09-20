@@ -89,14 +89,14 @@ import matplotlib.ticker as mticker
 
 from matplotlib.colors import to_hex
 
-from shared import save_svg, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS, FONT_TITLE, FONT_LABEL, FONT_ANNOT
+from shared import (save_svg, draw_value_heatmap, make_table, GREY_DARK, GREY_MED, GREY_LIGHT,
+                    GREY_LIGHTER, CIVIDIS, FONT_TITLE, FONT_LABEL, FONT_ANNOT)
 
 # ── Cividis palette ───────────────────────────────────────────────────────────
 _C_DARK   = GREY_DARK
 _C_MED    = GREY_MED
 _C_LIGHT  = GREY_LIGHT
 _C_XLIGHT = GREY_LIGHTER
-_HDR_BG   = GREY_DARK
 _C_T1     = GREY_DARK    # Alignment-based (dark navy)
 _C_T2     = GREY_MED     # Token-based Replay (olive-grey)
 
@@ -384,17 +384,21 @@ def task37_heatmap(data, output_dir):
     for v1, v2 in zip(t1, t2):
         mat[_bucket_idx(v1, data.get("buckets")), _bucket_idx(v2, data.get("buckets"))] += 1
 
+    labels = data.get("bucket_labels") or _BUCKET_LABELS
     fig, ax = plt.subplots(figsize=(9, 7.5))
-    ax.imshow(mat, cmap=CIVIDIS, aspect="auto", vmin=0, vmax=max(int(mat.max()), 1))
-
-    for i in range(nb):
-        for j in range(nb):
-            cnt = int(mat[i, j])
-            pct = cnt / n * 100 if n > 0 else 0.0
-            txt_clr = "white" if cnt > mat.max() * 0.5 else _C_DARK
-            ax.text(j, i, f"{cnt}\n({pct:.1f}%)",
-                    ha="center", va="center",
-                    fontsize=FONT_ANNOT, color=txt_clr, linespacing=1.4)
+    # shared.draw_value_heatmap, which is where the platform's heatmap rules
+    # live: the reversed ramp, so the busiest cell is the darkest one rather
+    # than the one yellow square in a navy field this drew before; and no
+    # per-cell numbers, because a heatmap is the colour reading of a table and
+    # a matrix is the number reading of it. The colourbar carries the scale.
+    draw_value_heatmap(
+        fig, ax, mat,
+        row_labels=labels, col_labels=labels,
+        xlabel=f"{data['t1_name']} fitness bucket",
+        cbar_label="Traces",
+        annotate=False,
+        vmax=max(int(mat.max()), 1),
+    )
 
     # Highlight diagonal (agreement)
     for k in range(nb):
@@ -403,10 +407,6 @@ def task37_heatmap(data, output_dir):
             fill=False, edgecolor=_C_MED, linewidth=2.0,
         ))
 
-    labels = data.get("bucket_labels") or _BUCKET_LABELS
-    ax.set_xticks(range(nb)); ax.set_xticklabels(labels, fontsize=FONT_ANNOT)
-    ax.set_yticks(range(nb)); ax.set_yticklabels(labels, fontsize=FONT_ANNOT)
-    ax.set_xlabel(f"{data['t1_name']} fitness bucket", fontsize=FONT_LABEL)
     ax.set_ylabel(f"{data['t2_name']} fitness bucket", fontsize=FONT_LABEL)
     ax.set_title(
         f"Fitness Bucket Agreement  ·  {n:,} traces\n"
@@ -502,41 +502,23 @@ def task37_table(data, output_dir):
     fig_h  = max(4.0, n_rows * 0.42 + 1.8)
     fig, ax = plt.subplots(figsize=(13, fig_h))
     ax.axis("off")
+    # shared.make_table, as every other table in the platform. Drawn by hand
+    # this had its own zebra stripe (#f5f5f5 against the shared #F0F0F0), its
+    # own cell borders and its own row height, so the one idiom a participant
+    # is meant to recognise across tasks looked slightly different here.
+    tbl = make_table(ax, cell_text=rows, col_labels=col_headers,
+                     bbox=[0.015, 0.04, 0.97, 0.90], col_widths=col_widths,
+                     cell_loc="center", font_size=FONT_ANNOT, cell_pad=0.06)
 
-    t_ = 0.94; b_ = 0.04; tw = 0.97; l_ = 0.015
-    row_h = (t_ - b_) / (n_rows + 1)
-
-    x = l_
-    for hdr, cw in zip(col_headers, col_widths):
-        ax.add_patch(plt.Rectangle((x, t_ - row_h), cw * tw, row_h,
-                                   fc=_HDR_BG, ec="#333333", linewidth=0.5,
-                                   transform=ax.transAxes, clip_on=False))
-        ax.text(x + cw * tw * 0.5, t_ - row_h * 0.5, hdr,
-                ha="center", va="center", fontsize=FONT_ANNOT,
-                color="white", transform=ax.transAxes)
-        x += cw * tw
-
-    for i, row in enumerate(rows):
-        y_top = t_ - (i + 2) * row_h
-        x = l_
-        bg = "#f5f5f5" if i % 2 == 0 else "white"
-        for j, (val, cw) in enumerate(zip(row, col_widths)):
-            ax.add_patch(plt.Rectangle((x, y_top), cw * tw, row_h,
-                                       fc=bg, ec="#333333", linewidth=0.5,
-                                       transform=ax.transAxes, clip_on=False))
-            ha = "left" if j == 0 else "center"
-            px = x + 0.008 if j == 0 else x + cw * tw * 0.5
-            # Colour Δ column: dark = T1 higher, grey = T2 higher
-            clr = _C_DARK
-            if has_t2 and j == 3:
-                try:
-                    clr = _C_DARK if float(val) >= 0 else _C_MED
-                except ValueError:
-                    pass
-            ax.text(px, y_top + row_h * 0.5, str(val),
-                    ha=ha, va="center", fontsize=FONT_ANNOT,
-                    color=clr, transform=ax.transAxes)
-            x += cw * tw
+    # The delta column keeps the reading it had: dark where the first technique
+    # scores higher, grey where the second does.
+    if has_t2:
+        for r, row in enumerate(rows, start=1):
+            try:
+                tbl[r, 3].set_text_props(
+                    color=_C_DARK if float(row[3]) >= 0 else _C_MED)
+            except (ValueError, KeyError):
+                pass
 
     sort_note = f"stratified by fitness level  ·  {n_groups} unique value groups"
     title = f"Per-Trace Fitness Detail  ·  {n:,} traces  ·  {sort_note}"
@@ -548,6 +530,79 @@ def task37_table(data, output_dir):
 
 
 # ── Idiom 8: Table & Bar Chart ────────────────────────────────────────────────
+
+def task37_table_bar_chart(data, output_dir):
+    """Left: statistics summary table. Right: fitness bucket grouped bar chart."""
+    if data["n_traces"] == 0:
+        _no_data(output_dir, "table_bar_chart"); return
+
+    has_t2  = data["t2"] is not None
+    t1_s    = data["t1_stats"]
+    t2_s    = data["t2_stats"]
+    n       = data["n_traces"]
+    stat_names  = ["Mean", "Median", "Std", "Min", "Max"]
+    t1_stat_v   = [t1_s["mean"], t1_s["median"], t1_s["std"], t1_s["min"], t1_s["max"]]
+    t2_stat_v   = [t2_s["mean"], t2_s["median"], t2_s["std"], t2_s["min"], t2_s["max"]] if has_t2 else None
+
+    fig, (ax_tbl, ax_bar) = plt.subplots(
+        1, 2, figsize=(16, 5.2),
+        gridspec_kw={"width_ratios": [2, 3]},
+    )
+
+    # ── Left: stats table ────────────────────────────────────────────────────
+    ax_tbl.axis("off")
+    col_headers = ["Statistic", data["t1_name"]] + ([data["t2_name"]] if has_t2 else [])
+    col_widths  = [0.36, 0.32] + ([0.32] if has_t2 else [])
+    stat_rows = [[name, f"{v1:.3f}"] + ([f"{t2_stat_v[i]:.3f}"] if has_t2 else [])
+                 for i, (name, v1) in enumerate(zip(stat_names, t1_stat_v))]
+    make_table(ax_tbl, cell_text=stat_rows, col_labels=col_headers,
+               bbox=[0.01, 0.04, 0.98, 0.90], col_widths=col_widths,
+               cell_loc="center", font_size=FONT_ANNOT, cell_pad=0.06)
+
+    # ── Right: fitness bucket grouped bar ────────────────────────────────────
+    ax_bar.set_facecolor("#fafbfc")
+    nb = len(data.get("buckets") or _BUCKETS)
+    xb = np.arange(nb)
+    w  = 0.35 if has_t2 else 0.5
+
+    t1_b = [t1_s["buckets"][i] / n * 100 for i in range(nb)]
+    bars1 = ax_bar.bar(xb - w / 2 if has_t2 else xb, t1_b, width=w,
+                       color=_C_T1, label=data["t1_name"])
+    for b, v in zip(bars1, t1_b):
+        if v > 0:
+            ax_bar.text(b.get_x() + b.get_width() / 2, v + 0.5,
+                        f"{v:.1f}%", ha="center", va="bottom",
+                        fontsize=FONT_ANNOT - 1, color=_C_DARK)
+
+    if has_t2:
+        t2_b = [t2_s["buckets"][i] / n * 100 for i in range(nb)]
+        bars2 = ax_bar.bar(xb + w / 2, t2_b, width=w,
+                           color=_C_T2, label=data["t2_name"])
+        for b, v in zip(bars2, t2_b):
+            if v > 0:
+                ax_bar.text(b.get_x() + b.get_width() / 2, v + 0.5,
+                            f"{v:.1f}%", ha="center", va="bottom",
+                            fontsize=FONT_ANNOT - 1, color=_C_DARK)
+
+    ax_bar.set_xticks(xb)
+    ax_bar.set_xticklabels(data.get("bucket_labels") or _BUCKET_LABELS, fontsize=FONT_ANNOT)
+    ax_bar.set_ylabel("% of traces", fontsize=FONT_LABEL)
+    ax_bar.set_title("Fitness Bucket Distribution", fontsize=FONT_TITLE)
+    ax_bar.spines[["top", "right"]].set_visible(False)
+    ax_bar.yaxis.grid(True, linestyle="--", alpha=0.3)
+    ax_bar.set_axisbelow(True)
+    if has_t2:
+        ax_bar.legend(fontsize=FONT_ANNOT, frameon=False)
+
+    fig.suptitle(
+        f"Fitness Summary  ·  {n:,} total traces",
+        fontsize=FONT_TITLE + 1, y=1.01,
+    )
+    fig.tight_layout(pad=1.2)
+    save_svg(fig, os.path.join(output_dir, "task37_table_bar_chart.svg"))
+
+
+# ── Idiom 9: Stacked Bar ──────────────────────────────────────────────────────
 
 def task37_stacked_bar(data, output_dir):
     """100% stacked bars: one row per technique, 4 fitness buckets each."""

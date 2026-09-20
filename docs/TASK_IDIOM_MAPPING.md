@@ -65,13 +65,11 @@ Source: *Conformance Checking Tasks Working Table.xlsx* + *Task_Idiom_Complete_M
 
 | Idiom (Excel label) | Canonical key | Priority |
 |---|---|---|
-| Bar Chart | `bar_chart` | Medium/Reviewed |
 | Stacked Bar Graph | `stacked_bar` | Medium/Reviewed |
 | Horizon Chart | `horizon_chart` | Medium/Reviewed |
 | Scatter Plot (Dotted Chart) | `scatter_plot` | Medium/Reviewed |
 | Box and Whisker Plot | `boxplot` | Medium/Reviewed |
 | Table | `table` | Medium/Reviewed |
-| Matrix | `matrix` | Medium/Reviewed |
 
 ## task05
 
