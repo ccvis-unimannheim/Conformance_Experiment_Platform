@@ -92,6 +92,7 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import matplotlib.transforms as transforms
 
 from shared import (
     save_svg, make_table, draw_parallel_sets, render_empty_state_svg, wrap_text,
@@ -247,18 +248,55 @@ def task21_parallel_sets(ranking, evidence_df, output_dir):
         return
 
     ncols = len(panels)
-    fig, axes = plt.subplots(1, ncols, figsize=(max(7.0, ncols * 5.0), 6.0), squeeze=False)
+    # Height follows bucket count (same as task22's own parallel_sets), not a fixed
+    # 6.0in: a fixed height stretched the mostly-2-bucket panels here, leaving a
+    # visibly larger gap between the column title and the diagram than panels with
+    # more buckets to fill that height actually needed.
+    max_rows = max(len(left_labels) for (_r, left_labels, _m) in panels)
+    fig_h = max(5.0, max_rows * 0.75 + 2.5)
+    fig, axes = plt.subplots(1, ncols, figsize=(max(7.0, ncols * 5.5), fig_h), squeeze=False)
     for ax, (r, left_labels, matrix) in zip(axes[0], panels):
         ax.axis("off")
         left_colors = [_GREY_PALETTE[i % len(_GREY_PALETTE)] for i in range(len(left_labels))]
+        # Each bucket's own violation rate — same "name  (value)" convention
+        # task13/task20's parallel sets use, so a bucket's number sits right
+        # next to it instead of only the whole attribute's score in the title.
+        bucket_totals = matrix.sum(axis=1)
+        display_labels = [
+            f"{lab}  ({(matrix[i, 0] / bucket_totals[i] * 100 if bucket_totals[i] else 0.0):.1f}% violation rate)"
+            for i, lab in enumerate(left_labels)
+        ]
         draw_parallel_sets(
-            ax, left_labels, right_labels, matrix, left_colors,
+            ax, display_labels, right_labels, matrix, left_colors,
             right_colors=[GREY_DARK, GREY_LIGHTER],
-            # No right_title: the bars below are already individually labelled
-            # "Violation"/"No violation", so a column header would be redundant
-            # and, with panels this narrow, collide with a long left_title.
-            left_title=wrap_text(r["label"].replace("_", " "), 14), right_title="",
+            # left_title/right_title are deliberately NOT passed here: draw_parallel_sets
+            # places them at the data-coordinate x_left/x_right, which it then squeezes
+            # together whenever it widens xlim to fit long side-bar labels (see its
+            # "Reserve exact horizontal room" step) — with our per-bucket numbers making
+            # those labels long, that collapsed the gap between left_title and
+            # right_title into an overlap no matter how wide the figure was. Drawing
+            # both titles below in axes-fraction coordinates instead keeps them pinned
+            # to the panel's actual left/right edges, immune to that xlim stretch.
+            # Default label_min_frac=0.03 hides any bucket under 3% of this
+            # panel's traces — with uneven buckets that silently dropped every
+            # label but the largest one. Every present bucket should be named.
+            label_min_frac=0.0,
+            emphasize_left_head=True,  # bold the bucket name, not its rate
         )
+        # x in axes-fraction (immune to the xlim stretch above), y in data
+        # coordinates — matching draw_parallel_sets' own left_title/right_title
+        # baseline (data y=1.04, a small deliberate gap above the bar-top at data
+        # y=1.0). Using transAxes for y too, as the first version of this fix did,
+        # measured the gap from the axes box's top (data y=1.11) instead of the
+        # bars, leaving a visibly bigger gap here than task22's own parallel_sets.
+        title_trans = transforms.blended_transform_factory(ax.transAxes, ax.transData)
+        ax.text(0.0, 1.04, wrap_text(r["label"].replace("_", " "), 14)
+                + f"\n(assoc.={r['strength']:.2f})",
+                transform=title_trans, ha="left", va="bottom",
+                fontsize=FONT_LABEL, fontweight="bold")
+        ax.text(1.0, 1.04, "Guideline violation",
+                transform=title_trans, ha="right", va="bottom",
+                fontsize=FONT_LABEL, fontweight="bold")
     fig.suptitle(_TITLE, fontsize=FONT_TITLE, y=0.99)
     fig.subplots_adjust(top=0.78, wspace=0.5)
     save_svg(fig, path)
