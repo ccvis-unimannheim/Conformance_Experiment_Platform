@@ -309,7 +309,12 @@ def task05_table_and_bar_chart(agg_df: pd.DataFrame, output_dir: str,
 
 def task05_matrix(agg_df: pd.DataFrame, output_dir: str,
                   labels=("Sub-log 1", "Sub-log 2")):
-    """Heatmap matrix: rows = violation pattern (top-N), cols = sub-log, cell = rate."""
+    """Rate as numbers: rows = violation pattern (top-N), cols = sub-log.
+
+    The heatmap draws the same table as colour; this one carries the rate in the
+    printed number alone, so the two idioms differ in how the value is read
+    rather than only in whether digits sit on top of the shading.
+    """
     if agg_df.empty:
         fig, ax = plt.subplots(figsize=(4, 3))
         ax.axis("off")
@@ -324,7 +329,8 @@ def task05_matrix(agg_df: pd.DataFrame, output_dir: str,
 
     fig_h = max(3.0, 0.55 * len(patterns) + 1.2)
     fig, ax = plt.subplots(figsize=(5, fig_h))
-    draw_rate_matrix(fig, ax, data, patterns, groups, xlabel="Sub-log")
+    draw_rate_matrix(fig, ax, data, patterns, groups, xlabel="Sub-log",
+                     colorless=True)
     ax.set_title("Violation Rate Matrix (%)", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task05_matrix.svg"))

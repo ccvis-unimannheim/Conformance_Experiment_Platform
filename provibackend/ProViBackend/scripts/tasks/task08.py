@@ -60,9 +60,9 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
-from matplotlib.colors import Normalize, to_hex
-from shared import most_common_stable, save_svg, make_table, GREY_DARK, GREY_MED, CIVIDIS, CIVIDIS_R, FONT_TITLE, FONT_ANNOT
-from shared import MOVE_LOG, MOVE_MODEL, contrasting_text_color
+from matplotlib.colors import ListedColormap
+from shared import most_common_stable, save_svg, make_table, draw_cell_grid, GREY_DARK, GREY_MED, CIVIDIS, CIVIDIS_R, FONT_TITLE, FONT_ANNOT
+from shared import MOVE_LOG, MOVE_MODEL
 
 # ── Cividis palette ──────────────────────────────────────────────────────────
 _C_DARK   = GREY_DARK      # dark navy   (highest emphasis)
@@ -278,7 +278,7 @@ def task08_heatmap(violation_freq, cooccurrence, output_dir, top_n=_MATRIX_TOP_N
 
 
 # ---------------------------------------------------------------------------
-# Idiom 3: Matrix — same as heatmap but with numbers in each cell
+# Idiom: Matrix — the same grid as the heatmap, read as numbers instead of colour
 # ---------------------------------------------------------------------------
 
 def task08_matrix(violation_freq, cooccurrence, output_dir, top_n=_MATRIX_TOP_N):
@@ -297,22 +297,28 @@ def task08_matrix(violation_freq, cooccurrence, output_dir, top_n=_MATRIX_TOP_N)
     n    = len(top)
 
     fig, ax = plt.subplots(figsize=(max(8, n * 0.9), max(6, n * 0.9)))
-    im = ax.imshow(mat, cmap=_CMAP_SEQ, aspect="equal", vmin=0)
+    # A matrix in the strict sense: empty cells ruled into a grid, the count
+    # carried by the printed number alone, and no colour scale. Shading the
+    # cells as well would make this the heatmap with digits on top — one
+    # variable encoded twice, and two idioms differing only in annotation.
+    # Same contract as shared.draw_value_heatmap(colorless=True), kept inline
+    # here because a co-occurrence matrix is symmetric and wants square cells
+    # (aspect="equal"), which that helper fixes to "auto".
+    ax.imshow(np.zeros_like(mat), cmap=ListedColormap(["white"]),
+              vmin=0, vmax=1, aspect="equal")
+    draw_cell_grid(ax, n, n)
 
     ax.set_xticks(range(n))
     ax.set_xticklabels(labs, rotation=40, ha="right", fontsize=FONT_ANNOT)
     ax.set_yticks(range(n))
     ax.set_yticklabels(labs, fontsize=FONT_ANNOT)
 
-    # Annotate each cell with the count. No pair is flagged high or low — the
-    # reader decides which correlations are noteworthy.
-    norm = Normalize(vmin=0, vmax=mat.max())
+    # No pair is flagged high or low — the reader decides which correlations
+    # are noteworthy.
     for i in range(n):
         for j in range(n):
-            val = int(mat[i, j])
-            color = contrasting_text_color(to_hex(_CMAP_SEQ(norm(mat[i, j]))))
-            ax.text(j, i, str(val), ha="center", va="center",
-                    fontsize=max(FONT_ANNOT - 1, 6), color=color, fontweight="bold")
+            ax.text(j, i, str(int(mat[i, j])), ha="center", va="center",
+                    fontsize=max(FONT_ANNOT - 1, 6), color=_C_DARK)
 
     ax.set_title("Violation Co-occurrence Matrix\n(diagonal = individual frequency)",
                  fontsize=FONT_TITLE)
