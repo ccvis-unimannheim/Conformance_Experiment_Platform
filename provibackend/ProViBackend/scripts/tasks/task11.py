@@ -66,7 +66,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
-from shared import most_common_stable, save_svg, make_table, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS_R, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
+from shared import most_common_stable, save_svg, make_table, auto_col_widths, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS_R, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
 
 # ── Cividis palette ───────────────────────────────────────────────────────────
 _C_DARK   = GREY_DARK
@@ -307,16 +307,20 @@ def task11_matrix(selected, trace_coverage, n_traces, output_dir, *,
             if (act, vt) in selected_set:
                 cnt = trace_coverage.get((act, vt), 0)
                 pct = cnt / n_traces * 100 if n_traces > 0 else 0
-                fc, tc = "white", _C_DARK
+                # GREY_DARK on white, the value text shared.draw_value_heatmap
+                # prints in its colourless mode.
+                tc = GREY_DARK
                 text = f"{cnt:,}\n({pct:.1f}%)"
                 fontsize = max(FONT_ANNOT - 1, 6)
             else:
-                # Structural zero: (act, vt) not in the predefined violation set
-                fc, tc = "#e8e8e8", "#aaaaaa"
+                # Structural zero: (act, vt) not in the predefined violation set.
+                # A dimmed dash rather than a fill, so no cell carries meaning
+                # in colour.
+                tc = GREY_MED
                 text = "–"
                 fontsize = max(FONT_ANNOT, 8)
-            ax.add_patch(plt.Rectangle((j, i), 1, 1, facecolor=fc,
-                                        edgecolor="#cccccc", linewidth=0.8))
+            ax.add_patch(plt.Rectangle((j, i), 1, 1, facecolor="white",
+                                        edgecolor="#CCCCCC", linewidth=0.8))
             ax.text(j + 0.5, i + 0.5, text, ha="center", va="center",
                     fontsize=fontsize, color=tc)
 
@@ -324,17 +328,18 @@ def task11_matrix(selected, trace_coverage, n_traces, output_dir, *,
     ax.set_ylim(0, n_rows)
     ax.invert_yaxis()
     ax.set_xticks([j + 0.5 for j in range(n_cols)])
-    ax.set_xticklabels([_VTYPE_DISPLAY.get(vt, vt) for vt in selected_vtypes], fontsize=FONT_LABEL)
+    ax.set_xticklabels([_VTYPE_DISPLAY.get(vt, vt) for vt in selected_vtypes], fontsize=FONT_ANNOT)
     ax.set_yticks([i + 0.5 for i in range(n_rows)])
-    ax.set_yticklabels([_short_label(a, 30) for a in selected_acts], fontsize=FONT_ANNOT)
+    ax.set_yticklabels([_short_label(a, 30) for a in selected_acts], fontsize=FONT_ANNOT - 1)
+    ax.set_xlabel("Violation Type", fontsize=FONT_LABEL)
 
     ax.set_title(
         f"{title_prefix}: Activity × Type",
         fontsize=FONT_TITLE,
     )
     ax.tick_params(axis="both", length=0)
-    for spine in ax.spines.values():
-        spine.set_visible(False)
+    # Spines left at their default (black) so the grid is framed the way every
+    # other matrix is — shared.draw_value_heatmap never hides them either.
 
     fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, filename))
@@ -370,14 +375,14 @@ def task11_table(selected, trace_coverage, n_traces, output_dir, *,
     fig, ax = plt.subplots(figsize=(13, fig_h))
     ax.axis("off")
 
+    col_labels = ["Activity", "Type", "Number of Traces", "Percentage of All"]
     make_table(
         ax,
         cell_text=cell_text,
-        col_labels=["Activity", "Type", "Number of Traces", "Percentage of All"],
+        col_labels=col_labels,
         bbox=[0.01, 0.03, 0.98, 0.90],
-        col_widths=[0.38, 0.22, 0.24, 0.16],
-        font_size=13,
-        scale_xy=(1, 1.4),
+        col_widths=auto_col_widths(col_labels, cell_text),
+        font_size=10,
         cell_pad=0.09,
     )
     ax.set_title(
@@ -417,14 +422,14 @@ def task11_table_bar_chart(selected, trace_coverage, n_traces, output_dir, *,
 
     # ── Left: table ───────────────────────────────────────────────────────────
     ax_tbl.axis("off")
+    col_labels = ["Violation", "# Traces", "% of All"]
     make_table(
         ax_tbl,
         cell_text=rows,
-        col_labels=["Violation", "# Traces", "% of All"],
+        col_labels=col_labels,
         bbox=[0.01, 0.05, 0.98, 0.80],
-        col_widths=[0.64, 0.20, 0.16],
-        font_size=9,
-        scale_xy=(1, 1.7),
+        col_widths=auto_col_widths(col_labels, rows),
+        font_size=10,
         cell_pad=0.09,
     )
 
@@ -529,11 +534,12 @@ def task11_flow_chart_elaborate(selected, trace_coverage, n_traces,
             pct = count / n_traces * 100 if n_traces > 0 else 0
             tbl_cell.append([str(i + 1), _short_label(act, 32),
                              _VTYPE_SHORT.get(vt, vt), f"{count:,}", f"{pct:.1f}%"])
+        tbl_cols = ["#", "Activity", "Type", "# Traces", "% of All"]
         make_table(ax, cell_text=tbl_cell,
-                   col_labels=["#", "Activity", "Type", "# Traces", "% of All"],
+                   col_labels=tbl_cols,
                    bbox=[0.01, 0.05, 0.98, 0.80],
-                   col_widths=[0.05, 0.42, 0.16, 0.20, 0.14],
-                   font_size=9.5, scale_xy=(1, 1.75), cell_pad=0.09)
+                   col_widths=auto_col_widths(tbl_cols, tbl_cell),
+                   font_size=10, cell_pad=0.09)
         ax.set_title(f"Predefined Violation Frequency  ({n_rows} violation"
                      f"{'s' if n_rows != 1 else ''})  ·  No process model provided",
                      fontsize=FONT_TITLE, pad=14)

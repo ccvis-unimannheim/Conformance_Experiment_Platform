@@ -59,7 +59,7 @@ from matplotlib import gridspec
 from matplotlib.patches import FancyBboxPatch
 
 from shared import (
-    save_svg, make_table,
+    save_svg, make_table, auto_col_widths,
     alignment_pairs_to_rows,
     GREY_MED, GREY_LIGHTER, GREY_DARK,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT,
@@ -73,6 +73,10 @@ from shared import (
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
+
+#: Columns of the per-step move table. One list, because the three idioms that
+#: draw it must size their columns off the same headers.
+_STEP_COLS = ["Step", "Activity", "Move Type"]
 
 # Alignment violation vocabulary for Task 14: the two move types there are.
 _MOVE_TYPES = ["Model Move", "Log Move"]
@@ -242,11 +246,11 @@ def task14_table(ctx, output_dir):
     make_table(
         ax,
         cell_text=cell_text,
-        col_labels=["Step", "Activity", "Move Type"],
+        col_labels=_STEP_COLS,
         bbox=[0.02, 0.05, 0.96, 0.78],
-        col_widths=[0.12, 0.48, 0.40],
-        font_size=9.5,
-        scale_xy=(1, 1.7),
+        col_widths=auto_col_widths(_STEP_COLS, cell_text),
+        font_size=10,
+        cell_pad=0.09,
     )
     ax.set_title(
         f"Trace Alignment — {ctx['trace_label']}",
@@ -273,7 +277,7 @@ def task14_flow_chart_and_table(ctx, output_dir):
     cell_text = _all_step_rows(ctx) or [["—", "No trace steps", "—"]]
 
     n_rows = len(cell_text) + 1
-    fig_w = max(18.0, chevron_figure_width(nodes))
+    fig_w = max(18.0, chevron_figure_width(nodes, uniform_width=True))
     tbl_h = max(2.2, 0.36 * n_rows)
     chev_h = 2.2
     fig_h = tbl_h + chev_h + 1.2
@@ -283,18 +287,18 @@ def task14_flow_chart_and_table(ctx, output_dir):
     ax_chev = fig.add_subplot(gs[0])
     ax_tbl  = fig.add_subplot(gs[1])
 
-    draw_chevron_strip(ax_chev, nodes, fontsize=10)
+    draw_chevron_strip(ax_chev, nodes, fontsize=10, uniform_width=True)
     ax_chev.set_title("Trace Alignment Flow", fontsize=FONT_TITLE, pad=7)
 
     ax_tbl.axis("off")
     make_table(
         ax_tbl,
         cell_text=cell_text,
-        col_labels=["Step", "Activity", "Move Type"],
+        col_labels=_STEP_COLS,
         bbox=[0.0, 0.0, 1.0, 1.0],
-        col_widths=[0.10, 0.50, 0.40],
-        font_size=9,
-        scale_xy=(1, 1.5),
+        col_widths=auto_col_widths(_STEP_COLS, cell_text),
+        font_size=10,
+        cell_pad=0.09,
     )
     ax_tbl.set_title("Move Classification", fontsize=FONT_TITLE, pad=7)
 
@@ -468,11 +472,11 @@ def task14_table_bar_chart(ctx, output_dir):
     make_table(
         ax_tbl,
         cell_text=cell_text,
-        col_labels=["Step", "Activity", "Move Type"],
+        col_labels=_STEP_COLS,
         bbox=[0.01, max(0.05, 0.85 - tbl_frac), 0.98, tbl_frac],
-        col_widths=[0.12, 0.45, 0.43],
-        font_size=9,
-        scale_xy=(1, 1.4),
+        col_widths=auto_col_widths(_STEP_COLS, cell_text),
+        font_size=10,
+        cell_pad=0.09,
     )
     ax_bar = fig.add_subplot(gs[1])
     if present:
@@ -598,8 +602,12 @@ def generate(alignments, model_path: str, output_dir: str, log=None,
         import tasks.task04 as task04
         records = trace_alignment.trace_records(log, alignments, [ctx["trace_index"]])
         heading = f"Trace Alignment — {ctx['trace_label']}"
+        # uniform_width: every chevron the same size, so no step reads as bigger
+        # than another just because its activity name is longer (task09 draws
+        # its chevron strip the same way).
         task04.task04_flow_chart_basic(records, output_dir, model_path=model_path,
-                                       filename="task14_flow_chart_basic.svg", title=heading)
+                                       filename="task14_flow_chart_basic.svg", title=heading,
+                                       uniform_width=True)
         task04.task04_flow_chart_elaborate(records, model_path, output_dir,
                                            filename="task14_flow_chart_elaborate.svg", title=heading)
 

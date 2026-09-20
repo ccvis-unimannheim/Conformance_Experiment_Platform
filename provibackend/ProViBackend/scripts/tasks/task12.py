@@ -5,12 +5,12 @@ Goal: Describe · Means: Summarize · Characteristics: Process conformance
 Question: In what percentage of traces do violations occur?
 
 Visualizations (all SVG, cividis palette from shared.py):
-  tile_metric     – KPI tiles: % conformant · % deviating
-  bar_chart       – 2 horizontal bars with counts + %
-  stacked_bar     – single 100% bar subdivided into violation-profile categories
+  bar_chart       – one horizontal bar per violation, counts + %
   table           – detailed breakdown: conformant + deviating sub-categories
 
   Commented out of IDIOMS/generate() for now:
+  tile_metric     – KPI tiles: % conformant · % deviating
+  stacked_bar     – single 100% bar subdivided into violation-profile categories
   pie_chart       – 2-slice: conformant vs deviating
   table_bar_chart – compact table (left) + horizontal bars (right)
 """
@@ -19,7 +19,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 IDIOMS = [
-    "tile_metric", "bar_chart", "stacked_bar", "table",
+    "bar_chart", "table",
+    # "tile_metric",
+    # "stacked_bar",
     # "pie_chart",
     # "table_bar_chart",
 ]
@@ -48,7 +50,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib import gridspec
 
-from shared import save_svg, make_table, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
+from shared import save_svg, make_table, auto_col_widths, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
 
 def _wrap(text, width=22):
     """Break a long violation label so a tile does not overflow its box."""
@@ -246,18 +248,27 @@ def task12_bar_chart(stats, output_dir):
     pct = [v["pct_traces"] for v in vio]
     y = np.arange(len(labels))
 
-    fig, ax = plt.subplots(figsize=(9, max(3.5, len(labels) * 0.44 + 1.8)))
+    fig, ax = plt.subplots(figsize=(9, max(3.9, len(labels) * 0.44 + 2.2)))
     ax.barh(y, pct, color=_violation_colors(vio), edgecolor="white")
     for yi, (p_, v) in enumerate(zip(pct, vio)):
         ax.text(p_ + max(pct) * 0.012, yi, f"{p_:.1f}%  ({v['traces']})",
-                va="center", fontsize=FONT_ANNOT - 1, color="#333333")
-    ax.set_yticks(y); ax.set_yticklabels(labels, fontsize=FONT_ANNOT - 1)
+                va="center", fontsize=FONT_ANNOT, color="#333333")
+    ax.set_yticks(y); ax.set_yticklabels(labels, fontsize=FONT_ANNOT)
     ax.invert_yaxis()
     ax.set_xlim(0, max(pct) * 1.22)
     ax.set_xlabel("% of all traces containing this violation", fontsize=FONT_LABEL)
     ax.spines[["top", "right"]].set_visible(False)
     ax.xaxis.grid(True, linestyle="--", alpha=0.5); ax.set_axisbelow(True)
     ax.set_title("Traces Containing Each Violation", fontsize=FONT_TITLE)
+    # Bar colour is the move type, so it needs a key — the labels name the
+    # violation, not what separates a dark bar from a light one.
+    present = [mt for mt in _MOVE_COLORS if any(v["move_type"] == mt for v in vio)]
+    if present:
+        ax.legend(handles=[mpatches.Patch(color=_MOVE_COLORS[mt], label=mt)
+                           for mt in present],
+                  loc="lower center", bbox_to_anchor=(0.5, -0.22 if len(labels) > 4 else -0.32),
+                  ncol=len(present), frameon=True, framealpha=0.9,
+                  fontsize=FONT_ANNOT, title="Move Type")
     fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task12_bar_chart.svg"))
 
@@ -314,11 +325,13 @@ def task12_table(stats, output_dir):
     """One row per violation: traces containing it, as a share of the log and of
     all violation occurrences."""
     rows = _violation_rows(stats)
-    fig_h = max(3.4, 1.5 + len(rows) * 0.42)
+    fig_h = max(3.4, 1.5 + len(rows) * 0.48)
     fig = plt.figure(figsize=(9.5, fig_h))
     ax = fig.add_subplot(111); ax.axis("off")
     make_table(ax, cell_text=rows, col_labels=_TABLE_COLS,
-               bbox=[0.03, 0.02, 0.94, 0.86], font_size=9.5, cell_pad=0.09)
+               bbox=[0.03, 0.02, 0.94, 0.86],
+               col_widths=auto_col_widths(_TABLE_COLS, rows),
+               font_size=10, cell_pad=0.09)
     fig.suptitle("Traces Containing Each Violation", fontsize=FONT_TITLE, y=0.99)
     save_svg(fig, os.path.join(output_dir, "task12_table.svg"))
 
@@ -333,7 +346,9 @@ def task12_table_bar_chart(stats, output_dir):
 
     ax_t = fig.add_subplot(gs[0]); ax_t.axis("off")
     make_table(ax_t, cell_text=rows, col_labels=_TABLE_COLS,
-               bbox=[0.02, 0.03, 0.96, 0.84], font_size=9, cell_pad=0.08)
+               bbox=[0.02, 0.03, 0.96, 0.84],
+               col_widths=auto_col_widths(_TABLE_COLS, rows),
+               font_size=10, cell_pad=0.09)
 
     ax_b = fig.add_subplot(gs[1])
     if vio:
@@ -368,9 +383,9 @@ def generate(log, alignments, output_dir, violation_patterns=None, **kwargs):
 
     stats = _extract_data(alignments, violation_patterns)
 
-    task12_tile_metric(stats, output_dir)
+    # task12_tile_metric(stats, output_dir)
     # task12_pie_chart(stats, output_dir)
     task12_bar_chart(stats, output_dir)
-    task12_stacked_bar(stats, output_dir)
+    # task12_stacked_bar(stats, output_dir)
     task12_table(stats, output_dir)
     # task12_table_bar_chart(stats, output_dir)

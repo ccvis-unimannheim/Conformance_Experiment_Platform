@@ -391,42 +391,28 @@ def task19_table(eff, output_dir):
 
 
 def task19_matrix(eff, output_dir):
-    """Side-by-side With / Without panels, rows = violation patterns — same layout
-    as Heatmap, but colorless: the platform's matrix convention (white cells,
-    ruled grid), so the number is the only thing being read (that's Heatmap's
-    job)."""
+    """Rows = violation patterns, columns = With / Without violation — the same
+    layout as this task's Heatmap, drawn colorless by
+    shared.draw_value_heatmap(colorless=True): white cells, a ruled grid, the
+    printed rate the only encoding. Same helper, same geometry and same cell
+    styling as every other task's matrix."""
     path = os.path.join(output_dir, "task19_matrix.svg")
     records = eff["records"]
     if not records:
         render_empty_state_svg(path, "Violation Effect on Successful Payment", "No violation patterns found.")
         return
     labels = [r["pattern"] for r in records]
-    cols = [("With Violation", [r["rate_with"] for r in records]),
-            ("Without Violation", [r["rate_without"] for r in records])]
-    n = len(labels)
-    fig_h = max(3.0, 0.5 * n + 1.8)
-    fig, axes = plt.subplots(1, 2, figsize=(7.5, fig_h), squeeze=False,
-                             gridspec_kw={"wspace": 0.0})
-    for i, (ax, (col_label, vals)) in enumerate(zip(axes[0], cols)):
-        for ri, v in enumerate(vals):
-            ax.add_patch(plt.Rectangle((0, ri), 1, 1, facecolor="white",
-                                       edgecolor="#cccccc", linewidth=0.8))
-            ax.text(0.5, ri + 0.5, f"{v:.1f}%", ha="center", va="center",
-                    fontsize=FONT_ANNOT, color=GREY_DARK)
-        ax.set_xlim(0, 1)
-        ax.set_ylim(0, n)
-        ax.invert_yaxis()
-        ax.set_xticks([0.5])
-        ax.set_xticklabels([_goal_label(eff["outcome_activity"])], fontsize=FONT_ANNOT - 1)
-        ax.set_yticks([r + 0.5 for r in range(n)])
-        ax.set_yticklabels(labels if i == 0 else [], fontsize=FONT_ANNOT - 1)
-        ax.tick_params(length=0)
-        for spine in ax.spines.values():
-            spine.set_visible(False)
-        ax.set_title(col_label, fontsize=FONT_LABEL)
-    fig.suptitle("Violation Effect on Successful Payment", fontsize=FONT_TITLE)
+    data = np.array([[r["rate_with"], r["rate_without"]] for r in records], dtype=float)
+
+    fig_h = max(3.0, 0.5 * len(labels) + 1.8)
+    fig, ax = plt.subplots(figsize=(7.5, fig_h))
+    draw_value_heatmap(
+        fig, ax, data, labels, ["With Violation", "Without Violation"],
+        xlabel=_goal_label(eff["outcome_activity"]), cell_fmt="{:.1f}%",
+        colorless=True,
+    )
+    ax.set_title("Violation Effect on Successful Payment", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
-    fig.subplots_adjust(wspace=0.0)  # tight_layout() re-adds a gap; force it back to 0
     save_svg(fig, path)
 
 
@@ -476,7 +462,7 @@ def task19_table_and_bar_chart(eff, output_dir):
     make_table(ax_t, cell_text=cell_text, col_labels=col_labels,
                bbox=[0.0, 0.0, 1.0, 1.0],
                col_widths=auto_col_widths(col_labels, cell_text),
-               font_size=9, cell_pad=0.07)
+               font_size=10, cell_pad=0.09)
 
     ax_b = fig.add_subplot(gs[1])
     recs = records[::-1]  # highest-|difference| pattern ends up on top, matches Table row order
