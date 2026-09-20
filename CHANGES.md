@@ -79,6 +79,70 @@ task. A log move of a modelled activity — the common case — could never reac
 Separately, the rows sit in model order, so a trace that runs two activities out
 of order read exactly like one that runs them in order. The chevron shows that
 difference; the table dropped it.
+## Session: The Variant Rule Says That It Only Picks Violators (2026-09-20)
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| `PICK_RULES` | "The most frequent trace variants" is now "The most frequent variants that violate the guideline". `pick_indices` filters every rule to the traces that violate before any of them ranks anything — the tasks in this class present violations, and a conformant trace answers nothing there. The other three labels carry that by themselves; this one read as if it ranged over the whole log, so an admin picking it saw fewer variants than the log's frequency order would suggest and had no way to tell why. The stored value is unchanged, so existing experiments keep working. |
+
+### Verification
+
+`py_compile`. The label is data, read straight into the /specify select.
+
+## Session: task34 Shows Every Trace That Was Asked For (2026-09-20)
+
+### Problem solved
+
+Asking for four traces gave three, or fewer depending on the rule; naming four
+by hand gave one. Every idiom agreed with every other, so the figures looked
+consistent — they were consistently short.
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| The drop | `_build_contexts` keeps a pool of the 30 most-violating traces, and `_select_ctxs` looked each chosen trace up in it with `by_index[i]`, skipping whatever was missing. Anything outside the pool was discarded without a word, whether the admin had named it or a rule had picked it. On BPIC12-A: four hand-picked traces came back as one, and `most_frequent_variants` returned index 7549 — a frequent variant with few violations, nowhere near the top 30 — which left three of four. |
+| The fix | `_context_at(alignments, i)` builds one trace's context on demand; `_select_ctxs` falls back to it for any index the pool does not hold. `_build_contexts` is now only the fallback pool and what `violated_activity` narrows, and says so. |
+| Short selections | A log can hold fewer distinct violating variants than the admin asked for — the rules keep one trace per activity sequence. `generate` logs that case instead of leaving the figure quietly short. |
+
+### Verification
+
+On BPIC12-A (13087 traces), before and after: four hand-picked traces 1 -> 4,
+`most_frequent_variants` at count 4 3 -> 4, `worst_fitness` and
+`first_nonconformant` 4 -> 4. Two full `generate` runs, by rule and by hand,
+write six SVGs and a `traces.json` holding four traces.
+
+## Session: Every task34 Idiom Names the Violation Type (2026-09-20)
+
+### Problem solved
+
+Three of task34's idioms said which kind of violation a step was — the chevron,
+the BPMN and the move table all distinguish Model Move from Log Move. The
+aggregates counted violations per activity and dropped that distinction, so half
+the task's idioms answered a question the other half could not.
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| Violation type | The aggregates' unit is the pair, labelled `Activity (Move Type)` — "Ship Order (Log Move)". Folded into the category rather than given an axis of its own: a second axis would have doubled every bar and every column, while the pair carries the same information at the cost of some longer labels. Only pairs that actually occur get a row. |
+| Stacked bar removed | Its bars split on the move type, which is now the category itself, so every bar would have held a single segment. Six idioms left. |
+| Trace numbering | `_build_canonical_payload` labelled traces from `ctx["trace_label"]`, which counts positions in the whole log. The move table numbers the shown traces 1..N through `trace_alignment.trace_records`, so matrix, bar chart and heatmap named ids nothing else mentioned. All of them use the running number now, and `traces.json` with them — the sidecar must not desync from the figures. |
+| Vocabulary | `_MOVE_DISPLAY` is the one spelling: "Synchronous Move", "Model Move", "Log Move". The stacked bar's legend and a dead `_move_legend()` carried their own "(skipped)" / "(extra)" / "(conform)" glosses, which read as if "extra" were a third kind of move. |
+| Table | Its own now, not task04's, and built from the same payload as the other three: `Activity (Move Type)` down, traces across, a count per cell. Both tables it replaces said things their neighbours could not. They listed Synchronous Moves — conformant steps the aggregates do not count — and task04's `_task04_move_map` is activity × colour, one move type per cell, so an activity both skipped and inserted in the same trace lost one of the two: the bar chart drew two bars where the table showed one cell. A count per cell removes the collapse, because the pair is the row. task04's own table is untouched. |
+| Grid width | `_grid_size` sizes the heatmap and the matrix from the longest row label instead of a fixed margin, which cropped the now longer category names. |
+| Idiom mapping | task34's table in TASK_IDIOM_MAPPING.md still listed flow chart & table, flow chart+ & table, table & bar chart and parallel sets, deleted the session before. |
+
+### Verification
+
+`py_compile` and `pyflakes` against HEAD — the only two warnings are the
+pre-existing unused imports. Bar chart, table, heatmap and matrix rendered from
+two synthetic contexts, one of which holds two moves on one activity: three
+categories, traces labelled "Trace 1" / "Trace 2".
+
+## Session: task34's Idioms All Speak About the Chosen Traces (2026-09-20)
 
 ### Changes
 
@@ -110,39 +174,6 @@ task14, task27, task34). The expected Trace 2 column was worked through by hand
 against the rendered chevron in the admin preview (steps 1-8, log move at 5,
 model move at 7); `pyflakes` is not installed in this environment. Not
 regenerated — **no figure in this section has been rendered**.
-
-## Session: Every task34 Idiom Names the Violation Type (2026-09-20)
-
-### Problem solved
-
-Three of task34's idioms said which kind of violation a step was — the chevron,
-the BPMN and the move table all distinguish Model Move from Log Move. The
-aggregates counted violations per activity and dropped that distinction, so half
-the task's idioms answered a question the other half could not.
-
-### Changes
-
-| Area | Change |
-|------|--------|
-| Violation type | The aggregates' unit is the pair, labelled `Activity (Move Type)` — "Ship Order (Log Move)". Folded into the category rather than given an axis of its own: a second axis would have doubled every bar and every column, while the pair carries the same information at the cost of some longer labels. Only pairs that actually occur get a row. |
-| Stacked bar removed | Its bars split on the move type, which is now the category itself, so every bar would have held a single segment. Six idioms left. |
-| Trace numbering | `_build_canonical_payload` labelled traces from `ctx["trace_label"]`, which counts positions in the whole log. The move table numbers the shown traces 1..N through `trace_alignment.trace_records`, so matrix, bar chart and heatmap named ids nothing else mentioned. All of them use the running number now, and `traces.json` with them — the sidecar must not desync from the figures. |
-| Vocabulary | `_MOVE_DISPLAY` is the one spelling: "Synchronous Move", "Model Move", "Log Move". The stacked bar's legend and a dead `_move_legend()` carried their own "(skipped)" / "(extra)" / "(conform)" glosses, which read as if "extra" were a third kind of move. |
-| Grid width | `_grid_size` sizes the heatmap and the matrix from the longest row label instead of a fixed margin, which cropped the now longer category names. |
-| Idiom mapping | task34's table in TASK_IDIOM_MAPPING.md still listed flow chart & table, flow chart+ & table, table & bar chart and parallel sets, deleted the session before. |
-
-### Verification
-
-`py_compile` and `pyflakes` against HEAD — the only two warnings are the
-pre-existing unused imports. Bar chart, heatmap, matrix and table rendered from
-two synthetic contexts: three categories, traces labelled "Trace 1" / "Trace 2".
-
-## Session: task34's Idioms All Speak About the Chosen Traces (2026-09-20)
-
-### Changes
-
-| Area | Change |
-|------|--------|
 | Idioms removed | flow chart & table, table & bar chart, flow chart+ & table, parallel sets. Seven left. `_log_activity_violations` and `_add_trace_heading` went with them, the heading being where the trace id and fitness were printed. |
 | Multi-trace | bar_chart, stacked_bar, heatmap and matrix drew the first selected trace however many the admin asked for, while the chevron, BPMN and move table drew all of them — one figure set, different traces depending on which idiom you read. `_build_canonical_payload` now takes the list and returns the whole (activity × trace) table: totals plus the Model Move / Log Move split. The four read only from it. |
 | Orientation | bar_chart and stacked_bar stand upright, activities on the x axis, one bar per trace within each activity; the stacked bar splits each of those by move type. They used to lie on their side. `_wrap_activity` breaks long names so the tick labels stay apart. |

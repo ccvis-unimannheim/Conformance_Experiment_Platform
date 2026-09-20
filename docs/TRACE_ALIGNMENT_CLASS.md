@@ -163,7 +163,8 @@ read the others:
 | table | activity × trace → move type | activity × trace → prescribed vs executed value | activity × trace → prescribed vs executed resource |
 
 The control-flow trio is **task04's renderers**, called by task09, task14,
-task27, task28 and multi-trace task34 with nothing but a different `filename`.
+task27, task28 and multi-trace task34 with nothing but a different `filename`
+— except that task34 draws its own table (see below).
 This follows task23→task11: the figure belongs to the class, not to the task, and
 five copies of one comparison is what the class exists to prevent. The data and
 resource trio is `trace_alignment.draw_value_*`.
@@ -302,11 +303,10 @@ one process already disagree), and pm4py exposes no deterministic tie-break. So:
   different traces depending on which idiom you read. bar_chart, heatmap and
   matrix now give each trace its own bar or column; `_build_canonical_payload`
   returns the table they share, and labels the traces "Trace 1".."Trace N" the
-  way `trace_records` labels them for the chevron, BPMN and move table — they
-  used to carry the trace's position in the whole log, an id no other idiom
-  mentioned.
+  way `trace_records` labels them for the chevron and the BPMN — they used to
+  carry the trace's position in the whole log, an id no other idiom mentioned.
 * **task34 names the move type in every idiom.** The chevron, the BPMN and the
-  move table always said whether a step was a Model Move or a Log Move; the
+  table always said whether a step was a Model Move or a Log Move; the
   aggregates counted violations per activity and did not. The aggregates' unit
   is now the pair, labelled `Activity (Move Type)` — the move type folded into
   the category rather than given an axis of its own, which would have doubled
@@ -314,6 +314,27 @@ one process already disagree), and pm4py exposes no deterministic tie-break. So:
   occur get a row. Every idiom also spells the types the one way task04 does:
   "Synchronous Move", "Model Move", "Log Move", without the "(skipped)" and
   "(extra)" glosses the legends used to add.
+* **task34's table is its own, not task04's.** It is the payload as text:
+  `Activity (Move Type)` down, traces across, a count per cell. The two tables
+  it replaces — task34's step list for one trace, task04's move-type table for
+  several — both said things their three neighbours could not. They named
+  Synchronous Moves, which are conformant steps the aggregates do not count;
+  and task04's `_task04_move_map` is activity × colour, one move type per cell,
+  so an activity both skipped and inserted in the same trace lost one of the
+  two while the bar chart drew both bars. Counting per cell is what removes the
+  collapse: the pair is the row, so nothing can overwrite anything. task04's
+  table keeps its own shape, because comparing *which kind of move* an activity
+  got is task04's question; task34 presents violations.
+* **task34 drew fewer traces than were asked for.** `_build_contexts` keeps a
+  pool of 30, sorted by violation count, and `_select_ctxs` looked every chosen
+  trace up in that pool — so a trace outside it was silently dropped, whether
+  the admin had named it or a rule had picked it. Four hand-picked traces could
+  come back as one, and `most_frequent_variants` lost whichever of its picks was
+  a frequent-but-low-violation variant. `_context_at` now builds a context for
+  any trace index on demand, and the pool is only the fallback and what
+  `violated_activity` narrows. Where a log genuinely holds fewer distinct
+  violating variants than the admin asked for, `generate` says so in the log
+  rather than quietly showing fewer.
 * **task34 lost five idioms** — flow chart & table, table & bar chart, flow
   chart+ & table, parallel sets and the stacked bar — leaving `bar_chart`,
   `table`, `flow_chart_basic`, `flow_chart_elaborate`, `heatmap` and `matrix`.

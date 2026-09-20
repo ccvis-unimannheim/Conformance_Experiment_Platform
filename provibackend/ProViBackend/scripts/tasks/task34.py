@@ -17,10 +17,10 @@ of them names the violation type:
     heatmap, matrix            – the same counts as "Activity (Move Type)"
                                  × traces, the heatmap as colour, the
                                  matrix as numbers
-    table                      – the traces' alignments, one row per step
+    table                      – the same counts again, as text
     flow_chart_basic           – chevron strip per trace
     flow_chart_elaborate       – BPMN coloured by the traces' violations
-      (with more than one trace chosen, these last three are drawn side by side
+      (with more than one trace chosen, these last two are drawn side by side
        by task04's renderers)
 """
 
@@ -72,6 +72,7 @@ from matplotlib.colors import to_hex, Normalize
 from shared import (
     save_svg,
     make_table,
+    auto_col_widths,
     CIVIDIS,
     CIVIDIS_R,
     GREY_MED, GREY_LIGHTER, GREY_DARK,
@@ -183,22 +184,36 @@ def _is_violation(row):
     return row["moveType"] != "Synchronous"
 
 
+def _context_at(alignments, i):
+    """The context for trace ``i``, or None if its alignment has no steps.
+
+    Built on demand, because _build_contexts only keeps a top-K pool: a trace
+    the admin names, or a rule picks, may well sit outside it.
+    """
+    if i < 0 or i >= len(alignments):
+        return None
+    result = alignments[i]
+    rows = _parse_alignment(result)
+    if not rows:
+        return None
+    return {
+        "trace_index":  i,
+        "trace_label":  f"Trace {i + 1}",
+        "fitness":      float(result.get("fitness", 1.0)),
+        "cost":         result.get("cost"),
+        "rows":         rows,
+        "n_violations": sum(1 for r in rows if _is_violation(r)),
+    }
+
+
 def _build_contexts(alignments, max_traces=30):
-    """Top-K traces sorted by violation count descending."""
-    ctxs = []
-    for i, result in enumerate(alignments):
-        rows = _parse_alignment(result)
-        if not rows:
-            continue
-        n_viol = sum(1 for r in rows if _is_violation(r))
-        ctxs.append({
-            "trace_index":  i,
-            "trace_label":  f"Trace {i + 1}",
-            "fitness":      float(result.get("fitness", 1.0)),
-            "cost":         result.get("cost"),
-            "rows":         rows,
-            "n_violations": n_viol,
-        })
+    """Top-K traces sorted by violation count descending.
+
+    The fallback pool, and what `violated_activity` narrows. It is *not* the set
+    of traces that can be drawn: ask `_context_at` for those.
+    """
+    ctxs = [c for c in (_context_at(alignments, i) for i in range(len(alignments)))
+            if c is not None]
     ctxs.sort(key=lambda c: (-c["n_violations"], c["fitness"]))
     return ctxs[:max_traces]
 
@@ -425,37 +440,45 @@ def task34_bar_chart(ctxs, output_dir):
 
 # ── Idiom 3: table — alignment table for worst-fitness trace ──────────────────
 
-def task34_table(ctx, output_dir):
-    """Two-column table: Activity | Type — one row per alignment step, in trace order.
+def task34_table(ctxs, output_dir):
+    """The payload as text: "Activity (Move Type)" down, traces across.
 
-    Lists each step's activity together with its move type (Model Move / Log
-    Move / Synchronous Move) instead of a single aggregate violation count,
-    so the reader can see what actually happened at each step.
+    It used to list one row per alignment step, and for more than one trace
+    task04's move-type table took over. Both said things the bar chart, heatmap
+    and matrix beside them could not. They named Synchronous Moves, which are
+    conformant steps and which the other three do not count at all; and
+    task04's table carried one move type per activity and trace, built from a
+    map of activity to colour, so an activity both skipped and inserted in the
+    same trace lost one of the two. The bar chart drew both bars, the table one
+    cell.
+
+    A count per cell instead of a move type per cell is what removes the
+    collapse: the pair is the row, so there is nothing left to overwrite.
     """
-    rows = ctx["rows"]
-    if not rows:
+    keys, labels, counts = _build_canonical_payload(ctxs)
+    if not keys or not counts.any():
         _no_violations(output_dir, "table")
         return
 
-    cell_text = []
-    for r in rows:
-        mt = r["moveType"]
-        act = r["model_move"] if mt == "Model Move" else r["log_move"]
-        cell_text.append([act, _MOVE_DISPLAY.get(mt, mt)])
+    cell_text = [[_category(k)] + [f"{int(v)}" for v in counts[i]]
+                 for i, k in enumerate(keys)]
+    col_labels = ["Activity (Move Type)"] + labels
 
-    fig_h = max(3.5, 1.2 + len(cell_text) * 0.42)
-    fig, ax = plt.subplots(figsize=(9, fig_h))
+    fig_h = max(3.0, 1.2 + len(cell_text) * 0.46)
+    fig_w = max(7.0, 4.2 + 1.6 * len(labels))
+    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
     ax.axis("off")
     make_table(
         ax,
         cell_text=cell_text,
-        col_labels=["Activity", "Type"],
-        bbox=[0.05, 0.05, 0.90, 0.82],
-        col_widths=[0.60, 0.40],
-        font_size=11,
+        col_labels=col_labels,
+        bbox=[0.03, 0.05, 0.94, 0.88],
+        col_widths=auto_col_widths(col_labels, cell_text),
+        font_size=10.5,
         scale_xy=(1, 1.7),
+        zebra=True,
     )
-    ax.set_title("Activity Violations", fontsize=FONT_TITLE, pad=12)
+    ax.set_title(_VIOLATION_TITLE, fontsize=FONT_TITLE, pad=12)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task34_table.svg"))
 
@@ -668,10 +691,14 @@ def _select_ctxs(ctxs, log, alignments, *, trace_ids=None, rule="worst_fitness",
         return []
     by_index = {c["trace_index"]: c for c in ctxs}
 
+    def context_for(i):
+        """The pool's context for trace i, else one built for it."""
+        return by_index.get(i) or _context_at(alignments, i)
+
     if trace_ids:
         index_of = trace_alignment.case_index(log)
-        chosen = [by_index[index_of[str(t)]] for t in trace_ids
-                  if str(t) in index_of and index_of[str(t)] in by_index]
+        chosen = [c for c in (context_for(index_of[str(t)]) for t in trace_ids
+                              if str(t) in index_of) if c is not None]
         if chosen:
             return chosen[:max(count, len(trace_ids))]
         # Every named trace is fully conformant (so has no context): fall through
@@ -696,11 +723,11 @@ def _select_ctxs(ctxs, log, alignments, *, trace_ids=None, rule="worst_fitness",
         [{"fitness": float(a.get("fitness", 1.0))} for a in alignments[:n_traces]])
     indices = trace_alignment.pick_indices(log, alignments, fitness_df, count, rule,
                                            pattern=pattern)
-    return [by_index[i] for i in indices if i in by_index]
+    return [c for c in (context_for(i) for i in indices) if c is not None]
 
 
 def _multi_trace_alignment_figures(log, alignments, shown, model_path, output_dir):
-    """Chevron, BPMN and move table for more than one trace.
+    """Chevron and BPMN for more than one trace.
 
     Drawn by task04's renderers rather than by stacked copies of task34's
     single-trace ones: comparing traces is task04's figure, and two tasks
@@ -717,10 +744,6 @@ def _multi_trace_alignment_figures(log, alignments, shown, model_path, output_di
     task04.task04_flow_chart_elaborate(
         records, model_path, output_dir,
         filename="task34_flow_chart_elaborate.svg")
-    task04.task04_table(
-        records, model_path, output_dir,
-        filename="task34_table.svg",
-        title="Violations by Activity Across Traces")
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -732,9 +755,9 @@ def generate(log, alignments, output_dir, model_path=None, violated_activity=Non
 
     The task presents "one trace or few traces simultaneously". With one trace —
     the default — every idiom draws that trace, as it always has. With more, the
-    three trace-alignment idioms (chevron, BPMN, move table) draw all of them
-    side by side through task04's renderers, and the per-activity summaries
-    (bar chart, heatmap, matrix) give each trace its own bar or column. Every
+    two trace-alignment idioms (chevron, BPMN) draw all of them side by side
+    through task04's renderers, and the per-activity summaries (bar chart,
+    table, heatmap, matrix) give each trace its own bar or column. Every
     idiom therefore speaks about the same traces, and names the same move
     types.
 
@@ -763,6 +786,7 @@ def generate(log, alignments, output_dir, model_path=None, violated_activity=Non
             _no_violations(output_dir, k)
         return
 
+    count_asked = max(int(trace_count or 1), 1)
     shown = _select_ctxs(ctxs, log, alignments, trace_ids=trace_ids,
                          rule=trace_pick_rule, count=trace_count,
                          pattern=violation_pattern,
@@ -775,6 +799,15 @@ def generate(log, alignments, output_dir, model_path=None, violated_activity=Non
     )
     if len(shown) > 1:
         logger.info(f"      -> {len(shown)} traces shown side by side.")
+    asked = len(trace_ids) if trace_ids else count_asked
+    if shown and len(shown) < asked:
+        # Not a failure in itself — the rules keep one trace per distinct
+        # activity sequence, and a log can hold fewer violating variants than
+        # the admin asked for. Worth saying out loud, because the figure then
+        # shows fewer traces than the picker offered.
+        logger.info(
+            f"      Note: {asked} traces requested, {len(shown)} available "
+            f"(distinct violating variants).")
 
     write_traces_sidecar(output_dir, [{
         "label":      f"Trace {position + 1}",
@@ -783,10 +816,10 @@ def generate(log, alignments, output_dir, model_path=None, violated_activity=Non
 
     drawn = shown or [worst]
     task34_bar_chart(drawn,                         output_dir)
+    task34_table(drawn,                             output_dir)
     if len(shown) > 1:
         _multi_trace_alignment_figures(log, alignments, shown, model_path, output_dir)
     else:
-        task34_table(worst,                         output_dir)
         task34_flow_chart_basic(worst,              output_dir)
         task34_flow_chart_elaborate(worst,          model_path, output_dir)
     task34_heatmap(drawn,                           output_dir)

@@ -45,11 +45,17 @@ logger = logging.getLogger(__name__)
 #: There is no "conformant and non-conformant in equal number" rule: that is
 #: task27's whole question rather than one way of answering it, so task27 has no
 #: rule picker and splits by `conformant_threshold` itself.
+#:
+#: Every rule here picks among the traces that violate the guideline —
+#: pick_indices filters before any of them ranks anything. Three of the labels
+#: carry that by themselves; "the most frequent variants" did not, and read as
+#: if it ranged over the whole log. The labels are what an admin chooses by, so
+#: they say it.
 PICK_RULES: dict[str, str] = {
     "violation_gap":          "Traces spread across the violation counts (most- and least-violating first)",
     "worst_fitness":          "The worst-fitness trace(s)",
     "first_nonconformant":    "The first trace that violates the guideline",
-    "most_frequent_variants": "The most frequent trace variants",
+    "most_frequent_variants": "The most frequent variants that violate the guideline",
 }
 
 PERSPECTIVES = ("control-flow", "data", "resource")
