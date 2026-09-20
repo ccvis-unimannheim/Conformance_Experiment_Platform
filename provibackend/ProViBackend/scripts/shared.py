@@ -2495,13 +2495,25 @@ def draw_parallel_sets(
                 facecolor=color, edgecolor="none", alpha=ribbon_alpha, zorder=2,
             ))
 
-    # Column titles
-    if left_title:
-        ax.text(x_left,  1.04, left_title,  ha="center", va="bottom",
-                fontsize=FONT_LABEL, fontweight="bold")
-    if right_title:
-        ax.text(x_right, 1.04, right_title, ha="center", va="bottom",
-                fontsize=FONT_LABEL, fontweight="bold")
+    # Column titles. Drawn *after* the x-limits are solved below, not here: they
+    # sit at the two bars' data-x, and the solve widens the x-range to reserve
+    # room for the side labels, which pulls the bars — and so the titles — closer
+    # together in rendered pixels. Placed beforehand and unwrapped, two long
+    # titles collided in the middle of the figure. Each is wrapped to the room
+    # actually between the bars, so a long heading takes a second line instead.
+    titles_placed = []
+
+    def _place_column_titles(max_chars: int):
+        if titles_placed:          # the fallback below must not redraw them
+            return []
+        titles_placed.append(True)
+        drawn = []
+        for x, title in ((x_left, left_title), (x_right, right_title)):
+            if title:
+                drawn.append(ax.text(x, 1.04, wrap_text(str(title), max_chars),
+                                     ha="center", va="bottom", fontsize=FONT_LABEL,
+                                     fontweight="bold", linespacing=1.25))
+        return drawn
 
     # Reserve exact horizontal room for the (data-anchored, non-autoscaling) side
     # labels: measure their rendered pixel widths and solve for x-limits so neither
@@ -2524,21 +2536,50 @@ def draw_parallel_sets(
         xmax = (x_right + bar_w / 2) + (r_px / w_px) * span if w_px else x_right + 0.5
         ax.set_xlim(xmin, xmax)
 
-        # De-collide left labels: thin adjacent slivers (imbalanced categories)
-        # otherwise overprint their labels. A dominant category can push all the
-        # small ones into a tight band (typically at the top), so resolve overlaps
-        # in BOTH directions — cascade up, clamp under the column title, then
-        # cascade the surplus down into the empty middle — and draw a leader from
-        # each sliver back to its shifted label.
-        if len(left_texts) > 1 and w_px:
-            h_px = ax.get_window_extent(renderer).height
-            y0, y1 = ax.get_ylim()
-            per_px = (y1 - y0) / h_px if h_px else 0.0
-            # Measure each label's real rendered height (accounts for line count,
-            # font and dpi exactly) and add a little breathing room.
+        # Now that the x-range is final, wrap each column title to the pixel gap
+        # between the two bars, less a margin so the two never touch. The
+        # character width is only an estimate, so the result is measured and
+        # re-wrapped narrower while the two titles still overlap.
+        x0, x1 = ax.get_xlim()
+        gap_px = (x_right - x_left) / (x1 - x0) * w_px if (x1 - x0) and w_px else 0.0
+        avail_px = max(gap_px - 14.0, 40.0)
+        char_px = max(FONT_LABEL * (fig.dpi / 72.0) * 0.62, 1.0)
+        chars = max(int(avail_px / char_px), 8)
+        titles = _place_column_titles(chars)
+        for _attempt in range(3):
+            if len(titles) < 2:
+                break
+            a, b = (t.get_window_extent(renderer) for t in titles)
+            if a.x1 + 6.0 <= b.x0:      # a clear gap between them: done
+                break
+            chars = max(int(chars * 0.7), 6)
+            for t in titles:
+                t.remove()
+            titles_placed.clear()
+            titles = _place_column_titles(chars)
+
+        # De-collide the side labels: thin adjacent slivers (imbalanced
+        # categories) otherwise overprint one another. A dominant category can
+        # push all the small ones into a tight band (typically at the top), so
+        # resolve overlaps in BOTH directions — cascade up, clamp under the
+        # column title, then cascade the surplus down into the empty middle —
+        # and draw a leader from each sliver back to its shifted label.
+        #
+        # Both sides get this. The right side used to be left alone, which was
+        # fine while it held two fixed categories but not once a task put its
+        # top-N activities there.
+        h_px = ax.get_window_extent(renderer).height
+        y0, y1 = ax.get_ylim()
+        per_px = (y1 - y0) / h_px if h_px else 0.0
+
+        def _decollide(texts, bar_edge_x, label_x, leader_dx):
+            if len(texts) < 2 or not w_px or not per_px:
+                return
+            # Measure each label's real rendered height (accounts for line
+            # count, font and dpi exactly) and add a little breathing room.
             items = sorted(
                 ((t, t.get_position()[1],
-                  t.get_window_extent(renderer).height * per_px * 1.18) for t in left_texts),
+                  t.get_window_extent(renderer).height * per_px * 1.18) for t in texts),
                 key=lambda it: it[1],
             )
             n = len(items)
@@ -2564,20 +2605,25 @@ def draw_parallel_sets(
                 for i in range(1, n):
                     new_y[i] = max(new_y[i], new_y[i - 1] + _gap(i - 1))
 
-            label_x = x_left - bar_w / 2 - 0.015
             for (t, oy, _h), ny in zip(items, new_y):
                 if abs(ny - oy) > 1e-4:
                     t.set_position((label_x, ny))
                     # Subtle leader from the sliver's true centre to its shifted
-                    # label; a small dot marks the sliver anchor so the connection
-                    # reads clearly even when several are close together.
-                    ax.plot([x_left - bar_w / 2, label_x + 0.006], [oy, ny],
+                    # label; a small dot marks the sliver anchor so the
+                    # connection reads clearly even when several are close
+                    # together.
+                    ax.plot([bar_edge_x, label_x + leader_dx], [oy, ny],
                             color="#b7b7b7", linewidth=0.5, zorder=2.5)
-                    ax.plot([x_left - bar_w / 2], [oy], marker="o", markersize=1.6,
+                    ax.plot([bar_edge_x], [oy], marker="o", markersize=1.6,
                             color="#b7b7b7", zorder=2.6)
+
+        _decollide(left_texts,  x_left - bar_w / 2,  x_left - bar_w / 2 - 0.015,  0.006)
+        _decollide(right_texts, x_right + bar_w / 2, x_right + bar_w / 2 + 0.015, -0.006)
     except Exception:
-        # Renderer unavailable — fall back to a generous static margin.
+        # Renderer unavailable — fall back to a generous static margin, and wrap
+        # the titles at a width that is safe for it.
         ax.set_xlim(-0.55, 1.55)
+        _place_column_titles(16)
 
 
 # ---------------------------------------------------------------------------

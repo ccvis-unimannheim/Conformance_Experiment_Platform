@@ -5,7 +5,7 @@ itself is no longer drawn).
 
 Information-equivalent idiom set (5 idioms, see IDIOMS). Every idiom renders the
 SAME kernel — per selected attribute, the guideline-violation rate (%) per bucket:
-    rate-only:    bar_chart, table, matrix, tile_metric
+    rate-only:    bar_chart, table, matrix
     rate+counts:  parallel_sets
 (generate() explains why stacked_bar, pie_chart, sunburst and tree_map were dropped.)
 table_bar_chart and heatmap are commented out of IDIOMS/generate() for now, but the
@@ -29,7 +29,8 @@ import logging
 logger = logging.getLogger(__name__)
 
 IDIOMS = [
-    "bar_chart", "table", "matrix", "tile_metric", "parallel_sets",
+    "bar_chart", "table", "matrix", "parallel_sets",
+    # "tile_metric",
     # "table_bar_chart",
     # "heatmap",
 ]
@@ -1280,7 +1281,7 @@ def generate(log, alignments, output_dir: str, model_path=None, attribute_set=No
     # task20_table_bar_chart(panels, output_dir)
     task20_matrix(panels, output_dir, colorless=True)
     # task20_heatmap(panels, output_dir)
-    task20_tile_metric(panels, output_dir)
+    # task20_tile_metric(panels, output_dir)
     task20_parallel_sets(panels, output_dir)
 
 
