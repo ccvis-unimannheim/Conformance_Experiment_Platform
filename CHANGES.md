@@ -2,6 +2,19 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: Name, Design and Task Order on the Overview Page (2026-09-20)
+
+An experiment's name, between/within design and task-order setting were asked
+for once, on /new, and never again. An experiment built from a zip never visits
+that page — and stepping back to it shows a dataset table that route has no use
+for. `ExperimentSettingsCard` on /overview now shows all three and saves each
+one as it changes (`PATCH /admin/experiments/{id}`, which already took them),
+while the experiment is a draft; once published it is read-only, since
+participants have been allocated under those settings.
+
+`eslint` on `overview/page.js` — clean apart from the pre-existing
+`react/no-unescaped-entities` errors in the publish-conflict dialog.
+
 ## Session: An Experiment From an Uploaded Zip (2026-09-20)
 
 ### Problem solved
