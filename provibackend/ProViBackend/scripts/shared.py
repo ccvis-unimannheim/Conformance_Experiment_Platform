@@ -1100,12 +1100,13 @@ def draw_value_heatmap(fig, ax, data, row_labels, col_labels,
 
 def draw_rate_matrix(fig, ax, data, row_labels, col_labels,
                      xlabel: str = "", cbar_label: str = "Rate (%)",
-                     cell_fmt: str = "{:.1f}%", colorless: bool = False):
+                     cell_fmt: str = "{:.1f}%", colorless: bool = False,
+                     rotate_xticks: int = 0):
     """Annotated rate matrix — thin wrapper over draw_value_heatmap(annotate=True)."""
     return draw_value_heatmap(fig, ax, data, row_labels, col_labels,
                               xlabel=xlabel, cbar_label=cbar_label,
                               cell_fmt=cell_fmt, annotate=True,
-                              colorless=colorless)
+                              colorless=colorless, rotate_xticks=rotate_xticks)
 
 
 def draw_grouped_box_plot(ax, data, labels, colors, *, ylabel: str = "",
@@ -2235,9 +2236,15 @@ def chevron_layout(nodes, uniform_width=False):
     return layout, span
 
 
-def chevron_figure_width(nodes, min_w: float = 13.0, max_w: float = 34.0):
-    """Choose a figure width that keeps chevron text from being compressed."""
-    _layout, span = chevron_layout(nodes)
+def chevron_figure_width(nodes, min_w: float = 13.0, max_w: float = 34.0,
+                         uniform_width: bool = False):
+    """Choose a figure width that keeps chevron text from being compressed.
+
+    uniform_width must match whatever draw_chevron_strip(..., uniform_width=)
+    is called with — the widest-label-wins layout is wider overall than the
+    per-label one, so the figure needs to be sized from the same layout that
+    will actually be drawn."""
+    _layout, span = chevron_layout(nodes, uniform_width=uniform_width)
     return min(max(min_w, span * 0.29 + 1.6), max_w)
 
 

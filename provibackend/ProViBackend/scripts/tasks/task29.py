@@ -13,8 +13,16 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+#: Six idioms, all reading `_strategy_grid` or the summary frame behind it, so
+#: all six follow `grouping_strategy` and `selection`.
+#:
+#: The parallel sets and the sunburst are gone. Both need two levels to draw
+#: anything — an axis to flow to, a ring to nest — and under the "By move type"
+#: strategy, which is the default, this task has one: two move types and nothing
+#: else. Taking the second level from the activities is exactly the information
+#: that strategy removes, so those two would have said more than the other six.
 IDIOMS = ["bar_chart", "heatmap", "pie_chart", "table", "stacked_bar",
-          "matrix", "sunburst", "parallel_sets"]
+          "matrix"]
 
 
 def _param_spec():
@@ -34,42 +42,23 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
 from shared import (
-    save_svg, make_table, render_empty_state_svg,
-    build_violation_pattern_df, draw_value_heatmap, draw_parallel_sets,
-    GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    save_svg, make_table, render_empty_state_svg, GREY_DARK,
+    draw_value_heatmap,
+    GREY_LIGHT, PAIR_COLORS, CIVIDIS_R,
+    FONT_TITLE, FONT_LABEL, FONT_ANNOT,
     contrasting_text_color,
 )
-from tasks.task26 import _lighten
 
 
-# Move-type vocabulary + colours for the activity-level idioms (stacked_bar,
-# matrix, parallel_sets, tree_map, sunburst) — matches the move-type strings
-# produced by alignment_pairs_to_rows / build_violation_pattern_df.
+# Move-type vocabulary + colours, shared by every idiom — matches the move-type
+# strings
+# produced by alignment_pairs_to_rows.
 _VTYPES = ["Model Move", "Log Move"]
-_VTYPE_COLOR = {
-    "Model Move":    GREY_MED,
-    "Log Move":      GREY_DARK,
-}
-
-# Top-N activities (by total violation count) shown in stacked_bar/matrix/parallel_sets
-_PIVOT_TOP_N = 15
-
-
-def _task29_activity_type_pivot(alignments, top_n: int = _PIVOT_TOP_N):
-    """(pivot, top_acts) for the activity-level idioms.
-
-    pivot    – {(activity, move_type): count}
-    top_acts – top-N activities by total violation count, descending
-    """
-    pat_df = build_violation_pattern_df(alignments)
-    if pat_df.empty:
-        return {}, []
-
-    pivot = {(row["activity"], row["move_type"]): int(row["count"]) for _, row in pat_df.iterrows()}
-    totals = pat_df.groupby("activity")["count"].sum().sort_values(ascending=False)
-    top_acts = totals.head(top_n).index.tolist()
-    return pivot, top_acts
-
+#: The platform's two-category pair — cividis navy and cividis bright yellow,
+#: as task31 and task32 use it. It was GREY_MED over GREY_DARK: two neighbours
+#: in cividis's dark half, which read as one emphasis level rather than two
+#: categories, and left the bright secondary unused.
+_VTYPE_COLOR = dict(zip(_VTYPES, PAIR_COLORS))
 
 # ---------------------------------------------------------------------------
 # Chevron helpers (same visual style as task28)
@@ -79,9 +68,14 @@ def _task29_activity_type_pivot(alignments, top_n: int = _PIVOT_TOP_N):
 # ---------------------------------------------------------------------------
 
 # Task 3 helpers
+#: Plain, without the "(Missing in Log)" / "(Unexpected in Log)" glosses these
+#: labels used to carry. task04, task34 and the move tables say "Model Move" and
+#: "Log Move"; a reader comparing two idioms of one task should not have to
+#: decide whether "Unexpected in Log" is a third kind of move. Kept as a map so
+#: the call site stays the same and a future rename has one place.
 TASK29_TYPE_LABELS = {
-    "Model Move": "Model Move\n(Missing in Log)",
-    "Log Move": "Log Move\n(Unexpected in Log)",
+    "Model Move": "Model Move",
+    "Log Move": "Log Move",
 }
 
 
@@ -143,12 +137,102 @@ def task29_violation_summary_dataframe(alignments, grouping_strategy: str = "mov
     return summary[cols]
 
 
+def _row_activity(violation_type: str, grouping_strategy: str) -> str:
+    """The non-move-type half of a group label.
+
+    Under "activity" the summary writes "Check Credit\n(Model Move)"; under
+    "pattern" it writes the pattern, which parses into the same two halves.
+    """
+    if grouping_strategy == "pattern":
+        import violation_profile
+        parsed = violation_profile.parse_pattern(violation_type)
+        return parsed[0] if parsed else violation_type
+    return violation_type.split("\n(")[0]
+
+
+#: The row label when the strategy has no second dimension.
+_ALL_ROWS = "All Violations"
+
+
+def _strategy_grid(df, grouping_strategy: str):
+    """(row_labels, col_labels, counts) {EMD} the grid behind heatmap, matrix
+    and stacked bar.
+
+    Columns are always the two move types, in their fixed order: that is the
+    axis these three share, and it is what the admin sees on the x axis.
+    Rows are the other half of the group {EMD} the activity under the "activity" and
+    "pattern" strategies, and a single row under "move_type", where there is no
+    other half and the grid is one row of two cells.
+
+    These three used to take ``alignments`` straight and build activity
+    {X} move type through ``_task29_activity_type_pivot``, capped at the top 15
+    activities, whatever the admin had chosen. So with the strategy on "By move
+    type" the bar chart, table and pie chart showed two categories while the
+    matrix beside them showed fifteen activities, and `selection` reached
+    neither. Reading the same summary frame as the other idioms is what makes
+    the eight agree, and what makes the parameters arrive.
+    """
+    cols = list(_VTYPES)
+    if df.empty:
+        return [], cols, np.zeros((0, len(cols)), dtype=float)
+
+    if grouping_strategy == "move_type":
+        rows = [_ALL_ROWS]
+    else:
+        rows, seen = [], set()
+        for vt in df["violation_type"]:
+            act = _row_activity(str(vt), grouping_strategy)
+            if act not in seen:
+                seen.add(act)
+                rows.append(act)
+
+    at = {r: i for i, r in enumerate(rows)}
+    counts = np.zeros((len(rows), len(cols)), dtype=float)
+    for _, r in df.iterrows():
+        row = 0 if grouping_strategy == "move_type" else at.get(
+            _row_activity(str(r["violation_type"]), grouping_strategy))
+        if row is None or r["move_type"] not in cols:
+            continue
+        counts[row, cols.index(r["move_type"])] += float(r["count"])
+    return rows, cols, counts
+
+
+def _rotate_tick_labels(ax, gap: float = 1.04) -> bool:
+    """Do the tick labels overlap if they stay horizontal?
+
+    Measured, not estimated: the figure is drawn once, matplotlib reports
+    each label's rendered width, and the widest is compared with the room
+    one category gets. An estimate at 0.6 em per character turned three
+    comfortable labels on end, which is worse than the overlap it avoids.
+
+    ``gap`` is the clearance asked for between neighbours, so labels that
+    would just touch still turn.
+    """
+    ticks = ax.get_xticks()
+    if len(ticks) < 2:
+        return False
+    fig = ax.figure
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    widths = [t.get_window_extent(renderer).width for t in ax.get_xticklabels()
+              if t.get_text()]
+    if not widths:
+        return False
+    xs = [ax.transData.transform((t, 0))[0] for t in ticks]
+    slot = min(abs(b - a) for a, b in zip(xs, xs[1:]))
+    return max(widths) > slot / gap
+
+
 # Task 3 visualizations
 def task29_bar_chart(df: pd.DataFrame, output_dir: str):
     """Bar chart: occurrence count by violation type."""
     fig, ax = plt.subplots(figsize=(8.5, 5.2))
-    colors = [GREY_MED if mt == "Model Move" else GREY_DARK if mt == "Log Move" else GREY_LIGHT for mt in df["move_type"]]
-    bars = ax.bar(df["violation_type"], df["count"], color=colors, edgecolor="white", width=0.55, alpha=0.88)
+    colors = [_VTYPE_COLOR.get(mt, GREY_LIGHT) for mt in df["move_type"]]
+    # No alpha. The bars carried 0.88, which washed the navy and the yellow
+    # toward each other and toward the background — every other bar chart in
+    # the platform draws its categories solid.
+    bars = ax.bar(df["violation_type"], df["count"], color=colors,
+                  edgecolor="white", width=0.55)
     ymax = max(df["count"].max(), 1)
     for bar, val in zip(bars, df["count"]):
         ax.text(
@@ -166,69 +250,108 @@ def task29_bar_chart(df: pd.DataFrame, output_dir: str):
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    ax.tick_params(axis="x", labelrotation=0)
+    if _rotate_tick_labels(ax):
+        ax.tick_params(axis="x", labelrotation=90)
+        for lab in ax.get_xticklabels():
+            lab.set_ha("center")
+            lab.set_va("top")
+    else:
+        ax.tick_params(axis="x", labelrotation=0)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task29_bar_chart.svg"))
 
 
-def task29_heatmap(df: pd.DataFrame, output_dir: str):
-    """Heatmap: one count cell per violation type."""
-    labels = df["violation_type"].tolist()
-    values = df["count"].to_numpy(dtype=float).reshape(-1, 1)
+def task29_heatmap(df, output_dir: str, grouping_strategy: str = "move_type"):
+    """Heatmap: the shared grid as colour, move type across.
 
-    fig_h = max(3.2, 1.1 + len(labels) * 0.85)
-    fig, ax = plt.subplots(figsize=(6.5, fig_h))
-    im = ax.imshow(values, cmap="Greys", aspect="auto")
-    ax.set_xticks([0])
-    ax.set_xticklabels(["Count"], fontsize=FONT_ANNOT)
-    ax.set_yticks(np.arange(len(labels)))
-    ax.set_yticklabels(labels, fontsize=FONT_ANNOT)
-    ax.set_ylabel("Violation Type", fontsize=FONT_LABEL)
+    No numbers in the cells, which is what separates it from the matrix
+    beside it (shared.draw_value_heatmap: Matrix = annotated grid,
+    Heatmap = continuous colour).
+    """
+    rows, cols, counts = _strategy_grid(df, grouping_strategy)
+    if not rows:
+        render_empty_state_svg(os.path.join(output_dir, "task29_heatmap.svg"),
+                               "Violation Frequency")
+        return
+
+    fig_h = max(3.2, 1.1 + len(rows) * 0.55)
+    fig, ax = plt.subplots(figsize=(max(5.5, 1.6 + len(cols) * 1.8), fig_h))
+    draw_value_heatmap(
+        fig, ax, counts,
+        row_labels=rows,
+        col_labels=cols,
+        xlabel="Move Type",
+        cbar_label="Number of Violations",
+        annotate=False,
+        cmap=CIVIDIS_R,
+        vmax=max(float(counts.max()), 1.0),
+    )
     ax.set_title("Violation Frequency", fontsize=FONT_TITLE)
-    max_val = max(df["count"].max(), 1)
-    min_val = df["count"].min() if not df.empty else 0
-    midpoint = min_val + (max_val - min_val) * 0.50
-    for i, val in enumerate(df["count"]):
-        color = "white" if val > midpoint else "#222222"
-        ax.text(0, i, f"{int(val)}", ha="center", va="center", fontsize=FONT_ANNOT, color=color)
-    cbar = fig.colorbar(im, ax=ax, fraction=0.08, pad=0.04)
-    cbar.set_label("Number of Violations", fontsize=FONT_ANNOT)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task29_heatmap.svg"))
 
 
 def task29_pie_chart(df: pd.DataFrame, output_dir: str):
     """Pie chart: proportion of violation move types."""
-    colors = [GREY_MED if mt == "Model Move" else GREY_DARK if mt == "Log Move" else GREY_LIGHT for mt in df["move_type"]]
-    labels = list(df["move_type"])
+    colors = [_VTYPE_COLOR.get(mt, GREY_LIGHT) for mt in df["move_type"]]
+    # The wedges are named by their group, not by their move type. With three
+    # activities all of them Model Moves, the legend read "Model Move" three
+    # times against three identical swatches and the activity names appeared
+    # nowhere — a legend that cannot tell its entries apart is not a legend.
+    # The move types keep the colour, so the legend below says what the two
+    # colours mean, once each.
+    labels = [str(v).replace("\n", " ") for v in df["violation_type"]]
 
-    fig, ax = plt.subplots(figsize=(8, 6))
+    # The count in the wedge, as every other idiom of this task carries it. The
+    # share stays too, but as the angle — that is the pie's encoding, not an
+    # extra number. Without the count the pie was the one idiom a reader could
+    # not take an absolute figure from.
+    counts = list(df["count"])
+    total = float(sum(counts)) or 1.0
+
+    fig, ax = plt.subplots(figsize=(9, 6.5))
     wedges, _texts, autotexts = ax.pie(
         df["count"],
         colors=colors,
         startangle=90,
-        autopct=lambda pct: f"{pct:.1f}%" if pct >= 1 else "",
+        autopct=lambda pct: (f"{int(round(pct / 100.0 * total))}"
+                             if pct >= 1 else ""),
         pctdistance=0.68,
         wedgeprops=dict(edgecolor="white", linewidth=2),
         textprops=dict(fontsize=FONT_ANNOT),
     )
     for color, autotext in zip(colors, autotexts):
         autotext.set_color(contrasting_text_color(color))
-    ax.legend(wedges, labels, loc="lower center", bbox_to_anchor=(0.5, -0.08), ncol=len(labels), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
+
+    # The group name on the wedge, beside the count autopct already writes.
+    for wedge, label in zip(wedges, labels):
+        mid = np.deg2rad((wedge.theta1 + wedge.theta2) / 2.0)
+        ax.annotate(label, xy=(np.cos(mid) * 0.85, np.sin(mid) * 0.85),
+                    xytext=(np.cos(mid) * 1.18, np.sin(mid) * 1.18),
+                    ha="left" if np.cos(mid) >= 0 else "right", va="center",
+                    fontsize=FONT_ANNOT,
+                    arrowprops=dict(arrowstyle="-", color="#999999", linewidth=0.8))
+
+    present = [mt for mt in _VTYPES if mt in set(df["move_type"])]
+    ax.legend([mpatches.Patch(color=_VTYPE_COLOR[mt]) for mt in present], present,
+              loc="lower center", bbox_to_anchor=(0.5, -0.08), ncol=max(len(present), 1),
+              frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.set_title("Violation Type Proportions", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task29_pie_chart.svg"))
 
 
 def task29_table(df: pd.DataFrame, output_dir: str):
-    """Table: violation type, count and percentage."""
-    total = int(df["count"].sum())
+    """Table: the violation types and their counts."""
+    # Count only. The percentage column and the Total row were two numbers no
+    # other idiom of this task carries — the bar chart, heatmap, matrix and pie
+    # chart all show counts — and a table that adds a derived measure is not the
+    # same information in another encoding, which is what this task varies.
     cell_text = [
-        [row["violation_type"].replace("\n", " "), f"{int(row['count'])}", f"{row['percentage']:.2f}%"]
+        [row["violation_type"].replace("\n", " "), f"{int(row['count'])}"]
         for _, row in df.iterrows()
     ]
-    cell_text.append(["Total", f"{total}", "100.00%" if total else "0.00%"])
-    col_labels = ["Violation Type", "Count", "Percentage"]
+    col_labels = ["Violation Type", "Number of Violations"]
 
     fig_h = max(2.6, 1.2 + len(cell_text) * 0.55)
     fig, ax = plt.subplots(figsize=(8, fig_h))
@@ -240,7 +363,6 @@ def task29_table(df: pd.DataFrame, output_dir: str):
         bbox=[0.05, 0.05, 0.90, 0.78],
         font_size=10,
         scale_xy=(1, 1.7),
-        highlight_last_row=True,
     )
     ax.set_title("Violation Type Summary", fontsize=FONT_TITLE, pad=12)
     fig.tight_layout(pad=1.2)
@@ -251,55 +373,62 @@ def task29_table(df: pd.DataFrame, output_dir: str):
 # New idiom 1: Stacked bar — violation type breakdown per activity
 # ---------------------------------------------------------------------------
 
-def task29_stacked_bar(alignments, output_dir: str):
-    """Horizontal stacked bar: top-N activities coloured by violation type (Model/Log)."""
+def task29_stacked_bar(df, output_dir: str, grouping_strategy: str = "move_type"):
+    """Upright stacked bars: one bar per row of the shared grid, split by
+    move type.
+
+    It used to lie on its side with the activities down the y axis, which
+    read against every other bar chart in the platform, and it took its
+    activities from the alignments whatever the admin had chosen.
+    """
     out_path = os.path.join(output_dir, "task29_stacked_bar.svg")
-    pivot, top_acts = _task29_activity_type_pivot(alignments)
-    if not top_acts:
-        render_empty_state_svg(out_path, "Violation Type Breakdown per Activity")
+    rows, cols, counts = _strategy_grid(df, grouping_strategy)
+    if not rows:
+        render_empty_state_svg(out_path, "Violation Composition by Move Type")
         return
 
-    # Sort activities by total violations descending (top = highest bar)
-    top_acts = sorted(top_acts,
-                      key=lambda a: sum(pivot.get((a, vt), 0) for vt in _VTYPES),
-                      reverse=True)
+    order = np.argsort(-counts.sum(axis=1), kind="stable")
+    rows = [rows[i] for i in order]
+    counts = counts[order]
 
-    fig, ax = plt.subplots(figsize=(13, max(4.5, len(top_acts) * 0.6 + 2)))
+    x = np.arange(len(rows))
+    fig_w = max(6.0, len(rows) * 1.15 + 2.0)
+    fig, ax = plt.subplots(figsize=(fig_w, 5.4))
     ax.set_facecolor("#fafbfc")
 
-    lefts = np.zeros(len(top_acts))
-    for vtype in _VTYPES:
-        vals = np.array([pivot.get((a, vtype), 0) for a in top_acts], dtype=float)
-        bars = ax.barh(range(len(top_acts)), vals, left=lefts,
-                       color=_VTYPE_COLOR[vtype], label=vtype,
-                       edgecolor="white", linewidth=0.5, height=0.65)
-        # Annotate segment count when wide enough
-        for i, (bar, v) in enumerate(zip(bars, vals)):
-            if v > 0 and bar.get_width() > (lefts.max() + vals.max()) * 0.04:
-                ax.text(lefts[i] + v / 2, i, str(int(v)),
-                        ha="center", va="center",
-                        fontsize=FONT_ANNOT - 1, color=contrasting_text_color(_VTYPE_COLOR[vtype]))
-        lefts += vals
+    bottoms = np.zeros(len(rows))
+    for ci, vtype in enumerate(cols):
+        vals = counts[:, ci]
+        ax.bar(x, vals, bottom=bottoms, width=0.6, color=_VTYPE_COLOR[vtype],
+               edgecolor="white", linewidth=0.5, label=vtype)
+        for xi, (v, b) in enumerate(zip(vals, bottoms)):
+            if v > 0:
+                ax.text(xi, b + v / 2, f"{int(v)}", ha="center", va="center",
+                        fontsize=FONT_ANNOT - 1,
+                        color=contrasting_text_color(_VTYPE_COLOR[vtype]))
+        bottoms += vals
 
-    # Total count annotation at bar end
-    xmax = max(lefts.max(), 1)
-    for i, total in enumerate(lefts):
-        ax.text(total + xmax * 0.01, i, str(int(total)),
-                va="center", fontsize=FONT_ANNOT, color="#333333")
+    ymax = max(float(bottoms.max()), 1.0)
+    for xi, total in enumerate(bottoms):
+        if total > 0:
+            ax.text(xi, total + ymax * 0.015, f"{int(total)}", ha="center",
+                    va="bottom", fontsize=FONT_ANNOT, color=GREY_DARK)
 
-    short_labels = [a if len(a) <= 30 else a[:28] + "…" for a in top_acts]
-    ax.set_yticks(range(len(top_acts)))
-    ax.set_yticklabels(short_labels, fontsize=FONT_ANNOT)
-    ax.invert_yaxis()
-    ax.set_xlabel("Number of violations", fontsize=FONT_LABEL)
-    ax.set_title(f"Violation Type Breakdown per Activity  (top {len(top_acts)})",
-                 fontsize=FONT_TITLE)
-    ax.set_xlim(0, xmax * 1.12)
+    ax.set_xticks(x)
+    ax.set_xticklabels(rows, fontsize=FONT_ANNOT)
+    if _rotate_tick_labels(ax):
+        ax.tick_params(axis="x", labelrotation=90)
+        for lab in ax.get_xticklabels():
+            lab.set_ha("center")
+            lab.set_va("top")
+    ax.set_ylabel("Number of Violations", fontsize=FONT_LABEL)
+    ax.set_ylim(0, ymax * 1.16)
+    ax.yaxis.set_major_locator(plt.MaxNLocator(integer=True))
+    ax.set_title("Violation Composition by Move Type", fontsize=FONT_TITLE)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.25),
-              ncol=3, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
+    ax.legend(loc="upper right", frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
 
@@ -308,165 +437,30 @@ def task29_stacked_bar(alignments, output_dir: str):
 # New idiom 2: Matrix — activity × violation type annotated grid
 # ---------------------------------------------------------------------------
 
-def task29_matrix(alignments, output_dir: str):
-    """Annotated matrix: rows = top-N activities, columns = 3 violation types."""
+def task29_matrix(df, output_dir: str, grouping_strategy: str = "move_type"):
+    """Matrix: the shared grid as numbers on white cells.
+
+    The heatmap is the same grid in colour.
+    """
     out_path = os.path.join(output_dir, "task29_matrix.svg")
-    pivot, top_acts = _task29_activity_type_pivot(alignments)
-    if not top_acts:
-        render_empty_state_svg(out_path, "Activity × Violation Type Matrix")
+    rows, cols, counts = _strategy_grid(df, grouping_strategy)
+    if not rows:
+        render_empty_state_svg(out_path, "Violations by Move Type")
         return
 
-    data = np.array(
-        [[pivot.get((a, vt), 0) for vt in _VTYPES] for a in top_acts],
-        dtype=float,
-    )
-    short_labels = [a if len(a) <= 30 else a[:28] + "…" for a in top_acts]
-
-    fig_h = max(4.0, len(top_acts) * 0.6 + 2)
-    fig, ax = plt.subplots(figsize=(9, fig_h))
-
+    fig_h = max(3.2, 1.1 + len(rows) * 0.55)
+    fig, ax = plt.subplots(figsize=(max(5.5, 1.6 + len(cols) * 1.8), fig_h))
     draw_value_heatmap(
-        fig, ax, data,
-        row_labels=short_labels,
-        col_labels=_VTYPES,
-        xlabel="Violation Type",
+        fig, ax, counts,
+        row_labels=rows,
+        col_labels=cols,
+        xlabel="Move Type",
         cell_fmt="{:.0f}",
         annotate=True,
         rotate_xticks=0,
         colorless=True,
     )
-    ax.set_title("Activity × Violation Type Matrix", fontsize=FONT_TITLE, pad=10)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, out_path)
-
-
-# ---------------------------------------------------------------------------
-# New idiom 3: Parallel Sets — violation type (left) × activity (right)
-# ---------------------------------------------------------------------------
-
-def task29_parallel_sets(alignments, output_dir: str):
-    """Parallel Sets: move type (left) flows to top-N violated activities (right)."""
-    out_path = os.path.join(output_dir, "task29_parallel_sets.svg")
-    pivot, top_acts = _task29_activity_type_pivot(alignments)
-    if not top_acts:
-        render_empty_state_svg(out_path, "Parallel Sets: Violation Type × Activity")
-        return
-
-    # Build count matrix: shape (3 move_types, n_right)
-    pat_df = build_violation_pattern_df(alignments)
-    top_set = set(top_acts)
-    right_labels = top_acts + ["Other"]
-    n_right = len(right_labels)
-    matrix = np.zeros((3, n_right), dtype=int)
-
-    for vi, vtype in enumerate(_VTYPES):
-        sub = pat_df[pat_df["move_type"] == vtype]
-        for ai, act in enumerate(top_acts):
-            row = sub[sub["activity"] == act]
-            matrix[vi, ai] = int(row["count"].sum()) if not row.empty else 0
-        matrix[vi, -1] = int(sub[~sub["activity"].isin(top_set)]["count"].sum())
-
-    fig, ax = plt.subplots(figsize=(11, 5.5))
-    ax.axis("off")
-    ax.set_xlim(-0.05, 1.05)
-    ax.set_ylim(-0.05, 1.15)
-    ax.set_title("Parallel Sets: Violation Type × Activity", fontsize=FONT_TITLE, pad=12)
-
-    draw_parallel_sets(
-        ax,
-        left_labels=_VTYPES,
-        right_labels=right_labels,
-        matrix=matrix,
-        left_colors=[_VTYPE_COLOR[vt] for vt in _VTYPES],
-        left_title="Violation Type",
-        right_title="Activity",
-    )
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, out_path)
-
-
-# ---------------------------------------------------------------------------
-# New idiom 4: Tree Map — violation patterns by area = count
-# ---------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
-# New idiom 5: Sunburst — move_type (inner) → activity (outer)
-# ---------------------------------------------------------------------------
-
-def task29_sunburst(alignments, output_dir: str):
-    """Sunburst: inner ring = 3 move types, outer ring = top activities per type."""
-    out_path = os.path.join(output_dir, "task29_sunburst.svg")
-    pat_df = build_violation_pattern_df(alignments)
-    if pat_df.empty:
-        render_empty_state_svg(out_path, "Violation Sunburst (Move Type → Activity)")
-        return
-
-    total = float(pat_df["count"].sum())
-    if total == 0:
-        render_empty_state_svg(out_path, "Violation Sunburst (Move Type → Activity)")
-        return
-
-    # Inner ring: aggregated by move_type (in canonical order)
-    ring1 = pat_df.groupby("move_type")["count"].sum().reindex(_VTYPES, fill_value=0)
-
-    # Outer ring: top-N activities per move_type, rest → "Other"
-    _SB_TOP_PER_TYPE = 5
-    outer_items = []  # list of (move_type, activity, count)
-    for vtype in _VTYPES:
-        sub = pat_df[pat_df["move_type"] == vtype].sort_values("count", ascending=False)
-        top = sub.head(_SB_TOP_PER_TYPE)
-        for _, row in top.iterrows():
-            outer_items.append((vtype, row["activity"], int(row["count"])))
-        rest_count = int(sub.iloc[_SB_TOP_PER_TYPE:]["count"].sum()) if len(sub) > _SB_TOP_PER_TYPE else 0
-        if rest_count > 0:
-            outer_items.append((vtype, "Other", rest_count))
-
-    fig, ax = plt.subplots(figsize=(8.5, 7.0))
-    common = dict(startangle=90, counterclock=False)
-
-    # Inner ring
-    inner_colors = [_VTYPE_COLOR[vt] for vt in _VTYPES]
-    ax.pie(ring1.values, radius=0.50, colors=inner_colors,
-           wedgeprops=dict(width=0.30, edgecolor="white", linewidth=1.5), **common)
-
-    # Outer ring
-    outer_values = [c for _, _, c in outer_items]
-    outer_colors = [_lighten(_VTYPE_COLOR[vt], 0.45 if i % 2 == 0 else 0.35)
-                    for i, (vt, _, _) in enumerate(outer_items)]
-    ax.pie(outer_values, radius=0.82, colors=outer_colors,
-           wedgeprops=dict(width=0.30, edgecolor="white", linewidth=1.5), **common)
-
-    # Angle-based annotations
-    def _annotate_ring(values, labels, r_mid, fontsize, colors, min_frac=0.05):
-        angle = 90.0
-        val_total = sum(values)
-        if val_total == 0:
-            return
-        for i, (val, label) in enumerate(zip(values, labels)):
-            frac = val / val_total
-            mid_angle = angle - frac * 360.0 / 2.0
-            angle -= frac * 360.0
-            if frac < min_frac:
-                continue
-            theta = np.deg2rad(mid_angle)
-            x, y = r_mid * np.cos(theta), r_mid * np.sin(theta)
-            short = label if len(label) <= 14 else label[:12] + "…"
-            ax.text(x, y, short, ha="center", va="center",
-                    fontsize=fontsize, color=contrasting_text_color(colors[i]))
-
-    _annotate_ring(ring1.values, list(ring1.index), 0.35, FONT_ANNOT, inner_colors, min_frac=0.04)
-    _annotate_ring(outer_values,
-                   [act for _, act, _ in outer_items],
-                   0.67, FONT_ANNOT - 1, outer_colors, min_frac=0.04)
-
-    ax.legend(
-        handles=[mpatches.Patch(color=_VTYPE_COLOR[vt], label=vt) for vt in _VTYPES],
-        title="Move Type (inner ring)", title_fontsize=FONT_ANNOT,
-        loc="lower center", bbox_to_anchor=(0.5, -0.05),
-        ncol=3, frameon=False, fontsize=FONT_ANNOT,
-    )
-    ax.set_title("Violation Sunburst (Move Type → Activity)",
-                 fontsize=FONT_TITLE, pad=10)
+    ax.set_title("Violations by Move Type", fontsize=FONT_TITLE, pad=10)
     fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
 
@@ -483,10 +477,8 @@ def generate(alignments, output_dir: str, grouping_strategy: str = "move_type",
         logger.warning("      Skipped Task 29: no violation moves found.")
         return
     task29_bar_chart(df, output_dir)
-    task29_heatmap(df, output_dir)
+    task29_heatmap(df, output_dir, grouping_strategy)
     task29_pie_chart(df, output_dir)
     task29_table(df, output_dir)
-    task29_stacked_bar(alignments, output_dir)
-    task29_matrix(alignments, output_dir)
-    task29_parallel_sets(alignments, output_dir)
-    task29_sunburst(alignments, output_dir)
+    task29_stacked_bar(df, output_dir, grouping_strategy)
+    task29_matrix(df, output_dir, grouping_strategy)

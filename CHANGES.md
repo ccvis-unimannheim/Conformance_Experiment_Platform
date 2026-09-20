@@ -23,6 +23,135 @@ idiom at a time. Removed at the admin's request.
 
 `eslint` — no errors, same two pre-existing warnings.
 
+## Session: Task 24 Discovers a Model and Compares It (2026-09-20)
+
+### Problem solved
+
+task24 claimed to discover a model and never drew one. It built a
+directly-follows graph in a `Counter`, compared that edge set to the reference
+BPMN, and painted the result onto **the guideline**: faded nodes for tasks the
+log never showed, thick borders on the endpoints of unmodelled transitions. The
+task asks where two models differ; the answer was one model and a legend.
+
+It now discovers a real model. pm4py's inductive miner produces a sound process
+tree, converts it to BPMN and lays it out; written to a temporary file it is an
+ordinary BPMN with diagram interchange, so `shared.parse_bpmn_model` reads it
+into exactly the structure the guideline arrives in. Both sides of the
+comparison are the same kind of object, which is what lets one renderer draw
+them both. The directly-follows graph stays inside pm4py — a step towards the
+model, not something this platform draws.
+
+Three idioms. Each shows the desired model as BPMN and the discovered model in
+that idiom's own encoding:
+
+- `flow_chart_elaborate` — the discovered model as a second BPMN panel.
+- `flow_chart_basic` — the discovered model as a chevron strip.
+- `table` — the discovered model as its list of steps.
+
+The desired side is always the BPMN, because it is the only notation here that
+shows concurrency: a guideline redrawn as a chevron strip or a list of steps
+would claim an order its gateways do not prescribe. What the experiment varies
+is how the *discovered* model is presented.
+
+**Nothing marks the differences.** The first version painted three categories
+onto both models — in both, only in the desired one, only in the discovered
+one — with a legend naming them. That answered the task's question on the
+participant's behalf: the work left was to find the coloured shapes, not to
+compare two models. This is an Explore task, and the comparison is what is
+being measured, so every node is drawn the same. `_model_diff` and the palette
+are gone; a one-line difference summary survives in the pipeline log, where
+only the admin sees it.
+
+**No noise-threshold parameter.** It was briefly an admin parameter; it is now
+fixed at 0.0. How much behaviour enters the discovery is already the trace
+selection's job, and the traces it picks are whole variants chosen for their
+frequency, so a filter that drops infrequent paths has nothing left to drop.
+Two parameters over one decision would only let an admin set them against each
+other.
+
+**The discovered model is re-laid-out.** pm4py's auto-layout spread it over
+5806 × 1985 units against the guideline's 1385 × 256 — four times as wide,
+ten times as tall, with long detours between neighbouring nodes. `_relayout`
+replaces the geometry: nodes keep their size and go into columns by
+longest-path depth, each column centred vertically; edges become short
+orthogonal runs, and a backward edge drops below the diagram and returns.
+Result on the sample: 2573 × 154. The width that remains is the discovered
+model's own shape — nineteen sequential layers against the guideline's ten
+with parallel branches — not wasted space, and that difference is itself part
+of the answer.
+
+### Files changed
+
+- `provibackend/ProViBackend/scripts/tasks/task24.py` — rewritten.
+  `_discover_model`, `_named_tasks`, `_depths`, `_relayout`, `_linearise`,
+  `_difference_summary`, `_plain_node_style`, the SVG-stacking helpers and the
+  three idiom renderers added; `_discover_dfg`, `_compute_diff`,
+  `_build_diff_panel` and `_model_task_edges` deleted. `IDIOMS` now holds
+  canonical keys — it declared the `flow_chart_elaborate_bpmn` file stem,
+  which is not a key the Idiom collection knows.
+- `docs/TASK_IDIOM_MAPPING.md` — the two added idioms, and why.
+
+### Known costs
+
+`_linearise` presses a graph into a line for the chevron and the table: two
+models differing only in whether A and B are concurrent produce the same strip
+and the same step numbers. That is exactly why the desired side of every idiom
+stays a BPMN. Depth is the longest path from the start event, not the shortest
+— with an exclusive choice the shortest path reaches post-choice activities
+through whichever branch is briefest, which put "Close Case" ahead of the long
+branch's activities on the sample guideline.
+
+The two BPMN panels are drawn at their natural size on one canvas, so a
+discovered model with more layers than the guideline appears wider than it.
+Scaling the panels to a common width would shrink the wider one's labels
+towards unreadable; it has not been done.
+
+## Session: Task 27 on the Trace Level (2026-09-20)
+
+### Problem solved
+
+Three things, plus what a merge conflict had eaten.
+
+Every idiom but the two flow charts now draws one payload: (activity, move
+type) × conformance status, the cell counting how many traces of that status
+perform that activity that way. The columns are the comparison the task is
+named after. The move type stays in the row key because it is the *how* of the
+difference — without it both columns of a shared activity read "2" and the
+figure claims the groups are alike, when one executed the activity and the
+other skipped it. Same construction as task34's payload.
+
+The table moved onto that crosstab with them. It was task04's per-trace move
+table, which put the traces across the top while every idiom beside it compared
+the two status groups; per-trace resolution is what the chevron and the BPMN
+are for. It also left the `model_path` branch, so a dataset without a reference
+model keeps its table.
+
+The parallel sets are deleted. They drew the same counts as ribbons, and over a
+handful of selected traces every cell is 0, 1 or 2 — a ribbon of width 1
+beside one of width 2 is not a readable difference, and the thin ones fall
+below `draw_parallel_sets`'s label threshold and vanish altogether. Seven
+idioms remain.
+
+Restored from the merge: `task27.py`'s `from shared import` had fallen back to
+the pre-rework list, missing `PAIR_COLORS` (an ImportError on every run),
+`CIVIDIS_R` and `contrasting_text_color`; `task09.alignment_figures` had lost
+`merge_log_moves` from its signature while its call to `task04_table` still
+passed it on, which was a NameError in every control-flow call, task09's own
+included. The module docstring still promised the variant fallback the rework
+removed.
+
+### Files changed
+
+- `provibackend/ProViBackend/scripts/tasks/task27.py` — `_activity_status_payload`
+  becomes `_status_payload` over (activity, move type) keys; `_row_activity`,
+  `_category`, `_category_ticks`, `_bar_figsize`, `_grid_figsize` added;
+  `task27_table` added and the `task04_table` call dropped;
+  `task27_parallel_sets` and the now-unused `_status_legend_handles` deleted,
+  parallel sets dropped from `IDIOMS`; imports and docstring repaired.
+- `provibackend/ProViBackend/scripts/tasks/task09.py` — `merge_log_moves`
+  restored to `alignment_figures`.
+- `docs/TASK_IDIOM_MAPPING.md` — the Parallel Sets row removed from task27.
+
 ## Session: Fix the /idiom ↔ /specify Loop for a Bundle Experiment (2026-09-20)
 
 ### Problem solved
@@ -277,6 +406,307 @@ task. A log move of a modelled activity — the common case — could never reac
 Separately, the rows sit in model order, so a trace that runs two activities out
 of order read exactly like one that runs them in order. The chevron shows that
 difference; the table dropped it.
+## Session: task27's Eight Idioms Answer Its One Question (2026-09-20)
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| Box plot removed | Throughput time per status answers how *long* the two groups take, not how their behaviour differs, and a distribution needs a population — over the handful of traces the admin names it was a box built from one or two values. Eight idioms left. |
+| Every idiom on the selection | The `selected=named` split is gone: the aggregates fell back to the log's top-15 variants whenever the traces were not named by hand, so the automatic rule gave the chevron two traces and the bar chart fifteen variants. `TOP_N` and every "variant" branch went with it. The objection to closing this gap was the box plot; it is gone. |
+| One payload | `_activity_status_payload` — activity × conformance status, the cell counting how many selected traces of that status touch the activity. Bar chart groups it, stacked bar stacks it, parallel sets flows activity to status, matrix prints it on white cells, heatmap colours it. They used to carry three answers between them: frequency (bar, parallel sets), trace length (stacked bar) and behaviour (matrix, heatmap). `_task27_trace_df`, `_frequency_bucket`, `_variant_relations` and the `_REL_*` marks went with the old ones. |
+| Palette | `_COLOR_CONFORM` / `_COLOR_NON_CONFORM` are `PAIR_COLORS`, cividis navy and bright yellow, as task29, task31 and task32 use them. They were `GREY_MED` over `GREY_LIGHT`: two neighbours in cividis's olive middle that read as one shade, which is the worst possible reading for the contrast this task is about. The parallel sets' left ramp comes from `CIVIDIS_R` instead of three greys. |
+| Titles | `_TASK27_TITLE = "How Conformant and Non-Conformant Traces Differ"` on all eight, the chevron, BPMN and table included. They carried seven different ones, several naming a unit ("Variant Frequency", "top-15 variants") that stopped being true. |
+
+### Verification
+
+`trace_count` 1 against 3 on BPIC12-A: all eight SVGs differ, where under the
+automatic rule only the four trace-level ones used to. The matrix's raster
+decodes to one colour, pure white — it has been colourless since the tasks
+27-31 round. The payload reads as the question: A_DECLINED and A_CANCELLED
+appear only in the conformant traces, A_APPROVED, A_REGISTERED and A_ACTIVATED
+only in the non-conformant ones.
+
+## Session: One Row per Activity, Even When It Was Both Executed and Inserted (2026-09-20)
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| `merge_log_moves` on task04_table | An activity that a trace both executed and inserted got two rows: "Check Credit" and "Check Credit (Log Move)". The suffix kept them apart, at the price of a row label saying one thing and the cell under it saying the same thing again, and of one activity sitting in two places in a table whose point is one row per activity. With the switch on it gets a single row whose cell names both moves: "Model Move & Log Move". |
+| Fixed order in the cell | `_MOVE_ORDER` names Synchronous, then Model, then Log, so the same pair reads the same in every cell of every trace. |
+| Activities outside the model | They used to enter the table through their "(Log Move)" row label. Merged, the key is the plain activity name, which the model-task list does not hold — so the extra-row rule now takes any key the model does not know, and an inserted "Escalate Case" keeps its row under its own name. |
+| Width | The per-trace column width follows the longest cell rather than a constant 2.7 inches: a merged cell holds two moves and can be twice as wide as a plain one. |
+| Scope | Opt-in, `False` by default; only task28 sets it, through `alignment_figures`. task04, task09, task14 and task27 are unchanged. It should become the default when they come up for review. |
+
+### Verification
+
+The four cell modes over a trace that executes "Check Credit", inserts it again,
+and inserts "Escalate Case", which is not a model task:
+
+```
+merge=False order=False   Check Credit              Model Move
+                          Check Credit (Log Move)   Log Move
+                          Escalate Case (Log Move)  Log Move
+
+merge=True  order=False   Check Credit              Model Move & Log Move
+                          Escalate Case             Log Move
+
+merge=True  order=True    Check Credit              2 · Model Move & 3 · Log Move
+```
+
+Rendered with two traces, the second of which executes Check Credit cleanly:
+one "Check Credit" row reading "Model Move & Log Move" against "Synchronous
+Move", and an "Escalate Case" row reading "Log Move" against "—". task28 still
+writes its seven SVGs.
+
+## Session: One Title Over task28, and a Table That Does Not Repeat the Chevron (2026-09-20)
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| `_INSERTED_SUFFIX` | " (inserted)" becomes " (Log Move)". The suffix exists because a log move needs a row of its own even when a model task of the same name is already there — "Check Credit" as a model task and "Check Credit" inserted a second time — but "inserted" was a second word for one thing, and the reader had to work out that it meant the same as the "Log Move" in the cell beside it. Reaches task04, task09, task14, task27 and task28, which is the point: it is the class's vocabulary. |
+| `show_order` on task04_table | Opt-in, default unchanged. With it off the cell holds the move type alone and the column header is the trace's name, where both used to read "{step} · {move}" and "Trace 1 (step · move)". task28 turns it off: the chevron and the BPMN beside it already carry the order, and a table carrying it too says more than they do in the one channel they cannot match. The cost is the order-blindness task04's docstring describes, accepted here because two other idioms cover it. task04, task09, task14 and task27 keep the step. |
+| `alignment_figures` title | task09's shared entry point takes a `title` and puts it on all three figures. task04's own defaults differ per figure, which is right for task04 and wrong for a task whose idioms are read as one set. |
+| One task28 title | `_DEVIATION_TITLE` is "Where the Shown Traces Differ from the Guideline", on all seven idioms. They carried four different ones: task04's per-figure defaults on the trio, and on the aggregates a name for the whole log that stopped being true when they moved onto the chosen traces. |
+
+### Verification
+
+Rendering task28 with two traces: the table, bar chart, stacked bar, matrix and
+heatmap carry the title as an axes title, the chevron as a suptitle, the BPMN in
+its own composed header — seven for seven. The table's cells come out
+"Synchronous Move" where they were "1 · Synchronous Move".
+
+The heatmap's ramp was already right: `draw_value_heatmap` defaults to
+`CIVIDIS_R`, so task28's heatmap decodes to the same navy-to-yellow raster as
+task29's — 241 colours, ending on (254, 232, 56).
+
+## Session: task28 Pinpoints the Traces It Was Asked About (2026-09-20)
+
+### Problem solved
+
+task28 asks "where exactly does the process execution differ from the guideline"
+and its own subtitle says "pinpoint specific violations in traces". Three of its
+idioms did that. The other five aggregated the whole log: `_dev_df(alignments)`,
+deviation patterns ranked by frequency, capped at the top 12, untouched by the
+trace selection. So the chevron, BPMN and table pinpointed the chosen traces
+while the bar chart beside them summarised thirteen thousand others — and
+ranked by how often, which is not what the task asks.
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| Box plot removed | Its unit was the trace and its measure the count of deviating steps per trace, summarised as median, IQR and outliers: a distribution over the whole log, where the task asks about named traces. Seven idioms left. |
+| Trace level | `_selected_step_payload(records)` is the new shared source for bar chart, stacked bar, matrix and heatmap. Its unit is one deviating step's `(activity, move type)` — where it happened and what kind it was — over the traces the admin chose, from the same `select_records` call the trio reads. |
+| Counts stop being a ranking | Over one to four traces the cells hold 0, 1 or 2. The figure reads as a location rather than a frequency, which is what "where exactly, and how" needs. The four carry one title, `_DEVIATION_TITLE`; they used to name the log ("Where Does the Log Deviate?", "top-12 activities"). |
+| Encodings | Bar chart: one bar per trace per step, grouped. Stacked bar: one bar per step, split by which trace it happened in. Matrix: numbers on white cells. Heatmap: the same grid as colour. |
+| Trace naming | `build_task28_context` labelled its fallback trace `f"Trace {idx + 1}"` with `idx` the position in the whole log — "Trace 4818" — while the table beside it numbers from one. That path draws exactly one trace, so it is "Trace 1". |
+| Swept | `_dev_df`, `_trace_dev_df`, `_activity_movetype_pivot`, `_present_move_types`, `_move_color`, `_wrap_pat`, `TOP_N`, `MOVE_TYPE_COLORS`, `_MOVE_RANK` and the `build_violation_pattern_df` import went with the log-wide view. |
+
+### Verification
+
+Generating at `trace_count` 1 and 3 on BPIC12-A: seven SVGs each, and all seven
+differ between the two runs. Before, four of them were byte-identical whatever
+the admin chose. `pyflakes` shows only task28's four pre-existing unused
+imports.
+
+### Open points
+
+* task28's aggregates are now the same shape as task34's. The two are not the
+  same task — task28 is Explore and does not hand the participant the violations
+  — but whether that is enough to put both in one study is an experiment-design
+  question.
+* In the data and resource perspectives the trio draws value verdicts while
+  these four still read move types.
+
+## Session: task29 Keeps the Six Idioms That Can Answer Its Parameter (2026-09-20)
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| Parallel sets, sunburst removed | Both need two levels to draw anything — an axis to flow to, a ring to nest — and under "By move type", the default strategy, this task has one: two move types and nothing else. Taking the second level from the activities, as they did, is exactly the information that strategy removes, so those two said more than the other six. task29 has six idioms, all reading the same grid. `_task29_activity_type_pivot` and `_PIVOT_TOP_N` went with them, and with them the last code path that read `alignments` behind the admin's back. |
+| Tick rotation | `_rotate_tick_labels` measures instead of estimating: the figure is drawn once, matplotlib reports each label's rendered width, and the widest is compared with the room one category gets. The 0.6-em-per-character estimate it replaces turned three comfortable labels on end, which is worse than the overlap it avoids. Three "Ship Order (Model Move)" labels now stay horizontal; four turn. |
+| Pie chart | The legend read `move_type`, so three activities that are all Model Moves gave three identical swatches labelled "Model Move" three times, and the activity names appeared nowhere. The wedges carry their group name on a leader line now, beside the count they already had, and the legend explains the two colours, each once. |
+
+### Verification
+
+Generating under all three strategies: six SVGs each, and all six differ
+between "By move type" and "By activity" — every idiom answers the parameter.
+The rotation rule over a 8.5-inch figure: False for two and three labels, True
+from four. `pyflakes` clean after the orphan sweep.
+
+## Session: task29's Grid Idioms Follow the Grouping Strategy (2026-09-20)
+
+### Problem solved
+
+Half of task29 answered the admin's parameters and half did not. The matrix,
+stacked bar, parallel sets and sunburst took `alignments` straight and built
+activity × move type through `_task29_activity_type_pivot`, capped at the top 15
+activities, whatever the strategy said. With "By move type" chosen, the bar
+chart, table and pie chart showed two categories while the matrix beside them
+showed fifteen activities.
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| Shared grid | `_strategy_grid(df, strategy)` returns (rows, move types, counts) from the same summary frame the other idioms read, so `grouping_strategy` and `selection` arrive. Columns are always the two move types, in fixed order — that is the axis these idioms share and what the admin reads across the x axis. Rows are the other half of the group: the activity under "activity" and "pattern" (`_row_activity` splits the label or parses the pattern), a single "All Violations" row under "move_type", where there is no other half. |
+| Matrix, heatmap | Both draw that grid: move type across, the count in the cell. The matrix prints it on white cells, the heatmap carries it as cividis colour without numbers. Under "By move type" that is one row of two cells, which is the same two numbers the bar chart shows. |
+| Stacked bar | Upright, one bar per grid row split by move type, segment counts inside and the row total above. It used to lie on its side with the activities down the y axis, against every other bar chart in the platform. |
+| Bar chart | `alpha=0.88` removed. It washed the navy and the yellow toward each other and toward the background; every other bar chart here draws its categories solid. |
+| Tick labels | `_rotate_tick_labels` measures the width one category gets against the widest label's longest line, at 0.6 em per character, and turns the labels upright only when they would not fit. Two move types across a 9-inch axis stay horizontal; fifteen activities turn. The bar chart and the stacked bar share it. |
+
+### Verification
+
+Generating three times, once per strategy: the grid is (1, 2) under "move_type"
+and (2, 2) under "activity" and "pattern" on BPIC12-A, columns always the two
+move types. Comparing normalised SVGs between two strategies, six of the eight
+idioms now differ where four did before. The rotation rule returns False for two
+and four bars, True for eight and fifteen. No `opacity` attribute is left in the
+bar chart's SVG.
+
+### Open point
+
+`parallel_sets` and `sunburst` still ignore the strategy — both need two
+dimensions to draw at all, and "By move type" has only one. What they should
+show under that strategy is undecided.
+
+## Session: task29's Idioms Agree on Vocabulary, Palette and Numbers (2026-09-20)
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| Vocabulary | `TASK29_TYPE_LABELS` mapped the move types onto "Model Move (Missing in Log)" and "Log Move (Unexpected in Log)". task04, task34 and every move table say "Model Move" and "Log Move"; a reader comparing two idioms of one task should not have to decide whether "Unexpected in Log" is a third kind of move. |
+| Palette | `_VTYPE_COLOR` is `PAIR_COLORS` — cividis navy and cividis bright yellow, as task31 and task32 use them. It was `GREY_MED` over `GREY_DARK`: two neighbours in cividis's dark half, which read as one emphasis level rather than two categories, and left the bright secondary unused. The bar chart and pie chart read the same map instead of repeating the colour rule inline. |
+| Heatmap | Was the last greyscale figure in the task (`cmap="Greys"`) and printed the count in every cell, encoding one variable twice and leaving the matrix with nothing of its own. It goes through `draw_value_heatmap` now: cividis, `annotate=False`, colorbar. Matrix = annotated grid, Heatmap = continuous colour, as shared.py has it. |
+| Table | The Percentage column and the Total row are gone. No other idiom of this task carries either, and a table that adds a derived measure is not the same information in another encoding — which is what this task varies. |
+| Pie chart | The wedges carry the count now, not the share. The share is still there as the angle, which is the pie's encoding; without the count it was the one idiom here a reader could take no absolute figure from. |
+| Sunburst | Each ring label carries its count. It had neither a number nor a share, so rank was all it showed. |
+
+### Verification
+
+Eight SVGs render. Labels come out "Model Move" / "Log Move"; `_VTYPE_COLOR` is
+`{'Model Move': '#243c6e', 'Log Move': '#e5cf52'}`. Decoding the embedded
+rasters: the heatmap's cells are cividis (navy to yellow) where they were greys,
+and the matrix's single raster colour is pure white — it has been colourless
+since the tasks 27-31 round.
+
+### Open point: four idioms ignore the admin's parameters
+
+Generating twice on BPIC12-A, once per `grouping_strategy`, and comparing the
+normalised SVGs:
+
+| reacts to the strategy | ignores it, byte-identical |
+|---|---|
+| bar_chart, heatmap, pie_chart, table | matrix, stacked_bar, parallel_sets, sunburst |
+
+The first four read `task29_violation_summary_dataframe`, which honours
+`grouping_strategy` and `selection`. The other four take `alignments` straight
+and build activity × move type through `_task29_activity_type_pivot`, capped at
+the top 15 activities. So under the default strategy four idioms show two rows
+and four show fifteen activities × two types: not the same information in
+another encoding, and half the task does not answer the parameter at all. Left
+as it is pending a decision on which of the two the task is about.
+
+## Session: The Choices That Were Made For You Now Carry an Asterisk (2026-09-20)
+
+### Problem solved
+
+task32's "How violations are grouped" silently defaulted to "By move type", with
+no asterisk to say a choice was in force. Auditing every declared parameter for
+the same shape — a fixed-option select, a non-empty default, `required: False`,
+and no statement anywhere of what empty means — found exactly five, reaching
+eleven tasks between them.
+
+### Changes
+
+| Parameter | Declared by | Default that was applied in silence |
+|---|---|---|
+| `grouping_strategy` | task05, task29, task32, task36 | By move type (Model Move / Log Move) |
+| `trace_selection_mode` | task04, task09, task14, task24, task27, task28, task34 | Automatically, by a rule |
+| `trace_pick_rule` | task04, task09, task14, task28, task34 | the task's own historical rule |
+| `perspective` | task09, task28 | Control flow |
+| `analysis_level` | task04 | Trace level |
+
+All five are `required: True` now, so /specify marks them and both the page and
+`admin.py` refuse to generate on an empty one. `trace_pick_rule` keeps its
+`visible_if`, and both checks skip a hidden entry, so naming the traces by hand
+never blocks on a rule that is not on screen.
+
+Nothing else changed. The parameters that stay optional are the ones whose empty
+value has a meaning their own label states — `split_strategy` ("empty = ranges
+for numbers and dates, one group per value otherwise"), `violation_pattern`
+("empty = any deviation"), the attribute pickers ("empty = every attribute of
+this log that can be grouped") — and the numeric fields, which cannot be empty
+in a meaningful way.
+
+### Verification
+
+Re-running the audit: no fixed-option select with a silent default is left
+without an asterisk. Every task declaring one of the five imports and reports
+`required: True` — 4, 7, 5, 2 and 1 tasks respectively, plus the nine carrying
+`attribute_class` from the session before.
+
+## Session: Three Parameters That Changed Nothing (2026-09-20)
+
+### Problem solved
+
+task30's "How many violation patterns to show" had no effect on any idiom, and
+the feeling that /specify does little turned out to be right in four places. An
+audit of every task — the keys each `PARAM_SPEC` declares against the keys its
+dispatcher entry in `create_all_visualizations.py` actually reads — found four
+declared-but-unplumbed parameters across four tasks. Everything else it flagged
+reaches its task through a class helper (`trace_alignment.pick_rule`,
+`violation_profile`'s selection helpers) and is live.
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| task30 `pattern_top_n` | Declared in `PARAM_SPEC`, never passed. `_aggregate_patterns` has taken a `top_n` all along and nobody gave it one, so every figure ranked the module default of 10 whatever the admin typed. Threaded: dispatcher -> `generate(pattern_top_n=...)` -> `_aggregate_patterns(top_n=...)`, and the log line now names the number in force. |
+| task13, task20, task21 | They declared `split_strategy` and `group_cap` through `grouping_params()` and their `generate()` signatures have no such arguments — two controls on /specify that changed nothing. All three bucket through task13's `_bucket_rates`: quartiles for a numeric attribute, top categories for a categorical one. That is a rule settled in code, so they now declare `attribute_params()` and offer only what they can act on. No figure changes. |
+| `attribute_class` required | "Level the attributes are taken from" was optional with a silent default of "trace", so leaving it blank produced case-level attributes the admin never asked for and /specify showed no asterisk. It is required now: the frontend marks it and refuses to generate on an empty one. The picker under it stays optional — an empty attribute selection means "every attribute of this log that can be grouped", and its own label says so. |
+
+### Verification
+
+`pattern_top_n` cut to 2, 3, 5 and 10 over a five-pattern frame gives 2, 3, 5
+and 5 rows. Three `generate` runs on BPIC12-A at 3, default and 20 all log the
+number in force; that log holds only three distinct patterns, so the cut is not
+visible there. `PARAM_SPEC` keys after the change: task13, task20 and task21
+carry the attribute block alone, task30 keeps all seven.
+
+## Session: task33 Is Four Panel Idioms, and Names Its Attribute on the Axis (2026-09-20)
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| Idioms removed | Box and whisker plot, scatter plot, stacked bar, table & bar chart. Four left: `bar_chart`, `table`, `matrix`, `heatmap`, all four task20's panel renderers handed fitness instead of a violation rate. The first three read a per-trace distribution, which is more than the mean per bucket their neighbours show, and they could only ever do it for the *first* attribute selected — so a two-attribute selection gave four figures about both attributes and three about one. |
+| task33 shrinks | With those three gone, everything they used went too: `_build_trace_df`, `_group_stats`, `_band_rates`, `_fine_bin_rates`, `_group_colors`, `_FITNESS_BANDS`, `_GROUP_PALETTE`, `_FIT_THRESHOLD`, the `split_by_attribute` import and the `_ALL_FNAMES_TITLES` empty-state table. The second half of `generate` cut the log a second way purely to log per-group stats; task20's renderers do their own bucketing and handle the empty case themselves. task33 draws nothing of its own now, and says so. |
+| Matrix | `colorless=True`: white cells ruled into a grid, the value carried by the number, as in tasks 01, 03 and 27-34. The panels alternate between a flat yellow and a flat blue wash which, by the renderer's own docstring, "carries no data" — it tells the panels apart, which their labels already do. A reader cannot know a colour means nothing without being told, and the heatmap beside it uses colour for the value. The wash stays the default for the other four tasks. |
+| Attribute name | It is a subplot title: centred over the bar chart, centred over the matrix and heatmap, left-aligned above the table, and inside the table a generic "Attribute Value" header. Four placements for one thing, and over the grids it reads as a floating caption. `attribute_on_axis=True` puts it on the axis its own buckets sit on instead — x on the bar chart, y on the matrix and heatmap, and the header of the table column holding its values. |
+| Vocabulary | task33 passes `value_label_header` explicitly, so the measure is "Mean Fitness" everywhere. task20 title-cases `value_label` into the header when none is given, which put "Mean fitness" on the bar chart's axis and "Mean Fitness" on the matrix beside it. |
+| Title | `_SPLIT_SUPTITLE` is "Mean Fitness by Attribute". "Process Conformance by Candidate Attribute" was task20's vocabulary, where the attributes are candidate root causes; in task33 the admin has chosen the attribute. |
+
+**Scoped to task33.** Both live in task20's shared renderers, which task15,
+task16, task20 and task22 also call, and those four have tuned screenshots in
+the running experiment (CONFORMANCE_ATTRIBUTE_CLASS.md). So each is an opt-in
+keyword — `colorless` on the matrix, `attribute_on_axis` on all five — and only
+task33 sets them. Two styles in one renderer is the price; when those tasks come
+up for review, the switches are what to delete.
+
+### Verification
+
+`pyflakes` against HEAD on both files: task33 clean, task20 unchanged from its
+four pre-existing warnings. Both modes rendered from two synthetic panels — the
+case where the matrix draws both of its alternating washes. Every colour in
+task33's matrix SVG: `#ffffff` cells, `#cccccc` grid, `#243c6e` text. task20's,
+with the same data and no keywords: `#e5cf52` and `#243c6e` washes, as before.
+
 ## Session: The Variant Rule Says That It Only Picks Violators (2026-09-20)
 
 ### Changes

@@ -9,16 +9,16 @@ Visualizations (all SVG, cividis palette from shared.py).
 
 Trace level — the alignment of the chosen traces (trace_pick_rule /
 trace_ids, see trace_alignment), judged on the chosen perspective
-(control flow, data or resource):
-  flow_chart_basic          – one chevron strip per trace
+(control flow, data or resource). Every idiom here reads the same chosen
+trace(s), nothing is a whole-log summary:
+  flow_chart_basic          – one chevron strip per trace (every chevron the
+                               same width — a chevron's width is not itself
+                               meaningful, only its color/position are)
   flow_chart_elaborate_bpmn – the BPMN model coloured per trace
   table                     – move table across the traces
-  (With no traces to show, these three fall back to whole-log summaries.)
-
-Whole log:
-  bar_chart                       – violation type frequency
-  stacked_bar                     – per-activity stacked bar by violation type
-  matrix                          – activity × violation-type count heatmap
+  matrix                    – activity × violation-type count heatmap for the
+                               first chosen trace
+  (With no traces to show, these four fall back to whole-log summaries.)
 
   Commented out of IDIOMS/generate() for now:
   scatter_plot                    – Model Move vs Log Move count per activity
@@ -32,7 +32,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 IDIOMS = [
-    "bar_chart", "stacked_bar",
     "table", "matrix",
     "flow_chart_basic",
     "flow_chart_elaborate_bpmn",
@@ -87,7 +86,7 @@ import matplotlib.patches as mpatches
 import matplotlib.colors as mcolors
 import matplotlib.cm as cm
 
-from shared import most_common_stable, save_svg, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS, CIVIDIS_R, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
+from shared import most_common_stable, save_svg, draw_rate_matrix, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS_R, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
 
 # ── Cividis palette ───────────────────────────────────────────────────────────
 _C_DARK   = GREY_DARK
@@ -95,7 +94,6 @@ _C_MED    = GREY_MED
 _C_LIGHT  = GREY_LIGHT
 _C_XLIGHT = GREY_LIGHTER
 _HDR_BG   = GREY_DARK
-_CMAP_SEQ = CIVIDIS
 
 # Violation type → grey shade (light = skipped, dark = extra)
 _VTYPES = ["Model Move", "Log Move"]
@@ -103,8 +101,24 @@ _VTYPE_COLOR = {
     "Model Move": _C_LIGHT,
     "Log Move":   _C_MED,
 }
+# Conformant + violation types, in display order — used where an idiom shows
+# every move a trace makes, not just its violations (e.g. task09_matrix).
+_ALL_TYPES = ["Synchronous Move"] + _VTYPES
+_MISSING_TOKENS = {"-", "None", "(skip)", ""}
 
 _TOP_N = 12   # max activities displayed
+
+
+def _activity_for_row(row):
+    """Activity label for one trace-alignment row, whatever its move type."""
+    if row["moveType"] == "Model Move":
+        return str(row["model_move"])
+    lm = str(row["log_move"])
+    return lm if lm not in _MISSING_TOKENS else str(row["model_move"])
+
+# Shared heading for flow_chart_basic/flow_chart_elaborate_bpmn/table/matrix —
+# every idiom now reads the same chosen trace(s), so they share one heading.
+_TITLE = "Trace-Level Guideline Violations"
 
 
 # ── Data extraction ───────────────────────────────────────────────────────────
@@ -158,77 +172,7 @@ def _no_violations(output_dir, name):
                 "No guideline violations found in this log.")
 
 
-# ── Idiom 1: Bar Chart ────────────────────────────────────────────────────────
 
-def task09_bar_chart(type_totals, n_violations, output_dir):
-    if not type_totals:
-        _no_violations(output_dir, "bar_chart")
-        return
-
-    types  = [t for t in _VTYPES if type_totals[t] > 0]
-    counts = [type_totals[t] for t in types]
-    colors = [_VTYPE_COLOR[t] for t in types]
-    pcts   = [c / n_violations * 100 for c in counts]
-
-    fig, ax = plt.subplots(figsize=(10, max(3, len(types) * 1.4 + 1.5)))
-    ax.set_facecolor("#fafbfc")
-
-    bars = ax.barh(range(len(types)), counts, color=colors,
-                   edgecolor="white", linewidth=0.8, height=0.55)
-
-    for i, (bar, cnt, pct) in enumerate(zip(bars, counts, pcts)):
-        ax.text(bar.get_width() + max(counts) * 0.015, i,
-                f"{cnt:,}  ({pct:.1f}%)",
-                va="center", fontsize=FONT_ANNOT, color=_C_DARK)
-
-    ax.set_yticks(range(len(types)))
-    ax.set_yticklabels(types, fontsize=FONT_ANNOT)
-    ax.set_xlabel("Number of violations", fontsize=FONT_LABEL)
-    ax.set_title("Guideline Violations by Type", fontsize=FONT_TITLE)
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
-    ax.set_axisbelow(True)
-    ax.set_xlim(0, max(counts) * 1.3)
-
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task09_bar_chart.svg"))
-
-
-# ── Idiom 2: Stacked Bar ──────────────────────────────────────────────────────
-
-def task09_stacked_bar(activity_type, activity_totals, output_dir):
-    if not activity_totals:
-        _no_violations(output_dir, "stacked_bar")
-        return
-
-    top_acts = _top_activities(activity_totals, _TOP_N)
-    short_labels = [_short_label(a, 30) for a in top_acts]
-
-    fig, ax = plt.subplots(figsize=(13, max(4, len(top_acts) * 0.6 + 2)))
-    ax.set_facecolor("#fafbfc")
-
-    lefts = np.zeros(len(top_acts))
-    for vtype in _VTYPES:
-        vals = np.array([activity_type.get((a, vtype), 0) for a in top_acts], dtype=float)
-        ax.barh(range(len(top_acts)), vals, left=lefts,
-                color=_VTYPE_COLOR[vtype], label=vtype,
-                edgecolor="white", linewidth=0.5, height=0.65)
-        lefts += vals
-
-    ax.set_yticks(range(len(top_acts)))
-    ax.set_yticklabels(short_labels, fontsize=FONT_ANNOT)
-    ax.invert_yaxis()
-    ax.set_xlabel("Number of violations", fontsize=FONT_LABEL)
-    ax.set_title(f"Violations per Activity by Type  (top {len(top_acts)})",
-                 fontsize=FONT_TITLE)
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
-    ax.set_axisbelow(True)
-    ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.25),
-              ncol=3, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
-
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task09_stacked_bar.svg"))
 
 
 # ── Idiom 3: Scatter Plot ─────────────────────────────────────────────────────
@@ -393,9 +337,9 @@ def task09_table(activity_type, activity_totals, type_totals, n_violations, outp
                     color=_C_DARK, transform=ax.transAxes)
             x += cw * table_w
 
-    ax.set_title(f"Guideline Violations per Activity  (top {n_rows})",
-                 fontsize=FONT_TITLE, pad=14)
-    fig.tight_layout(pad=1.2)
+    ax.set_title(f"top {n_rows} activities", fontsize=FONT_LABEL, pad=10)
+    fig.suptitle(_TITLE, fontsize=FONT_TITLE, y=0.99)
+    fig.tight_layout(pad=1.2, rect=[0, 0, 1, 0.94])
     save_svg(fig, os.path.join(output_dir, "task09_table.svg"))
 
 
@@ -484,52 +428,41 @@ def task09_table_bar_chart(activity_type, activity_totals, n_violations, output_
 
 # ── Idiom 8: Matrix ───────────────────────────────────────────────────────────
 
-def task09_matrix(activity_type, activity_totals, output_dir):
-    """Activity × violation-type matrix. Cell = count. PowerNorm for contrast."""
-    if not activity_totals:
+def task09_matrix(activity_type, ordered_acts, trace_label, output_dir):
+    """Activity × move-type matrix for one trace. Cell = count.
+
+    Every activity the trace touches, synchronous moves included — not just
+    the violating ones, so the matrix reads as "what happened at each step"
+    rather than only "where it deviated" (that narrower view is what the
+    Model Move / Log Move columns already show on their own).
+
+    Colorless (shared.draw_rate_matrix's strict-matrix mode), same as task28's
+    own matrix idiom: the payload is the printed number, not a colour scale —
+    a colour-coded count on top of the number would encode the same value
+    twice, which is what a Heatmap idiom is for, not a Matrix one.
+    """
+    if not ordered_acts:
         _no_violations(output_dir, "matrix")
         return
 
-    top_acts = _top_activities(activity_totals, _TOP_N)
-    short_labels = [_short_label(a, 30) for a in top_acts]
+    short_labels = [_short_label(a, 30) for a in ordered_acts]
 
     mat = np.array([
-        [activity_type.get((a, vt), 0) for vt in _VTYPES]
-        for a in top_acts
+        [activity_type.get((a, vt), 0) for vt in _ALL_TYPES]
+        for a in ordered_acts
     ], dtype=float)
 
-    fig_h = max(4, len(top_acts) * 0.6 + 2)
-    fig, ax = plt.subplots(figsize=(9, fig_h))
-    ax.set_facecolor("#fafbfc")
+    fig_h = max(4, len(ordered_acts) * 0.6 + 2)
+    fig, ax = plt.subplots(figsize=(7.5, fig_h))
 
-    vmax = mat.max() if mat.max() > 0 else 1
-    im = ax.imshow(mat, cmap=_CMAP_SEQ, aspect="auto",
-                   norm=mcolors.PowerNorm(gamma=0.5, vmin=0, vmax=vmax))
+    draw_rate_matrix(fig, ax, mat, short_labels, _ALL_TYPES,
+                     xlabel="Move Type", cell_fmt="{:.0f}", colorless=True,
+                     rotate_xticks=15)
 
-    ax.set_xticks(range(len(_VTYPES)))
-    ax.set_xticklabels(_VTYPES, fontsize=FONT_ANNOT, rotation=15, ha="right")
-    ax.set_yticks(range(len(top_acts)))
-    ax.set_yticklabels(short_labels, fontsize=FONT_ANNOT)
+    ax.set_title(trace_label, fontsize=FONT_LABEL, pad=8)
 
-    for i in range(len(top_acts)):
-        for j in range(len(_VTYPES)):
-            val = int(mat[i, j])
-            if val > 0:
-                brightness = im.norm(val)
-                txt_color = "white" if brightness > 0.55 else _C_DARK
-                ax.text(j, i, str(val), ha="center", va="center",
-                        fontsize=max(FONT_ANNOT - 1, 6), color=txt_color)
-
-    cbar = fig.colorbar(im, ax=ax, fraction=0.03, pad=0.01)
-    cbar.set_label("Violation count", fontsize=FONT_ANNOT)
-    cbar.outline.set_visible(False)
-
-    ax.set_title("Activity × Violation Type Matrix", fontsize=FONT_TITLE)
-    ax.tick_params(axis="both", length=0)
-    for spine in ax.spines.values():
-        spine.set_visible(False)
-
-    fig.tight_layout(pad=1.2)
+    fig.suptitle(_TITLE, fontsize=FONT_TITLE, y=0.99)
+    fig.tight_layout(pad=1.2, rect=[0, 0, 1, 0.94])
     save_svg(fig, os.path.join(output_dir, "task09_matrix.svg"))
 
 
@@ -609,11 +542,11 @@ def task09_flow_chart_basic(activity_type, activity_totals, alignments, output_d
     nodes = _flow_nodes(activity_totals, ordered)
     draw_chevrons, chevron_fig_width = _import_task28_chevron()
 
-    fig_w = chevron_fig_width(nodes)
+    fig_w = chevron_fig_width(nodes, uniform_width=True)
     fig, ax = plt.subplots(figsize=(fig_w, 4.5))
-    draw_chevrons(ax, nodes, fontsize=9)
+    draw_chevrons(ax, nodes, fontsize=9, uniform_width=True)
     fig.subplots_adjust(left=0.03, right=0.98, top=0.58, bottom=0.30)
-    fig.text(0.03, 0.90, "Process Flow — Violation Heatmap",
+    fig.text(0.03, 0.90, _TITLE,
              ha="left", va="top", fontsize=FONT_TITLE, color=_C_DARK)
     fig.legend(handles=_flow_legend_handles(), loc="lower center",
                bbox_to_anchor=(0.5, 0.05), ncol=3,
@@ -788,7 +721,7 @@ def _make_bpmn_violation_svg(activity_totals, model_path, h_scale: float = 1.0):
         "<rect width='100%' height='100%' fill='white'/>",
         f"<text x='{W/2:.1f}' y='32' text-anchor='middle' "
         f"font-family='Arial,sans-serif' font-size='15' font-weight='bold' fill='{_C_DARK}'>"
-        "Process Flow — Violation Heatmap</text>",
+        f"{esc(_TITLE)}</text>",
         f"<text x='{W/2:.1f}' y='52' text-anchor='middle' "
         f"font-family='Arial,sans-serif' font-size='10' fill='{_C_MED}'>"
         "Node shade: lighter = fewer violations · darker = more violations</text>",
@@ -1247,28 +1180,43 @@ def task09_flow_chart_elaborate_bpmn_table(activity_type, activity_totals, type_
 # ── Public entry point ────────────────────────────────────────────────────────
 
 def alignment_figures(output_dir, model_path, *, view, records, attribute,
-                      prefix="task09"):
+                      prefix="task09", uniform_width=False, title=None,
+                      show_order=True, merge_log_moves=False):
     """The three trace-alignment figures, in whichever perspective was chosen.
 
     Control flow reuses task04's renderers — the alignment of a few traces is
     one figure in this platform, not one per task. Data and resource are the
     same three shapes with the colour meaning a value verdict instead of a move
     type (trace_alignment.draw_value_*).
+
+    ``uniform_width`` and ``title`` are opt-in (defaults keep task28's own call
+    on its current per-label chevron sizing and task04's own titles) — task09
+    passes both so every chevron is the same width and all three figures share
+    its one heading. ``show_order`` and ``merge_log_moves`` are
+    task04_table's own opt-ins (defaults keep the old behaviour); threaded
+    through here so callers can turn them on.
     """
+    # A caller that gives one title puts it on all three; task04's own
+    # defaults differ per figure, which is right for task04 and wrong for a
+    # task whose idioms must be read as one set.
+    titled = {"title": title} if title else {}
     if view == "control-flow":
         import tasks.task04 as task04
         task04.task04_flow_chart_basic(records, output_dir, model_path=model_path,
-                                       filename=f"{prefix}_flow_chart_basic.svg")
+                                       filename=f"{prefix}_flow_chart_basic.svg",
+                                       uniform_width=uniform_width, **titled)
         task04.task04_flow_chart_elaborate(
             records, model_path, output_dir,
-            filename=f"{prefix}_flow_chart_elaborate_bpmn.svg")
+            filename=f"{prefix}_flow_chart_elaborate_bpmn.svg", **titled)
         task04.task04_table(records, model_path, output_dir,
-                            filename=f"{prefix}_table.svg")
+                            filename=f"{prefix}_table.svg",
+                            show_order=show_order,
+                            merge_log_moves=merge_log_moves, **titled)
         return
 
     trace_alignment.draw_value_chevrons(
         records, output_dir, f"{prefix}_flow_chart_basic.svg",
-        view=view, attribute=attribute)
+        view=view, attribute=attribute, uniform_width=uniform_width)
     trace_alignment.draw_value_bpmn(
         records, model_path, output_dir, f"{prefix}_flow_chart_elaborate_bpmn.svg",
         view=view, attribute=attribute)
@@ -1284,10 +1232,11 @@ def generate(log, alignments, output_dir, model_path=None,
              conformant_resources=(), scoped_activity=""):
     """Generate all Task 9 SVGs into output_dir.
 
-    The chevron / model / table trio is trace-level: it shows the chosen traces'
-    alignment, which is what "how exactly does the process execution differ from
-    the guidelines" asks. The remaining idioms stay as they were, summarising the
-    violations over the whole log.
+    The chevron / model / table trio and the matrix are trace-level: they show
+    the chosen trace(s)' own alignment, which is what "how exactly does the
+    process execution differ from the guidelines" asks for. Nothing here stays
+    a whole-log summary — bar_chart was dropped for exactly that reason: it
+    read the whole log's violation-type frequency, not the chosen trace(s)'.
     """
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 9 visualizations (Identify guideline violations) ---")
@@ -1301,11 +1250,8 @@ def generate(log, alignments, output_dir, model_path=None,
                         "No guideline violations found in this log.")
         return
 
-    task09_bar_chart(type_totals, n_violations, output_dir)
-    task09_stacked_bar(activity_type, activity_totals, output_dir)
     # task09_scatter_plot(activity_type, activity_totals, output_dir)
     # task09_table_bar_chart(activity_type, activity_totals, n_violations, output_dir)
-    task09_matrix(activity_type, activity_totals, output_dir)
     records = trace_alignment.select_records(
         log, alignments, view=perspective, trace_ids=trace_ids,
         rule=trace_pick_rule, count=trace_count, pattern=violation_pattern,
@@ -1314,11 +1260,31 @@ def generate(log, alignments, output_dir, model_path=None,
     if records:
         logger.info(f"      -> {len(records)} trace(s) shown, {perspective} perspective.")
         alignment_figures(output_dir, model_path, view=perspective,
-                          records=records, attribute=data_attribute)
+                          records=records, attribute=data_attribute,
+                          uniform_width=True, title=_TITLE)
+        # matrix reads one representative trace — the first of the traces
+        # already chosen for the chevron/model/table trio above — not the
+        # whole log every other idiom here never touches anyway. Every
+        # activity the trace touches, synchronous moves included (built from
+        # its own rows, not _extract_data, which only ever counts violations).
+        rep = records[0]
+        rep_type = Counter()
+        rep_acts, seen = [], set()
+        for row in rep["rows"]:
+            act = _activity_for_row(row)
+            rep_type[(act, row["moveType"])] += 1
+            if act not in seen:
+                seen.add(act)
+                rep_acts.append(act)
+        task09_matrix(rep_type, rep_acts[:_TOP_N], rep["label"], output_dir)
     else:
         logger.warning("      task09: no traces to align — keeping the aggregate figures only.")
         task09_flow_chart_basic(activity_type, activity_totals, alignments, output_dir)
         task09_flow_chart_elaborate_bpmn(activity_type, activity_totals, model_path, output_dir)
         task09_table(activity_type, activity_totals, type_totals, n_violations, output_dir)
+        # No single trace to read rows from here, so this fallback keeps the
+        # whole-log, violation-only aggregate matrix has always used.
+        task09_matrix(activity_type, _top_activities(activity_totals, _TOP_N),
+                      "Whole Log", output_dir)
     # task09_flow_chart_and_table(activity_type, activity_totals, type_totals, n_violations, alignments, output_dir)
     # task09_flow_chart_elaborate_bpmn_table(activity_type, activity_totals, type_totals, n_violations, model_path, output_dir)

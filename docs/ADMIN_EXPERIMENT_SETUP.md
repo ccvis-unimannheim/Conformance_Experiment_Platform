@@ -133,25 +133,26 @@ replaces the former separate `pct` / `count` / `decimal` formats.
 
 ### Where options come from
 
-Options are authored on /answer-format, either imported from the event log or
-typed by hand. Import sources are dataset-level and task-independent:
+Options are written on /answer-format. They used to be importable from the
+event log — a dataset-level, task-independent list of sources behind
+`GET /admin/datasets/{id}/option-sources` and `.../option-candidates` — and that
+is gone: most sources had one name to give, so an imported row repeated it in
+both fields, and the ones that had more to say put the counts the question was
+about to ask for into the label the participant reads.
 
-```
-GET /admin/datasets/{id}/option-sources
-GET /admin/datasets/{id}/option-candidates?source=&granularity=&pairs=&axis_limit=
-```
+Two formats shape what is written:
 
-| Source | Produces |
-|---|---|
-| `log.activities` | activity names |
-| `log.violations` | `activity \| move_type` pairs, by trace coverage |
-| `log.candidate_attributes` | case-attribute buckets |
-| `log.time_bins` | period labels at a chosen granularity |
-| `log.trace_ids` | trace ids |
-| `log.worst_traces` | worst-fitness traces |
+* **matrix** is authored by its axis members; the cells are generated from them
+  as `{label: "a × b", value: "a__b"}`. The participant's grid is rebuilt by
+  splitting the value, so pair shape, the absence of a reversed duplicate, and
+  a label in step with its value are invariants the editor keeps rather than
+  things an admin can get wrong.
+* **number-set** rows are the categories the question is asked about, one number
+  filled into each; its answers are filed under the label, so it has no value
+  field at all.
 
-`pairs=true` (matrix) builds the upper triangle from one shared axis, capped at
-`axis_limit` because the grid is read cell by cell.
+Everything else takes a label and, when it should differ, a value — the token a
+click records.
 
 ## What the participant receives
 

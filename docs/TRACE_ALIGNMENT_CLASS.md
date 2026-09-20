@@ -68,10 +68,9 @@ non-synchronous move, which needs no cut — so task01's `conformant_threshold`,
 which reached no drawing at all (`_task01_group_stats` took it, but
 `task01.generate` never passed it), is gone rather than propagated.
 
-task27's threshold is threaded as an explicit argument through the four
-renderers that read it directly (`bar_chart`, `parallel_sets`, `matrix`,
-`heatmap`) plus `_task27_trace_df`, which carries it into the stacked bar and the
-box plot, and `_selected_indices`, which splits the automatic selection by it. A
+task27's threshold is threaded as an explicit argument through the five
+aggregate renderers, which split their counts by it, and through
+`_selected_indices`, which splits the automatic selection by it. A
 module-level default would have been one line, but generation can run for two
 experiments at once and a mutable module global would let one experiment's
 threshold decide the other's figures.
@@ -117,9 +116,8 @@ prevent.
 
 The pattern decides which traces are *picked* and nothing else — the figures
 colour by move type whatever is named — so it is hidden when the admin names the
-traces themselves. `conformant_threshold` is not: ten of task27's idioms colour
-and label whole-log variants by it, so it keeps working when the selection is
-manual. Neither are the data and resource rules, which are what the figures draw
+traces themselves. `conformant_threshold` is not: every one of task27's idioms
+is split or labelled by it, so it keeps working when the selection is manual. Neither are the data and resource rules, which are what the figures draw
 a verdict from.
 
 ### How `violation_gap` generalises past two traces
@@ -276,25 +274,73 @@ one process already disagree), and pm4py exposes no deterministic tie-break. So:
   their wording branches. `count` stays the frequency of that trace's behaviour
   in the whole log, because how common a behaviour is, is what the frequency
   idioms report.
-* **Under the automatic rule the aggregate idioms keep the log's variants.** The
-  rule picks `trace_count` per status, one by default, and two rows are not a
-  narrower bar chart but a broken box plot: one value per group, no median, no
-  quartiles, and three percentile buckets holding two items. The trace-level trio
-  is built for that count; the frequency and distribution idioms are not.
-* **task27 lost six idioms** — scatterplot, flow chart & table, table & bar
-  chart, gantt chart, flow chart+ & table and calendar — leaving `bar_chart`,
-  `table`, `parallel_sets`, `matrix`, `flow_chart_basic`, `flow_chart_elaborate`,
-  `stacked_bar`, `box_plot` and `heatmap`. The aggregate variant view is now
-  `bar_chart` alone.
+* **Every task27 idiom draws the selected traces now**, named by hand or picked
+  by the rule. The aggregates used to fall back to the log's top-15 variants
+  under the automatic rule, so the chevron showed two traces and the bar chart
+  beside it fifteen variants. The objection to closing that gap was the box
+  plot — one value per group is no distribution — and the box plot is gone.
+* **Every task27 idiom but the two flow charts carries one payload:**
+  (activity, move type) × conformance status, the cell counting how many
+  traces of that status perform that activity that way (`_status_payload`).
+  The columns *are* the comparison the task asks for, so each figure reads
+  across as "this is what conformant traces do with Check Credit, this is what
+  non-conformant ones do with it".
+
+  The move type is in the row key rather than dropped, because it is the *how*
+  of the difference. Without it both columns of a shared activity read "2" and
+  the figure says the groups are alike, when one executed the activity and the
+  other skipped it. With it the rows separate on their own: Synchronous Move
+  rows fill the conformant column, Model Move and Log Move rows the other.
+  Same construction as task34's payload, and counted per trace rather than per
+  occurrence so the two columns stay comparable.
+
+  Three steps got here. The aggregates first carried three answers between
+  them: the bar chart and the parallel sets said how *common* each behaviour
+  is, the stacked bar how *long* the traces are, and only the matrix and the
+  heatmap what the traces actually *do*. Frequency and length are differences,
+  but not the behavioural difference the task asks about, so all five moved
+  onto activity × conformance status. Plain activities lost the *how*, and a
+  per-trace column axis (tried in between) lost the conformant/non-conformant
+  perspective the task is named after. The pair as the row keeps both.
+* **task27's table is that crosstab, not task04's move table**
+  (`task27_table`). The per-trace table put the traces across the top while
+  every idiom beside it compared the two status groups — the one figure in the
+  set answering a different question. Per-trace resolution is what the chevron
+  and the BPMN are for. It also no longer sits behind the `model_path` check,
+  so a dataset without a reference model keeps its table.
+* **task27 lost eight idioms** — scatterplot, flow chart & table, table & bar
+  chart, gantt chart, flow chart+ & table, calendar, the box plot and the
+  parallel sets — leaving `bar_chart`, `table`, `matrix`,
+  `flow_chart_basic`, `flow_chart_elaborate`, `stacked_bar` and `heatmap`. The
+  box plot drew throughput time per status, which answers how *long* the two
+  groups take rather than how their behaviour differs. The parallel sets drew
+  the payload above as ribbons, where every cell is 0, 1 or 2: a ribbon of
+  width 1 beside one of width 2 is not a readable difference, and the thin ones
+  fall below `draw_parallel_sets`'s label threshold and vanish.
 * **task28** is task09 explored rather than presented. Same parameters, and the
   trace-level trio is literally task09's renderers; the difference is
   `HIGHLIGHT_VIOLATIONS = False`, a task property rather than an admin choice.
   **The two no longer offer the same idiom set**: task28 has dropped its
-  scatter plot, flow chart & table, table & bar chart, flow chart+ & table and
-  network diagram, leaving `flow_chart_basic`, `flow_chart_elaborate`, `table`,
-  `bar_chart`, `stacked_bar`, `boxplot`, `matrix` and `heatmap`. task09 still
-  declares all five of the dropped ones. Trimming task09 to match is the open
-  half of that decision.
+  scatter plot, flow chart & table, table & bar chart, flow chart+ & table,
+  network diagram and box plot, leaving `flow_chart_basic`,
+  `flow_chart_elaborate`, `table`, `bar_chart`, `stacked_bar`, `matrix` and
+  `heatmap`. task09 still declares five of the dropped ones. Trimming task09 to
+  match is the open half of that decision.
+* **task28's aggregates are on the trace level too.** `bar_chart`,
+  `stacked_bar`, `matrix` and `heatmap` used to read `_dev_df(alignments)`: the
+  whole log's deviation patterns, ranked by frequency, capped at the top 12, and
+  untouched by the trace selection — so the chevron, BPMN and table pinpointed
+  the chosen traces while the bar chart beside them summarised thirteen thousand
+  others. They read `_selected_step_payload(records)` now, whose unit is one
+  deviating step's `(activity, move type)` — where it happened and what kind it
+  was, which is what this task asks. Over one to four traces the cells hold 0, 1
+  or 2, so the number stops being a ranking and the figure reads as a location.
+  **This makes task28's aggregates the same shape as task34's.** The two are not
+  the same task — task28 is Explore, `HIGHLIGHT_VIOLATIONS = False`, and does not
+  hand the participant the violations — but whether that difference is enough to
+  put both in one study is an experiment-design question, not a code one.
+  The perspective is the other open edge: the trio draws value verdicts in the
+  data and resource views, while these four still read move types.
 * **task34** draws one trace exactly as before; two or more go through task04's
   renderers. **The per-activity summaries follow the selection too.** They used
   to stay on the first trace, on the argument that stacking one of those per

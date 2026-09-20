@@ -82,7 +82,12 @@ PERSPECTIVE_PARAM = {
         {"value": "resource",     "label": "Resource — who executed the activity"},
     ],
     "default": "control-flow",
-    "required": False,
+    # A fixed-option select whose default silently decides what is drawn.
+    # Required so /specify marks it and refuses an empty one: the choice is
+    # always in force, and without the asterisk an admin cannot tell it was
+    # made for them. Contrast the parameters that stay optional, where an
+    # empty value has a stated meaning their own label gives.
+    "required": True,
 }
 
 TRACE_SELECTION_MODE_PARAM = {
@@ -96,7 +101,12 @@ TRACE_SELECTION_MODE_PARAM = {
         {"value": "manual", "label": "I pick them myself"},
     ],
     "default": "auto",
-    "required": False,
+    # A fixed-option select whose default silently decides what is drawn.
+    # Required so /specify marks it and refuses an empty one: the choice is
+    # always in force, and without the asterisk an admin cannot tell it was
+    # made for them. Contrast the parameters that stay optional, where an
+    # empty value has a stated meaning their own label gives.
+    "required": True,
 }
 
 TRACE_IDS_PARAM = {
@@ -212,7 +222,14 @@ def trace_pick_rule_param(rules: list, default: str) -> dict:
         "widget": "select-one",
         "options": [{"value": r, "label": PICK_RULES[r]} for r in rules],
         "default": default,
-        "required": False,
+        # A fixed-option select whose default silently decides what is drawn.
+    # Required so /specify marks it and refuses an empty one: the choice is
+    # always in force, and without the asterisk an admin cannot tell it was
+    # made for them. Contrast the parameters that stay optional, where an
+    # empty value has a stated meaning their own label gives.
+        # Its visible_if keeps that honest: both the page and admin.py skip a
+        # hidden entry, so naming the traces by hand never blocks on it.
+        "required": True,
         "visible_if": {"trace_selection_mode": "auto"},
     }
 
@@ -759,8 +776,12 @@ def _verdict_colors():
 
 
 def draw_value_chevrons(records, output_dir, filename, *, view, attribute="",
-                        fontsize=17):
-    """One chevron strip per trace, each step coloured by its value verdict."""
+                        fontsize=17, uniform_width=False):
+    """One chevron strip per trace, each step coloured by its value verdict.
+
+    ``uniform_width`` makes every chevron the same width (widest label wins)
+    instead of sizing each to its own label. Opt-in, default keeps the
+    existing per-label sizing."""
     import os
     import matplotlib.pyplot as plt
     import matplotlib.patches as mpatches
@@ -781,14 +802,15 @@ def draw_value_chevrons(records, output_dir, filename, *, view, attribute="",
         for record in records
     ]
 
-    fig_w = max((chevron_figure_width(n) for n in nodes_per_trace if n), default=9.0)
+    fig_w = max((chevron_figure_width(n, uniform_width=uniform_width)
+                for n in nodes_per_trace if n), default=9.0)
     fig_h = 1.9 * len(records) + 1.6
     fig = plt.figure(figsize=(fig_w, fig_h))
     gs = gridspec.GridSpec(len(records), 1, hspace=0.9)
     for r, (record, nodes) in enumerate(zip(records, nodes_per_trace)):
         ax = fig.add_subplot(gs[r])
         if nodes:
-            draw_chevron_strip(ax, nodes, fontsize=fontsize)
+            draw_chevron_strip(ax, nodes, fontsize=fontsize, uniform_width=uniform_width)
         else:
             ax.axis("off")
         # The value is the finding here, so it is named next to the trace rather

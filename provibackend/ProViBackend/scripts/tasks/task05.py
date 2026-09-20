@@ -24,8 +24,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "stacked_bar", "table", "table_and_bar_chart", "matrix",
-          "parallel_sets", "box_plot", "heatmap"]
+IDIOMS = ["bar_chart", "table", "matrix", "heatmap"]
 
 
 def _shared_params():
@@ -61,19 +60,17 @@ def validate_params(log, params) -> list:
 
 
 import os
-import numpy as np
 import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from matplotlib import gridspec
 
 from shared import (
-    save_svg, make_table, draw_parallel_sets, alignment_pairs_to_rows,
-    draw_grouped_rate_bars, draw_composition_stacked_bars, draw_rate_matrix,
-    draw_grouped_box_plot, draw_value_heatmap, render_empty_state_svg,
-    PAIR_COLORS, categorical_colors, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    save_svg, make_table, alignment_pairs_to_rows,
+    draw_grouped_rate_bars, draw_rate_matrix,
+    draw_value_heatmap, render_empty_state_svg,
+    wrap_text, PAIR_COLORS, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 TOP_N = 10
@@ -81,17 +78,64 @@ TOP_N = 10
 _COLOR_POSITIVE, _COLOR_NEGATIVE = PAIR_COLORS  # cividis blue / yellow
 _GROUP_COLORS   = {"Positive": _COLOR_POSITIVE, "Negative": _COLOR_NEGATIVE}
 
+#: Angle the sub-log names are rotated to where they sit under a two-column
+#: axis. _SUBLOG_LABELS is short enough to sit flat now; the rotation stays
+#: because the tick is one column wide either way, and a name that grows —
+#: those two are the only ones this module fixes — would run into its
+#: neighbour again.
+_SUBLOG_TICK_ROTATION = 20
+
+
+def _titled(title: str, caption: str) -> str:
+    """The figure's title with the split spelled out under it.
+
+    The columns and the legend name the sub-logs generically, so without this
+    line nothing on the figure says which traces are in which. It goes in the
+    title because that has the whole figure to wrap into, where a column header
+    has only its column — the length of an attribute value is the dataset's to
+    decide, and "__start_time__ = 2025-01-15 08:56:00+00:00" is not unusual.
+    """
+    return f"{title}\n{caption}" if caption else title
+
+
+def _wrapped_headers(headers, width: int):
+    """Table headers wrapped to `width`, with the tallest one's line count.
+
+    Matplotlib tables neither clip nor grow to fit their text: an over-long
+    header runs straight into the next column, and extra lines spill out of the
+    header row. Callers wrap at whatever width their column affords and add the
+    returned line count to the figure height, so both directions stay inside
+    the cell whatever the split attribute is called.
+    """
+    wrapped = [wrap_text(str(h), width) for h in headers]
+    return wrapped, max(w.count("\n") + 1 for w in wrapped)
+
 
 # ---------------------------------------------------------------------------
 # Data helpers
 # ---------------------------------------------------------------------------
 
+#: What the figures call the two sub-logs. The split names them after the
+#: attribute and its value, which is unbounded: "region = Germany" is 16
+#: characters, "__start_time__ = 2025-01-15 08:56:00+00:00" is 42, and the long
+#: one overran the table's column and spilled out of the header row. It also
+#: began with an underscore, which matplotlib reads as "hide this artist", so
+#: the bar chart's legend came out empty.
+#:
+#: The split is always in two, and which half is which does not change between
+#: attributes, so naming the pair generically costs the figure nothing it was
+#: reliably carrying. Which attribute was split, and where, is a property of the
+#: task instance — the admin sets it on /specify and it is shown there.
+_SUBLOG_LABELS = ("Selected sub-log", "Remaining traces")
+
+
 def _task05_groups(log, split_attribute: str = ""):
-    """The two sub-logs compared, as (assignment, short_labels, long_labels).
+    """The two sub-logs compared, as (assignment, labels, caption).
 
     ``assignment`` holds the internal slot names "Positive"/"Negative" — kept so
-    the aggregation and every renderer's column keys are untouched — while the
-    labels are what the reader sees.
+    the aggregation and every renderer's column keys are untouched. ``labels`` is
+    what the reader sees on the columns and in the legend, and ``caption`` the
+    line under each title that says what those two names stand for.
 
     The outcome split this task used to make is gone with the parameter that
     configured it. It compared two outcome groups of one log, which its own
@@ -106,12 +150,13 @@ def _task05_groups(log, split_attribute: str = ""):
         if split:
             raw, (label_a, label_b) = split
             slot = {label_a: "Positive", label_b: "Negative"}
-            return [slot.get(v) for v in raw], (label_a, label_b), (label_a, label_b)
+            caption = (f"{_SUBLOG_LABELS[0]}: {label_a}"
+                       f"   ·   {_SUBLOG_LABELS[1]}: {label_b}")
+            return [slot.get(v) for v in raw], _SUBLOG_LABELS, caption
         logger.warning("      task05: '%s' does not split the log in two.", split_attribute)
 
     # No second sub-log: name it rather than leaving a blank axis label.
-    return ["Positive"] * len(log), ("All traces", "(no second sub-log)"), \
-           ("All traces", "(no second sub-log)")
+    return ["Positive"] * len(log), ("All traces", "(no second sub-log)"), ""
 
 
 def _task05_build_violation_df(log, alignments, assignment,
@@ -179,7 +224,7 @@ def _task05_aggregate(viol_df: pd.DataFrame, n_traces: dict, top_n: int = TOP_N)
 # ---------------------------------------------------------------------------
 
 def task05_bar_chart(agg_df: pd.DataFrame, output_dir: str,
-                     labels=("Sub-log 1", "Sub-log 2")):
+                     labels=("Sub-log 1", "Sub-log 2"), caption: str = ""):
     """Grouped bars: violation rate per top-N pattern for Positive vs Negative."""
     patterns = agg_df["pattern"].tolist()
 
@@ -194,7 +239,8 @@ def task05_bar_chart(agg_df: pd.DataFrame, output_dir: str,
     ax.set_xticks(x)
     ax.set_xticklabels(wrapped, fontsize=FONT_ANNOT - 1)
     ax.set_ylabel("% of group traces exhibiting violation", fontsize=FONT_LABEL)
-    ax.set_title(f"Top-{len(patterns)} Violation Patterns by Sub-log", fontsize=FONT_TITLE)
+    ax.set_title(_titled(f"Top-{len(patterns)} Violation Patterns by Sub-log", caption),
+                 fontsize=FONT_TITLE)
     ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.25),
               ncol=2, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
@@ -204,112 +250,52 @@ def task05_bar_chart(agg_df: pd.DataFrame, output_dir: str,
     save_svg(fig, os.path.join(output_dir, "task05_bar_chart.svg"))
 
 
-def task05_stacked_bar(agg_df: pd.DataFrame, n_traces: dict, output_dir: str,
-                       labels=("Sub-log 1", "Sub-log 2")):
-    """Stacked bar: one bar per sub-log, segments = top-N patterns + Other."""
-    groups   = list(labels)
-    patterns = agg_df["pattern"].tolist()
-
-    fig, ax = plt.subplots(figsize=(5, 5.5))
-    draw_composition_stacked_bars(
-        ax, groups, patterns,
-        agg_df[["Positive_rate", "Negative_rate"]].values,
-        segment_colors=categorical_colors(len(patterns)),
-    )
-
-    ax.set_ylabel("Cumulative violation rate (%)", fontsize=FONT_LABEL)
-    ax.set_title("Violation Pattern Composition per Sub-log", fontsize=FONT_TITLE)
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.5)
-    ax.set_axisbelow(True)
-    handles, labels = ax.get_legend_handles_labels()
-    ax.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, -0.25),
-              ncol=max(1, len(handles)), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task05_stacked_bar.svg"))
-
-
 def task05_table(agg_df: pd.DataFrame, output_dir: str,
-                 labels=("Sub-log 1", "Sub-log 2")):
-    """Table: Pattern | Positive (count / rate) | Negative (count / rate) | Total."""
+                 labels=("Sub-log 1", "Sub-log 2"), caption: str = ""):
+    """Table: Pattern | rate per sub-log.
+
+    The rate alone, because that is what the bar chart, the matrix and the
+    heatmap draw. The table used to add the trace count behind each rate and a
+    Total column of counts across both sub-logs, which no other idiom carried —
+    reading the four against each other meant reading past that. The rows are
+    still ordered by that total, it is just no longer a column.
+    """
     cell_text = [
         [
             row["pattern"],
-            f"{int(row['Positive_count'])} ({row['Positive_rate']:.1f}%)",
-            f"{int(row['Negative_count'])} ({row['Negative_rate']:.1f}%)",
-            str(int(row["total"])),
+            f"{row['Positive_rate']:.1f}%",
+            f"{row['Negative_rate']:.1f}%",
         ]
         for _, row in agg_df.iterrows()
     ]
-    fig_h = max(3.5, 1.3 + len(cell_text) * 0.46)
+    heads, head_lines = _wrapped_headers([labels[0], labels[1]], 20)
+    fig_h = max(3.5, 1.3 + len(cell_text) * 0.46) + (head_lines - 1) * 0.22
     fig, ax = plt.subplots(figsize=(13, fig_h))
     ax.axis("off")
     make_table(
         ax,
         cell_text=cell_text,
-        col_labels=["Violation Pattern", f"{labels[0]} (n / rate)",
-                    f"{labels[1]} (n / rate)", "Total"],
+        col_labels=["Violation Pattern", heads[0], heads[1]],
         bbox=[0.01, 0.05, 0.98, 0.80],
-        col_widths=[0.50, 0.18, 0.18, 0.10],
+        col_widths=[0.50, 0.25, 0.25],
         font_size=9.5,
         scale_xy=(1, 1.75),
         cell_pad=0.09,
     )
-    ax.set_title(f"Top-{len(cell_text)} Violation Patterns by Sub-log",
+    ax.set_title(_titled(f"Top-{len(cell_text)} Violation Patterns by Sub-log", caption),
                  fontsize=FONT_TITLE, pad=12)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task05_table.svg"))
 
 
-def task05_table_and_bar_chart(agg_df: pd.DataFrame, output_dir: str,
-                               labels=("Sub-log 1", "Sub-log 2")):
-    """Table (left) + grouped bar chart (right) in one figure."""
-    fig = plt.figure(figsize=(16, max(4.5, 1.2 + len(agg_df) * 0.45)))
-    gs  = gridspec.GridSpec(1, 2, width_ratios=[1.5, 1.0], wspace=0.35)
-
-    ax_tbl = fig.add_subplot(gs[0])
-    ax_tbl.axis("off")
-    cell_text = [
-        [row["pattern"],
-         f"{int(row['Positive_count'])} ({row['Positive_rate']:.1f}%)",
-         f"{int(row['Negative_count'])} ({row['Negative_rate']:.1f}%)",
-         str(int(row["total"]))]
-        for _, row in agg_df.iterrows()
-    ]
-    make_table(
-        ax_tbl,
-        cell_text=cell_text,
-        col_labels=["Violation Pattern", labels[0], labels[1], "Total"],
-        bbox=[0.01, 0.05, 0.98, 0.82],
-        col_widths=[0.52, 0.18, 0.18, 0.10],
-        font_size=9,
-        scale_xy=(1, 1.7),
-        cell_pad=0.09,
-    )
-    ax_tbl.set_title(f"Top-{len(agg_df)} Violation Patterns", fontsize=FONT_TITLE, pad=10)
-
-    ax_bar = fig.add_subplot(gs[1])
-    patterns = agg_df["pattern"].tolist()
-    x = draw_grouped_rate_bars(
-        ax_bar, len(patterns), list(labels),
-        agg_df[["Positive_rate", "Negative_rate"]].values,
-        [_COLOR_POSITIVE, _COLOR_NEGATIVE], horizontal=True,
-    )
-    ax_bar.set_yticks(x)
-    ax_bar.set_yticklabels(patterns, fontsize=FONT_ANNOT - 1)
-    ax_bar.set_xlabel("Rate (%)", fontsize=FONT_LABEL)
-    ax_bar.legend(frameon=False, fontsize=FONT_ANNOT)
-    ax_bar.spines[["top", "right"]].set_visible(False)
-    ax_bar.xaxis.grid(True, linestyle="--", alpha=0.5)
-    ax_bar.set_axisbelow(True)
-
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task05_table_and_bar_chart.svg"))
-
-
 def task05_matrix(agg_df: pd.DataFrame, output_dir: str,
-                  labels=("Sub-log 1", "Sub-log 2")):
-    """Heatmap matrix: rows = violation pattern (top-N), cols = sub-log, cell = rate."""
+                  labels=("Sub-log 1", "Sub-log 2"), caption: str = ""):
+    """Rate as numbers: rows = violation pattern (top-N), cols = sub-log.
+
+    The heatmap draws the same table as colour; this one carries the rate in the
+    printed number alone, so the two idioms differ in how the value is read
+    rather than only in whether digits sit on top of the shading.
+    """
     if agg_df.empty:
         fig, ax = plt.subplots(figsize=(4, 3))
         ax.axis("off")
@@ -324,164 +310,18 @@ def task05_matrix(agg_df: pd.DataFrame, output_dir: str,
 
     fig_h = max(3.0, 0.55 * len(patterns) + 1.2)
     fig, ax = plt.subplots(figsize=(5, fig_h))
-    draw_rate_matrix(fig, ax, data, patterns, groups, xlabel="Sub-log")
-    ax.set_title("Violation Rate Matrix (%)", fontsize=FONT_TITLE)
+    # The sub-log names come from the split attribute ("AMOUNT_REQ ≤ 10000"),
+    # so two of them side by side overrun a two-column axis; rotating is what
+    # the other tasks do with labels this long.
+    draw_rate_matrix(fig, ax, data, patterns, groups, xlabel="Sub-log",
+                     colorless=True, rotate_xticks=_SUBLOG_TICK_ROTATION)
+    ax.set_title(_titled("Violation Rate Matrix (%)", caption), fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task05_matrix.svg"))
 
 
-def task05_parallel_sets(agg_df: pd.DataFrame, viol_df: pd.DataFrame,
-                          n_traces: dict, output_dir: str,
-                          labels=("Sub-log 1", "Sub-log 2")):
-    """Parallel Sets: Sub-log × Violation Pattern (top-N + Other).
-
-    Ribbon width ∝ number of traces in the group that exhibit the pattern
-    (deduplicated per trace, consistent with the table/bar idioms). Both axes
-    are labelled with the count *and* its share of all flow, so the numbers on
-    the left match the ribbons leaving them and the participant can read a
-    percentage directly.
-    """
-    groups   = list(labels)
-    patterns = agg_df["pattern"].tolist() if not agg_df.empty else []
-
-    # Count matrix [n_groups × (n_patterns + Other)] at the TRACE level:
-    # matrix[g, p] = # traces in group g that exhibit pattern p.
-    cats = patterns + (["Other"] if not viol_df.empty else [])
-    matrix = np.zeros((len(groups), len(cats)), dtype=int)
-
-    if not agg_df.empty:
-        matrix[0, :len(patterns)] = agg_df["Positive_count"].to_numpy(dtype=int)
-        matrix[1, :len(patterns)] = agg_df["Negative_count"].to_numpy(dtype=int)
-
-    if not viol_df.empty and len(cats) > len(patterns):
-        top_set = set(patterns)
-        for gi, g in enumerate(groups):
-            sub = viol_df[viol_df["group"] == g]
-            # traces (deduped) with at least one non-top pattern
-            matrix[gi, -1] = int(
-                sub.loc[~sub["pattern"].isin(top_set), "trace_index"].nunique())
-
-    if matrix.sum() == 0:
-        render_empty_state_svg(os.path.join(output_dir, "task05_parallel_sets.svg"),
-                               "Parallel Sets: Sub-log vs. Violation Pattern",
-                               "No violations found.")
-        return
-
-    total    = int(matrix.sum())
-    grp_tot  = matrix.sum(axis=1)
-    cat_tot  = matrix.sum(axis=0)
-
-    def _pct(x: float) -> float:
-        return (x / total * 100.0) if total else 0.0
-
-    # Left labels: group + flow count + % of all flow (matches the bar height).
-    left_labels = [
-        f"{g}\n{int(grp_tot[gi])} ({_pct(grp_tot[gi]):.0f}%)"
-        for gi, g in enumerate(groups)
-    ]
-    # Right labels: pattern + flow count + % of all flow.
-    right_labels = [
-        f"{c}  —  {int(cat_tot[ci])} ({_pct(cat_tot[ci]):.0f}%)"
-        for ci, c in enumerate(cats)
-    ]
-
-    fig, ax = plt.subplots(figsize=(11.5, 5.8))
-    ax.axis("off")
-    ax.set_xlim(-0.16, 1.28)
-    ax.set_ylim(-0.05, 1.15)
-    ax.set_title("Parallel Sets: Sub-log vs. Violation Pattern",
-                 fontsize=FONT_TITLE, pad=12)
-
-    draw_parallel_sets(
-        ax,
-        left_labels=left_labels,
-        right_labels=right_labels,
-        matrix=matrix,
-        # Colour means only the pattern (navy = most frequent, as on the heatmap
-        # where dark = more); the sub-logs are outlined and named.
-        left_colors=["white", "white"],
-        left_edgecolor="#333333",
-        right_colors=categorical_colors(len(cats)),
-        ribbon_colors_by="right",
-        ribbon_alpha=0.55,
-        left_title="Sub-log",
-        right_title="Violation Pattern",
-    )
-
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task05_parallel_sets.svg"))
-
-
-# ---------------------------------------------------------------------------
-# Medium idioms
-# ---------------------------------------------------------------------------
-
-_GROUPS = ["Positive", "Negative"]
-
-
-def task05_box_plot(log, viol_df: pd.DataFrame, assignment, output_dir: str,
-                    labels=("Sub-log 1", "Sub-log 2")):
-    """Violations-per-trace distribution per sub-log (zero-violation traces included).
-
-    Individual per-trace points are overlaid as a jittered strip so the
-    distribution stays readable even when most traces have zero violations (a
-    plain box then collapses to a flat line). Each group is annotated with the
-    share of its traces that exhibit at least one violation — the percentage the
-    task is really asking for — plus the group size and mean.
-
-    Takes the assignment rather than recomputing the split: it used to derive
-    the group from the outcome activity a second time, so this one figure could
-    disagree with the other seven about which trace sat where.
-    """
-    per_trace = viol_df.groupby("trace_index").size() if not viol_df.empty else pd.Series(dtype=int)
-    data = {g: [] for g in _GROUPS}
-    for i, _trace in enumerate(log):
-        g = assignment[i] if i < len(assignment) else None
-        if g is None:
-            continue
-        data[g].append(int(per_trace.get(i, 0)))
-    arrays = [np.array(data[g]) for g in _GROUPS]
-    if all(a.size == 0 for a in arrays):
-        render_empty_state_svg(os.path.join(output_dir, "task05_box_plot.svg"),
-                               "Violations per Trace", "No traces.")
-        return
-
-    fig, ax = plt.subplots(figsize=(6.5, 6))
-    draw_grouped_box_plot(ax, arrays, list(labels), [_COLOR_POSITIVE, _COLOR_NEGATIVE],
-                          ylabel="Violations per trace", ylim=None)
-
-    # Overlay individual traces as a jittered strip so a mostly-zero group is
-    # not reduced to a single line + outlier point.
-    rng = np.random.default_rng(42)
-    for xi, arr in enumerate(arrays, start=1):
-        if arr.size == 0:
-            continue
-        jitter = rng.uniform(-0.09, 0.09, arr.size)
-        ax.scatter(np.full(arr.size, xi) + jitter, arr,
-                   s=12, color="#333333", alpha=0.30, linewidths=0, zorder=4)
-
-    # Per-group annotation: % of traces with >=1 violation (the answer unit),
-    # group size, and mean violations per trace.
-    y_max = max((int(a.max()) if a.size else 0) for a in arrays)
-    head_room = max(y_max * 0.18, 0.6)
-    for xi, (g, arr) in enumerate(zip(_GROUPS, arrays), start=1):
-        n = int(arr.size)
-        pct = (int(np.count_nonzero(arr)) / n * 100.0) if n else 0.0
-        mean = float(arr.mean()) if n else 0.0
-        ax.text(xi, y_max + head_room,
-                f"{pct:.1f}% with ≥1 violation\n(n={n} · mean {mean:.2f})",
-                ha="center", va="bottom", fontsize=FONT_ANNOT, color="#333333")
-
-    ax.set_ylim(-0.4, y_max + head_room * 2.4 + 0.6)
-    ax.set_title("Violations per Trace by Sub-log\n"
-                 "(% = traces in group with at least one violation)",
-                 fontsize=FONT_TITLE)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task05_box_plot.svg"))
-
-
 def task05_heatmap(agg_df: pd.DataFrame, output_dir: str,
-                   labels=("Sub-log 1", "Sub-log 2")):
+                   labels=("Sub-log 1", "Sub-log 2"), caption: str = ""):
     """Violation pattern × sub-log, rate, continuous colour (complements the matrix)."""
     if agg_df.empty:
         render_empty_state_svg(os.path.join(output_dir, "task05_heatmap.svg"),
@@ -492,8 +332,9 @@ def task05_heatmap(agg_df: pd.DataFrame, output_dir: str,
     fig_h = max(3.0, 0.55 * len(patterns) + 1.2)
     fig, ax = plt.subplots(figsize=(5, fig_h))
     draw_value_heatmap(fig, ax, data, patterns, list(labels), xlabel="Sub-log",
-                       cbar_label="Rate (%)", annotate=False)
-    ax.set_title("Violation Rate Heatmap (%)", fontsize=FONT_TITLE)
+                       cbar_label="Rate (%)", annotate=False,
+                       rotate_xticks=_SUBLOG_TICK_ROTATION)
+    ax.set_title(_titled("Violation Rate Heatmap (%)", caption), fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task05_heatmap.svg"))
 
@@ -517,16 +358,16 @@ def generate(log, alignments, output_dir: str, split_attribute: str = "",
         logger.warning("      task05: no split attribute — the whole log is one group, "
                        "so there is nothing to compare it against.")
 
-    assignment, short_labels, long_labels = _task05_groups(log, split_attribute)
+    assignment, sublog_labels, split_caption = _task05_groups(log, split_attribute)
 
     # n_traces keys stay the internal slot names the aggregation pivots on.
     n_traces = {"Positive": 0, "Negative": 0}
     for slot in assignment:
         if slot in n_traces:
             n_traces[slot] += 1
-    logger.info(f"      -> {short_labels[0]}: {n_traces['Positive']}  |  "
-                f"{short_labels[1]}: {n_traces['Negative']}")
-    for slot, name in zip(("Positive", "Negative"), short_labels):
+    logger.info(f"      -> {sublog_labels[0]}: {n_traces['Positive']}  |  "
+                f"{sublog_labels[1]}: {n_traces['Negative']}")
+    for slot, name in zip(("Positive", "Negative"), sublog_labels):
         if n_traces[slot] == 0:
             logger.warning(f"      task05: '{name}' holds no traces.")
 
@@ -538,11 +379,7 @@ def generate(log, alignments, output_dir: str, split_attribute: str = "",
     agg_df = _task05_aggregate(viol_df, n_traces)
     logger.info(f"      -> Top-{len(agg_df)} violation groups aggregated.")
 
-    task05_bar_chart(agg_df, output_dir, long_labels)
-    task05_stacked_bar(agg_df, n_traces, output_dir, short_labels)
-    task05_table(agg_df, output_dir, short_labels)
-    task05_table_and_bar_chart(agg_df, output_dir, short_labels)
-    task05_matrix(agg_df, output_dir, short_labels)
-    task05_parallel_sets(agg_df, viol_df, n_traces, output_dir, short_labels)
-    task05_box_plot(log, viol_df, assignment, output_dir, short_labels)
-    task05_heatmap(agg_df, output_dir, short_labels)
+    task05_bar_chart(agg_df, output_dir, sublog_labels, split_caption)
+    task05_table(agg_df, output_dir, sublog_labels, split_caption)
+    task05_matrix(agg_df, output_dir, sublog_labels, split_caption)
+    task05_heatmap(agg_df, output_dir, sublog_labels, split_caption)
