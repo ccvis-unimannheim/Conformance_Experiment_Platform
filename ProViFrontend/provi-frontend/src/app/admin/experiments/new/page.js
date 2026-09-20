@@ -320,25 +320,44 @@ export default function NewExperimentPage() {
             table with a one-line note instead of leaving both on screen. */}
         <div className="mt-section-gap space-y-section-gap">
           {bundleOnly ? (
-            <section className="bg-surface-container-lowest p-gutter rounded-xl border border-outline-variant">
-              <h2 className="text-h2 text-primary mb-3">Dataset</h2>
-              <p className="text-body-sm text-secondary mb-2">
-                This experiment shows the images of the zip it was created from, so it needs no
-                dataset — nothing is generated for it, and a dataset cannot be added while that is
-                the case.
-              </p>
-              <p className="text-body-sm text-secondary mb-4">
-                To build it from a dataset instead, discard those images first. Its tasks and idioms
-                came from the zip as well, so they go with them; the name and study design stay.
-              </p>
-              <button
-                type="button"
-                onClick={discardBundle}
-                className="px-4 py-2 rounded-lg border border-outline-variant text-body-sm hover:border-primary/50"
-              >
-                Discard the uploaded images and choose a dataset
-              </button>
-            </section>
+            <>
+              <section className="bg-surface-container-lowest p-gutter rounded-xl border border-outline-variant">
+                <h2 className="text-h2 text-primary mb-3">Dataset</h2>
+                <p className="text-body-sm text-secondary mb-2">
+                  The zip you uploaded is saved — this experiment shows exactly its images, so it
+                  needs no dataset and nothing is generated for it. A dataset cannot be added while
+                  that is the case.
+                </p>
+                <p className="text-body-sm text-secondary mb-4">
+                  Uploaded the wrong zip, or want a different one? Replace it below without starting
+                  over, or discard it to build this experiment from a dataset instead — either way its
+                  tasks and idioms go with the images, since neither exists without them; the name and
+                  study design stay.
+                </p>
+                <button
+                  type="button"
+                  onClick={discardBundle}
+                  className="px-4 py-2 rounded-lg border border-outline-variant text-body-sm hover:border-primary/50"
+                >
+                  Discard the uploaded images and choose a dataset
+                </button>
+              </section>
+
+              <BundleStartCard
+                name={name}
+                designType={designType}
+                randomizeOrder={randomizeOrder}
+                open={bundleCardOpen}
+                onToggle={() => setBundleCardOpen((v) => !v)}
+                replaceExperimentId={resumedId}
+                onCreated={(data) => {
+                  const next = data.needs_answer_format ? "answer-format" : "overview";
+                  router.push(
+                    `/admin/experiments/${next}?experiment_id=${encodeURIComponent(data.experiment_id)}`
+                  );
+                }}
+              />
+            </>
           ) : (
             <>
               {!resumedId && (
