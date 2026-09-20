@@ -2,6 +2,21 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: This Log Moves Into docs/, .claude/ Goes (2026-09-21)
+
+`CHANGES.md` now lives in `docs/` with the rest of the written record, moved
+with `git mv` so its history follows it. The one place that mentions it,
+`docs/DFG_INTEGRATION.md`, refers to it as `` `CHANGES.md` `` in prose rather
+than by path, and now sits beside it, so nothing needed rewriting.
+
+`.claude/launch.json` is deleted, and with it the `.claude/` directory, which
+held nothing else. It was a Claude Code launch shortcut for the frontend dev
+server (`npm run dev` in `ProViFrontend/provi-frontend`, port 3000), committed
+by accident in `4ef09e0 fix volume mount for SVG persistence`. A search of
+every file in the repo, hidden ones included, found no reference to it from
+any code, workflow or config — no application, CI or deploy behaviour depends
+on it.
+
 ## Session: task07's Line Graph Moves Its Mean Label, Unstacks Its Value Labels (2026-09-20)
 
 Two style fixes to `render_conformance_line_graph` (`scripts/shared.py`), to
