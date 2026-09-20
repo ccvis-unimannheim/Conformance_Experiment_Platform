@@ -4,7 +4,7 @@ tasks/task08.py – Task 8: Violation co-occurrence patterns.
 Which guideline violations frequently co-occur in a trace?
 
 Visualizations:
-    heatmap, matrix, network_diagram, table
+    matrix, network_diagram, table
 
 Skipped (require BPMN rendering infrastructure):
     flow_table, flow_plus, flow_plus_table
@@ -44,7 +44,6 @@ def validate_params(log, params) -> list:
     return []
 
 IDIOMS = [
-    "heatmap",
     "matrix",
     "network_diagram",
     "table",
@@ -61,13 +60,12 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
 from matplotlib.colors import ListedColormap
-from shared import most_common_stable, save_svg, make_table, draw_cell_grid, GREY_DARK, GREY_MED, CIVIDIS, CIVIDIS_R, FONT_TITLE, FONT_ANNOT
+from shared import most_common_stable, save_svg, make_table, draw_cell_grid, GREY_DARK, GREY_MED, CIVIDIS, FONT_TITLE, FONT_ANNOT
 from shared import MOVE_LOG, MOVE_MODEL
 
 # ── Cividis palette ──────────────────────────────────────────────────────────
 _C_DARK   = GREY_DARK      # dark navy   (highest emphasis)
 _C_MED    = GREY_MED       # neutral grey — caption text only, never data
-_CMAP_SEQ = CIVIDIS_R      # sequential: yellow-green → dark navy (high = dark)
 
 # ── Chrome ───────────────────────────────────────────────────────────────────
 # Greys for what carries no data — the network panel and the boxes behind its
@@ -79,11 +77,11 @@ _CHROME_PANEL  = "#fafbfc"   # axes background behind the network diagram
 _CHROME_BORDER = "#dddddd"   # outline of the white label boxes
 _CHROME_FILL   = "white"     # fill of those label boxes
 
-# How many of the most-frequent violation types the figures are built from: the
-# matrix and heatmap axis, and the ring of the network diagram. One number for
-# all three, because they are compared against each other — the network drew 12
-# against their 10, so it carried a co-occurrence they had no row for. An admin
-# who names the patterns overrides this; see generate().
+# How many violations the figures are built from: the matrix axis and the ring
+# of the network diagram. One number for both, because they are compared against
+# each other — the network once drew 12 against the matrix's 10, so it carried a
+# co-occurrence the matrix had no row for. An admin who names the patterns
+# overrides this; see generate().
 _TOP_N = 10
 # Min co-occurrence count for network edges / scatter points
 _MIN_COOCCUR = 1
@@ -177,7 +175,7 @@ def _top_violations(violation_freq, n=_TOP_N):
 
 
 def _axis_violations(violation_freq, cooccurrence, n):
-    """The n violations the three figures are built from, chosen by co-occurrence.
+    """The n violations the two grid figures are built from, chosen by co-occurrence.
 
     Ranking them by how many traces contain each one answered a different
     question from the one the task asks. On the order-to-cash log it spent three
@@ -264,7 +262,7 @@ def _no_violations(output_dir, name):
 
 
 # ---------------------------------------------------------------------------
-# Idiom: Heatmap — violation × violation co-occurrence (colour only)
+# Idiom: Matrix — violation × violation co-occurrence, one count per cell
 # ---------------------------------------------------------------------------
 
 def _build_cooccur_matrix(top_viols, violation_freq, cooccurrence):
@@ -280,43 +278,6 @@ def _build_cooccur_matrix(top_viols, violation_freq, cooccurrence):
         mat[i, i] = violation_freq[v]
     return mat
 
-
-def task08_heatmap(violation_freq, cooccurrence, output_dir, axis):
-    if not violation_freq:
-        _no_violations(output_dir, "heatmap")
-        return
-
-    top = list(axis)
-    if len(top) < 2:
-        _save_empty(output_dir, "task08_heatmap.svg",
-                    "Too few distinct violations for co-occurrence heatmap")
-        return
-
-    mat  = _build_cooccur_matrix(top, violation_freq, cooccurrence)
-    labs = [_short_label(_viol_label(v)) for v in top]
-    n    = len(top)
-
-    fig, ax = plt.subplots(figsize=(max(8, n * 0.85), max(6, n * 0.85)))
-    im = ax.imshow(mat, cmap=_CMAP_SEQ, aspect="equal", vmin=0)
-
-    ax.set_xticks(range(n))
-    ax.set_xticklabels(labs, rotation=40, ha="right", fontsize=FONT_ANNOT)
-    ax.set_yticks(range(n))
-    ax.set_yticklabels(labs, fontsize=FONT_ANNOT)
-
-    cbar = fig.colorbar(im, ax=ax, fraction=0.03, pad=0.02)
-    cbar.set_label("Co-occurrence count", fontsize=FONT_ANNOT)
-    cbar.outline.set_visible(False)
-
-    ax.set_title("Violation Co-occurrence Heatmap\n(diagonal = individual frequency)",
-                 fontsize=FONT_TITLE)
-    fig.tight_layout()
-    save_svg(fig, os.path.join(output_dir, "task08_heatmap.svg"))
-
-
-# ---------------------------------------------------------------------------
-# Idiom: Matrix — the same grid as the heatmap, read as numbers instead of colour
-# ---------------------------------------------------------------------------
 
 def task08_matrix(violation_freq, cooccurrence, output_dir, axis):
     if not violation_freq:
@@ -336,8 +297,9 @@ def task08_matrix(violation_freq, cooccurrence, output_dir, axis):
     fig, ax = plt.subplots(figsize=(max(8, n * 0.9), max(6, n * 0.9)))
     # A matrix in the strict sense: empty cells ruled into a grid, the count
     # carried by the printed number alone, and no colour scale. Shading the
-    # cells as well would make this the heatmap with digits on top — one
-    # variable encoded twice, and two idioms differing only in annotation.
+    # cells as well would encode one variable twice — the count is already
+    # printed — and the colour scale would be anchored by the diagonal, which
+    # holds an individual frequency rather than a co-occurrence.
     # Same contract as shared.draw_value_heatmap(colorless=True), kept inline
     # here because a co-occurrence matrix is symmetric and wants square cells
     # (aspect="equal"), which that helper fixes to "auto".
@@ -379,11 +341,11 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir, axis):
         _no_violations(output_dir, "network_diagram")
         return
 
-    # The same violations the heatmap and the matrix put on their axis, so the
-    # three idioms of one task show one set of violations and a participant
-    # comparing them is comparing the encoding, not the data behind it. A list,
-    # not a set: the ranking decides which group of nodes is seated first, and a
-    # set would reorder it differently on every run.
+    # The same violations the matrix puts on its axis, so the two figures of
+    # one task show one set of violations and a participant comparing them is
+    # comparing the encoding, not the data behind it. A list, not a set: the
+    # order decides which group of nodes is seated first, and a set would
+    # reorder it differently on every run.
     #
     # The ranking is by how many traces contain a violation, not by how much it
     # co-occurs, so a node whose only partner ranks below the cut is drawn with
@@ -615,7 +577,7 @@ def generate(log, alignments, output_dir: str, violation_patterns=None):
                         "No guideline violations detected in this log")
         return
 
-    # One axis, chosen once, for the three figures that have one — so a
+    # One axis, chosen once, for the two figures that have one — so a
     # participant comparing them is comparing the encoding and not the data.
     # An admin who named the patterns gets all of them, co-occurring or not:
     # dropping three of fifteen chosen patterns would answer a question nobody
@@ -626,7 +588,6 @@ def generate(log, alignments, output_dir: str, violation_patterns=None):
     # No co-occurrence threshold is drawn anywhere: no pair is flagged high or
     # low, so the analyst decides which correlations are noteworthy. Naming the
     # pairs worth looking at is what choosing the patterns does.
-    task08_heatmap(violation_freq, cooccurrence, output_dir, axis)
     task08_matrix(violation_freq, cooccurrence, output_dir, axis)
     task08_network_diagram(violation_freq, cooccurrence, output_dir, axis)
     task08_table(violation_freq, cooccurrence, n_traces, output_dir)
