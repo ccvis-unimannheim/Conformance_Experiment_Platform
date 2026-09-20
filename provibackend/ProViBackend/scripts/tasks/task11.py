@@ -66,7 +66,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
-from shared import most_common_stable, save_svg, make_table, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS_R, FONT_TITLE, FONT_LABEL, FONT_ANNOT, contrasting_text_color, classify_step as _classify_step
+from shared import most_common_stable, save_svg, make_table, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS_R, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
 
 # ── Cividis palette ───────────────────────────────────────────────────────────
 _C_DARK   = GREY_DARK
@@ -277,11 +277,9 @@ def task11_matrix(selected, trace_coverage, n_traces, output_dir, *,
     Rows = distinct activities in the selection (ordered by descending total
     trace coverage across their selected move types).  Columns = the subset of
     the three move types that appears at least once among the selected pairs,
-    in canonical order.  Each column has one flat colour identifying its
-    violation type (colour is categorical, not a value scale — no colour bar
-    or legend is drawn; the column headers are the only key needed).  Cell =
-    # traces containing that (activity, type) pair, annotated with count and
-    %; non-predefined cells shown as grey "–".
+    in canonical order.  Colorless — the platform's matrix convention (white
+    cells, ruled grid, the printed count/% the only encoding); the column
+    headers are the key, not a colour.  Non-predefined cells shown as grey "–".
     """
     if not selected:
         _no_violations(output_dir, "matrix")
@@ -305,13 +303,11 @@ def task11_matrix(selected, trace_coverage, n_traces, output_dir, *,
     fig, ax = plt.subplots(figsize=(10, fig_h))
 
     for j, vt in enumerate(selected_vtypes):
-        col_color = _VTYPE_COLOR.get(vt, _C_MED)
-        col_text_color = contrasting_text_color(col_color)
         for i, act in enumerate(selected_acts):
             if (act, vt) in selected_set:
                 cnt = trace_coverage.get((act, vt), 0)
                 pct = cnt / n_traces * 100 if n_traces > 0 else 0
-                fc, tc = col_color, col_text_color
+                fc, tc = "white", _C_DARK
                 text = f"{cnt:,}\n({pct:.1f}%)"
                 fontsize = max(FONT_ANNOT - 1, 6)
             else:
@@ -320,7 +316,7 @@ def task11_matrix(selected, trace_coverage, n_traces, output_dir, *,
                 text = "–"
                 fontsize = max(FONT_ANNOT, 8)
             ax.add_patch(plt.Rectangle((j, i), 1, 1, facecolor=fc,
-                                        edgecolor="white", linewidth=1.5))
+                                        edgecolor="#cccccc", linewidth=0.8))
             ax.text(j + 0.5, i + 0.5, text, ha="center", va="center",
                     fontsize=fontsize, color=tc)
 
