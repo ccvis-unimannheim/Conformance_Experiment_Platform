@@ -16,8 +16,8 @@ something for it.
 Two things are deliberately *not* here:
 
 * **The renderers.** task04's and task34's figures are frozen experiment
-  stimuli (see docs/TRACE_ALIGNMENT_CLASS.md), so their drawing code stays
-  where it is and is called, never re-derived.
+  stimuli, so their drawing code stays where it is and is called, never
+  re-derived.
 * **A conformant-fitness cut.** Only task27 needs one — conformant vs
   non-conformant *is* its question — and it declares
   ``trace_response.CONFORMANT_THRESHOLD_PARAM`` itself. Everywhere else a

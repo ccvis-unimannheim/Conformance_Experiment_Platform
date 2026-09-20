@@ -109,8 +109,8 @@ PROCESS_MODEL_DIRECTORY = config.PROCESS_MODEL_DIRECTORY
 MAX_PROCESS_MODEL_BYTES = 10 * 1024 * 1024
 
 # Cache of distinct activity names per dataset, so /specify's param-spec
-# candidate enumeration doesn't reload the event log on every page render
-# (see docs/ADMIN_EXPERIMENT_SETUP.md). Keyed by dataset_id.
+# candidate enumeration doesn't reload the event log on every page render.
+# Keyed by dataset_id.
 _LOG_ACTIVITIES_CACHE: dict[str, list[str]] = {}
 # Cache of dataset-meaningful time-bin granularities (task07), same rationale.
 _LOG_TIME_GRANULARITIES_CACHE: dict[str, list[str]] = {}
@@ -332,7 +332,7 @@ async def upload_dataset_pair(
 ):
     """Upload an event log + BPMN guideline.
 
-    Generation no longer runs at upload time (see docs/ADMIN_EXPERIMENT_SETUP.md) — it is triggered per-experiment via POST /admin/experiments/{id}/generate,
+    Generation no longer runs at upload time — it is triggered per-experiment via POST /admin/experiments/{id}/generate,
     once the admin has selected idioms (/idiom) and hyperparameters (/specify).
     """
     # Validate file extensions BEFORE creating any directories on disk
@@ -1078,8 +1078,7 @@ async def get_task_idioms(experiment_id: str | None = None):
 
 @router.get("/tasks/{task_key}/param-spec", tags=["admin"])
 async def get_task_param_spec(task_key: str, dataset_id: str | None = None):
-    """Return this task's hyperparameter spec for /specify (col E, see
-    docs/ADMIN_EXPERIMENT_SETUP.md).
+    """Return this task's hyperparameter spec for /specify (col E).
 
     Unauthored or param-free tasks return `param_spec: []`, which /specify
     renders as "No parameters required — ready to generate". `dataset_id` is
@@ -1560,8 +1559,8 @@ def _fully_uploaded_task_ids(exp: dict) -> set[str]:
 
 def _validate_task_instances(exp: dict, skip_task_ids: set[str] = frozenset()) -> list[str]:
     """Hard-validate every task_instance's parameters against its PARAM_SPEC and
-    optional validate_params hook (see docs/ADMIN_EXPERIMENT_SETUP.md). Returns
-    a list of human-readable error messages; empty means all valid."""
+    optional validate_params hook. Returns a list of human-readable error
+    messages; empty means all valid."""
     errors: list[str] = []
     log_cache: dict[str, object] = {}
     for ti in exp.get("task_instances", []):
@@ -1752,7 +1751,7 @@ async def discard_generated_images(experiment_id: str):
 async def generate_experiment_visualizations(experiment_id: str, background_tasks: BackgroundTasks):
     """Validate parameters, then run idiom generation for this
     experiment's task_instances in the background, writing SVGs to
-    data/{dataset_id}/output/{experiment_id}/... (see docs/ADMIN_EXPERIMENT_SETUP.md).
+    data/{dataset_id}/output/{experiment_id}/...
     Invalid parameters are rejected with a 400 before anything runs. Poll
     GET /experiments/{experiment_id} for per-task generation_status."""
     exp = dbc.get_document("Experiment", {"_id": experiment_id})

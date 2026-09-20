@@ -74,7 +74,7 @@ function filterOptions(entry, options, siblings) {
       : { ...o, label: String(o.label ?? o.value).slice(prefix.length) }));
 }
 
-// Generic param widget — renders per PARAM_SPEC entry (see docs/ADMIN_EXPERIMENT_SETUP.md).
+// Generic param widget — renders per PARAM_SPEC entry.
 function ParamField({ entry, value, onChange, siblings }) {
   const options = filterOptions(entry, entry.options || [], siblings);
   const [optionFilter, setOptionFilter] = useState("");

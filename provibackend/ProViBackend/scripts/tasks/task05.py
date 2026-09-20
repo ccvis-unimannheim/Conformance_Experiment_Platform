@@ -4,8 +4,7 @@ tasks/task05.py – Task ID 5: Describe / Compare / Violation patterns.
 Compare violation profiles between two sub-logs of one event log. The sub-logs
 come from a case attribute (`split_attribute`), which is what this task's own
 question — how often a set of violations occurs across different logs — asks
-for. Counting is shared with the rest of the Violation-profile class; see
-docs/VIOLATION_PROFILE_CLASS.md.
+for. Counting is shared with the rest of the Violation-profile class.
 
 Public API:
     generate(log, alignments, output_dir, split_attribute="",
