@@ -219,6 +219,28 @@ task. A log move of a modelled activity — the common case — could never reac
 Separately, the rows sit in model order, so a trace that runs two activities out
 of order read exactly like one that runs them in order. The chevron shows that
 difference; the table dropped it.
+## Session: One Title Over task28, and a Table That Does Not Repeat the Chevron (2026-09-20)
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| `_INSERTED_SUFFIX` | " (inserted)" becomes " (Log Move)". The suffix exists because a log move needs a row of its own even when a model task of the same name is already there — "Check Credit" as a model task and "Check Credit" inserted a second time — but "inserted" was a second word for one thing, and the reader had to work out that it meant the same as the "Log Move" in the cell beside it. Reaches task04, task09, task14, task27 and task28, which is the point: it is the class's vocabulary. |
+| `show_order` on task04_table | Opt-in, default unchanged. With it off the cell holds the move type alone and the column header is the trace's name, where both used to read "{step} · {move}" and "Trace 1 (step · move)". task28 turns it off: the chevron and the BPMN beside it already carry the order, and a table carrying it too says more than they do in the one channel they cannot match. The cost is the order-blindness task04's docstring describes, accepted here because two other idioms cover it. task04, task09, task14 and task27 keep the step. |
+| `alignment_figures` title | task09's shared entry point takes a `title` and puts it on all three figures. task04's own defaults differ per figure, which is right for task04 and wrong for a task whose idioms are read as one set. |
+| One task28 title | `_DEVIATION_TITLE` is "Where the Shown Traces Differ from the Guideline", on all seven idioms. They carried four different ones: task04's per-figure defaults on the trio, and on the aggregates a name for the whole log that stopped being true when they moved onto the chosen traces. |
+
+### Verification
+
+Rendering task28 with two traces: the table, bar chart, stacked bar, matrix and
+heatmap carry the title as an axes title, the chevron as a suptitle, the BPMN in
+its own composed header — seven for seven. The table's cells come out
+"Synchronous Move" where they were "1 · Synchronous Move".
+
+The heatmap's ramp was already right: `draw_value_heatmap` defaults to
+`CIVIDIS_R`, so task28's heatmap decodes to the same navy-to-yellow raster as
+task29's — 241 colours, ending on (254, 232, 56).
+
 ## Session: task28 Pinpoints the Traces It Was Asked About (2026-09-20)
 
 ### Problem solved
