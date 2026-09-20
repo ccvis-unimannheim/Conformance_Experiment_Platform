@@ -1165,7 +1165,7 @@ def task09_flow_chart_elaborate_bpmn_table(activity_type, activity_totals, type_
 
 def alignment_figures(output_dir, model_path, *, view, records, attribute,
                       prefix="task09", uniform_width=False, title=None,
-                      show_order=True):
+                      show_order=True, merge_log_moves=False):
     """The three trace-alignment figures, in whichever perspective was chosen.
 
     Control flow reuses task04's renderers — the alignment of a few traces is
@@ -1176,8 +1176,9 @@ def alignment_figures(output_dir, model_path, *, view, records, attribute,
     ``uniform_width`` and ``title`` are opt-in (defaults keep task28's own call
     on its current per-label chevron sizing and task04's own titles) — task09
     passes both so every chevron is the same width and all three figures share
-    its one heading. ``show_order`` is task04_table's own opt-in (default True);
-    threaded through here so callers can still turn it off.
+    its one heading. ``show_order`` and ``merge_log_moves`` are
+    task04_table's own opt-ins (defaults keep the old behaviour); threaded
+    through here so callers can turn them on.
     """
     # A caller that gives one title puts it on all three; task04's own
     # defaults differ per figure, which is right for task04 and wrong for a
