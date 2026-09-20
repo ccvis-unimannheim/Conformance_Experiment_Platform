@@ -354,18 +354,42 @@ def _task04_move_steps(rows):
 _INSERTED_SUFFIX = " (Log Move)"
 
 
-def _task04_row_cells(steps, show_order: bool = True):
+#: The order move types are named in when one activity played several roles.
+#: Fixed, so the same pair reads the same in every cell of every trace.
+_MOVE_ORDER = {"Synchronous Move": 0, "Model Move": 1, "Log Move": 2}
+
+
+def _task04_row_cells(steps, show_order: bool = True,
+                      merge_log_moves: bool = False):
     """row label -> "step · move type" for one trace, or just the move type.
 
     Log moves take their own row label so they cannot collide with the model
     task of the same name. An activity that appears twice in the *same* role
     (a modelled loop) still keeps only its first occurrence — rare, and one row
     per activity is what makes this a table rather than a second chevron.
+
+    ``merge_log_moves`` gives that activity one row instead, whose cell names
+    every role it played: "Model Move & Log Move". The split row was there to
+    keep two rows of the same name apart, and it did — at the price of a row
+    reading "Check Credit (Log Move)" above a cell reading "Log Move", saying
+    one thing twice, and of an activity appearing in two places in a table whose
+    whole point is one row per activity.
     """
-    cells = {}
+    if not merge_log_moves:
+        cells = {}
+        for a, mt, step in steps:
+            key = f"{a}{_INSERTED_SUFFIX}" if mt == "Log Move" else a
+            cells.setdefault(key, f"{step} · {mt}" if show_order else mt)
+        return cells
+
+    per_activity = {}
     for a, mt, step in steps:
-        key = f"{a}{_INSERTED_SUFFIX}" if mt == "Log Move" else a
-        cells.setdefault(key, f"{step} · {mt}" if show_order else mt)
+        per_activity.setdefault(a, {}).setdefault(mt, step)
+    cells = {}
+    for a, moves in per_activity.items():
+        parts = [(f"{moves[mt]} · {mt}" if show_order else mt)
+                 for mt in sorted(moves, key=lambda m: _MOVE_ORDER.get(m, 9))]
+        cells[a] = " & ".join(parts)
     return cells
 
 
@@ -589,7 +613,8 @@ def task04_bar_chart(tdf: pd.DataFrame, output_dir: str):
 def task04_table(selected, model_path, output_dir, *,
                  filename="task04_table.svg",
                  title="Move Type by Activity Across Traces",
-                 show_fitness=False, show_order=True):
+                 show_fitness=False, show_order=True,
+                 merge_log_moves=False):
     """Activity × trace move-type table: one row per activity (model tasks plus
     any inserted ones), one column per compared trace, cell = the step at which
     that trace made the move, and the move (Synchronous Move / Model Move / Log
@@ -609,7 +634,12 @@ def task04_table(selected, model_path, output_dir, *,
     the cell. task28 asks for it: the chevron and the BPMN beside it already
     carry the order, and a table that carries it too says more than they do in
     the one channel they cannot match. The cost is the order-blindness described
-    above, accepted there because two other idioms cover it."""
+    above, accepted there because two other idioms cover it.
+
+    ``merge_log_moves=True`` gives an activity that was both executed and
+    inserted one row, its cell naming both moves, instead of a second row
+    suffixed "(Log Move)". Also task28's; it should become the default when the
+    other callers of this renderer come up for review."""
     path = os.path.join(output_dir, filename)
     activities = _task04_model_task_names(model_path)
     if not activities or not selected:
@@ -622,13 +652,20 @@ def task04_table(selected, model_path, output_dir, *,
         save_svg(fig, path)
         return
 
-    cells_per_trace = [_task04_row_cells(_task04_move_steps(t["rows"]), show_order)
+    cells_per_trace = [_task04_row_cells(_task04_move_steps(t["rows"]), show_order,
+                                        merge_log_moves)
                        for t in selected]
-    # Log moves become extra rows, in the order the traces make them.
+    # Activities the model does not hold become extra rows, in the order the
+    # traces make them: the "(Log Move)" rows when they are split out, and the
+    # inserted activities under their own name when they are merged. Without
+    # this second case a log move on an activity that is not a model task would
+    # be filtered away by the `in present` check below.
     inserted = []
     for cells in cells_per_trace:
         for key in cells:
-            if key.endswith(_INSERTED_SUFFIX) and key not in inserted:
+            extra = (key not in activities if merge_log_moves
+                     else key.endswith(_INSERTED_SUFFIX))
+            if extra and key not in inserted:
                 inserted.append(key)
     # keep only activities at least one trace actually touches (drop never-touched)
     present = set().union(*(set(c) for c in cells_per_trace)) if cells_per_trace else set()
@@ -653,7 +690,10 @@ def task04_table(selected, model_path, output_dir, *,
     col_labels = (["Activity"] + [f"{lbl} (step · move)" for lbl in labels]
                   if show_order else ["Activity"] + list(labels))
     fig_h = max(3.0, 1.2 + len(cell_text) * 0.46)
-    fig_w = max(6.5, 3.2 + 2.7 * len(labels))
+    # A merged cell holds two moves and can be twice as wide as a plain one, so
+    # the per-trace column width follows the longest cell rather than a constant.
+    widest = max((len(c) for row in cell_text for c in row[1:]), default=10)
+    fig_w = max(6.5, 3.2 + max(2.7, widest * 0.105) * len(labels))
     fig, ax = plt.subplots(figsize=(fig_w, fig_h))
     ax.axis("off")
     make_table(

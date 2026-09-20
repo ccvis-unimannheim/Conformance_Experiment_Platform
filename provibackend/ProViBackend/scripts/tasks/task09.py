@@ -1247,7 +1247,8 @@ def task09_flow_chart_elaborate_bpmn_table(activity_type, activity_totals, type_
 # ── Public entry point ────────────────────────────────────────────────────────
 
 def alignment_figures(output_dir, model_path, *, view, records, attribute,
-                      prefix="task09", title=None, show_order=True):
+                      prefix="task09", title=None, show_order=True,
+                      merge_log_moves=False):
     """The three trace-alignment figures, in whichever perspective was chosen.
 
     Control flow reuses task04's renderers — the alignment of a few traces is
@@ -1269,7 +1270,8 @@ def alignment_figures(output_dir, model_path, *, view, records, attribute,
             filename=f"{prefix}_flow_chart_elaborate_bpmn.svg", **titled)
         task04.task04_table(records, model_path, output_dir,
                             filename=f"{prefix}_table.svg",
-                            show_order=show_order, **titled)
+                            show_order=show_order,
+                            merge_log_moves=merge_log_moves, **titled)
         return
 
     trace_alignment.draw_value_chevrons(

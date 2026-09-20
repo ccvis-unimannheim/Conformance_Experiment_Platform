@@ -68,10 +68,9 @@ non-synchronous move, which needs no cut — so task01's `conformant_threshold`,
 which reached no drawing at all (`_task01_group_stats` took it, but
 `task01.generate` never passed it), is gone rather than propagated.
 
-task27's threshold is threaded as an explicit argument through the four
-renderers that read it directly (`bar_chart`, `parallel_sets`, `matrix`,
-`heatmap`) plus `_task27_trace_df`, which carries it into the stacked bar and the
-box plot, and `_selected_indices`, which splits the automatic selection by it. A
+task27's threshold is threaded as an explicit argument through the five
+aggregate renderers, which split their counts by it, and through
+`_selected_indices`, which splits the automatic selection by it. A
 module-level default would have been one line, but generation can run for two
 experiments at once and a mutable module global would let one experiment's
 threshold decide the other's figures.
@@ -117,9 +116,8 @@ prevent.
 
 The pattern decides which traces are *picked* and nothing else — the figures
 colour by move type whatever is named — so it is hidden when the admin names the
-traces themselves. `conformant_threshold` is not: ten of task27's idioms colour
-and label whole-log variants by it, so it keeps working when the selection is
-manual. Neither are the data and resource rules, which are what the figures draw
+traces themselves. `conformant_threshold` is not: every one of task27's idioms
+is split or labelled by it, so it keeps working when the selection is manual. Neither are the data and resource rules, which are what the figures draw
 a verdict from.
 
 ### How `violation_gap` generalises past two traces
@@ -276,16 +274,28 @@ one process already disagree), and pm4py exposes no deterministic tie-break. So:
   their wording branches. `count` stays the frequency of that trace's behaviour
   in the whole log, because how common a behaviour is, is what the frequency
   idioms report.
-* **Under the automatic rule the aggregate idioms keep the log's variants.** The
-  rule picks `trace_count` per status, one by default, and two rows are not a
-  narrower bar chart but a broken box plot: one value per group, no median, no
-  quartiles, and three percentile buckets holding two items. The trace-level trio
-  is built for that count; the frequency and distribution idioms are not.
-* **task27 lost six idioms** — scatterplot, flow chart & table, table & bar
-  chart, gantt chart, flow chart+ & table and calendar — leaving `bar_chart`,
-  `table`, `parallel_sets`, `matrix`, `flow_chart_basic`, `flow_chart_elaborate`,
-  `stacked_bar`, `box_plot` and `heatmap`. The aggregate variant view is now
-  `bar_chart` alone.
+* **Every task27 idiom draws the selected traces now**, named by hand or picked
+  by the rule. The aggregates used to fall back to the log's top-15 variants
+  under the automatic rule, so the chevron showed two traces and the bar chart
+  beside it fifteen variants. The objection to closing that gap was the box
+  plot — one value per group is no distribution — and the box plot is gone.
+* **task27's five aggregates carry one payload:** activity × conformance status,
+  the cell counting how many selected traces of that status touch the activity
+  (`_activity_status_payload`). They used to carry three answers between them:
+  the bar chart and the parallel sets said how *common* each behaviour is, the
+  stacked bar how *long* the traces are, and only the matrix and the heatmap
+  what the traces actually *do*. Frequency and length are differences, but not
+  the behavioural difference "how do conformant and non-conformant traces differ
+  from each other" asks about. The grid reads across: on BPIC12-A, A_DECLINED
+  and A_CANCELLED appear only in the conformant traces, A_APPROVED,
+  A_REGISTERED and A_ACTIVATED only in the non-conformant ones. Per-trace
+  resolution stays in the chevron, the BPMN and the table.
+* **task27 lost seven idioms** — scatterplot, flow chart & table, table & bar
+  chart, gantt chart, flow chart+ & table, calendar and the box plot — leaving
+  `bar_chart`, `table`, `parallel_sets`, `matrix`, `flow_chart_basic`,
+  `flow_chart_elaborate`, `stacked_bar` and `heatmap`. The box plot drew
+  throughput time per status, which answers how *long* the two groups take
+  rather than how their behaviour differs.
 * **task28** is task09 explored rather than presented. Same parameters, and the
   trace-level trio is literally task09's renderers; the difference is
   `HIGHLIGHT_VIOLATIONS = False`, a task property rather than an admin choice.

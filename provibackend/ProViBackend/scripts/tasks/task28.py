@@ -615,7 +615,7 @@ def generate(alignments, model_path: str, output_dir: str, log=None,
         task09.alignment_figures(output_dir, model_path, view=perspective,
                                  records=records, attribute=data_attribute,
                                  prefix="task28", title=_DEVIATION_TITLE,
-                                 show_order=False)
+                                 show_order=False, merge_log_moves=True)
     elif ctx is not None:
         logger.info(f"      Using {ctx['trace_label']} (log index {ctx['trace_index']}, "
                     f"fitness={ctx['fitness']:.4f})")

@@ -496,7 +496,6 @@ This task is similar to ``Present: Present Guideline violations'', but rather th
 |---|---|---|
 | Bar Chart | `bar_chart` | High |
 | Stacked Bar Graph | `stacked_bar` | Medium/Reviewed |
-| Box and Whisker Plot | `boxplot` | Medium/Reviewed |
 | Table | `table` | High |
 | Matrix | `matrix` | Medium/Reviewed |
 | Heatmap | `heatmap` | Medium/Reviewed |
