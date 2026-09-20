@@ -38,9 +38,41 @@ function formatByKey(formats, key) {
 // an event-log source (task-independent — see admin.OPTION_SOURCES) or typed by
 // hand. They carry no correctness marking; nothing here is graded.
 
-function OptionRows({ options, onChange, wideValue = false }) {
+// How much of the value an admin needs to see depends on what reads it:
+//
+//   "structure"  matrix — the participant grid is REBUILT from the value: the
+//                widget splits "a__b" to recover both axes and ignores the
+//                label, which keeps the pair in its original order. Always
+//                shown, never hidden.
+//   "token"      mc-single, mc-multi, rank — the value is what the participant's
+//                click records. Worth a second field only when it should differ
+//                from the displayed text, so it is folded away until then.
+//   "unused"     number-set — NumericSet keys its answers by the LABEL
+//                (`value[label]`), so the value field is never read at all.
+//
+function valueRole(format) {
+  if (format === "matrix") return "structure";
+  if (format === "number-set") return "unused";
+  return "token";
+}
+
+function OptionRows({ options, onChange, wideValue = false, role = "token" }) {
+  // Rows whose value the admin has chosen to write themselves. A row the admin
+  // has not touched mirrors its label (see updateRow), so renaming an option
+  // cannot silently leave the recorded value on the previous wording.
+  const [unfolded, setUnfolded] = useState(() => new Set());
+
   function updateRow(i, field, val) {
-    onChange(options.map((o, idx) => (idx === i ? { ...o, [field]: val } : o)));
+    onChange(options.map((o, idx) => {
+      if (idx !== i) return o;
+      if (field === "label" && !unfolded.has(i) && (o.value ?? "") === (o.label ?? "")) {
+        return { ...o, label: val, value: val };
+      }
+      return { ...o, [field]: val };
+    }));
+  }
+  function unfold(i) {
+    setUnfolded((prev) => new Set(prev).add(i));
   }
   function move(i, dir) {
     const j = i + dir;
@@ -61,14 +93,25 @@ function OptionRows({ options, onChange, wideValue = false }) {
             onChange={(e) => updateRow(i, "label", e.target.value)}
             className="flex-1 text-sm border border-border-subtle rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
-          <input
-            type="text"
-            placeholder="Value"
-            value={opt.value ?? ""}
-            onChange={(e) => updateRow(i, "value", e.target.value)}
-            title={opt.value ?? ""}
-            className={`${wideValue ? "w-72" : "w-40"} text-sm border border-border-subtle rounded-lg px-3 py-2 bg-white font-mono text-xs focus:outline-none focus:ring-2 focus:ring-primary/30`}
-          />
+          {role === "unused" ? null : role === "token"
+            && !unfolded.has(i) && (opt.value ?? "") === (opt.label ?? "") ? (
+            <button
+              onClick={() => unfold(i)}
+              title="Record a different value than the participant sees"
+              className="text-xs text-on-surface-variant hover:text-primary whitespace-nowrap px-2"
+            >
+              recorded as the label
+            </button>
+          ) : (
+            <input
+              type="text"
+              placeholder="Value"
+              value={opt.value ?? ""}
+              onChange={(e) => updateRow(i, "value", e.target.value)}
+              title={opt.value ?? ""}
+              className={`${wideValue ? "w-72" : "w-40"} text-sm border border-border-subtle rounded-lg px-3 py-2 bg-white font-mono text-xs focus:outline-none focus:ring-2 focus:ring-primary/30`}
+            />
+          )}
           <button
             onClick={() => move(i, -1)}
             disabled={i === 0}
@@ -111,6 +154,7 @@ function OptionsEditor({ datasetId, format, options, onChange, showToast }) {
   const [axisLimit, setAxisLimit] = useState(10);
   const [importing, setImporting] = useState(false);
   const isMatrix = format === "matrix";
+  const role = valueRole(format);
 
   useEffect(() => {
     if (!datasetId) return;
@@ -229,7 +273,24 @@ function OptionsEditor({ datasetId, format, options, onChange, showToast }) {
         </p>
       ) : null}
 
-      <OptionRows options={options} onChange={onChange} wideValue={isMatrix} />
+      {options.length > 0 && (
+        <p className="text-[11px] text-on-surface-variant">
+          <span className="font-semibold">Label</span> is what the participant reads.{" "}
+          {role === "unused" ? (
+            <>This format records one number per option, filed under that label — there is
+            no separate value to set.</>
+          ) : role === "structure" ? (
+            <>The <span className="font-semibold">value</span> beside it is the pair token the
+            grid is built from, not a caption.</>
+          ) : (
+            <>The <span className="font-semibold">value</span> beside it is what a click records
+            in the answer data; it follows the label unless you set it apart, which is worth
+            doing when the label carries counts the data should not.</>
+          )}
+        </p>
+      )}
+
+      <OptionRows options={options} onChange={onChange} wideValue={isMatrix} role={role} />
 
       {isMatrix && options.length > 0 && (
         <p className="text-[11px] text-on-surface-variant italic">
