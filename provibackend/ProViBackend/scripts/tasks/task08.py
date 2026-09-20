@@ -79,11 +79,12 @@ _CHROME_PANEL  = "#fafbfc"   # axes background behind the network diagram
 _CHROME_BORDER = "#dddddd"   # outline of the white label boxes
 _CHROME_FILL   = "white"     # fill of those label boxes
 
-# Max violations shown in most idioms (keeps charts readable)
-_TOP_N = 12
-# Number of most-frequent violation types forming the (symmetric) co-occurrence
-# axis shared by the matrix and heatmap SVGs.
-_MATRIX_TOP_N = 10
+# How many of the most-frequent violation types the figures are built from: the
+# matrix and heatmap axis, and the ring of the network diagram. One number for
+# all three, because they are compared against each other — the network drew 12
+# against their 10, so it carried a co-occurrence they had no row for. An admin
+# who names the patterns overrides this; see generate().
+_TOP_N = 10
 # Min co-occurrence count for network edges / scatter points
 _MIN_COOCCUR = 1
 # Network diagram: the ring has radius 1, labels start outside the widest node
@@ -249,7 +250,7 @@ def _build_cooccur_matrix(top_viols, violation_freq, cooccurrence):
     return mat
 
 
-def task08_heatmap(violation_freq, cooccurrence, output_dir, top_n=_MATRIX_TOP_N):
+def task08_heatmap(violation_freq, cooccurrence, output_dir, top_n=_TOP_N):
     if not violation_freq:
         _no_violations(output_dir, "heatmap")
         return
@@ -286,7 +287,7 @@ def task08_heatmap(violation_freq, cooccurrence, output_dir, top_n=_MATRIX_TOP_N
 # Idiom: Matrix — the same grid as the heatmap, read as numbers instead of colour
 # ---------------------------------------------------------------------------
 
-def task08_matrix(violation_freq, cooccurrence, output_dir, top_n=_MATRIX_TOP_N):
+def task08_matrix(violation_freq, cooccurrence, output_dir, top_n=_TOP_N):
     if not violation_freq:
         _no_violations(output_dir, "matrix")
         return
@@ -348,8 +349,16 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir,
         _no_violations(output_dir, "network_diagram")
         return
 
-    # A list, not a set: the ranking decides which group of nodes is seated
-    # first, and a set would reorder it differently on every run.
+    # The same violations the heatmap and the matrix put on their axis, so the
+    # three idioms of one task show one set of violations and a participant
+    # comparing them is comparing the encoding, not the data behind it. A list,
+    # not a set: the ranking decides which group of nodes is seated first, and a
+    # set would reorder it differently on every run.
+    #
+    # The ranking is by how many traces contain a violation, not by how much it
+    # co-occurs, so a node whose only partner ranks below the cut is drawn with
+    # no edge. That is the same gap the matrix shows as a row of zeros — the
+    # figures agree — but neither says the pair exists; only the table does.
     top = _top_violations(violation_freq, top_n)
     top_set = set(top)
     pairs = [(a, b, cnt) for (a, b), cnt in cooccurrence.items()
@@ -525,8 +534,11 @@ def task08_table(violation_freq, cooccurrence, n_traces, output_dir):
                bbox=[0.02, 0.02, 0.96, 0.88], col_widths=_TABLE_COL_WIDTHS,
                cell_loc="left", cell_pad=0.08)
 
-    ax.set_title("Top Violation Co-occurrences", fontsize=FONT_TITLE,
-                 pad=12, loc="left")
+    # Centred, and named and captioned like the other three: the four are read
+    # against each other, so the heading is not where they should differ.
+    ax.set_title("Violation Co-occurrence Table\n"
+                 "(count = traces containing both violations)",
+                 fontsize=FONT_TITLE)
     fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task08_table.svg"))
 
@@ -577,9 +589,9 @@ def generate(log, alignments, output_dir: str, violation_patterns=None):
     # low, so the analyst decides which correlations are noteworthy. Naming the
     # pairs worth looking at is what choosing the patterns does.
     task08_heatmap(violation_freq, cooccurrence, output_dir,
-                   top_n=axis_n or _MATRIX_TOP_N)
+                   top_n=axis_n or _TOP_N)
     task08_matrix(violation_freq, cooccurrence, output_dir,
-                  top_n=axis_n or _MATRIX_TOP_N)
+                  top_n=axis_n or _TOP_N)
     task08_network_diagram(violation_freq, cooccurrence, output_dir,
-                           top_n=axis_n or _MATRIX_TOP_N)
+                           top_n=axis_n or _TOP_N)
     task08_table(violation_freq, cooccurrence, n_traces, output_dir)
