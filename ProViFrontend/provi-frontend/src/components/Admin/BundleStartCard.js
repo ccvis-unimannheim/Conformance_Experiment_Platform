@@ -10,17 +10,25 @@ import { useRef, useState } from "react";
  * the tasks, the idioms and — from version 3 on — the answer formats. Collapsed
  * by default so it does not compete with the dataset route, which is what most
  * experiments use.
+ *
+ * `name` / `designType` / `randomizeOrder` are read from the page's own form
+ * above, not asked again here: this used to keep its own copies, so an admin
+ * who opened this card saw two name fields and two study-design pickers with
+ * no visible connection between them. `open` is controlled by the parent so it
+ * can swap the dataset table below for a note while this card is in use — a
+ * zip route has no use for a dataset, and showing both at once is exactly the
+ * "so what does this mean" the two name fields caused.
+ *
+ * `replaceExperimentId`, given, turns this into replacing that (already
+ * bundle-only) experiment's tasks, idioms and images with a different zip's,
+ * instead of creating a new experiment — the copy, the confirmation and the
+ * request both change accordingly; the wiring (upload, error, partial-result
+ * states) is shared.
  */
-export default function BundleStartCard({ name, designType, randomizeOrder, onCreated }) {
-  const [open, setOpen] = useState(false);
+export default function BundleStartCard({
+  name, designType, randomizeOrder, open, onToggle, onCreated, replaceExperimentId,
+}) {
   const [file, setFile] = useState(null);
-  // The zip settles the tasks, idioms and images; how they are shown to
-  // participants is still the admin's to choose, and this route leaves the page
-  // as soon as the zip is accepted — so it asks here rather than relying on the
-  // form below, which the admin never reaches.
-  const [expName, setExpName] = useState(name || "");
-  const [design, setDesign] = useState(designType || "between");
-  const [randomize, setRandomize] = useState(randomizeOrder !== false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [rejected, setRejected] = useState([]);
@@ -36,6 +44,11 @@ export default function BundleStartCard({ name, designType, randomizeOrder, onCr
       setError("Choose a .zip file — the one downloaded from this platform, not a single image.");
       return;
     }
+    if (replaceExperimentId && !window.confirm(
+      "Replace this experiment's tasks, idioms and images with this zip's? The ones it has now — " +
+      "including any single image you replaced by hand — are gone once the new zip is confirmed to " +
+      "hold at least one usable task; nothing changes if it doesn't."
+    )) return;
     setBusy(true);
     setError(null);
     setRejected([]);
@@ -43,9 +56,10 @@ export default function BundleStartCard({ name, designType, randomizeOrder, onCr
     try {
       const body = new FormData();
       body.append("file", file);
-      body.append("name", expName.trim());
-      body.append("design_type", design);
-      body.append("within_sequence_mode", randomize ? "random" : "fixed");
+      body.append("name", (name || "").trim());
+      body.append("design_type", designType || "between");
+      body.append("within_sequence_mode", randomizeOrder ? "random" : "fixed");
+      if (replaceExperimentId) body.append("experiment_id", replaceExperimentId);
       const res = await fetch("/api/admin/experiments/from-bundle", { method: "POST", body });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -77,16 +91,20 @@ export default function BundleStartCard({ name, designType, randomizeOrder, onCr
     <section className="mb-8 rounded-xl border border-outline-variant bg-surface-container-lowest">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={onToggle}
         className="w-full flex items-center gap-3 px-gutter py-4 text-left"
       >
         <span className="material-symbols-outlined text-primary text-[20px]">folder_zip</span>
         <span className="flex-1">
           <span className="text-body-sm font-medium text-on-surface">
-            Already have the images? Start from a downloaded zip
+            {replaceExperimentId
+              ? "Replace with a different zip"
+              : "Already have the images? Start from a downloaded zip"}
           </span>
           <span className="block text-body-xs text-secondary">
-            Skips choosing a dataset, selecting idioms and generating — the zip already holds them.
+            {replaceExperimentId
+              ? "Swaps out every task, idiom and image this experiment has for a different zip's."
+              : "Skips choosing a dataset, selecting idioms and generating — the zip already holds them."}
           </span>
         </span>
         <span className="material-symbols-outlined text-secondary text-[20px]">
@@ -112,55 +130,12 @@ custom-a1b2c3/my_idiom.png ← tasks you added yourself work the same way`}
               Tasks the zip contains that this server does not have — your own custom tasks and
               idioms — are recreated for this experiment. Images may be SVG, PNG or JPG.
             </p>
-          </div>
-
-          <div className="space-y-3 border-t border-outline-variant pt-3">
-            <div>
-              <label htmlFor="bundle-name" className="block text-body-xs font-medium text-on-surface mb-1">
-                Experiment name
-              </label>
-              <input
-                id="bundle-name"
-                type="text"
-                value={expName}
-                onChange={(e) => setExpName(e.target.value)}
-                placeholder="Leave empty to use the name in the zip"
-                className="w-full px-3 py-2 rounded-lg border border-outline-variant text-body-sm bg-surface"
-              />
-            </div>
-
-            <div>
-              <p className="text-body-xs font-medium text-on-surface mb-1">Study design</p>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { value: "between", label: "Between-subjects", desc: "one idiom per task, balanced across participants" },
-                  { value: "within", label: "Within-subjects", desc: "every participant sees all idioms of every task" },
-                ].map(({ value, label, desc }) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setDesign(value)}
-                    className={`flex-1 min-w-[14rem] text-left px-3 py-2 rounded-lg border transition-all ${
-                      design === value ? "border-primary bg-primary/5" : "border-outline-variant hover:border-primary/50"
-                    }`}
-                  >
-                    <span className={`block text-body-xs font-medium ${design === value ? "text-primary" : "text-on-surface"}`}>
-                      {label}
-                    </span>
-                    <span className="block text-body-xs text-secondary">{desc}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <label className="flex items-center gap-2 text-body-xs text-on-surface">
-              <input
-                type="checkbox"
-                checked={randomize}
-                onChange={() => setRandomize((v) => !v)}
-              />
-              Randomise the order tasks are shown in
-            </label>
+            <p>
+              Uses the name and study design set above ({name?.trim() || "the name in the zip"}
+              {" · "}
+              {designType === "within" ? "within-subjects" : "between-subjects"}). Change either
+              there before uploading.
+            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -188,7 +163,9 @@ custom-a1b2c3/my_idiom.png ← tasks you added yourself work the same way`}
               disabled={!file || busy}
               className="px-4 py-2 rounded-lg bg-primary text-on-primary text-body-sm font-medium disabled:opacity-50"
             >
-              {busy ? "Creating…" : "Create experiment from zip"}
+              {busy
+                ? (replaceExperimentId ? "Replacing…" : "Creating…")
+                : (replaceExperimentId ? "Replace with this zip" : "Create experiment from zip")}
             </button>
           </div>
 
@@ -200,8 +177,8 @@ custom-a1b2c3/my_idiom.png ← tasks you added yourself work the same way`}
           {partial && (
             <div className="text-body-xs rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900">
               <p className="font-medium mb-1">
-                The experiment was created with {partial.tasks} task{partial.tasks !== 1 ? "s" : ""}, but
-                part of the zip was not used.
+                {replaceExperimentId ? "Replaced with" : "The experiment was created with"} {partial.tasks}{" "}
+                task{partial.tasks !== 1 ? "s" : ""}, but part of the zip was not used.
               </p>
               <p>
                 Check the list below. If something is missing, delete the experiment on the admin page

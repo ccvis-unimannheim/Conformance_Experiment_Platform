@@ -88,7 +88,12 @@ LEVEL_PARAM = {
         {"value": "log",   "label": "Log level — sub-logs split by a condition"},
     ],
     "default": "trace",
-    "required": False,
+    # A fixed-option select whose default silently decides what is drawn.
+    # Required so /specify marks it and refuses an empty one: the choice is
+    # always in force, and without the asterisk an admin cannot tell it was
+    # made for them. Contrast the parameters that stay optional, where an
+    # empty value has a stated meaning their own label gives.
+    "required": True,
 }
 
 PARAM_SPEC = [
@@ -338,13 +343,19 @@ def _task04_move_steps(rows):
 
 #: Row-label suffix for a log move — an activity the model does not expect at
 #: that point. It gets a row of its own even when an activity of that name is
-#: also a model task, which is what the BPMN idiom draws as an external badge
-#: rather than colouring the model node.
-_INSERTED_SUFFIX = " (inserted)"
+#: also a model task (the screenshot case: "Check Credit" as a model task and
+#: "Check Credit" inserted a second time), which is what the BPMN idiom draws as
+#: an external badge rather than colouring the model node.
+#:
+#: It says "(Log Move)" rather than "(inserted)" because that is what every other
+#: figure in this class calls it. "Inserted" was a second word for one thing, and
+#: a reader had to work out that it meant the same as the "Log Move" in the cell
+#: beside it.
+_INSERTED_SUFFIX = " (Log Move)"
 
 
-def _task04_row_cells(steps):
-    """row label -> "step · move type" for one trace.
+def _task04_row_cells(steps, show_order: bool = True):
+    """row label -> "step · move type" for one trace, or just the move type.
 
     Log moves take their own row label so they cannot collide with the model
     task of the same name. An activity that appears twice in the *same* role
@@ -354,7 +365,7 @@ def _task04_row_cells(steps):
     cells = {}
     for a, mt, step in steps:
         key = f"{a}{_INSERTED_SUFFIX}" if mt == "Log Move" else a
-        cells.setdefault(key, f"{step} · {mt}")
+        cells.setdefault(key, f"{step} · {mt}" if show_order else mt)
     return cells
 
 
@@ -583,7 +594,7 @@ def task04_bar_chart(tdf: pd.DataFrame, output_dir: str):
 def task04_table(selected, model_path, output_dir, *,
                  filename="task04_table.svg",
                  title="Move Type by Activity Across Traces",
-                 show_fitness=False):
+                 show_fitness=False, show_order=True):
     """Activity × trace move-type table: one row per activity (model tasks plus
     any inserted ones), one column per compared trace, cell = the step at which
     that trace made the move, and the move (Synchronous Move / Model Move / Log
@@ -597,7 +608,13 @@ def task04_table(selected, model_path, output_dir, *,
     this table used to lose it.
 
     ``show_fitness`` puts a leading "Fitness (0-1)" row above the activities;
-    opt-in for the reason given on task04_flow_chart_basic."""
+    opt-in for the reason given on task04_flow_chart_basic.
+
+    ``show_order=False`` drops the step number, leaving the move type alone in
+    the cell. task28 asks for it: the chevron and the BPMN beside it already
+    carry the order, and a table that carries it too says more than they do in
+    the one channel they cannot match. The cost is the order-blindness described
+    above, accepted there because two other idioms cover it."""
     path = os.path.join(output_dir, filename)
     activities = _task04_model_task_names(model_path)
     if not activities or not selected:
@@ -610,7 +627,8 @@ def task04_table(selected, model_path, output_dir, *,
         save_svg(fig, path)
         return
 
-    cells_per_trace = [_task04_row_cells(_task04_move_steps(t["rows"])) for t in selected]
+    cells_per_trace = [_task04_row_cells(_task04_move_steps(t["rows"]), show_order)
+                       for t in selected]
     # Log moves become extra rows, in the order the traces make them.
     inserted = []
     for cells in cells_per_trace:
@@ -637,7 +655,8 @@ def task04_table(selected, model_path, output_dir, *,
             text_row.append(cells.get(a, "—"))
         cell_text.append(text_row)
 
-    col_labels = ["Activity"] + [f"{lbl} (step · move)" for lbl in labels]
+    col_labels = (["Activity"] + [f"{lbl} (step · move)" for lbl in labels]
+                  if show_order else ["Activity"] + list(labels))
     fig_h = max(3.0, 1.2 + len(cell_text) * 0.46)
     fig_w = max(6.5, 3.2 + 2.7 * len(labels))
     fig, ax = plt.subplots(figsize=(fig_w, fig_h))

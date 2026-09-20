@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import AdminNav from "../../../../components/Admin/AdminNav";
 import ExperimentDetailsForm from "../../../../components/Admin/ExperimentDetailsForm";
 import DatasetSelectTable from "../../../../components/Admin/DatasetSelectTable";
@@ -17,6 +18,9 @@ export default function NewExperimentPage() {
   // that draft is edited in place. Without one, this is a new experiment and the
   // draft is created as soon as the form has a name and a dataset.
   const resumedId = searchParams.get("experiment_id");
+  // Set when reached by jumping back from a later step; Next then returns
+  // there instead of continuing forward (see WizardSteps.js).
+  const returnTo = searchParams.get("return_to");
   const [experimentId] = useState(() => resumedId || crypto.randomUUID());
   const createdRef = useRef(Boolean(resumedId));
 
@@ -36,6 +40,15 @@ export default function NewExperimentPage() {
   // This draft's images came from an uploaded zip: it has no dataset, and
   // taking one would mean generating over those images (the backend refuses).
   const [bundleOnly, setBundleOnly] = useState(false);
+  // What that zip was, so returning here says what is already in place —
+  // without it the panel only offered Replace/Discard with no way to tell
+  // what either one would be acting on.
+  const [bundleInfo, setBundleInfo] = useState(null); // { taskCount, file, importedAt }
+  // Whether the zip-upload card is open. Lifted up (rather than the card's own
+  // state) so the dataset table below can be swapped for a note while it is —
+  // a dataset genuinely isn't needed for that route, and showing both at once
+  // is what made the previous, duplicated-fields layout confusing.
+  const [bundleCardOpen, setBundleCardOpen] = useState(false);
 
   // Fill the form from the draft being edited, so stepping back shows what was
   // entered rather than a blank page that would overwrite it on the next edit.
@@ -50,6 +63,12 @@ export default function NewExperimentPage() {
         if (exp.design_type) setDesignType(exp.design_type);
         setRandomizeOrder((exp.within_sequence_mode || "random") === "random");
         setBundleOnly(!!exp.bundle_only);
+        setBundleInfo(exp.bundle_only ? {
+          taskCount: (exp.task_instances || []).length,
+          file: exp.idioms_imported_from?.file || null,
+          sourceName: exp.idioms_imported_from?.experiment_name || null,
+          importedAt: exp.idioms_imported_at || null,
+        } : null);
       })
       .catch(() => {});
   }, [resumedId]);
@@ -57,10 +76,12 @@ export default function NewExperimentPage() {
   // Undo a bundle upload: the images, the tasks and idioms that came with them
   // go, and the experiment can take a dataset like any other.
   async function discardBundle() {
+    const zipName = bundleInfo?.file ? ` (${bundleInfo.file})` : "";
     if (!window.confirm(
-      "Discard the uploaded images? This experiment's tasks, idioms and images all came from that " +
-      "zip, so all three are removed and it starts again from choosing a dataset. Its name and " +
-      "study design are kept. Download the zip again from the source experiment if you need it."
+      `Discard the uploaded images${zipName}? This experiment's tasks, idioms and images all came ` +
+      "from that zip, so all three are removed and it starts again from choosing a dataset. Its name " +
+      "and study design are kept. Keep a copy of the zip first if you might want it again — once " +
+      "discarded, this experiment no longer has it."
     )) return;
     try {
       const res = await fetch(
@@ -72,6 +93,7 @@ export default function NewExperimentPage() {
         throw new Error(typeof body.detail === "string" ? body.detail : `HTTP ${res.status}`);
       }
       setBundleOnly(false);
+      setBundleInfo(null);
       setSelectedIds(new Set());
     } catch (e) {
       setSubmitError(e.message);
@@ -207,7 +229,11 @@ export default function NewExperimentPage() {
         }
         createdRef.current = true;
       }
-      router.push(`/admin/experiments/prequestionnaire?experiment_id=${encodeURIComponent(experimentId)}`);
+      router.push(
+        returnTo
+          ? `/admin/experiments/${returnTo}?experiment_id=${encodeURIComponent(experimentId)}`
+          : `/admin/experiments/prequestionnaire?experiment_id=${encodeURIComponent(experimentId)}`
+      );
     } catch (e) {
       setSubmitError(e.message);
     } finally {
@@ -226,27 +252,10 @@ export default function NewExperimentPage() {
             {resumedId ? "Experiment Details" : "Create New Experiment"}
           </h1>
           <p className="text-body-lg text-secondary">
-            Set up your research environment by defining project details and choosing your dataset(s).
+            Set up your research environment: name it, choose its design, then either pick a dataset
+            to generate from or upload a zip that already has its images.
           </p>
         </div>
-
-        {/* The other route: an experiment whose images are already drawn. It
-            creates the experiment itself and leaves this page, so it is offered
-            only for a new experiment — uploading a zip while editing a draft
-            would silently build a second one. */}
-        {!resumedId && (
-          <BundleStartCard
-            name={name}
-            designType={designType}
-            randomizeOrder={randomizeOrder}
-            onCreated={(data) => {
-              const next = data.needs_answer_format ? "answer-format" : "overview";
-              router.push(
-                `/admin/experiments/${next}?experiment_id=${encodeURIComponent(data.experiment_id)}`
-              );
-            }}
-          />
-        )}
 
         <div className="space-y-section-gap">
           <ExperimentDetailsForm
@@ -254,38 +263,12 @@ export default function NewExperimentPage() {
             description={description}
             onChange={handleFormChange}
           />
-
-          {bundleOnly ? (
-            <section className="bg-surface-container-lowest p-gutter rounded-xl border border-outline-variant">
-              <h2 className="text-h2 text-primary mb-3">Dataset</h2>
-              <p className="text-body-sm text-secondary mb-2">
-                This experiment shows the images of the zip it was created from, so it needs no
-                dataset — nothing is generated for it, and a dataset cannot be added while that is
-                the case.
-              </p>
-              <p className="text-body-sm text-secondary mb-4">
-                To build it from a dataset instead, discard those images first. Its tasks and idioms
-                came from the zip as well, so they go with them; the name and study design stay.
-              </p>
-              <button
-                type="button"
-                onClick={discardBundle}
-                className="px-4 py-2 rounded-lg border border-outline-variant text-body-sm hover:border-primary/50"
-              >
-                Discard the uploaded images and choose a dataset
-              </button>
-            </section>
-          ) : (
-            <DatasetSelectTable
-              pairs={pairs}
-              selectedIds={selectedIds}
-              onToggle={handleToggle}
-              isLoading={loadingPairs}
-              error={pairsError}
-            />
-          )}
         </div>
 
+        {/* Study design and trial order apply whichever way the experiment gets
+            its content below, so they are set once here rather than repeated
+            in the zip route too — the previous layout asked for the name and
+            the design twice, in two different-looking forms, for no reason. */}
         <section className="mt-section-gap bg-surface-container-lowest p-gutter rounded-xl border border-outline-variant">
           <h2 className="text-h2 text-primary mb-6">Experiment Settings</h2>
           <div className="space-y-6">
@@ -345,6 +328,116 @@ export default function NewExperimentPage() {
           </div>
         </section>
 
+        {/* How this experiment gets its tasks, idioms and images: a dataset it
+            generates from, or a zip that already has everything. A dataset is
+            meaningless for the zip route, so opening the card replaces the
+            table with a one-line note instead of leaving both on screen. */}
+        <div className="mt-section-gap space-y-section-gap">
+          {bundleOnly ? (
+            <>
+              <section className="bg-surface-container-lowest p-gutter rounded-xl border border-outline-variant">
+                <h2 className="text-h2 text-primary mb-3">Dataset</h2>
+
+                {/* What is actually in place: neither "Replace" nor "Discard" below
+                    means anything if the admin can't tell what they'd be acting on —
+                    the panel used to say "the zip you uploaded" with no way to see
+                    which one, or how many tasks it left this experiment with. */}
+                <div className="flex items-start gap-3 bg-surface border border-outline-variant rounded-lg p-4 mb-4">
+                  <span className="material-symbols-outlined text-primary text-[20px] mt-0.5">folder_zip</span>
+                  <div className="text-body-sm text-on-surface">
+                    <p className="font-medium">
+                      {bundleInfo?.file || (bundleInfo?.sourceName ? `From "${bundleInfo.sourceName}"` : "Uploaded zip")}
+                    </p>
+                    <p className="text-body-xs text-secondary">
+                      {bundleInfo?.taskCount ?? 0} task{bundleInfo?.taskCount === 1 ? "" : "s"}
+                      {bundleInfo?.importedAt && ` · uploaded ${new Date(bundleInfo.importedAt).toLocaleString()}`}
+                    </p>
+                    <p className="text-body-xs mt-1">
+                      <Link
+                        href={`/admin/experiments/overview?experiment_id=${encodeURIComponent(resumedId)}`}
+                        className="text-primary hover:underline"
+                      >
+                        Review on Overview
+                      </Link>
+                      {" · "}
+                      <a
+                        href={`/api/admin/experiments/${encodeURIComponent(resumedId)}/idioms/export`}
+                        className="text-primary hover:underline"
+                      >
+                        Download it
+                      </a>
+                    </p>
+                  </div>
+                </div>
+
+                <p className="text-body-sm text-secondary mb-2">
+                  This experiment shows exactly this zip&apos;s images, so it needs no dataset and
+                  nothing is generated for it. A dataset cannot be added while that is the case.
+                </p>
+                <p className="text-body-sm text-secondary mb-4">
+                  Uploaded the wrong zip, or want a different one? Replace it below without starting
+                  over, or discard it to build this experiment from a dataset instead — either way its
+                  tasks and idioms go with the images, since neither exists without them; the name and
+                  study design stay.
+                </p>
+                <button
+                  type="button"
+                  onClick={discardBundle}
+                  className="px-4 py-2 rounded-lg border border-outline-variant text-body-sm hover:border-primary/50"
+                >
+                  Discard the uploaded images and choose a dataset
+                </button>
+              </section>
+
+              <BundleStartCard
+                name={name}
+                designType={designType}
+                randomizeOrder={randomizeOrder}
+                open={bundleCardOpen}
+                onToggle={() => setBundleCardOpen((v) => !v)}
+                replaceExperimentId={resumedId}
+                onCreated={(data) => {
+                  const next = data.needs_answer_format ? "answer-format" : "overview";
+                  router.push(
+                    `/admin/experiments/${next}?experiment_id=${encodeURIComponent(data.experiment_id)}`
+                  );
+                }}
+              />
+            </>
+          ) : (
+            <>
+              {!resumedId && (
+                <BundleStartCard
+                  name={name}
+                  designType={designType}
+                  randomizeOrder={randomizeOrder}
+                  open={bundleCardOpen}
+                  onToggle={() => setBundleCardOpen((v) => !v)}
+                  onCreated={(data) => {
+                    const next = data.needs_answer_format ? "answer-format" : "overview";
+                    router.push(
+                      `/admin/experiments/${next}?experiment_id=${encodeURIComponent(data.experiment_id)}`
+                    );
+                  }}
+                />
+              )}
+              {bundleCardOpen ? (
+                <p className="text-body-sm text-secondary bg-surface-container-lowest border border-outline-variant rounded-xl p-gutter">
+                  No dataset needed — this experiment&apos;s images will come from the zip above.
+                </p>
+              ) : (
+                <DatasetSelectTable
+                  pairs={pairs}
+                  selectedIds={selectedIds}
+                  onToggle={handleToggle}
+                  isLoading={loadingPairs}
+                  error={pairsError}
+                />
+              )}
+            </>
+          )}
+        </div>
+
         {submitError && (
           <p className="mt-6 text-body-sm text-error">{submitError}</p>
         )}
@@ -356,7 +449,7 @@ export default function NewExperimentPage() {
             disabled={isSubmitting}
             className="flex items-center gap-2 text-button bg-primary text-on-primary px-12 py-3 rounded-lg hover:opacity-90 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isSubmitting ? "Saving…" : "Next"}
+            {isSubmitting ? "Saving…" : returnTo ? "Save & Return" : "Next"}
             {!isSubmitting && (
               <span className="material-symbols-outlined text-sm">chevron_right</span>
             )}

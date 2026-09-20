@@ -60,46 +60,40 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
-from matplotlib.colors import Normalize, to_hex
-from shared import most_common_stable, save_svg, GREY_DARK, GREY_MED, CIVIDIS, CIVIDIS_R, FONT_TITLE, FONT_ANNOT
-from shared import MOVE_LOG, MOVE_MODEL, contrasting_text_color
+from matplotlib.colors import ListedColormap
+from shared import most_common_stable, save_svg, make_table, draw_cell_grid, GREY_DARK, GREY_MED, CIVIDIS, CIVIDIS_R, FONT_TITLE, FONT_ANNOT
+from shared import MOVE_LOG, MOVE_MODEL
 
 # ── Cividis palette ──────────────────────────────────────────────────────────
 _C_DARK   = GREY_DARK      # dark navy   (highest emphasis)
 _C_MED    = GREY_MED       # neutral grey — caption text only, never data
-_C_BG     = "#f5f5f5"      # panel / cell backgrounds
-_HDR_BG   = GREY_DARK      # table header background
-_HDR_FG   = "white"        # table header text
 _CMAP_SEQ = CIVIDIS_R      # sequential: yellow-green → dark navy (high = dark)
 
-# Max violations shown in most idioms (keeps charts readable)
-_TOP_N = 12
-# Number of most-frequent violation types forming the (symmetric) co-occurrence
-# axis shared by the matrix and heatmap SVGs.
-_MATRIX_TOP_N = 10
+# ── Chrome ───────────────────────────────────────────────────────────────────
+# Greys for what carries no data — the network panel and the boxes behind its
+# labels. shared.py sanctions plain grey here ("Grey stays fine for what encodes
+# no data: axes, gridlines, borders, text …") but names no constant for it, so
+# the values are named once here rather than repeated as near-identical literals
+# (#dddddd / #cccccc / #e0e0e0) that differed for no reason.
+_CHROME_PANEL  = "#fafbfc"   # axes background behind the network diagram
+_CHROME_BORDER = "#dddddd"   # outline of the white label boxes
+_CHROME_FILL   = "white"     # fill of those label boxes
+
+# How many of the most-frequent violation types the figures are built from: the
+# matrix and heatmap axis, and the ring of the network diagram. One number for
+# all three, because they are compared against each other — the network drew 12
+# against their 10, so it carried a co-occurrence they had no row for. An admin
+# who names the patterns overrides this; see generate().
+_TOP_N = 10
 # Min co-occurrence count for network edges / scatter points
 _MIN_COOCCUR = 1
+# Network diagram: the ring has radius 1, labels start outside the widest node
+# and read outwards, and the axis is squared off wide enough to hold the longest
+# of them without leaving the ring adrift in white space.
+_LABEL_RADIUS = 1.18
+_NETWORK_LIMIT = 1.85
 
 SKIP_TOKENS = {">>", None}
-
-
-def _cooccur_threshold_caption(thr_count: float, thr_frac: float) -> str:
-    """Neutral one-line label describing the high-co-occurrence reference value."""
-    return (f"High co-occurrence threshold: ≥ {thr_count:.0f} traces "
-            f"({thr_frac * 100:.0f}% of all traces)")
-
-
-def _add_threshold_footer(fig, thr_count, thr_frac):
-    """Lay out the figure with a reserved bottom band and place the high
-    co-occurrence reference there as a centered footer.
-
-    Using a figure-level footer (in the reserved band) keeps the caption clear
-    of axes content, rotated tick labels and legends, which is where the older
-    in-axes caption used to collide.
-    """
-    fig.tight_layout(rect=(0, 0.06, 1, 1))
-    fig.text(0.5, 0.02, _cooccur_threshold_caption(thr_count, thr_frac),
-             ha="center", va="bottom", fontsize=FONT_ANNOT, color=_C_MED)
 
 
 # ---------------------------------------------------------------------------
@@ -229,7 +223,7 @@ def _save_empty(output_dir: str, filename: str, message: str = "No violation dat
     fig, ax = plt.subplots(figsize=(8, 4))
     ax.axis("off")
     ax.text(0.5, 0.5, message, ha="center", va="center",
-            fontsize=11, color="#888888", transform=ax.transAxes)
+            fontsize=11, color=_C_MED, transform=ax.transAxes)
     save_svg(fig, os.path.join(output_dir, filename))
 
 
@@ -256,8 +250,7 @@ def _build_cooccur_matrix(top_viols, violation_freq, cooccurrence):
     return mat
 
 
-def task08_heatmap(violation_freq, cooccurrence, output_dir, thr_count, thr_frac,
-                   top_n=_MATRIX_TOP_N):
+def task08_heatmap(violation_freq, cooccurrence, output_dir, top_n=_TOP_N):
     if not violation_freq:
         _no_violations(output_dir, "heatmap")
         return
@@ -283,26 +276,18 @@ def task08_heatmap(violation_freq, cooccurrence, output_dir, thr_count, thr_frac
     cbar = fig.colorbar(im, ax=ax, fraction=0.03, pad=0.02)
     cbar.set_label("Co-occurrence count", fontsize=FONT_ANNOT)
     cbar.outline.set_visible(False)
-    # Neutral reference line marking the "high co-occurrence" threshold on the
-    # colour scale (no cell is highlighted — the reader decides what is high).
-    if thr_count is not None and 0 < thr_count <= mat.max():
-        cbar.ax.axhline(thr_count, color=_C_DARK, linewidth=1.2, linestyle="--")
 
     ax.set_title("Violation Co-occurrence Heatmap\n(diagonal = individual frequency)",
                  fontsize=FONT_TITLE)
-    if thr_count is not None:
-        _add_threshold_footer(fig, thr_count, thr_frac)
-    else:
-        fig.tight_layout()
+    fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task08_heatmap.svg"))
 
 
 # ---------------------------------------------------------------------------
-# Idiom 3: Matrix — same as heatmap but with numbers in each cell
+# Idiom: Matrix — the same grid as the heatmap, read as numbers instead of colour
 # ---------------------------------------------------------------------------
 
-def task08_matrix(violation_freq, cooccurrence, output_dir, thr_count, thr_frac,
-                  top_n=_MATRIX_TOP_N):
+def task08_matrix(violation_freq, cooccurrence, output_dir, top_n=_TOP_N):
     if not violation_freq:
         _no_violations(output_dir, "matrix")
         return
@@ -318,34 +303,32 @@ def task08_matrix(violation_freq, cooccurrence, output_dir, thr_count, thr_frac,
     n    = len(top)
 
     fig, ax = plt.subplots(figsize=(max(8, n * 0.9), max(6, n * 0.9)))
-    im = ax.imshow(mat, cmap=_CMAP_SEQ, aspect="equal", vmin=0)
+    # A matrix in the strict sense: empty cells ruled into a grid, the count
+    # carried by the printed number alone, and no colour scale. Shading the
+    # cells as well would make this the heatmap with digits on top — one
+    # variable encoded twice, and two idioms differing only in annotation.
+    # Same contract as shared.draw_value_heatmap(colorless=True), kept inline
+    # here because a co-occurrence matrix is symmetric and wants square cells
+    # (aspect="equal"), which that helper fixes to "auto".
+    ax.imshow(np.zeros_like(mat), cmap=ListedColormap(["white"]),
+              vmin=0, vmax=1, aspect="equal")
+    draw_cell_grid(ax, n, n)
 
     ax.set_xticks(range(n))
     ax.set_xticklabels(labs, rotation=40, ha="right", fontsize=FONT_ANNOT)
     ax.set_yticks(range(n))
     ax.set_yticklabels(labs, fontsize=FONT_ANNOT)
 
-    # Annotate each cell with the count; outline high-co-occurrence off-diagonal
-    # cells (count >= threshold) so "frequently co-occurring" pairs stand out.
-    norm = Normalize(vmin=0, vmax=mat.max())
+    # No pair is flagged high or low — the reader decides which correlations
+    # are noteworthy.
     for i in range(n):
         for j in range(n):
-            val = int(mat[i, j])
-            color = contrasting_text_color(to_hex(_CMAP_SEQ(norm(mat[i, j]))))
-            ax.text(j, i, str(val), ha="center", va="center",
-                    fontsize=max(FONT_ANNOT - 1, 6), color=color, fontweight="bold")
-            if thr_count is not None and i != j and thr_count > 0 and mat[i, j] >= thr_count:
-                ax.add_patch(mpatches.Rectangle(
-                    (j - 0.5, i - 0.5), 1, 1, fill=False,
-                    edgecolor=_C_DARK, linewidth=2.2))
+            ax.text(j, i, str(int(mat[i, j])), ha="center", va="center",
+                    fontsize=max(FONT_ANNOT - 1, 6), color=_C_DARK)
 
-    title_note = "diagonal = individual frequency · outlined = high co-occurrence" \
-        if thr_count is not None else "diagonal = individual frequency"
-    ax.set_title(f"Violation Co-occurrence Matrix\n({title_note})", fontsize=FONT_TITLE)
-    if thr_count is not None:
-        _add_threshold_footer(fig, thr_count, thr_frac)
-    else:
-        fig.tight_layout()
+    ax.set_title("Violation Co-occurrence Matrix\n(diagonal = individual frequency)",
+                 fontsize=FONT_TITLE)
+    fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task08_matrix.svg"))
 
 
@@ -353,8 +336,8 @@ def task08_matrix(violation_freq, cooccurrence, output_dir, thr_count, thr_frac,
 # Idiom 4: Network Diagram — violations as nodes, co-occurrence as edges
 # ---------------------------------------------------------------------------
 
-def task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count,
-                           thr_frac, top_n=_TOP_N):
+def task08_network_diagram(violation_freq, cooccurrence, output_dir,
+                           top_n=_TOP_N):
     try:
         import networkx as nx
     except ImportError:
@@ -366,9 +349,16 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count,
         _no_violations(output_dir, "network_diagram")
         return
 
-    # Keep the ranked order: nodes enter the graph in this sequence, and both
-    # layouts place them by insertion order, so a set here would undo the stable
-    # ranking and move every node between runs.
+    # The same violations the heatmap and the matrix put on their axis, so the
+    # three idioms of one task show one set of violations and a participant
+    # comparing them is comparing the encoding, not the data behind it. A list,
+    # not a set: the ranking decides which group of nodes is seated first, and a
+    # set would reorder it differently on every run.
+    #
+    # The ranking is by how many traces contain a violation, not by how much it
+    # co-occurs, so a node whose only partner ranks below the cut is drawn with
+    # no edge. That is the same gap the matrix shows as a row of zeros — the
+    # figures agree — but neither says the pair exists; only the table does.
     top = _top_violations(violation_freq, top_n)
     top_set = set(top)
     pairs = [(a, b, cnt) for (a, b), cnt in cooccurrence.items()
@@ -379,23 +369,51 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count,
                     "No co-occurring violations to display")
         return
 
-    G = nx.Graph()
+    # Seat each group of violations that co-occur together in one unbroken run
+    # of the ring. Ranked order scattered them around it, so every edge became a
+    # chord across the middle and the crossings were most of what the figure
+    # showed. Seating a whole connected group at once makes every edge a short
+    # arc inside its own block; the ranking still decides which block comes
+    # first, and the walk is ordered throughout, so the seating does not move
+    # between runs.
+    partners = {}
+    for a, b, _cnt in sorted(pairs, key=lambda e: (-e[2], str(e[0]), str(e[1]))):
+        partners.setdefault(a, []).append(b)
+        partners.setdefault(b, []).append(a)
+
+    ring, seated = [], set()
     for v in top:
+        if v in seated:
+            continue
+        queue = [v]
+        while queue:
+            cur = queue.pop(0)
+            if cur in seated:
+                continue
+            ring.append(cur)
+            seated.add(cur)
+            queue.extend(p for p in partners.get(cur, []) if p not in seated)
+
+    G = nx.Graph()
+    for v in ring:
         G.add_node(v, freq=violation_freq[v])
     for a, b, cnt in pairs:
         G.add_edge(a, b, weight=cnt)
 
-    # Circular layout for ≤8 nodes (avoids spring clustering); spring for more
+    # A ring at every size. Spring layout pulled the connected pairs into tight
+    # clusters and scattered the rest, so labels sitting under their node ran
+    # straight into the neighbouring one. On a ring the nodes are evenly spaced
+    # and every label can point away from the centre, where the only thing it
+    # could meet is the label of a node far away in angle.
     n_nodes = G.number_of_nodes()
-    if n_nodes <= 8:
-        pos = nx.circular_layout(G, scale=2.0)
-    else:
-        pos = nx.spring_layout(G, seed=42, k=3.0)
+    pos = nx.circular_layout(G, scale=1.0)
 
     # Node sizes proportional to frequency
     nodes_ordered = list(G.nodes)
     freqs   = np.array([G.nodes[n]["freq"] for n in nodes_ordered])
-    node_sz = (freqs / freqs.max() * 1600 + 400).tolist()
+    # Capped so the widest node still clears _LABEL_RADIUS and two neighbours on
+    # a full ring do not touch.
+    node_sz = (freqs / freqs.max() * 1100 + 250).tolist()
 
     # Edge widths and shades proportional to co-occurrence: the blue end of
     # cividis, slate for the weakest pair to navy for the strongest.
@@ -411,26 +429,32 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count,
 
     colors = [node_color(n) for n in nodes_ordered]
 
-    fig_w = max(8, min(14, n_nodes * 2.5))
-    fig_h = max(6, min(9, n_nodes * 1.8))
-    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
-    ax.set_facecolor("#fafbfc")
+    # Square, because the ring is: the labels need as much room above and below
+    # as they do left and right. It grows with the node count so the ring never
+    # gets so crowded that two spokes touch.
+    side = max(10.0, min(15.0, 7.0 + n_nodes * 0.45))
+    fig, ax = plt.subplots(figsize=(side, side))
+    ax.set_facecolor(_CHROME_PANEL)
 
     nx.draw_networkx_edges(G, pos, ax=ax, width=edge_w,
                            edge_color=edge_col, alpha=0.85, edgelist=edges)
     nx.draw_networkx_nodes(G, pos, nodelist=nodes_ordered, ax=ax,
                            node_size=node_sz, node_color=colors,
-                           alpha=0.92, linewidths=0.8, edgecolors="white")
+                           alpha=0.92, linewidths=0.8, edgecolors=_CHROME_FILL)
 
-    # Node labels: placed below each node, with white bbox
+    # Node labels: one spoke per node, starting just outside the ring and
+    # reading outwards. Parallel rays cannot collide the way a row of boxes
+    # under the nodes did; the left half is flipped so nothing reads upside
+    # down. No box behind them — outside the ring there is nothing to cover.
     for node, (x, y) in pos.items():
+        angle = np.degrees(np.arctan2(y, x))
+        lx, ly = x * _LABEL_RADIUS, y * _LABEL_RADIUS
+        rotation, ha = (angle + 180, "right") if x < 0 else (angle, "left")
         ax.annotate(
-            _short_label(_viol_label(node), 26), xy=(x, y),
-            xytext=(0, -22), textcoords="offset points",
-            ha="center", va="top",
+            _short_label(_viol_label(node), 26), xy=(lx, ly),
+            rotation=rotation, rotation_mode="anchor",
+            ha=ha, va="center",
             fontsize=max(FONT_ANNOT - 1, 6), color=_C_DARK,
-            bbox=dict(boxstyle="round,pad=0.25", fc="white",
-                      ec="#dddddd", alpha=0.92, linewidth=0.4),
         )
 
     # Edge weight labels: drawn manually at midpoint, pushed perpendicular
@@ -447,34 +471,33 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count,
         ax.text(mx + perp_x, my + perp_y, str(w),
                 ha="center", va="center",
                 fontsize=max(FONT_ANNOT - 1, 7), color=_C_DARK, fontweight="bold",
-                bbox=dict(boxstyle="round,pad=0.2", fc="white",
-                          ec="#cccccc", alpha=0.95, linewidth=0.4))
+                bbox=dict(boxstyle="round,pad=0.2", fc=_CHROME_FILL,
+                          ec=_CHROME_BORDER, alpha=0.95, linewidth=0.4))
 
     # Legend with updated terminology
     legend_handles = [
         mpatches.Patch(color=MOVE_MODEL,    label="Model Move (skipped activity)"),
         mpatches.Patch(color=MOVE_LOG,      label="Log Move (extra activity)"),
     ]
-    ax.legend(handles=legend_handles, loc="lower right",
-              fontsize=FONT_ANNOT, frameon=True, framealpha=0.95)
+    # Under the axis: the corners the legend used to sit in are now where the
+    # diagonal spokes reach.
+    ax.legend(handles=legend_handles, loc="upper center",
+              bbox_to_anchor=(0.5, -0.01), ncol=2,
+              fontsize=FONT_ANNOT, frameon=False)
 
     ax.set_title("Violation Co-occurrence Network\n"
                  "(node size = frequency · edge width & shade = co-occurrence count)",
                  fontsize=FONT_TITLE)
 
-    # Explicitly set axis limits so tight_layout / bbox_inches captures the
-    # networkx content correctly — ax.axis("off") can confuse the auto-scaler.
-    all_x = [p[0] for p in pos.values()]
-    all_y = [p[1] for p in pos.values()]
-    pad = max(1.0, (max(all_x) - min(all_x)) * 0.25, (max(all_y) - min(all_y)) * 0.25)
-    ax.set_xlim(min(all_x) - pad, max(all_x) + pad)
-    ax.set_ylim(min(all_y) - pad - 0.5, max(all_y) + pad)  # extra bottom room for labels
+    # Square limits around the ring, set explicitly: the spokes are annotations,
+    # which the auto-scaler does not measure, and ax.axis("off") confuses it
+    # further. The margin is what holds the longest label.
+    ax.set_xlim(-_NETWORK_LIMIT, _NETWORK_LIMIT)
+    ax.set_ylim(-_NETWORK_LIMIT, _NETWORK_LIMIT)
+    ax.set_aspect("equal")
     ax.axis("off")
 
-    if thr_count is not None:
-        _add_threshold_footer(fig, thr_count, thr_frac)
-    else:
-        fig.tight_layout()
+    fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task08_network_diagram.svg"))
 
 
@@ -482,59 +505,41 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir, thr_count,
 # Idiom: Table — ranked co-occurrence pairs
 # ---------------------------------------------------------------------------
 
-def task08_table(violation_freq, cooccurrence, n_traces, output_dir,
-                 thr_count, thr_frac):
+_TABLE_COLS       = ["Violation A", "Violation B", "Co-occ. Count", "% of Traces"]
+_TABLE_COL_WIDTHS = [0.34, 0.34, 0.16, 0.16]
+
+
+def task08_table(violation_freq, cooccurrence, n_traces, output_dir):
     if not cooccurrence:
         _no_violations(output_dir, "table")
         return
 
-    top_pairs = most_common_stable(cooccurrence, 20)
-    rows = []
-    for (a, b), cnt in top_pairs:
-        rows.append([
-            _short_label(_viol_label(a), 30),
-            _short_label(_viol_label(b), 30),
-            cnt,
-            f"{cnt / n_traces * 100:.1f}%",
-        ])
+    rows = [
+        [_short_label(_viol_label(a), 30),
+         _short_label(_viol_label(b), 30),
+         cnt,
+         f"{cnt / n_traces * 100:.1f}%"]
+        for (a, b), cnt in most_common_stable(cooccurrence, 20)
+    ]
 
-    col_headers = ["Violation A", "Violation B", "Co-occ. Count", "% of Traces"]
-    col_widths   = [0.34, 0.34, 0.16, 0.16]
-
-    n_rows  = len(rows)
-    fig_h   = max(4, 0.38 * n_rows + 1.5)
-    fig, ax = plt.subplots(figsize=(14, fig_h))
+    fig_h = max(4, 0.38 * len(rows) + 1.5)
+    fig   = plt.figure(figsize=(14, fig_h))
+    ax    = fig.add_subplot(111)
     ax.axis("off")
 
-    tbl = ax.table(
-        cellText=rows,
-        colLabels=col_headers,
-        colWidths=col_widths,
-        loc="center", cellLoc="left",
-    )
-    tbl.auto_set_font_size(False)
-    tbl.set_fontsize(FONT_ANNOT)
-    tbl.scale(1, 1.5)
+    # shared.make_table, as every other task's table idiom draws one: the same
+    # header colour, zebra shading and row height, so a participant comparing
+    # table idioms across tasks is not also comparing two table designs.
+    make_table(ax, cell_text=rows, col_labels=_TABLE_COLS,
+               bbox=[0.02, 0.02, 0.96, 0.88], col_widths=_TABLE_COL_WIDTHS,
+               cell_loc="left", cell_pad=0.08)
 
-    # Header styling
-    for j in range(len(col_headers)):
-        cell = tbl[0, j]
-        cell.set_facecolor(_HDR_BG)
-        cell.set_text_props(color=_HDR_FG, fontweight="bold")
-
-    # Alternating row colours
-    for i in range(1, n_rows + 1):
-        bg = _C_BG if i % 2 == 0 else "white"
-        for j in range(len(col_headers)):
-            tbl[i, j].set_facecolor(bg)
-            tbl[i, j].set_edgecolor("#e0e0e0")
-
-    ax.set_title("Top Violation Co-occurrences", fontsize=FONT_TITLE,
-                 pad=12, loc="left")
-    if thr_count is not None:
-        _add_threshold_footer(fig, thr_count, thr_frac)
-    else:
-        fig.tight_layout()
+    # Centred, and named and captioned like the other three: the four are read
+    # against each other, so the heading is not where they should differ.
+    ax.set_title("Violation Co-occurrence Table\n"
+                 "(count = traces containing both violations)",
+                 fontsize=FONT_TITLE)
+    fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, "task08_table.svg"))
 
 
@@ -580,14 +585,13 @@ def generate(log, alignments, output_dir: str, violation_patterns=None):
                         "No guideline violations detected in this log")
         return
 
-    # Threshold annotations are intentionally not drawn: passing thr_count /
-    # thr_frac = None disables the footer caption, the heatmap reference line
-    # and the matrix cell outlines, leaving the co-occurrence counts to speak
-    # for themselves.
-    task08_heatmap(violation_freq, cooccurrence, output_dir, None, None,
-                   top_n=axis_n or _MATRIX_TOP_N)
-    task08_matrix(violation_freq, cooccurrence, output_dir, None, None,
-                  top_n=axis_n or _MATRIX_TOP_N)
-    task08_network_diagram(violation_freq, cooccurrence, output_dir, None, None,
+    # No co-occurrence threshold is drawn anywhere: no pair is flagged high or
+    # low, so the analyst decides which correlations are noteworthy. Naming the
+    # pairs worth looking at is what choosing the patterns does.
+    task08_heatmap(violation_freq, cooccurrence, output_dir,
+                   top_n=axis_n or _TOP_N)
+    task08_matrix(violation_freq, cooccurrence, output_dir,
+                  top_n=axis_n or _TOP_N)
+    task08_network_diagram(violation_freq, cooccurrence, output_dir,
                            top_n=axis_n or _TOP_N)
-    task08_table(violation_freq, cooccurrence, n_traces, output_dir, None, None)
+    task08_table(violation_freq, cooccurrence, n_traces, output_dir)

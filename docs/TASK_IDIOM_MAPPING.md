@@ -512,7 +512,6 @@ This task is similar to ``Present: Present Guideline violations'', but rather th
 |---|---|---|
 | Bar Chart | `bar_chart` | High |
 | Stacked Bar Graph | `stacked_bar` | Medium/Reviewed |
-| Box and Whisker Plot | `boxplot` | Medium/Reviewed |
 | Flow Chart (Chevron Diagram) | `flow_chart_basic` | Medium/Reviewed |
 | Flow Chart+ (BPMN / Petri Net / DFG) | `flow_chart_elaborate` | Medium/Reviewed |
 | Tree | `tree` | Medium/Reviewed |
@@ -540,8 +539,6 @@ This task is similar to ``Present: Present Guideline violations'', but rather th
 | Matrix | `matrix` | High |
 | Heatmap | `heatmap` | Medium/Reviewed |
 | Pie / Donut Chart | `pie_chart` | High |
-| Sunburst Diagram | `sunburst` | High |
-| Parallel Sets | `parallel_sets` | High |
 
 ## task30
 
@@ -600,11 +597,7 @@ This task is similar to ``Present: Present Guideline violations'', but rather th
 | Idiom (Excel label) | Canonical key | Priority |
 |---|---|---|
 | Bar Chart | `bar_chart` | Medium/Reviewed |
-| Stacked Bar Graph | `stacked_bar` | Medium/Reviewed |
-| Scatter Plot (Dotted Chart) | `scatter_plot` | Medium/Reviewed |
-| Box and Whisker Plot | `boxplot` | Medium/Reviewed |
 | Table | `table` | Medium/Reviewed |
-| Table & Bar Chart | `table_bar_chart` | Medium/Reviewed |
 | Matrix | `matrix` | Medium/Reviewed |
 | Heatmap | `heatmap` | Medium/Reviewed |
 | Calendar | `calendar` | Medium/Reviewed |

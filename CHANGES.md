@@ -2,6 +2,149 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: /new Says What Zip a Bundle Experiment Actually Has (2026-09-20)
+
+### Problem solved
+
+Stepping back to /new for a bundle experiment offered *Replace* and *Discard*
+without saying what either would act on: no file name, no task count, no
+link back to see the images. An admin who had uploaded more than one zip while
+setting things up had no way to tell which one this was.
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `ProViFrontend/.../admin/experiments/new/page.js` | Loading a bundle experiment also reads its `idioms_imported_from` / `idioms_imported_at` / task count into a small card: the zip's file name (or the experiment it was exported from, for an older manifest with no file name), how many tasks, when, and links to review it on Overview or download it. `discardBundle`'s confirmation names the file when known and points at downloading a copy first, since a discarded zip cannot be recovered from this experiment afterwards. |
+
+`eslint` — no errors.
+
+## Session: Replace a Bundle Experiment's Zip Without Starting Over (2026-09-20)
+
+### Problem solved
+
+Stepping back to /new for an experiment built from a zip showed only "this
+experiment needs no dataset" and a *Discard* button — no way to say "wrong zip,
+here's the right one" short of discarding (which also drops the tasks and
+idioms) or deleting the whole draft from the admin page. `POST
+/admin/experiments/from-bundle` also always minted a new `experiment_id`, which
+is why the upload card was hidden whenever a draft was already open: uploading
+there would have silently created an unrelated second experiment.
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `provibackend/.../app/routers/idiom_bundle.py` | `POST /admin/experiments/from-bundle` takes an optional `experiment_id`: given one, it replaces that (already `bundle_only`) draft's tasks, idioms and images with the new zip's instead of creating a new experiment, keeping its name/design unless the form changes them. The new zip is fully parsed and confirmed to yield at least one task before anything of the old one is removed, so a bad replacement leaves the experiment as it was. Shared logic (`_build_bundle_pieces`, `_write_bundle_images`, `_clear_bundle_content`) now also backs `discard-bundle`. |
+| `ProViFrontend/.../components/Admin/BundleStartCard.js` | New `replaceExperimentId` prop switches the copy, adds a confirmation before uploading, and sends the id along. |
+| `ProViFrontend/.../admin/experiments/new/page.js` | The bundle-experiment panel says the uploaded zip is saved and offers *Replace with a different zip* next to *Discard*. |
+
+`py_compile` and `eslint` — no errors.
+
+## Session: A Bundle Experiment's Bar and "Previous Step" Match What It Has (2026-09-20)
+
+### Problem solved
+
+A bundle experiment (built from a zip on /new) has no Specify step, which the
+bar already knew, but it still offered Tasks and Idioms as steps to walk
+through — there is nothing to choose there either, since the zip fixed both.
+Overview's "Previous Step" pointed at /answer-format regardless, which a
+version-3 zip's experiment never visits at all (it goes straight to
+/overview), so that link led to a page with no path back to where editing this
+kind of experiment actually starts.
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `ProViFrontend/.../components/Admin/WizardSteps.js` | A bundle experiment's bar also leaves out Tasks and Idioms, not just Specify. A non-bundle experiment is unaffected — it still needs all three to choose what it uses. |
+| `ProViFrontend/.../admin/experiments/overview/page.js` | Overview's "Previous Step" goes to /new for a bundle experiment instead of /answer-format. |
+
+An admin can still trim a bundle experiment's tasks or idioms by opening
+/task or /idiom directly; the bar just no longer offers that as a step.
+
+`eslint` — no errors on either file.
+
+## Session: Idiom Export 500s After the Task Bank Dropped answer_type (2026-09-20)
+
+### Problem solved
+
+`GET /admin/experiments/{id}/idioms/export` raised `KeyError: 'answer_type'`
+(an uncaught 500) on every experiment. "Drop the Task bank's answer_type"
+removed the field from `Task`, `TaskInstance`, `TaskConfig`, the custom-task
+stub, the per-experiment wording override and all 37 seed entries, and dropped
+it from `task_wording.WORDING_FIELDS` — but `idiom_bundle.py`'s export and
+import were not on that list, and still read/wrote the field.
+
+`effective_wording()` builds its return dict from `WORDING_FIELDS` alone, so
+once `answer_type` left that tuple the dict stopped carrying the key;
+`idiom_bundle.py:116`'s `wording["answer_type"]` then raised on every call.
+
+### Changes
+
+`provibackend/ProViBackend/app/routers/idiom_bundle.py`:
+- Export: `_layout()` no longer reads `wording["answer_type"]`; the manifest's
+  per-task record no longer writes `answer_type`.
+- Import: `_resolve_bundle_task()` no longer reads `zip_task.get("answer_type")`
+  or puts it on the `task_overrides` record or the custom-task stub — both now
+  match the `{label, description}` shape `task_wording.py`'s own docstring
+  already described.
+
+An export taken before this fix still has `answer_type` in its manifest.json;
+importing it is unaffected, since the field is simply not read any more.
+
+### Verification
+
+`py_compile`. Not run against a live export — no server available here.
+
+## Session: /new Stops Asking for the Name and Design Twice (2026-09-20)
+
+### Problem solved
+
+Opening "Already have the images? Start from a downloaded zip" on /new showed
+its own Experiment name field and Study design picker, right below the page's
+own Name field and Experiment Settings section asking the same two things —
+two name boxes, two design pickers, with no visible link between them and the
+dataset table still sitting there as if it applied. An admin choosing the zip
+route had no way to tell what any of it meant.
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `ProViFrontend/.../components/Admin/BundleStartCard.js` | Its own Name / Study design / Randomise controls removed; it now reads `name`, `designType`, `randomizeOrder` from the page and states what it will use them as. `open` is a prop the page controls instead of the card's own state. |
+| `ProViFrontend/.../admin/experiments/new/page.js` | Experiment Settings (design, trial order) moved above the fork so it reads as shared by both routes rather than duplicated in one of them. While the zip card is open, the dataset table is replaced by a one-line note instead of sitting there unused. |
+
+`eslint` — no errors or warnings on either file.
+
+## Session: Jumping to an Earlier Step Returns There Instead of Marching Forward (2026-09-20)
+
+### Problem solved
+
+The step bar (previous session) let an admin jump from Overview straight to
+Concepts to fix the intro pages, but its Next button did not know that: it
+saved and carried on to Tasks, so returning to Overview still meant clicking
+Next through Tasks, Idioms, Specify and Answer Format again.
+
+### Changes
+
+Every jump made through `WizardSteps` (and the equivalent "View / change" /
+"Change on Specify" / "Edit" links on Overview) now carries `return_to=<page
+jumped from>`. The page landed on reads it: Next saves and goes straight back
+there instead of to its normal next step, its label changes to "Save & Return",
+and its own Previous Step link forwards the same `return_to` — so stepping
+further back and later forward still returns to Overview rather than resuming
+the ordinary forward march.
+
+| File | Change |
+|------|--------|
+| `ProViFrontend/.../components/Admin/WizardSteps.js` | Every step link appends `return_to=<current>`. |
+| `ProViFrontend/.../admin/experiments/overview/page.js` | The Participant flow card's links, the idiom "Edit" link, the answer-format link and "Change on Specify" all carry `return_to=overview`. |
+| `ProViFrontend/.../admin/experiments/{new,prequestionnaire,knowledge,concepts,task,idiom,specify,answer-format}/page.js` | Each reads `return_to`; Next/Save targets it when present (idiom's "all-custom" and specify's "nothing to generate" shortcuts still yield to it), the button reads "Save & Return", and each page's own Previous Step link/handler carries it onward. |
+
+`eslint` — no errors under `admin/experiments` or `components/Admin`, only the
+same 8 pre-existing warnings. Not exercised in a browser.
+
 ## Session: A Step Bar for the Setup Wizard (2026-09-20)
 
 ### Problem solved
@@ -26,6 +169,20 @@ Four pre-existing `react/no-unescaped-entities` errors fixed along the way
 
 `py_compile` and `eslint` — no errors left under `admin/experiments` or
 `components/Admin`. Not exercised in a browser.
+
+## Session: task06's Bar Chart and Matrix Follow the Same Fix (2026-09-20)
+
+| Area | Change |
+|------|--------|
+| Bar chart | Its one "Overall" bar was `GREY_MED`, cividis's olive-grey middle — the same colour the review has been moving other idioms off of. task02 draws the same shape (one "Overall" bar, one log, no second group to pair it against) in `GREY_DARK`; task06 now matches it. |
+| Matrix | Was a single cell shaded on a light→dark grey scale with a colorbar — the value encoded twice, once by shade and once by the printed number. Now colourless: a white cell ruled by `draw_cell_grid` (the same helper tasks 01, 03, 04 and 27-32 use), the fitness carried by the number alone, no colorbar. |
+
+`LinearSegmentedColormap` and the two-tone `GREY_LIGHT`/`GREY_LIGHTER` import it
+needed are gone with it.
+
+### Verification
+
+`py_compile`. Not regenerated.
 
 ## Session: task04's Table Keeps Its Log Moves, and Its Order (2026-09-20)
 
@@ -79,6 +236,253 @@ task. A log move of a modelled activity — the common case — could never reac
 Separately, the rows sit in model order, so a trace that runs two activities out
 of order read exactly like one that runs them in order. The chevron shows that
 difference; the table dropped it.
+## Session: One Title Over task28, and a Table That Does Not Repeat the Chevron (2026-09-20)
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| `_INSERTED_SUFFIX` | " (inserted)" becomes " (Log Move)". The suffix exists because a log move needs a row of its own even when a model task of the same name is already there — "Check Credit" as a model task and "Check Credit" inserted a second time — but "inserted" was a second word for one thing, and the reader had to work out that it meant the same as the "Log Move" in the cell beside it. Reaches task04, task09, task14, task27 and task28, which is the point: it is the class's vocabulary. |
+| `show_order` on task04_table | Opt-in, default unchanged. With it off the cell holds the move type alone and the column header is the trace's name, where both used to read "{step} · {move}" and "Trace 1 (step · move)". task28 turns it off: the chevron and the BPMN beside it already carry the order, and a table carrying it too says more than they do in the one channel they cannot match. The cost is the order-blindness task04's docstring describes, accepted here because two other idioms cover it. task04, task09, task14 and task27 keep the step. |
+| `alignment_figures` title | task09's shared entry point takes a `title` and puts it on all three figures. task04's own defaults differ per figure, which is right for task04 and wrong for a task whose idioms are read as one set. |
+| One task28 title | `_DEVIATION_TITLE` is "Where the Shown Traces Differ from the Guideline", on all seven idioms. They carried four different ones: task04's per-figure defaults on the trio, and on the aggregates a name for the whole log that stopped being true when they moved onto the chosen traces. |
+
+### Verification
+
+Rendering task28 with two traces: the table, bar chart, stacked bar, matrix and
+heatmap carry the title as an axes title, the chevron as a suptitle, the BPMN in
+its own composed header — seven for seven. The table's cells come out
+"Synchronous Move" where they were "1 · Synchronous Move".
+
+The heatmap's ramp was already right: `draw_value_heatmap` defaults to
+`CIVIDIS_R`, so task28's heatmap decodes to the same navy-to-yellow raster as
+task29's — 241 colours, ending on (254, 232, 56).
+
+## Session: task28 Pinpoints the Traces It Was Asked About (2026-09-20)
+
+### Problem solved
+
+task28 asks "where exactly does the process execution differ from the guideline"
+and its own subtitle says "pinpoint specific violations in traces". Three of its
+idioms did that. The other five aggregated the whole log: `_dev_df(alignments)`,
+deviation patterns ranked by frequency, capped at the top 12, untouched by the
+trace selection. So the chevron, BPMN and table pinpointed the chosen traces
+while the bar chart beside them summarised thirteen thousand others — and
+ranked by how often, which is not what the task asks.
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| Box plot removed | Its unit was the trace and its measure the count of deviating steps per trace, summarised as median, IQR and outliers: a distribution over the whole log, where the task asks about named traces. Seven idioms left. |
+| Trace level | `_selected_step_payload(records)` is the new shared source for bar chart, stacked bar, matrix and heatmap. Its unit is one deviating step's `(activity, move type)` — where it happened and what kind it was — over the traces the admin chose, from the same `select_records` call the trio reads. |
+| Counts stop being a ranking | Over one to four traces the cells hold 0, 1 or 2. The figure reads as a location rather than a frequency, which is what "where exactly, and how" needs. The four carry one title, `_DEVIATION_TITLE`; they used to name the log ("Where Does the Log Deviate?", "top-12 activities"). |
+| Encodings | Bar chart: one bar per trace per step, grouped. Stacked bar: one bar per step, split by which trace it happened in. Matrix: numbers on white cells. Heatmap: the same grid as colour. |
+| Trace naming | `build_task28_context` labelled its fallback trace `f"Trace {idx + 1}"` with `idx` the position in the whole log — "Trace 4818" — while the table beside it numbers from one. That path draws exactly one trace, so it is "Trace 1". |
+| Swept | `_dev_df`, `_trace_dev_df`, `_activity_movetype_pivot`, `_present_move_types`, `_move_color`, `_wrap_pat`, `TOP_N`, `MOVE_TYPE_COLORS`, `_MOVE_RANK` and the `build_violation_pattern_df` import went with the log-wide view. |
+
+### Verification
+
+Generating at `trace_count` 1 and 3 on BPIC12-A: seven SVGs each, and all seven
+differ between the two runs. Before, four of them were byte-identical whatever
+the admin chose. `pyflakes` shows only task28's four pre-existing unused
+imports.
+
+### Open points
+
+* task28's aggregates are now the same shape as task34's. The two are not the
+  same task — task28 is Explore and does not hand the participant the violations
+  — but whether that is enough to put both in one study is an experiment-design
+  question.
+* In the data and resource perspectives the trio draws value verdicts while
+  these four still read move types.
+
+## Session: task29 Keeps the Six Idioms That Can Answer Its Parameter (2026-09-20)
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| Parallel sets, sunburst removed | Both need two levels to draw anything — an axis to flow to, a ring to nest — and under "By move type", the default strategy, this task has one: two move types and nothing else. Taking the second level from the activities, as they did, is exactly the information that strategy removes, so those two said more than the other six. task29 has six idioms, all reading the same grid. `_task29_activity_type_pivot` and `_PIVOT_TOP_N` went with them, and with them the last code path that read `alignments` behind the admin's back. |
+| Tick rotation | `_rotate_tick_labels` measures instead of estimating: the figure is drawn once, matplotlib reports each label's rendered width, and the widest is compared with the room one category gets. The 0.6-em-per-character estimate it replaces turned three comfortable labels on end, which is worse than the overlap it avoids. Three "Ship Order (Model Move)" labels now stay horizontal; four turn. |
+| Pie chart | The legend read `move_type`, so three activities that are all Model Moves gave three identical swatches labelled "Model Move" three times, and the activity names appeared nowhere. The wedges carry their group name on a leader line now, beside the count they already had, and the legend explains the two colours, each once. |
+
+### Verification
+
+Generating under all three strategies: six SVGs each, and all six differ
+between "By move type" and "By activity" — every idiom answers the parameter.
+The rotation rule over a 8.5-inch figure: False for two and three labels, True
+from four. `pyflakes` clean after the orphan sweep.
+
+## Session: task29's Grid Idioms Follow the Grouping Strategy (2026-09-20)
+
+### Problem solved
+
+Half of task29 answered the admin's parameters and half did not. The matrix,
+stacked bar, parallel sets and sunburst took `alignments` straight and built
+activity × move type through `_task29_activity_type_pivot`, capped at the top 15
+activities, whatever the strategy said. With "By move type" chosen, the bar
+chart, table and pie chart showed two categories while the matrix beside them
+showed fifteen activities.
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| Shared grid | `_strategy_grid(df, strategy)` returns (rows, move types, counts) from the same summary frame the other idioms read, so `grouping_strategy` and `selection` arrive. Columns are always the two move types, in fixed order — that is the axis these idioms share and what the admin reads across the x axis. Rows are the other half of the group: the activity under "activity" and "pattern" (`_row_activity` splits the label or parses the pattern), a single "All Violations" row under "move_type", where there is no other half. |
+| Matrix, heatmap | Both draw that grid: move type across, the count in the cell. The matrix prints it on white cells, the heatmap carries it as cividis colour without numbers. Under "By move type" that is one row of two cells, which is the same two numbers the bar chart shows. |
+| Stacked bar | Upright, one bar per grid row split by move type, segment counts inside and the row total above. It used to lie on its side with the activities down the y axis, against every other bar chart in the platform. |
+| Bar chart | `alpha=0.88` removed. It washed the navy and the yellow toward each other and toward the background; every other bar chart here draws its categories solid. |
+| Tick labels | `_rotate_tick_labels` measures the width one category gets against the widest label's longest line, at 0.6 em per character, and turns the labels upright only when they would not fit. Two move types across a 9-inch axis stay horizontal; fifteen activities turn. The bar chart and the stacked bar share it. |
+
+### Verification
+
+Generating three times, once per strategy: the grid is (1, 2) under "move_type"
+and (2, 2) under "activity" and "pattern" on BPIC12-A, columns always the two
+move types. Comparing normalised SVGs between two strategies, six of the eight
+idioms now differ where four did before. The rotation rule returns False for two
+and four bars, True for eight and fifteen. No `opacity` attribute is left in the
+bar chart's SVG.
+
+### Open point
+
+`parallel_sets` and `sunburst` still ignore the strategy — both need two
+dimensions to draw at all, and "By move type" has only one. What they should
+show under that strategy is undecided.
+
+## Session: task29's Idioms Agree on Vocabulary, Palette and Numbers (2026-09-20)
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| Vocabulary | `TASK29_TYPE_LABELS` mapped the move types onto "Model Move (Missing in Log)" and "Log Move (Unexpected in Log)". task04, task34 and every move table say "Model Move" and "Log Move"; a reader comparing two idioms of one task should not have to decide whether "Unexpected in Log" is a third kind of move. |
+| Palette | `_VTYPE_COLOR` is `PAIR_COLORS` — cividis navy and cividis bright yellow, as task31 and task32 use them. It was `GREY_MED` over `GREY_DARK`: two neighbours in cividis's dark half, which read as one emphasis level rather than two categories, and left the bright secondary unused. The bar chart and pie chart read the same map instead of repeating the colour rule inline. |
+| Heatmap | Was the last greyscale figure in the task (`cmap="Greys"`) and printed the count in every cell, encoding one variable twice and leaving the matrix with nothing of its own. It goes through `draw_value_heatmap` now: cividis, `annotate=False`, colorbar. Matrix = annotated grid, Heatmap = continuous colour, as shared.py has it. |
+| Table | The Percentage column and the Total row are gone. No other idiom of this task carries either, and a table that adds a derived measure is not the same information in another encoding — which is what this task varies. |
+| Pie chart | The wedges carry the count now, not the share. The share is still there as the angle, which is the pie's encoding; without the count it was the one idiom here a reader could take no absolute figure from. |
+| Sunburst | Each ring label carries its count. It had neither a number nor a share, so rank was all it showed. |
+
+### Verification
+
+Eight SVGs render. Labels come out "Model Move" / "Log Move"; `_VTYPE_COLOR` is
+`{'Model Move': '#243c6e', 'Log Move': '#e5cf52'}`. Decoding the embedded
+rasters: the heatmap's cells are cividis (navy to yellow) where they were greys,
+and the matrix's single raster colour is pure white — it has been colourless
+since the tasks 27-31 round.
+
+### Open point: four idioms ignore the admin's parameters
+
+Generating twice on BPIC12-A, once per `grouping_strategy`, and comparing the
+normalised SVGs:
+
+| reacts to the strategy | ignores it, byte-identical |
+|---|---|
+| bar_chart, heatmap, pie_chart, table | matrix, stacked_bar, parallel_sets, sunburst |
+
+The first four read `task29_violation_summary_dataframe`, which honours
+`grouping_strategy` and `selection`. The other four take `alignments` straight
+and build activity × move type through `_task29_activity_type_pivot`, capped at
+the top 15 activities. So under the default strategy four idioms show two rows
+and four show fifteen activities × two types: not the same information in
+another encoding, and half the task does not answer the parameter at all. Left
+as it is pending a decision on which of the two the task is about.
+
+## Session: The Choices That Were Made For You Now Carry an Asterisk (2026-09-20)
+
+### Problem solved
+
+task32's "How violations are grouped" silently defaulted to "By move type", with
+no asterisk to say a choice was in force. Auditing every declared parameter for
+the same shape — a fixed-option select, a non-empty default, `required: False`,
+and no statement anywhere of what empty means — found exactly five, reaching
+eleven tasks between them.
+
+### Changes
+
+| Parameter | Declared by | Default that was applied in silence |
+|---|---|---|
+| `grouping_strategy` | task05, task29, task32, task36 | By move type (Model Move / Log Move) |
+| `trace_selection_mode` | task04, task09, task14, task24, task27, task28, task34 | Automatically, by a rule |
+| `trace_pick_rule` | task04, task09, task14, task28, task34 | the task's own historical rule |
+| `perspective` | task09, task28 | Control flow |
+| `analysis_level` | task04 | Trace level |
+
+All five are `required: True` now, so /specify marks them and both the page and
+`admin.py` refuse to generate on an empty one. `trace_pick_rule` keeps its
+`visible_if`, and both checks skip a hidden entry, so naming the traces by hand
+never blocks on a rule that is not on screen.
+
+Nothing else changed. The parameters that stay optional are the ones whose empty
+value has a meaning their own label states — `split_strategy` ("empty = ranges
+for numbers and dates, one group per value otherwise"), `violation_pattern`
+("empty = any deviation"), the attribute pickers ("empty = every attribute of
+this log that can be grouped") — and the numeric fields, which cannot be empty
+in a meaningful way.
+
+### Verification
+
+Re-running the audit: no fixed-option select with a silent default is left
+without an asterisk. Every task declaring one of the five imports and reports
+`required: True` — 4, 7, 5, 2 and 1 tasks respectively, plus the nine carrying
+`attribute_class` from the session before.
+
+## Session: Three Parameters That Changed Nothing (2026-09-20)
+
+### Problem solved
+
+task30's "How many violation patterns to show" had no effect on any idiom, and
+the feeling that /specify does little turned out to be right in four places. An
+audit of every task — the keys each `PARAM_SPEC` declares against the keys its
+dispatcher entry in `create_all_visualizations.py` actually reads — found four
+declared-but-unplumbed parameters across four tasks. Everything else it flagged
+reaches its task through a class helper (`trace_alignment.pick_rule`,
+`violation_profile`'s selection helpers) and is live.
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| task30 `pattern_top_n` | Declared in `PARAM_SPEC`, never passed. `_aggregate_patterns` has taken a `top_n` all along and nobody gave it one, so every figure ranked the module default of 10 whatever the admin typed. Threaded: dispatcher -> `generate(pattern_top_n=...)` -> `_aggregate_patterns(top_n=...)`, and the log line now names the number in force. |
+| task13, task20, task21 | They declared `split_strategy` and `group_cap` through `grouping_params()` and their `generate()` signatures have no such arguments — two controls on /specify that changed nothing. All three bucket through task13's `_bucket_rates`: quartiles for a numeric attribute, top categories for a categorical one. That is a rule settled in code, so they now declare `attribute_params()` and offer only what they can act on. No figure changes. |
+| `attribute_class` required | "Level the attributes are taken from" was optional with a silent default of "trace", so leaving it blank produced case-level attributes the admin never asked for and /specify showed no asterisk. It is required now: the frontend marks it and refuses to generate on an empty one. The picker under it stays optional — an empty attribute selection means "every attribute of this log that can be grouped", and its own label says so. |
+
+### Verification
+
+`pattern_top_n` cut to 2, 3, 5 and 10 over a five-pattern frame gives 2, 3, 5
+and 5 rows. Three `generate` runs on BPIC12-A at 3, default and 20 all log the
+number in force; that log holds only three distinct patterns, so the cut is not
+visible there. `PARAM_SPEC` keys after the change: task13, task20 and task21
+carry the attribute block alone, task30 keeps all seven.
+
+## Session: task33 Is Four Panel Idioms, and Names Its Attribute on the Axis (2026-09-20)
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| Idioms removed | Box and whisker plot, scatter plot, stacked bar, table & bar chart. Four left: `bar_chart`, `table`, `matrix`, `heatmap`, all four task20's panel renderers handed fitness instead of a violation rate. The first three read a per-trace distribution, which is more than the mean per bucket their neighbours show, and they could only ever do it for the *first* attribute selected — so a two-attribute selection gave four figures about both attributes and three about one. |
+| task33 shrinks | With those three gone, everything they used went too: `_build_trace_df`, `_group_stats`, `_band_rates`, `_fine_bin_rates`, `_group_colors`, `_FITNESS_BANDS`, `_GROUP_PALETTE`, `_FIT_THRESHOLD`, the `split_by_attribute` import and the `_ALL_FNAMES_TITLES` empty-state table. The second half of `generate` cut the log a second way purely to log per-group stats; task20's renderers do their own bucketing and handle the empty case themselves. task33 draws nothing of its own now, and says so. |
+| Matrix | `colorless=True`: white cells ruled into a grid, the value carried by the number, as in tasks 01, 03 and 27-34. The panels alternate between a flat yellow and a flat blue wash which, by the renderer's own docstring, "carries no data" — it tells the panels apart, which their labels already do. A reader cannot know a colour means nothing without being told, and the heatmap beside it uses colour for the value. The wash stays the default for the other four tasks. |
+| Attribute name | It is a subplot title: centred over the bar chart, centred over the matrix and heatmap, left-aligned above the table, and inside the table a generic "Attribute Value" header. Four placements for one thing, and over the grids it reads as a floating caption. `attribute_on_axis=True` puts it on the axis its own buckets sit on instead — x on the bar chart, y on the matrix and heatmap, and the header of the table column holding its values. |
+| Vocabulary | task33 passes `value_label_header` explicitly, so the measure is "Mean Fitness" everywhere. task20 title-cases `value_label` into the header when none is given, which put "Mean fitness" on the bar chart's axis and "Mean Fitness" on the matrix beside it. |
+| Title | `_SPLIT_SUPTITLE` is "Mean Fitness by Attribute". "Process Conformance by Candidate Attribute" was task20's vocabulary, where the attributes are candidate root causes; in task33 the admin has chosen the attribute. |
+
+**Scoped to task33.** Both live in task20's shared renderers, which task15,
+task16, task20 and task22 also call, and those four have tuned screenshots in
+the running experiment (CONFORMANCE_ATTRIBUTE_CLASS.md). So each is an opt-in
+keyword — `colorless` on the matrix, `attribute_on_axis` on all five — and only
+task33 sets them. Two styles in one renderer is the price; when those tasks come
+up for review, the switches are what to delete.
+
+### Verification
+
+`pyflakes` against HEAD on both files: task33 clean, task20 unchanged from its
+four pre-existing warnings. Both modes rendered from two synthetic panels — the
+case where the matrix draws both of its alternating washes. Every colour in
+task33's matrix SVG: `#ffffff` cells, `#cccccc` grid, `#243c6e` text. task20's,
+with the same data and no keywords: `#e5cf52` and `#243c6e` washes, as before.
+
 ## Session: The Variant Rule Says That It Only Picks Violators (2026-09-20)
 
 ### Changes

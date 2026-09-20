@@ -13,6 +13,13 @@ import Link from "next/link";
  * `current` is the slug of the page rendering it; without an `experimentId`
  * (a brand-new experiment that has not been created yet) the steps are shown
  * but inert, since there is no draft to open them for.
+ *
+ * Every jump carries `return_to=<current>`: an experiment already reviewed on
+ * Overview does not need the rest of the wizard walked again to fix one
+ * earlier step, so the page it lands on saves and comes straight back here
+ * instead of proceeding to its normal next step. `return_to` then travels with
+ * that page's own Previous Step link too, so stepping further back and later
+ * forward still returns to where the admin actually started.
  */
 const STEPS = [
   { slug: "new", label: "Details" },
@@ -26,9 +33,16 @@ const STEPS = [
   { slug: "overview", label: "Overview" },
 ];
 
+// A bundle experiment's tasks and idioms are exactly what the zip supplied —
+// nothing is generated, and nothing can be added from the shared bank or a
+// dataset — so choosing them is not a step of its wizard the way it is for a
+// dataset-built experiment, and Specify has nothing to do at all. An admin
+// still trims the zip's tasks or idioms from /task and /idiom directly, but
+// the bar does not offer that as a step to march through.
+const HIDDEN_WHEN_BUNDLE = new Set(["task", "idiom", "specify"]);
+
 export default function WizardSteps({ experimentId, current, bundleOnly = false }) {
-  // A bundle experiment generates nothing, so it has no Specify step at all.
-  const steps = bundleOnly ? STEPS.filter((s) => s.slug !== "specify") : STEPS;
+  const steps = bundleOnly ? STEPS.filter((s) => !HIDDEN_WHEN_BUNDLE.has(s.slug)) : STEPS;
 
   return (
     <nav
@@ -39,7 +53,9 @@ export default function WizardSteps({ experimentId, current, bundleOnly = false 
         {steps.map((step, i) => {
           const isCurrent = step.slug === current;
           const href = `/admin/experiments/${step.slug}${
-            experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""
+            experimentId
+              ? `?experiment_id=${encodeURIComponent(experimentId)}&return_to=${encodeURIComponent(current)}`
+              : ""
           }`;
           return (
             <span key={step.slug} className="flex items-center gap-1">

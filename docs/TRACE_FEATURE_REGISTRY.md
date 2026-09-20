@@ -237,8 +237,10 @@ was conformant in one task and not in another. Dropping "% conformant" as a
 response removed the cut from task15, task16, task22 and task33 entirely.
 task01 keeps it — a binary split is its point — and it is now the
 `conformant_threshold` parameter, defaulting to 1.0. The remaining
-`_FIT_THRESHOLD` constants in task15 and task33 only position reference lines on
-fitness charts; they no longer decide any reported number.
+`_FIT_THRESHOLD` constant in task15 only positions reference lines on fitness
+charts; it decides no reported number. task33's went with its distribution
+idioms — every idiom it has left is one of task20's panel renderers, and those
+draw a mean, which needs no cut.
 
 ---
 
@@ -253,11 +255,11 @@ has no cap).
 |---|---|---|---|---|
 | task01 | `outcome_activity` | `binary` | fitness | `missing_policy`, `conformant_threshold` |
 | task07 | `time_granularity` | `ordered_bins` | fitness | `group_cap`, `missing_policy` |
-| task13 | shared block | admin | violation_rate | — |
+| task13 | attribute block only | fixed (`_bucket_rates`) | violation_rate | — |
 | task15 | shared block | admin | fitness | — |
 | task16 | shared block | admin | violation_rate | — |
-| task20 | shared block | admin | violation_rate | — |
-| task21 | shared block, no log level | admin | violation_rate | — |
+| task20 | attribute block only | fixed (`_bucket_rates`) | violation_rate | — |
+| task21 | attribute block only, no log level | fixed (`_bucket_rates`) | violation_rate | — |
 | task22 | shared block, no log level | admin | fitness | — |
 | task30 | shared block | admin | patterns | `pattern_top_n` |
 | task33 | shared block | admin | fitness | — |
@@ -270,6 +272,15 @@ the admin exactly the same thing and differ only in what they measure per
 group** — that is the rule, and one call enforces it, so they cannot drift apart
 a parameter at a time.
 
+**"Attribute block only" is `attribute_params()`**, the same block without the
+split slot. task13, task20 and task21 bucket through task13's `_bucket_rates`
+— quartiles for a numeric attribute, the top categories for a categorical one
+— which is settled in code. They declared `split_strategy` and `group_cap`
+anyway and their `generate()` signatures never took either, so /specify showed
+two controls that changed no figure. Offering only what a task can act on
+outranks all eight asking the identical question: a control that does nothing
+is worse than a missing one, because the admin cannot tell.
+
 The single exception is the level. task21 and task22 pass
 `levels=TRACE_COMPARING_LEVELS`, dropping the log level: they compare traces to
 each other, and a log-level attribute holds one value for the whole log, so it
@@ -281,7 +292,9 @@ task30 used to be the other exception, with a single `compare_attribute`,
 because its response is `patterns` — a pattern-by-group matrix rather than one
 value per bucket, which the shared panel renderers have no shape for. It now
 takes the same multi-select picker and cuts the log by the **first** selected
-attribute, the rule task22 and task33 already use for their distribution idioms.
+attribute, the rule task22 already uses for its distribution idioms. (task33's
+distribution idioms are gone; all four of its idioms now cover every selected
+attribute.)
 The picker is the family's; what the response can draw decides how much of the
 selection is used.
 

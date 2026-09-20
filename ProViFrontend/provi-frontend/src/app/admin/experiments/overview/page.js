@@ -293,7 +293,7 @@ function TaskParametersSection({ spec, values, imported, editable, bundleOnly, e
         </p>
         {editable && !bundleOnly && !imported && (
           <Link
-            href={`/admin/experiments/specify?experiment_id=${encodeURIComponent(experimentId)}`}
+            href={`/admin/experiments/specify?experiment_id=${encodeURIComponent(experimentId)}&return_to=overview`}
             className="text-xs text-primary border border-primary/30 px-3 py-1.5 rounded hover:bg-blue-50 transition-colors flex-shrink-0"
           >
             Change on Specify
@@ -434,7 +434,10 @@ function ExperimentSettingsCard({ experiment, experimentId, editable, showToast,
 // always does — is on the defaults, which is a choice the admin never made.
 // The card says what each is now and links to the step that changes it.
 function ParticipantFlowCard({ experiment, experimentId }) {
-  const q = `?experiment_id=${encodeURIComponent(experimentId)}`;
+  // return_to=overview: these steps otherwise send Next on to the next step in
+  // sequence, which would walk the admin through the whole wizard again just to
+  // fix one setting reviewed from here.
+  const q = `?experiment_id=${encodeURIComponent(experimentId)}&return_to=overview`;
   const sections = (list, all) => (list ? list.length : all);
   const prequestionnaire = sections(experiment.prequestionnaire_sections, 4);
   const concepts = sections(experiment.concept_sections, 4);
@@ -994,7 +997,7 @@ function ExperimentOverviewContent() {
             {groupedTasks.map(({ task, idiomIds }) => {
               const tid = getId(task);
               const ti = taskInstancesByTask[tid];
-              const formatHref = `/admin/experiments/answer-format?experiment_id=${encodeURIComponent(experimentId)}`;
+              const formatHref = `/admin/experiments/answer-format?experiment_id=${encodeURIComponent(experimentId)}&return_to=overview`;
               return (
                 <div
                   key={tid}
@@ -1038,7 +1041,7 @@ function ExperimentOverviewContent() {
                           </span>
                         </p>
                         <Link
-                          href={`/admin/experiments/idiom?experiment_id=${encodeURIComponent(experimentId)}`}
+                          href={`/admin/experiments/idiom?experiment_id=${encodeURIComponent(experimentId)}&return_to=overview`}
                           className="text-xs text-primary border border-primary/30 px-3 py-1.5 rounded hover:bg-blue-50 transition-colors flex-shrink-0"
                         >
                           Edit
@@ -1193,7 +1196,15 @@ function ExperimentOverviewContent() {
       <div className={`border-t sticky bottom-0 ${status === "published" ? "border-green-200 bg-green-50" : "border-border-subtle bg-white"}`}>
         <div className="max-w-[1140px] mx-auto px-8 py-4 flex justify-between items-center">
           <Link
-            href={`/admin/experiments/answer-format${experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""}`}
+            href={
+              experiment?.bundle_only
+                // Its tasks, idioms and images all came from the zip uploaded
+                // on /new, and a v3 zip that already carried answer formats
+                // never visits /answer-format at all — /new is where editing
+                // this experiment actually starts, not its bar-neighbour.
+                ? `/admin/experiments/new${experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""}`
+                : `/admin/experiments/answer-format${experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""}`
+            }
             className="text-sm text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors"
           >
             <span className="material-symbols-outlined text-sm">arrow_back</span> Previous Step

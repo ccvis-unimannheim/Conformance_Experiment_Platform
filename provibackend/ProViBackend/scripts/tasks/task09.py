@@ -1181,7 +1181,8 @@ def task09_flow_chart_elaborate_bpmn_table(activity_type, activity_totals, type_
 # ── Public entry point ────────────────────────────────────────────────────────
 
 def alignment_figures(output_dir, model_path, *, view, records, attribute,
-                      prefix="task09", uniform_width=False, title=None):
+                      prefix="task09", uniform_width=False, title=None,
+                      show_order=True):
     """The three trace-alignment figures, in whichever perspective was chosen.
 
     Control flow reuses task04's renderers — the alignment of a few traces is
@@ -1192,19 +1193,24 @@ def alignment_figures(output_dir, model_path, *, view, records, attribute,
     ``uniform_width`` and ``title`` are opt-in (defaults keep task28's own call
     on its current per-label chevron sizing and task04's own titles) — task09
     passes both so every chevron is the same width and all three figures share
-    its one heading.
+    its one heading. ``show_order`` is task04_table's own opt-in (default True);
+    threaded through here so callers can still turn it off.
     """
+    # A caller that gives one title puts it on all three; task04's own
+    # defaults differ per figure, which is right for task04 and wrong for a
+    # task whose idioms must be read as one set.
+    titled = {"title": title} if title else {}
     if view == "control-flow":
         import tasks.task04 as task04
-        flow_kwargs = {"title": title} if title else {}
         task04.task04_flow_chart_basic(records, output_dir, model_path=model_path,
                                        filename=f"{prefix}_flow_chart_basic.svg",
-                                       uniform_width=uniform_width, **flow_kwargs)
+                                       uniform_width=uniform_width, **titled)
         task04.task04_flow_chart_elaborate(
             records, model_path, output_dir,
-            filename=f"{prefix}_flow_chart_elaborate_bpmn.svg", **flow_kwargs)
+            filename=f"{prefix}_flow_chart_elaborate_bpmn.svg", **titled)
         task04.task04_table(records, model_path, output_dir,
-                            filename=f"{prefix}_table.svg", **flow_kwargs)
+                            filename=f"{prefix}_table.svg",
+                            show_order=show_order, **titled)
         return
 
     trace_alignment.draw_value_chevrons(

@@ -67,6 +67,9 @@ export default function TaskSelectionPage() {
   const router       = useRouter();
   const searchParams = useSearchParams();
   const experimentId = searchParams.get("experiment_id");
+  // Set when reached by jumping back from a later step; Next then returns
+  // there instead of continuing forward (see WizardSteps.js).
+  const returnTo = searchParams.get("return_to");
 
   const [allTasks,    setAllTasks]    = useState([]);
   const [loadError,   setLoadError]   = useState(null);
@@ -260,7 +263,11 @@ export default function TaskSelectionPage() {
       showToast(`Failed to save tasks: ${e.message}`, true);
       return;
     }
-    router.push(`/admin/experiments/idiom?experiment_id=${encodeURIComponent(experimentId)}`);
+    router.push(
+      returnTo
+        ? `/admin/experiments/${returnTo}?experiment_id=${encodeURIComponent(experimentId)}`
+        : `/admin/experiments/idiom?experiment_id=${encodeURIComponent(experimentId)}`
+    );
   }
 
   const selectedTasks = allTasks.filter((t) => selectedIds.includes(getTaskId(t)));
@@ -554,7 +561,7 @@ export default function TaskSelectionPage() {
       <div className="border-t border-border-subtle bg-white sticky bottom-0">
         <div className="max-w-[1140px] mx-auto px-8 py-4 flex justify-between items-center">
           <Link
-            href={`/admin/experiments/concepts${experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""}`}
+            href={`/admin/experiments/concepts${experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""}${returnTo ? `&return_to=${encodeURIComponent(returnTo)}` : ""}`}
             className="text-sm text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors"
           >
             <span className="material-symbols-outlined text-sm">arrow_back</span> Previous Step
@@ -563,7 +570,7 @@ export default function TaskSelectionPage() {
             onClick={goToStep2}
             className="flex items-center gap-2 font-button text-button bg-primary text-on-primary px-12 py-3 rounded-lg hover:opacity-90 transition-all active:scale-95"
           >
-            Next
+            {returnTo ? "Save & Return" : "Next"}
             <span className="material-symbols-outlined text-sm">chevron_right</span>
           </button>
         </div>
