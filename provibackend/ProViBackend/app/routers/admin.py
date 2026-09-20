@@ -71,6 +71,7 @@ except ImportError:
 from ProViBackend.utils import config, idiom_files, utils
 from ProViBackend.app.datamodels import data_schemas as ds
 from ProViBackend.app.task_wording import effective_wording
+from ProViBackend.app.label_overrides import resolve_idiom_label
 import ProViBackend.app.answer_formats as afmt
 import pathlib as pl
 
@@ -540,7 +541,10 @@ async def download_experiment_answers(experiment_id: str):
         df_answers["task_key"] = df_answers["task_id"].map(lambda x: task_lookup.get(x, {}).get("task_key", ""))
         df_answers["task_name"] = df_answers["task_id"].map(lambda x: task_lookup.get(x, {}).get("task_name", ""))
 
-        # Resolve idiom_id → idiom_key + idiom_name
+        # Resolve idiom_id → idiom_key + idiom_name. The name applies each row's
+        # own task's label override (e.g. task10's "heatmap" idiom is shown to
+        # participants as "Matrix") — the same idiom_id can mean a different
+        # display name depending on which task the answer belongs to.
         unique_idiom_ids = df_answers["idiom_id"].dropna().unique().tolist()
         idiom_lookup = {}
         for iid in unique_idiom_ids:
@@ -548,13 +552,27 @@ async def download_experiment_answers(experiment_id: str):
             if doc:
                 idiom_lookup[iid] = {"idiom_key": doc.get("idiom_key", ""), "idiom_name": doc.get("label", "")}
         df_answers["idiom_key"] = df_answers["idiom_id"].map(lambda x: idiom_lookup.get(x, {}).get("idiom_key", ""))
-        df_answers["idiom_name"] = df_answers["idiom_id"].map(lambda x: idiom_lookup.get(x, {}).get("idiom_name", ""))
+        df_answers["idiom_name"] = df_answers.apply(
+            lambda row: resolve_idiom_label(
+                row["task_key"],
+                idiom_lookup.get(row["idiom_id"], {}).get("idiom_key", ""),
+                idiom_lookup.get(row["idiom_id"], {}).get("idiom_name", ""),
+            ), axis=1)
 
         # Add the configured answer format from the experiment's task_instances
         format_by_task = {tid: (ti.get("answer_format") or "")
                           for tid, ti in instances_by_task_id.items()}
         df_answers["answer_format"] = df_answers["task_id"].map(
             lambda x: format_by_task.get(x, "")
+        )
+
+        # The grading rubric this experiment set for the task (per experiment,
+        # stored on the task_instance) — reference text for whoever codes the
+        # free-text answers by hand.
+        rubric_by_task = {tid: (ti.get("rubric") or "")
+                          for tid, ti in instances_by_task_id.items()}
+        df_answers["rubric"] = df_answers["task_id"].map(
+            lambda x: rubric_by_task.get(x, "")
         )
 
         if "response_time_ms" in df_answers.columns:
@@ -904,7 +922,7 @@ async def get_tasks(experiment_id: str | None = None):
 @router.patch("/tasks/{task_id}", tags=["admin"])
 async def update_task(task_id: str, update_data: ds.TaskUpdate,
                       experiment_id: str | None = None):
-    """Reword one task **for one experiment**, or edit its shared rubric.
+    """Reword one task **for one experiment**.
 
     The question bank (the Task collection) holds the wording every experiment
     starts from and is owned by seed_data.py, so a reworded question is stored
@@ -914,16 +932,14 @@ async def update_task(task_id: str, update_data: ds.TaskUpdate,
     ("…for Ship Order", "…customer segments and region") everybody's default and
     stopped the startup seed from ever correcting it.
 
-    `rubric` is the exception and still goes to the bank: it is reference text
-    for whoever codes the answers by hand, not something a participant sees, and
-    /answer-format reads it per task rather than per experiment.
+    The grading rubric is not edited here: it is per experiment and lives on the
+    task_instance (see /answer-format), saved with the rest of the answer shape.
     """
     fields = {k: v for k, v in update_data.model_dump().items() if v is not None}
     if not fields:
         raise HTTPException(status_code=400, detail="No fields to update.")
     wording = {k: v for k, v in fields.items()
                if k in ("label", "description")}
-    shared = {k: v for k, v in fields.items() if k not in wording}
     if dbc.get_document("Task", {"_id": task_id}) is None:
         # Experiment-scoped custom task: edit it in place on its experiment.
         updated = dbc.update_document(
@@ -934,11 +950,6 @@ async def update_task(task_id: str, update_data: ds.TaskUpdate,
         if not updated:
             raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found.")
         return JSONResponse(content={"message": "Task updated.", "task_id": task_id})
-    if shared:
-        # Non-canonical, so the startup seed leaves it alone (main._seed_collection
-        # only $sets the fields seed_data.py names).
-        if not dbc.update_document("Task", query={"_id": task_id}, update={"$set": shared}):
-            raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found.")
     if not wording:
         return JSONResponse(content={"message": "Task updated.", "task_id": task_id})
     if not experiment_id:
@@ -1146,30 +1157,6 @@ async def get_answer_formats():
         "answer_formats": afmt.ANSWER_FORMATS,
         "number_kinds": afmt.NUMBER_KINDS,
         "default_number_kind": afmt.DEFAULT_NUMBER_KIND,
-    })
-
-
-@router.get("/tasks/{task_key}/rubric", tags=["admin"])
-async def get_task_rubric(task_key: str):
-    """Return this task's grading rubric for display/editing on /answer-format.
-
-    Reference text for manually coding free-text answers — it feeds no automatic
-    scoring. Whatever an admin wrote (PATCH /tasks/{task_id} with a `rubric`
-    field, stored on the Task document) is it; `rubric` is `null` until someone
-    does, which is every task today. A module may still ship a `RUBRIC` constant
-    as a starting point — none currently does, because a rubric nobody has
-    reviewed is worse than an empty box that says a rubric is missing.
-    """
-    if task_key not in _TASK_MODULES:
-        custom = dbc.get_custom_task_by_key(task_key)
-        if not custom:
-            raise HTTPException(status_code=404, detail=f"Unknown task '{task_key}'.")
-        return JSONResponse(content={"task_key": task_key, "rubric": custom.get("rubric")})
-    task_docs = dbc.get_query_db("Task", query={"task_key": task_key})
-    override = task_docs[0].get("rubric") if task_docs else None
-    return JSONResponse(content={
-        "task_key": task_key,
-        "rubric": override if override is not None else task_registry.get_rubric(task_key),
     })
 
 

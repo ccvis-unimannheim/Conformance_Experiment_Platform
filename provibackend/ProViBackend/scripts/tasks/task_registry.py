@@ -6,12 +6,13 @@ Each ``taskNN`` module may declare:
     IDIOMS          list[str]        the visualizations it renders
     PARAM_SPEC      list[dict]       computational params for /specify
     validate_params callable | None  semantic validation of those params
-    RUBRIC          str | None       reference text for manually coding answers
 
 The answer shape (format, options, number kind) is NOT a task property — every
 task may use every format, and the admin authors it on /answer-format (see
-app/answer_formats.py). Until a task declares the attributes above, the getters
-return safe fallbacks so /specify still renders a working page for it.
+app/answer_formats.py). The grading rubric is likewise an admin choice made
+there and stored per experiment on the task_instance, not a task property.
+Until a task declares the attributes above, the getters return safe fallbacks
+so /specify still renders a working page for it.
 """
 
 from typing import Any, Callable, Optional
@@ -74,17 +75,6 @@ def get_split_strategy(task_key: str) -> Optional[str]:
     attribute's type unless the admin overrides it.
     """
     return getattr(_module(task_key), "SPLIT_STRATEGY", None)
-
-
-def get_rubric(task_key: str) -> Optional[str]:
-    """Static grading rubric for manually coding this task's answers, or None.
-
-    Reference text only — it feeds no automatic scoring. No module defines one:
-    the rubrics are written and edited in the admin panel (/answer-format),
-    where they are stored on the Task document. The hook stays so a module can
-    ship a reviewed default later.
-    """
-    return getattr(_module(task_key), "RUBRIC", None)
 
 
 def get_validate_params(task_key: str) -> Optional[Callable]:

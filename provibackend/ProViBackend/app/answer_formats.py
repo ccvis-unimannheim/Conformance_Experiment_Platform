@@ -1,9 +1,10 @@
 """Answer formats — the single source of truth for how a participant answers.
 
 Formats are global: every task may use every format (there is no per-task
-whitelist). A task module declares what it *draws* (IDIOMS), what it needs
-configured (PARAM_SPEC) and how a human grades free text (RUBRIC); the answer
-shape is an experiment-design choice made by the admin on /answer-format.
+whitelist). A task module declares what it *draws* (IDIOMS) and what it needs
+configured (PARAM_SPEC); the answer shape and the grading rubric are
+experiment-design choices made by the admin on /answer-format and stored per
+experiment on the task_instance.
 
     needs_options  the format renders a closed set the admin authors on
                    /answer-format (either imported from an event-log source or
