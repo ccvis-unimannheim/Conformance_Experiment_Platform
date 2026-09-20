@@ -109,7 +109,6 @@ from matplotlib import gridspec
 from shared import (
     save_svg, make_table, auto_col_widths, draw_parallel_sets, draw_value_heatmap,
     render_empty_state_svg,
-    contrasting_text_color,
     GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
     infer_outcome_activity,
 )
@@ -393,11 +392,9 @@ def task19_table(eff, output_dir):
 
 def task19_matrix(eff, output_dir):
     """Side-by-side With / Without panels, rows = violation patterns — same layout
-    as Heatmap, but a flat, non-value-encoded colour wash per panel. Reuses task03's
-    matrix palette (GREY_LIGHTER = cividis yellow #e5cf52 for "With Violation",
-    GREY_DARK = cividis blue #243c6e for "Without Violation" — matching the bar_chart's
-    With=yellow / Without=blue mapping). The colour here carries no data; the number is
-    the only thing being read (that's Heatmap's job)."""
+    as Heatmap, but colorless: the platform's matrix convention (white cells,
+    ruled grid), so the number is the only thing being read (that's Heatmap's
+    job)."""
     path = os.path.join(output_dir, "task19_matrix.svg")
     records = eff["records"]
     if not records:
@@ -406,19 +403,16 @@ def task19_matrix(eff, output_dir):
     labels = [r["pattern"] for r in records]
     cols = [("With Violation", [r["rate_with"] for r in records]),
             ("Without Violation", [r["rate_without"] for r in records])]
-    panel_colors = [GREY_LIGHTER, GREY_DARK]  # With=yellow #e5cf52, Without=blue #243c6e
     n = len(labels)
     fig_h = max(3.0, 0.5 * n + 1.8)
     fig, axes = plt.subplots(1, 2, figsize=(7.5, fig_h), squeeze=False,
                              gridspec_kw={"wspace": 0.0})
     for i, (ax, (col_label, vals)) in enumerate(zip(axes[0], cols)):
-        face = panel_colors[i % len(panel_colors)]
-        text_color = contrasting_text_color(face)
         for ri, v in enumerate(vals):
-            ax.add_patch(plt.Rectangle((0, ri), 1, 1, facecolor=face,
-                                       edgecolor="white", linewidth=1.2))
+            ax.add_patch(plt.Rectangle((0, ri), 1, 1, facecolor="white",
+                                       edgecolor="#cccccc", linewidth=0.8))
             ax.text(0.5, ri + 0.5, f"{v:.1f}%", ha="center", va="center",
-                    fontsize=FONT_ANNOT, color=text_color)
+                    fontsize=FONT_ANNOT, color=GREY_DARK)
         ax.set_xlim(0, 1)
         ax.set_ylim(0, n)
         ax.invert_yaxis()

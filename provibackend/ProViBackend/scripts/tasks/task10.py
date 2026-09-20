@@ -2,11 +2,13 @@
 tasks/task10.py – Task ID 10: Describe / Present / Conformance distribution
 (which percentage of traces fall into which conformance category).
 
-Validated idiom mapping (11 idioms = 6 High + 5 Medium — the Priority column of
-docs/TASK_IDIOM_MAPPING.md; the "HIGH:" prefixes on renderer docstrings below
-refer to the same rating):
-    HIGH:   stacked_bar, line_graph, horizon_chart, boxplot, heatmap, calendar
-    MEDIUM: bar_chart, scatter_plot, table, table_bar_chart, pie_chart
+5 idioms remain: stacked_bar, bar_chart, heatmap, table, pie_chart — all five
+read the same category-percentage breakdown (range_df), just rendered
+differently. line_graph, horizon_chart, boxplot, calendar and scatter_plot
+were dropped: the first three read a per-trace/over-time distribution rather
+than the category-percentage breakdown the other five share, table_bar_chart
+was a redundant combo of table + bar_chart, and scatter_plot repeated the same
+per-trace view as boxplot without adding new information.
 
 The conformance category bucket definitions are the single source of truth in
 shared.py (CONFORMANCE_BINS / CONFORMANCE_LABELS / CONFORMANCE_CATEGORY_NAMES),
@@ -16,7 +18,7 @@ Public API:
     generate(df, output_dir, log=None, conformance_bins=None)
         df               – fitness summary DataFrame (trace_index, fitness, is_fit)
         output_dir       – directory where SVGs are written
-        log           – PM4Py log; needed for the time-based idioms (line/horizon/heatmap/calendar)
+        log              – PM4Py log; unused now (kept for caller compatibility)
         conformance_bins – optional list of conformance interval boundaries
             (e.g. [0.0, 0.5, 0.9, 1.01]). Defaults to the canonical CONFORMANCE_BINS in
             shared.py — the single source of truth shared with task01/25/27/33. Range
@@ -27,8 +29,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["stacked_bar", "line_graph", "horizon_chart", "boxplot", "heatmap", "calendar",
-          "bar_chart", "scatter_plot", "table", "table_bar_chart", "pie_chart"]
+IDIOMS = ["stacked_bar", "bar_chart", "heatmap", "table", "pie_chart"]
 
 
 PARAM_SPEC = [
@@ -83,17 +84,12 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from matplotlib import gridspec
-from matplotlib.colors import LinearSegmentedColormap
 
 from shared import (
-    save_svg, make_table, render_empty_state_svg, build_fitness_time_series,
-    calendar_heatmap,
-    render_conformance_line_graph, render_conformance_horizon_chart,
-    conformance_category_series, conformance_category_counts,
+    save_svg, make_table,
     make_conformance_labels,
-    CONFORMANCE_BINS, CONFORMANCE_LABELS, CONFORMANCE_CATEGORY_NAMES,
-    GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, CIVIDIS, CIVIDIS_R,
+    CONFORMANCE_BINS, CONFORMANCE_LABELS,
+    GREY_MED, GREY_DARK, CIVIDIS_R,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT, contrasting_text_color,
 )
 from matplotlib.colors import to_hex
@@ -115,22 +111,11 @@ HIGH_FITNESS_LABELS = ["80–85%", "85–90%", "90–95%", "95–100%", "100%"]
 STUDY_DEFINED_BINS = [0.0, 0.5, 0.75, 1.0, 1.01]
 STUDY_DEFINED_LABELS = ["Major deviations", "Moderate deviations", "Minor deviations", "Perfectly conformant"]
 
-# Cividis ramp for adaptive conformance ranges (dark = low, light = high)
-RANGE_COLORS = [to_hex(CIVIDIS(i / 5)) for i in range(6)]
-
-
 def _labels_for_bins(bins):
     """Named category labels for the study-defined preset; auto "X–Y%" labels otherwise."""
     if list(bins) == STUDY_DEFINED_BINS:
         return list(STUDY_DEFINED_LABELS)
     return make_conformance_labels(bins)
-
-
-def _task10_color_list(n: int):
-    """Return a stable cividis palette with enough colors for adaptive bins."""
-    if n <= len(RANGE_COLORS):
-        return RANGE_COLORS[:n]
-    return [to_hex(CIVIDIS(i / max(n - 1, 1))) for i in range(n)]
 
 
 def _category_rank_colors(n: int):
@@ -431,46 +416,6 @@ def task10_stacked_bar(range_df: pd.DataFrame, output_dir: str):
     save_svg(fig, path)
 
 
-def task10_line_graph(time_df: pd.DataFrame, output_dir: str):
-    """HIGH: mean conformance per time bin (shared conformance-time renderer)."""
-    render_conformance_line_graph(
-        time_df, os.path.join(output_dir, "task10_line_graph.svg"),
-        title="Conformance Distribution Over Time")
-
-
-def task10_horizon_chart(time_df: pd.DataFrame, output_dir: str):
-    """HIGH: the conformance series as a horizon area chart (shared renderer)."""
-    render_conformance_horizon_chart(
-        time_df, os.path.join(output_dir, "task10_horizon_chart.svg"),
-        title="Conformance Distribution Over Time")
-
-
-def task10_box_plot(fitness_df: pd.DataFrame, output_dir: str):
-    """HIGH: per-trace fitness distribution (one box for the whole log)."""
-    path = os.path.join(output_dir, "task10_box_plot.svg")
-    vals = fitness_df["fitness"].astype(float).values
-    fig, ax = plt.subplots(figsize=(4, 6))
-    ax.boxplot(
-        vals, vert=True, patch_artist=True, widths=0.4,
-        boxprops=dict(facecolor=GREY_MED, color=GREY_MED, alpha=0.85),
-        medianprops=dict(color="white", linewidth=2),
-        whiskerprops=dict(color=GREY_MED, linewidth=1.5),
-        capprops=dict(color=GREY_MED, linewidth=1.5),
-        flierprops=dict(marker="D", markerfacecolor=GREY_MED, markersize=5,
-                        linestyle="none", markeredgecolor=GREY_MED),
-    )
-    ax.set_xticks([1])
-    ax.set_xticklabels(["Log"])
-    ax.set_ylabel("Conformance Rate (0.0 – 1.0)", fontsize=FONT_LABEL)
-    ax.set_ylim(-0.05, 1.1)
-    ax.set_title("Per-trace Conformance Distribution", fontsize=FONT_TITLE)
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
-    ax.set_axisbelow(True)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, path)
-
-
 def task10_heatmap(range_df: pd.DataFrame, output_dir: str):
     """MATRIX (displayed as "Matrix" — see utils/idiomLabels.js / label_overrides.py):
     one annotated cell per conformance category.
@@ -516,74 +461,6 @@ def task10_heatmap(range_df: pd.DataFrame, output_dir: str):
     save_svg(fig, path)
 
 
-def task10_calendar(time_df: pd.DataFrame, output_dir: str):
-    """HIGH: daily mean conformance (shared calendar heatmap)."""
-    path = os.path.join(output_dir, "task10_calendar.svg")
-    if time_df is None or time_df.empty:
-        render_empty_state_svg(path, "Daily Mean Conformance", "No timestamp data available.")
-        return
-    daily = (time_df.assign(date=time_df["start_time"].dt.normalize())
-             .groupby("date")["fitness"].mean())
-    calendar_heatmap(dict(daily.items()), path,
-                     title="Daily Mean Conformance Rate", cbar_label="Mean fitness",
-                     vmin=0.0, vmax=1.0)
-
-
-def task10_scatter_plot(fitness_df: pd.DataFrame, output_dir: str, bins=None, labels=None):
-    """MED: per-trace fitness, x = trace index, y = fitness, colour = category."""
-    path = os.path.join(output_dir, "task10_scatter_plot.svg")
-    labels = list(labels) if labels is not None else CONFORMANCE_LABELS
-    cats = conformance_category_series(fitness_df["fitness"], bins).values
-    colors = _task10_color_list(len(labels))
-    fig, ax = plt.subplots(figsize=(11, 4.5))
-    for i, label in enumerate(labels):
-        m = cats == i
-        if m.any():
-            ax.scatter(fitness_df["trace_index"].values[m], fitness_df["fitness"].values[m],
-                       s=14, alpha=0.6, linewidths=0, color=colors[i], label=label)
-    ax.set_xlabel("Trace index", fontsize=FONT_LABEL)
-    ax.set_ylabel("Conformance Rate", fontsize=FONT_LABEL)
-    ax.set_ylim(-0.05, 1.1)
-    ax.set_title("Per-trace Conformance by Category", fontsize=FONT_TITLE)
-    ax.legend(frameon=False, fontsize=FONT_ANNOT - 1, title="Category",
-              title_fontsize=FONT_ANNOT - 1, loc="lower right")
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
-    ax.set_axisbelow(True)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, path)
-
-
-def task10_table_bar_chart(range_df: pd.DataFrame, output_dir: str):
-    """MED: the category table + an adjacent category-count bar."""
-    path = os.path.join(output_dir, "task10_table_and_bar_chart.svg")
-    fig = plt.figure(figsize=(13, max(3.0, 1.4 + len(range_df) * 0.5)))
-    gs = gridspec.GridSpec(1, 2, width_ratios=[1.4, 1.0], wspace=0.35)
-
-    ax_t = fig.add_subplot(gs[0])
-    ax_t.axis("off")
-    cell_text = [[r["range"], str(int(r["count"])), f"{r['percentage']:.1f}%"]
-                 for _, r in range_df.iterrows()]
-    make_table(ax_t, cell_text=cell_text,
-               col_labels=["Conformance Range", "#Traces", "% of total"],
-               bbox=[0.04, 0.05, 0.92, 0.82], col_widths=[0.5, 0.25, 0.25],
-               font_size=10, cell_pad=0.08)
-    ax_t.set_title("Conformance Categories", fontsize=FONT_TITLE, pad=8)
-
-    ax_b = fig.add_subplot(gs[1])
-    colors = _task10_color_list(len(range_df))
-    y = np.arange(len(range_df))
-    ax_b.barh(y, range_df["count"].values, color=colors, edgecolor="white")
-    ax_b.set_yticks(y)
-    ax_b.set_yticklabels(range_df["range"], fontsize=FONT_ANNOT - 1)
-    ax_b.invert_yaxis()
-    ax_b.set_xlabel("# Traces", fontsize=FONT_LABEL)
-    ax_b.spines[["top", "right"]].set_visible(False)
-    ax_b.set_title("Traces per category", fontsize=FONT_TITLE, pad=8)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, path)
-
-
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
@@ -591,9 +468,9 @@ def task10_table_bar_chart(range_df: pd.DataFrame, output_dir: str):
 def generate(df, output_dir: str, log=None, conformance_bins=None):
     """Generate all Task ID 10 SVGs into output_dir.
 
-    The category idioms use the fitness summary df; the time-based idioms
-    (line/horizon/heatmap/calendar) need the log for timestamps (absent → empty
-    state)."""
+    ``log`` is unused now (kept in the signature for caller compatibility) —
+    every remaining idiom reads only the category-percentage breakdown
+    (range_df), built from the fitness summary df."""
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 10 visualizations ---")
 
@@ -613,21 +490,12 @@ def generate(df, output_dir: str, log=None, conformance_bins=None):
         # No bins specified (sample preview) → adaptive logic selects best intervals.
         range_df, used_bins, used_labels = _resolve_ranges(df)
     canonical = (used_bins == list(CONFORMANCE_BINS))
-    category_names = CONFORMANCE_CATEGORY_NAMES if canonical else None
     logger.info(f"      -> Range counts: {dict(zip(range_df['range'], range_df['count']))}")
     if not canonical:
         logger.info(f"      -> Adaptive conformance intervals in use: {used_labels}")
-    time_df = build_fitness_time_series(log, df) if log is not None else pd.DataFrame()
 
-    # Validated mapping idioms
     task10_stacked_bar(range_df, output_dir)
-    task10_line_graph(time_df, output_dir)
-    task10_horizon_chart(time_df, output_dir)
-    task10_box_plot(df, output_dir)
     task10_heatmap(range_df, output_dir)
-    task10_calendar(time_df, output_dir)
     task10_bar_chart(range_df, output_dir)
-    task10_scatter_plot(df, output_dir, used_bins, used_labels)
     task10_table(range_df, output_dir)
-    task10_table_bar_chart(range_df, output_dir)
     task10_pie_chart(range_df, output_dir)

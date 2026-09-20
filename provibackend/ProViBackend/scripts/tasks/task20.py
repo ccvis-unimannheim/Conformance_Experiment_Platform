@@ -1278,7 +1278,7 @@ def generate(log, alignments, output_dir: str, model_path=None, attribute_set=No
     task20_bar_chart(panels, output_dir)
     task20_table(panels, output_dir)
     # task20_table_bar_chart(panels, output_dir)
-    task20_matrix(panels, output_dir)
+    task20_matrix(panels, output_dir, colorless=True)
     # task20_heatmap(panels, output_dir)
     task20_tile_metric(panels, output_dir)
     task20_parallel_sets(panels, output_dir)
