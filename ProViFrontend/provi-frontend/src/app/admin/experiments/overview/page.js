@@ -1196,7 +1196,15 @@ function ExperimentOverviewContent() {
       <div className={`border-t sticky bottom-0 ${status === "published" ? "border-green-200 bg-green-50" : "border-border-subtle bg-white"}`}>
         <div className="max-w-[1140px] mx-auto px-8 py-4 flex justify-between items-center">
           <Link
-            href={`/admin/experiments/answer-format${experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""}`}
+            href={
+              experiment?.bundle_only
+                // Its tasks, idioms and images all came from the zip uploaded
+                // on /new, and a v3 zip that already carried answer formats
+                // never visits /answer-format at all — /new is where editing
+                // this experiment actually starts, not its bar-neighbour.
+                ? `/admin/experiments/new${experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""}`
+                : `/admin/experiments/answer-format${experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""}`
+            }
             className="text-sm text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors"
           >
             <span className="material-symbols-outlined text-sm">arrow_back</span> Previous Step
