@@ -21,9 +21,8 @@ Public API:
         trace_count          – which traces are shown. There is no pick rule: the
                                question is the contrast, so the count is per
                                status — 2 means 2 conformant and 2 non-conformant.
-                               Named traces reach every idiom; under the automatic
-                               rule the frequency and distribution idioms keep
-                               aggregating over the log's variants
+                               Every idiom draws those traces, named by hand or
+                               picked by the rule.
 """
 
 import logging
@@ -119,9 +118,10 @@ from matplotlib.colors import to_hex
 
 from shared import (
     save_svg, draw_parallel_sets, alignment_pairs_to_rows, build_variant_df,
-    draw_composition_stacked_bars, draw_grouped_box_plot, draw_value_heatmap,
-    draw_cell_grid, render_empty_state_svg, format_threshold,
-    GREY_MED, GREY_LIGHT, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    draw_value_heatmap, render_empty_state_svg, format_threshold,
+    contrasting_text_color,
+    GREY_DARK, PAIR_COLORS, CIVIDIS_R,
+    FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 # Number of conformant / non-conformant variants shown as chevron strips
