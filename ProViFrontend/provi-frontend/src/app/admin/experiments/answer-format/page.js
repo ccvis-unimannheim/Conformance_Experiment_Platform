@@ -227,11 +227,19 @@ function MatrixAxisEditor({ options, onChange }) {
   if (!derived) {
     return (
       <div className="flex flex-col gap-2">
-        <p className="text-xs text-error">
-          These rows are not pair-shaped, so the axis cannot be read back from them —
-          the participant would see a checkbox list instead of a grid. Fix the values
-          below, or clear them and start from the members.
-        </p>
+        <div className="flex items-start gap-3 flex-wrap">
+          <p className="text-xs text-error flex-1 min-w-[18rem]">
+            These options were written for another answer format: a matrix cell is a
+            pair, and these are single values, so there is no axis to read back from
+            them. As they stand the participant would see a checkbox list, not a grid.
+          </p>
+          <button
+            onClick={() => onChange([])}
+            className="text-xs font-semibold text-primary hover:underline whitespace-nowrap"
+          >
+            Clear and start from members
+          </button>
+        </div>
         <OptionRows options={options} onChange={onChange} wideValue role="structure" />
       </div>
     );
@@ -562,11 +570,16 @@ function AnswerFormatContent() {
     setTaskInstances((prev) =>
       prev.map((ti) => {
         if (ti.task_id !== taskId) return ti;
+        // Drop state the new format cannot use, so nothing stale is persisted.
+        // A matrix cannot use another format's options at all: its cells are
+        // pair tokens, and a flat set carried over from multiple choice leaves
+        // the editor with an axis it cannot read back.
+        let carried = fmt?.needs_options ? (ti.answer_options || []) : [];
+        if (formatKey === "matrix" && axisMembersFrom(carried) === null) carried = [];
         return {
           ...ti,
           answer_format: formatKey,
-          // Drop state the new format cannot use, so nothing stale is persisted.
-          answer_options: fmt?.needs_options ? (ti.answer_options || []) : [],
+          answer_options: carried,
           number_kind: fmt?.numeric ? (ti.number_kind || defaultNumberKind) : null,
         };
       })
