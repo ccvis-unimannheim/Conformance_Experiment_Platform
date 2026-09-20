@@ -2,6 +2,29 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: task07's Value Labels Stop Being Struck Through (2026-09-21)
+
+Alternating the labels above/below their markers stopped neighbours stacking
+on each other, but it moved the problem rather than ending it: a point well
+below the mean gets an "above" label pushed up into the mean line, which then
+runs straight through the digits. On the order-to-cash log at day granularity
+that hit `90.8%` (the first bin) and `90.9%` (21 Jan), the two lowest points.
+
+`render_conformance_line_graph` now gives each value label its own background
+patch (`bbox`, white at `alpha=0.78`, no edge) and `zorder=5`, with the mean
+line at `zorder=2`. The label stays readable over whatever it lands on — the
+mean line, the trend line or the fill — instead of depending on landing
+somewhere empty. The mean line and its `axhline` moved above the label loop so
+the drawing order matches the `zorder`s.
+
+The alternative was to offset by value rather than by position (labels below
+for below-mean points, as the horizon chart does), which would never cross the
+mean line — but two adjacent points on the same side of it would go back to
+stacking, which is what the alternation fixed. The patch covers both.
+
+`py_compile`. **Not rendered** — the patch's opacity and padding have not been
+looked at in an actual figure.
+
 ## Session: One Spelling for the docs/ Pointers in Comments (2026-09-21)
 
 The design docs moved under `docs/` a few days ago, but the comments pointing
