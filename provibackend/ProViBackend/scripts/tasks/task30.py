@@ -494,8 +494,14 @@ _ALL_FNAMES_TITLES = [
 
 
 def generate(log, fitness_df, alignments, output_dir: str,
-             attribute_set=None, split_strategy=None, group_cap=None):
+             attribute_set=None, split_strategy=None, group_cap=None,
+             pattern_top_n=None):
     """Generate all Task ID 30 SVGs into output_dir.
+
+    ``pattern_top_n`` is how many violation patterns every idiom ranks and draws.
+    It was declared in PARAM_SPEC and never plumbed through: `_aggregate_patterns`
+    took its `top_n` from the module default, so the admin's number changed
+    nothing.
 
     Every idiom here compares the sub-logs of ONE attribute, so of the selected
     set the first is the one that cuts the log — the same way task22 and task33
@@ -544,9 +550,10 @@ def generate(log, fitness_df, alignments, output_dir: str,
                     f"mean fitness={row['mean_fitness']:.4f}")
 
     viol_df = _build_violation_df(alignments, assignment)
-    agg_df = _aggregate_patterns(viol_df, stats_df, groups)
+    top_n = int(pattern_top_n) if pattern_top_n else TOP_N
+    agg_df = _aggregate_patterns(viol_df, stats_df, groups, top_n=top_n)
     logger.info(f"      -> {len(viol_df)} violation rows; "
-                f"top-{len(agg_df)} patterns aggregated.")
+                f"{len(agg_df)} of the top {top_n} patterns aggregated.")
     for g in groups:
         if not viol_df.empty and (viol_df["group"] == g).sum() == 0:
             logger.warning(f"      task30: sub-log '{g}' has no violations.")

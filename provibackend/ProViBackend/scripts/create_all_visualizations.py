@@ -458,7 +458,8 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
         "task30": lambda d: task30.generate(log, fitness_df, alignments, d,
                                             attribute_set=attribute_keys(),
                                             split_strategy=(p.get("split_strategy") or None),
-                                            group_cap=(int(p["group_cap"]) if p.get("group_cap") else None)),
+                                            group_cap=(int(p["group_cap"]) if p.get("group_cap") else None),
+                                            pattern_top_n=(int(p["pattern_top_n"]) if p.get("pattern_top_n") else None)),
         # Not outcome_activity(): that falls back to the "contains" heuristic,
         # and this task asks which activity a trace *ends* on. Passing None
         # lets it reach for the terminal-activity heuristic instead.

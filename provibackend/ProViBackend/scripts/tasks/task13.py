@@ -70,7 +70,13 @@ def validate_params(log, params) -> list:
     return trace_features.validate_attribute_class(params, multi=True)
 
 
-PARAM_SPEC = [*trace_features.grouping_params()]
+#: `attribute_params`, not `grouping_params`: the split slot's two parameters
+#: reached no drawing here. These three bucket through task13's `_bucket_rates`
+#: — quartiles for a numeric attribute, the top categories for a categorical one
+#: — which is a rule settled in code, not one the admin sets. Declaring
+#: `split_strategy` and `group_cap` anyway put two controls on /specify that
+#: changed nothing about the figures.
+PARAM_SPEC = [*trace_features.attribute_params()]
           # "flow_chart_table", "flow_chart_elaborate_table"  # commented out
 
 
