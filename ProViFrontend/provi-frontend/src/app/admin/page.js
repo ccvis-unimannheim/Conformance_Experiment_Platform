@@ -600,7 +600,7 @@ export default function AdminPage() {
               })}
             </ul>
             <p className="text-xs text-on-surface-variant">
-              If any are used by experiments, you'll get a chance to confirm before they're force-deleted.
+              If any are used by experiments, you&apos;ll get a chance to confirm before they&apos;re force-deleted.
             </p>
             <div className="flex justify-end gap-3 mt-2">
               <button type="button" onClick={() => setDsDeleteConfirmOpen(false)}
