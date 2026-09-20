@@ -39,6 +39,11 @@ export default function NewExperimentPage() {
   // This draft's images came from an uploaded zip: it has no dataset, and
   // taking one would mean generating over those images (the backend refuses).
   const [bundleOnly, setBundleOnly] = useState(false);
+  // Whether the zip-upload card is open. Lifted up (rather than the card's own
+  // state) so the dataset table below can be swapped for a note while it is —
+  // a dataset genuinely isn't needed for that route, and showing both at once
+  // is what made the previous, duplicated-fields layout confusing.
+  const [bundleCardOpen, setBundleCardOpen] = useState(false);
 
   // Fill the form from the draft being edited, so stepping back shows what was
   // entered rather than a blank page that would overwrite it on the next edit.
@@ -233,27 +238,10 @@ export default function NewExperimentPage() {
             {resumedId ? "Experiment Details" : "Create New Experiment"}
           </h1>
           <p className="text-body-lg text-secondary">
-            Set up your research environment by defining project details and choosing your dataset(s).
+            Set up your research environment: name it, choose its design, then either pick a dataset
+            to generate from or upload a zip that already has its images.
           </p>
         </div>
-
-        {/* The other route: an experiment whose images are already drawn. It
-            creates the experiment itself and leaves this page, so it is offered
-            only for a new experiment — uploading a zip while editing a draft
-            would silently build a second one. */}
-        {!resumedId && (
-          <BundleStartCard
-            name={name}
-            designType={designType}
-            randomizeOrder={randomizeOrder}
-            onCreated={(data) => {
-              const next = data.needs_answer_format ? "answer-format" : "overview";
-              router.push(
-                `/admin/experiments/${next}?experiment_id=${encodeURIComponent(data.experiment_id)}`
-              );
-            }}
-          />
-        )}
 
         <div className="space-y-section-gap">
           <ExperimentDetailsForm
@@ -261,38 +249,12 @@ export default function NewExperimentPage() {
             description={description}
             onChange={handleFormChange}
           />
-
-          {bundleOnly ? (
-            <section className="bg-surface-container-lowest p-gutter rounded-xl border border-outline-variant">
-              <h2 className="text-h2 text-primary mb-3">Dataset</h2>
-              <p className="text-body-sm text-secondary mb-2">
-                This experiment shows the images of the zip it was created from, so it needs no
-                dataset — nothing is generated for it, and a dataset cannot be added while that is
-                the case.
-              </p>
-              <p className="text-body-sm text-secondary mb-4">
-                To build it from a dataset instead, discard those images first. Its tasks and idioms
-                came from the zip as well, so they go with them; the name and study design stay.
-              </p>
-              <button
-                type="button"
-                onClick={discardBundle}
-                className="px-4 py-2 rounded-lg border border-outline-variant text-body-sm hover:border-primary/50"
-              >
-                Discard the uploaded images and choose a dataset
-              </button>
-            </section>
-          ) : (
-            <DatasetSelectTable
-              pairs={pairs}
-              selectedIds={selectedIds}
-              onToggle={handleToggle}
-              isLoading={loadingPairs}
-              error={pairsError}
-            />
-          )}
         </div>
 
+        {/* Study design and trial order apply whichever way the experiment gets
+            its content below, so they are set once here rather than repeated
+            in the zip route too — the previous layout asked for the name and
+            the design twice, in two different-looking forms, for no reason. */}
         <section className="mt-section-gap bg-surface-container-lowest p-gutter rounded-xl border border-outline-variant">
           <h2 className="text-h2 text-primary mb-6">Experiment Settings</h2>
           <div className="space-y-6">
@@ -351,6 +313,65 @@ export default function NewExperimentPage() {
             </div>
           </div>
         </section>
+
+        {/* How this experiment gets its tasks, idioms and images: a dataset it
+            generates from, or a zip that already has everything. A dataset is
+            meaningless for the zip route, so opening the card replaces the
+            table with a one-line note instead of leaving both on screen. */}
+        <div className="mt-section-gap space-y-section-gap">
+          {bundleOnly ? (
+            <section className="bg-surface-container-lowest p-gutter rounded-xl border border-outline-variant">
+              <h2 className="text-h2 text-primary mb-3">Dataset</h2>
+              <p className="text-body-sm text-secondary mb-2">
+                This experiment shows the images of the zip it was created from, so it needs no
+                dataset — nothing is generated for it, and a dataset cannot be added while that is
+                the case.
+              </p>
+              <p className="text-body-sm text-secondary mb-4">
+                To build it from a dataset instead, discard those images first. Its tasks and idioms
+                came from the zip as well, so they go with them; the name and study design stay.
+              </p>
+              <button
+                type="button"
+                onClick={discardBundle}
+                className="px-4 py-2 rounded-lg border border-outline-variant text-body-sm hover:border-primary/50"
+              >
+                Discard the uploaded images and choose a dataset
+              </button>
+            </section>
+          ) : (
+            <>
+              {!resumedId && (
+                <BundleStartCard
+                  name={name}
+                  designType={designType}
+                  randomizeOrder={randomizeOrder}
+                  open={bundleCardOpen}
+                  onToggle={() => setBundleCardOpen((v) => !v)}
+                  onCreated={(data) => {
+                    const next = data.needs_answer_format ? "answer-format" : "overview";
+                    router.push(
+                      `/admin/experiments/${next}?experiment_id=${encodeURIComponent(data.experiment_id)}`
+                    );
+                  }}
+                />
+              )}
+              {bundleCardOpen ? (
+                <p className="text-body-sm text-secondary bg-surface-container-lowest border border-outline-variant rounded-xl p-gutter">
+                  No dataset needed — this experiment&apos;s images will come from the zip above.
+                </p>
+              ) : (
+                <DatasetSelectTable
+                  pairs={pairs}
+                  selectedIds={selectedIds}
+                  onToggle={handleToggle}
+                  isLoading={loadingPairs}
+                  error={pairsError}
+                />
+              )}
+            </>
+          )}
+        </div>
 
         {submitError && (
           <p className="mt-6 text-body-sm text-error">{submitError}</p>
