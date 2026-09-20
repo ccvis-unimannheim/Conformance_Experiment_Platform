@@ -676,15 +676,17 @@ empty state on every run.
 |---|---|---|
 | Bar Chart | `bar_chart` | Added |
 | Table | `table` | Added |
-| Pie Chart | `pie_chart` | Added |
 
 The spreadsheet lists `flow_chart_elaborate`, which this module never
 implemented; with no declarative model there is nothing for it to colour. What
 separates this task from task11, task29 and task32 — all reading the same
 `violation_profile.profile()` — is the word *predominant*, so the
-`prominence_threshold` is the subject: every idiom ranks the groups by share of
-all violations, shows where the cut falls and pools the rest into one entry.
+`prominence_threshold` is the subject: both idioms rank the groups by share of
+all violations, state where the cut falls and pool the rest into one entry.
+Neither applies the cut — that reading is the judgement the task asks for.
 Matrix, heatmap, stacked bar and parallel sets are left to those three tasks.
+A pie chart was offered and removed: the cut applies per slice, and a circle
+has nowhere to put it.
 
 ## task37
 
