@@ -2,6 +2,26 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: Fix the /idiom ↔ /specify Loop for a Bundle Experiment (2026-09-20)
+
+### Problem solved
+
+Walking a bundle experiment forward through the wizard (/new → … → /task →
+/idiom) hung: /idiom's "skip Specify" check asked whether every selected idiom
+was custom-uploaded, but a bundle experiment's idioms are just as often the
+same key as a built-in generated idiom (not custom) as an unfamiliar one, so
+the check came back false. Next then sent it to /specify, which redirects a
+bundle experiment straight back to /idiom — an infinite bounce between the two
+pages that looked, from the admin's side, like being stuck there.
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `ProViFrontend/.../admin/experiments/idiom/page.js` | The skip-Specify condition is `bundleOnly \|\| onlyCustom`: a bundle experiment has no dataset to generate from regardless of what its idioms are called, so it always goes on to /answer-format. The "no visualizations to generate" toast is shown only for the non-bundle (all-custom) case, since a bundle experiment already says as much elsewhere. |
+
+`eslint` — no errors, same pre-existing warnings as before.
+
 ## Session: /new Says What Zip a Bundle Experiment Actually Has (2026-09-20)
 
 ### Problem solved
