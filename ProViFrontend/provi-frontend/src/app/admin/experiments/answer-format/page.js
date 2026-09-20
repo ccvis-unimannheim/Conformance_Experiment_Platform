@@ -34,9 +34,10 @@ function formatByKey(formats, key) {
 // --- Option editing ------------------------------------------------------
 //
 // One editor for every option-bearing format (mc-single, mc-multi, rank,
-// matrix, number-set). Options are authored by the admin: either imported from
-// an event-log source (task-independent — see admin.OPTION_SOURCES) or typed by
-// hand. They carry no correctness marking; nothing here is graded.
+// matrix, number-set). Options are written by the admin. They used to be
+// importable from an event-log source, which mostly produced rows labelled with
+// the counts the question was about to ask for. They carry no correctness
+// marking; nothing here is graded.
 
 // How much of the value an admin needs to see depends on what reads it:
 //
@@ -200,8 +201,8 @@ function MatrixAxisEditor({ options, onChange }) {
   const [members, setMembers] = useState(() => derived ?? []);
   const signature = (derived ?? []).join("\u0000");
 
-  // Follow the stored options when they change underneath us (an import, or
-  // another task's row being edited), but not while the admin is typing: the
+  // Follow the stored options when they change underneath us, but not while
+  // the admin is typing: the
   // draft only reaches `options` once it is valid, so the two agree by then.
   useEffect(() => {
     if (derived && derived.join("\u0000") !== members.join("\u0000")
@@ -298,82 +299,9 @@ function MatrixAxisEditor({ options, onChange }) {
   );
 }
 
-function OptionsEditor({ datasetId, format, options, onChange, showToast }) {
-  const [sources, setSources] = useState([]);
-  const [source, setSource] = useState("");
-  const [granularity, setGranularity] = useState("month");
-  const [axisLimit, setAxisLimit] = useState(10);
-  const [importing, setImporting] = useState(false);
+function OptionsEditor({ format, options, onChange }) {
   const isMatrix = format === "matrix";
   const role = valueRole(format);
-
-  useEffect(() => {
-    if (!datasetId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`/api/admin/datasets/${encodeURIComponent(datasetId)}/option-sources`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (cancelled) return;
-        setSources(data.option_sources || []);
-        if (data.matrix_axis_default) setAxisLimit(data.matrix_axis_default);
-      } catch {
-        // Importing is a convenience; hand-authoring still works without it.
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [datasetId]);
-
-  const selected = sources.find((s) => s.source === source);
-
-  async function handleImport() {
-    if (!source) return;
-    setImporting(true);
-    try {
-      const qs = new URLSearchParams({ source });
-      if (selected?.granularity) qs.set("granularity", granularity);
-      const res = await fetch(
-        `/api/admin/datasets/${encodeURIComponent(datasetId)}/option-candidates?${qs}`
-      );
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-      const rows = data.options || [];
-      if (rows.length === 0) {
-        showToast("That source produced no options for this dataset.", true);
-        return;
-      }
-      // A matrix takes the candidates as its axis members and derives the cells
-      // itself (pairsFrom), so the import is the same one request every other
-      // format makes. The server used to build the pairs; the axis editor owns
-      // that now, and doing it here keeps the members editable — an imported
-      // label carries counts that would otherwise be printed along the axis.
-      if (isMatrix) {
-        const members = [];
-        for (const r of rows) {
-          const name = String(r.label ?? r.value ?? "");
-          if (name && !members.includes(name)) members.push(name);
-          if (members.length >= axisLimit) break;
-        }
-        if (members.length < 2) {
-          showToast("That source gave fewer than two axis members.", true);
-          return;
-        }
-        onChange(pairsFrom(members));
-        const cells = (members.length * (members.length - 1)) / 2;
-        const truncated = rows.length > members.length
-          ? ` (first ${members.length} of ${rows.length})` : "";
-        showToast(`Imported ${members.length} axis members → ${cells} cells${truncated}.`);
-        return;
-      }
-      onChange(rows);
-      showToast(`Imported ${rows.length} option${rows.length === 1 ? "" : "s"}.`);
-    } catch (e) {
-      showToast(`Import failed: ${e.message}`, true);
-    } finally {
-      setImporting(false);
-    }
-  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -384,10 +312,9 @@ function OptionsEditor({ datasetId, format, options, onChange, showToast }) {
         </span>
       </div>
 
-      {/* How to use this format. The rows of a number set are not candidate
-          answers — they are the categories the question is asked about — so
-          they are written by hand: every source that could fill them labels its
-          candidates with the counts this format exists to ask for. */}
+      {/* How to use this format: a number set's rows are not candidate answers
+          but the categories the question is asked about, which is the one thing
+          about it an admin is likely to expect the other way round. */}
       {role === "unused" && (
         <div className="text-xs text-on-surface-variant bg-surface-container-low rounded-lg px-3 py-2.5 flex flex-col gap-1.5">
           <p>
@@ -406,69 +333,11 @@ function OptionsEditor({ datasetId, format, options, onChange, showToast }) {
         </div>
       )}
 
-      {/* Import from the event log */}
-      {role !== "unused" && (
-      <div className="flex items-center gap-2 flex-wrap bg-surface-container-low rounded-lg px-3 py-2">
-        <span className="text-xs text-on-surface-variant">Import from</span>
-        <select
-          value={source}
-          onChange={(e) => setSource(e.target.value)}
-          disabled={!datasetId || sources.length === 0}
-          className="text-sm border border-border-subtle rounded-lg px-2 py-1.5 bg-white disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-primary/30"
-        >
-          <option value="">Select a source…</option>
-          {sources.map((s) => (
-            <option key={s.source} value={s.source}>{s.label}</option>
-          ))}
-        </select>
-        {selected?.granularity && (
-          <select
-            value={granularity}
-            onChange={(e) => setGranularity(e.target.value)}
-            className="text-sm border border-border-subtle rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
-          >
-            <option value="day">day</option>
-            <option value="month">month</option>
-            <option value="year">year</option>
-          </select>
-        )}
-        {isMatrix && (
-          // How many candidates to take as axis members. 16 is where the grid
-          // stops being readable cell by cell (16 members = 120 cells); the
-          // list stays editable afterwards, so this only sets the starting set.
-          <label className="text-xs text-on-surface-variant flex items-center gap-1">
-            members
-            <input
-              type="number"
-              min={2}
-              max={16}
-              value={axisLimit}
-              onChange={(e) => setAxisLimit(Number(e.target.value))}
-              className="w-16 text-sm border border-border-subtle rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
-          </label>
-        )}
-        <button
-          onClick={handleImport}
-          disabled={!source || importing}
-          className="text-xs font-semibold text-primary hover:underline disabled:opacity-40 disabled:no-underline flex items-center gap-1"
-        >
-          <span className="material-symbols-outlined text-sm">download</span>
-          {importing ? "Importing…" : options.length > 0 ? "Replace options" : "Import"}
-        </button>
-        {!datasetId && (
-          <span className="text-xs text-on-surface-variant italic">
-            No dataset assigned to this task — add options by hand.
-          </span>
-        )}
-      </div>
-      )}
-
       {options.length === 0 && !isMatrix ? (
         <p className="text-xs text-on-surface-variant italic">
           {role === "unused"
             ? "No rows yet — add one per category the question asks about."
-            : "No options yet — import a set from the event log, or add them by hand."}
+            : "No options yet — add the answers the participant chooses between."}
         </p>
       ) : null}
 
@@ -772,8 +641,7 @@ function AnswerFormatContent() {
           <h1 className="font-h1 text-h1 text-primary mb-2">Answer Format</h1>
           <p className="font-body-lg text-body-lg text-secondary max-w-2xl">
             Choose how participants answer each task. Every format is available to every task.
-            Formats that present a closed set need options, which you can import from the event log
-            or write by hand.
+            Formats that present a closed set need the options written out.
           </p>
         </div>
 
@@ -844,11 +712,9 @@ function AnswerFormatContent() {
                         )}
                         {fmt?.needs_options && (
                           <OptionsEditor
-                            datasetId={ti.dataset_id}
                             format={ti.answer_format}
                             options={ti.answer_options || []}
                             onChange={(options) => patchInstance(ti.task_id, { answer_options: options })}
-                            showToast={showToast}
                           />
                         )}
                       </>
