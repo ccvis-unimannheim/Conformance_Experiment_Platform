@@ -86,6 +86,11 @@ _TOP_N = 12
 _MATRIX_TOP_N = 10
 # Min co-occurrence count for network edges / scatter points
 _MIN_COOCCUR = 1
+# Network diagram: the ring has radius 1, labels start outside the widest node
+# and read outwards, and the axis is squared off wide enough to hold the longest
+# of them without leaving the ring adrift in white space.
+_LABEL_RADIUS = 1.18
+_NETWORK_LIMIT = 1.85
 
 SKIP_TOKENS = {">>", None}
 
@@ -330,7 +335,8 @@ def task08_matrix(violation_freq, cooccurrence, output_dir, top_n=_MATRIX_TOP_N)
 # Idiom 4: Network Diagram — violations as nodes, co-occurrence as edges
 # ---------------------------------------------------------------------------
 
-def task08_network_diagram(violation_freq, cooccurrence, output_dir, top_n=_TOP_N):
+def task08_network_diagram(violation_freq, cooccurrence, output_dir,
+                           top_n=_TOP_N):
     try:
         import networkx as nx
     except ImportError:
@@ -342,9 +348,8 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir, top_n=_TOP_
         _no_violations(output_dir, "network_diagram")
         return
 
-    # Keep the ranked order: nodes enter the graph in this sequence, and both
-    # layouts place them by insertion order, so a set here would undo the stable
-    # ranking and move every node between runs.
+    # A list, not a set: the ranking decides which group of nodes is seated
+    # first, and a set would reorder it differently on every run.
     top = _top_violations(violation_freq, top_n)
     top_set = set(top)
     pairs = [(a, b, cnt) for (a, b), cnt in cooccurrence.items()
@@ -355,23 +360,51 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir, top_n=_TOP_
                     "No co-occurring violations to display")
         return
 
-    G = nx.Graph()
+    # Seat each group of violations that co-occur together in one unbroken run
+    # of the ring. Ranked order scattered them around it, so every edge became a
+    # chord across the middle and the crossings were most of what the figure
+    # showed. Seating a whole connected group at once makes every edge a short
+    # arc inside its own block; the ranking still decides which block comes
+    # first, and the walk is ordered throughout, so the seating does not move
+    # between runs.
+    partners = {}
+    for a, b, _cnt in sorted(pairs, key=lambda e: (-e[2], str(e[0]), str(e[1]))):
+        partners.setdefault(a, []).append(b)
+        partners.setdefault(b, []).append(a)
+
+    ring, seated = [], set()
     for v in top:
+        if v in seated:
+            continue
+        queue = [v]
+        while queue:
+            cur = queue.pop(0)
+            if cur in seated:
+                continue
+            ring.append(cur)
+            seated.add(cur)
+            queue.extend(p for p in partners.get(cur, []) if p not in seated)
+
+    G = nx.Graph()
+    for v in ring:
         G.add_node(v, freq=violation_freq[v])
     for a, b, cnt in pairs:
         G.add_edge(a, b, weight=cnt)
 
-    # Circular layout for ≤8 nodes (avoids spring clustering); spring for more
+    # A ring at every size. Spring layout pulled the connected pairs into tight
+    # clusters and scattered the rest, so labels sitting under their node ran
+    # straight into the neighbouring one. On a ring the nodes are evenly spaced
+    # and every label can point away from the centre, where the only thing it
+    # could meet is the label of a node far away in angle.
     n_nodes = G.number_of_nodes()
-    if n_nodes <= 8:
-        pos = nx.circular_layout(G, scale=2.0)
-    else:
-        pos = nx.spring_layout(G, seed=42, k=3.0)
+    pos = nx.circular_layout(G, scale=1.0)
 
     # Node sizes proportional to frequency
     nodes_ordered = list(G.nodes)
     freqs   = np.array([G.nodes[n]["freq"] for n in nodes_ordered])
-    node_sz = (freqs / freqs.max() * 1600 + 400).tolist()
+    # Capped so the widest node still clears _LABEL_RADIUS and two neighbours on
+    # a full ring do not touch.
+    node_sz = (freqs / freqs.max() * 1100 + 250).tolist()
 
     # Edge widths and shades proportional to co-occurrence: the blue end of
     # cividis, slate for the weakest pair to navy for the strongest.
@@ -387,9 +420,11 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir, top_n=_TOP_
 
     colors = [node_color(n) for n in nodes_ordered]
 
-    fig_w = max(8, min(14, n_nodes * 2.5))
-    fig_h = max(6, min(9, n_nodes * 1.8))
-    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+    # Square, because the ring is: the labels need as much room above and below
+    # as they do left and right. It grows with the node count so the ring never
+    # gets so crowded that two spokes touch.
+    side = max(10.0, min(15.0, 7.0 + n_nodes * 0.45))
+    fig, ax = plt.subplots(figsize=(side, side))
     ax.set_facecolor(_CHROME_PANEL)
 
     nx.draw_networkx_edges(G, pos, ax=ax, width=edge_w,
@@ -398,15 +433,19 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir, top_n=_TOP_
                            node_size=node_sz, node_color=colors,
                            alpha=0.92, linewidths=0.8, edgecolors=_CHROME_FILL)
 
-    # Node labels: placed below each node, with white bbox
+    # Node labels: one spoke per node, starting just outside the ring and
+    # reading outwards. Parallel rays cannot collide the way a row of boxes
+    # under the nodes did; the left half is flipped so nothing reads upside
+    # down. No box behind them — outside the ring there is nothing to cover.
     for node, (x, y) in pos.items():
+        angle = np.degrees(np.arctan2(y, x))
+        lx, ly = x * _LABEL_RADIUS, y * _LABEL_RADIUS
+        rotation, ha = (angle + 180, "right") if x < 0 else (angle, "left")
         ax.annotate(
-            _short_label(_viol_label(node), 26), xy=(x, y),
-            xytext=(0, -22), textcoords="offset points",
-            ha="center", va="top",
+            _short_label(_viol_label(node), 26), xy=(lx, ly),
+            rotation=rotation, rotation_mode="anchor",
+            ha=ha, va="center",
             fontsize=max(FONT_ANNOT - 1, 6), color=_C_DARK,
-            bbox=dict(boxstyle="round,pad=0.25", fc=_CHROME_FILL,
-                      ec=_CHROME_BORDER, alpha=0.92, linewidth=0.4),
         )
 
     # Edge weight labels: drawn manually at midpoint, pushed perpendicular
@@ -431,20 +470,22 @@ def task08_network_diagram(violation_freq, cooccurrence, output_dir, top_n=_TOP_
         mpatches.Patch(color=MOVE_MODEL,    label="Model Move (skipped activity)"),
         mpatches.Patch(color=MOVE_LOG,      label="Log Move (extra activity)"),
     ]
-    ax.legend(handles=legend_handles, loc="lower right",
-              fontsize=FONT_ANNOT, frameon=True, framealpha=0.95)
+    # Under the axis: the corners the legend used to sit in are now where the
+    # diagonal spokes reach.
+    ax.legend(handles=legend_handles, loc="upper center",
+              bbox_to_anchor=(0.5, -0.01), ncol=2,
+              fontsize=FONT_ANNOT, frameon=False)
 
     ax.set_title("Violation Co-occurrence Network\n"
                  "(node size = frequency · edge width & shade = co-occurrence count)",
                  fontsize=FONT_TITLE)
 
-    # Explicitly set axis limits so tight_layout / bbox_inches captures the
-    # networkx content correctly — ax.axis("off") can confuse the auto-scaler.
-    all_x = [p[0] for p in pos.values()]
-    all_y = [p[1] for p in pos.values()]
-    pad = max(1.0, (max(all_x) - min(all_x)) * 0.25, (max(all_y) - min(all_y)) * 0.25)
-    ax.set_xlim(min(all_x) - pad, max(all_x) + pad)
-    ax.set_ylim(min(all_y) - pad - 0.5, max(all_y) + pad)  # extra bottom room for labels
+    # Square limits around the ring, set explicitly: the spokes are annotations,
+    # which the auto-scaler does not measure, and ax.axis("off") confuses it
+    # further. The margin is what holds the longest label.
+    ax.set_xlim(-_NETWORK_LIMIT, _NETWORK_LIMIT)
+    ax.set_ylim(-_NETWORK_LIMIT, _NETWORK_LIMIT)
+    ax.set_aspect("equal")
     ax.axis("off")
 
     fig.tight_layout()
@@ -540,5 +581,5 @@ def generate(log, alignments, output_dir: str, violation_patterns=None):
     task08_matrix(violation_freq, cooccurrence, output_dir,
                   top_n=axis_n or _MATRIX_TOP_N)
     task08_network_diagram(violation_freq, cooccurrence, output_dir,
-                           top_n=axis_n or _TOP_N)
+                           top_n=axis_n or _MATRIX_TOP_N)
     task08_table(violation_freq, cooccurrence, n_traces, output_dir)
