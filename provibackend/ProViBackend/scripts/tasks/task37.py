@@ -98,14 +98,14 @@ import matplotlib.ticker as mticker
 
 from matplotlib.colors import to_hex
 
-from shared import save_svg, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS, FONT_TITLE, FONT_LABEL, FONT_ANNOT
+from shared import (save_svg, draw_value_heatmap, make_table, GREY_DARK, GREY_MED, GREY_LIGHT,
+                    GREY_LIGHTER, CIVIDIS, FONT_TITLE, FONT_LABEL, FONT_ANNOT)
 
 # ── Cividis palette ───────────────────────────────────────────────────────────
 _C_DARK   = GREY_DARK
 _C_MED    = GREY_MED
 _C_LIGHT  = GREY_LIGHT
 _C_XLIGHT = GREY_LIGHTER
-_HDR_BG   = GREY_DARK
 _C_T1     = GREY_DARK    # Alignment-based (dark navy)
 _C_T2     = GREY_MED     # Token-based Replay (olive-grey)
 
@@ -495,17 +495,21 @@ def task37_heatmap(data, output_dir):
     for v1, v2 in zip(t1, t2):
         mat[_bucket_idx(v1, data.get("buckets")), _bucket_idx(v2, data.get("buckets"))] += 1
 
+    labels = data.get("bucket_labels") or _BUCKET_LABELS
     fig, ax = plt.subplots(figsize=(9, 7.5))
-    ax.imshow(mat, cmap=CIVIDIS, aspect="auto", vmin=0, vmax=max(int(mat.max()), 1))
-
-    for i in range(nb):
-        for j in range(nb):
-            cnt = int(mat[i, j])
-            pct = cnt / n * 100 if n > 0 else 0.0
-            txt_clr = "white" if cnt > mat.max() * 0.5 else _C_DARK
-            ax.text(j, i, f"{cnt}\n({pct:.1f}%)",
-                    ha="center", va="center",
-                    fontsize=FONT_ANNOT, color=txt_clr, linespacing=1.4)
+    # shared.draw_value_heatmap, which is where the platform's heatmap rules
+    # live: the reversed ramp, so the busiest cell is the darkest one rather
+    # than the one yellow square in a navy field this drew before; and no
+    # per-cell numbers, because a heatmap is the colour reading of a table and
+    # a matrix is the number reading of it. The colourbar carries the scale.
+    draw_value_heatmap(
+        fig, ax, mat,
+        row_labels=labels, col_labels=labels,
+        xlabel=f"{data['t1_name']} fitness bucket",
+        cbar_label="Traces",
+        annotate=False,
+        vmax=max(int(mat.max()), 1),
+    )
 
     # Highlight diagonal (agreement)
     for k in range(nb):
@@ -514,10 +518,6 @@ def task37_heatmap(data, output_dir):
             fill=False, edgecolor=_C_MED, linewidth=2.0,
         ))
 
-    labels = data.get("bucket_labels") or _BUCKET_LABELS
-    ax.set_xticks(range(nb)); ax.set_xticklabels(labels, fontsize=FONT_ANNOT)
-    ax.set_yticks(range(nb)); ax.set_yticklabels(labels, fontsize=FONT_ANNOT)
-    ax.set_xlabel(f"{data['t1_name']} fitness bucket", fontsize=FONT_LABEL)
     ax.set_ylabel(f"{data['t2_name']} fitness bucket", fontsize=FONT_LABEL)
     ax.set_title(
         f"Fitness Bucket Agreement  ·  {n:,} traces\n"
@@ -613,41 +613,23 @@ def task37_table(data, output_dir):
     fig_h  = max(4.0, n_rows * 0.42 + 1.8)
     fig, ax = plt.subplots(figsize=(13, fig_h))
     ax.axis("off")
+    # shared.make_table, as every other table in the platform. Drawn by hand
+    # this had its own zebra stripe (#f5f5f5 against the shared #F0F0F0), its
+    # own cell borders and its own row height, so the one idiom a participant
+    # is meant to recognise across tasks looked slightly different here.
+    tbl = make_table(ax, cell_text=rows, col_labels=col_headers,
+                     bbox=[0.015, 0.04, 0.97, 0.90], col_widths=col_widths,
+                     cell_loc="center", font_size=FONT_ANNOT, cell_pad=0.06)
 
-    t_ = 0.94; b_ = 0.04; tw = 0.97; l_ = 0.015
-    row_h = (t_ - b_) / (n_rows + 1)
-
-    x = l_
-    for hdr, cw in zip(col_headers, col_widths):
-        ax.add_patch(plt.Rectangle((x, t_ - row_h), cw * tw, row_h,
-                                   fc=_HDR_BG, ec="#333333", linewidth=0.5,
-                                   transform=ax.transAxes, clip_on=False))
-        ax.text(x + cw * tw * 0.5, t_ - row_h * 0.5, hdr,
-                ha="center", va="center", fontsize=FONT_ANNOT,
-                color="white", transform=ax.transAxes)
-        x += cw * tw
-
-    for i, row in enumerate(rows):
-        y_top = t_ - (i + 2) * row_h
-        x = l_
-        bg = "#f5f5f5" if i % 2 == 0 else "white"
-        for j, (val, cw) in enumerate(zip(row, col_widths)):
-            ax.add_patch(plt.Rectangle((x, y_top), cw * tw, row_h,
-                                       fc=bg, ec="#333333", linewidth=0.5,
-                                       transform=ax.transAxes, clip_on=False))
-            ha = "left" if j == 0 else "center"
-            px = x + 0.008 if j == 0 else x + cw * tw * 0.5
-            # Colour Δ column: dark = T1 higher, grey = T2 higher
-            clr = _C_DARK
-            if has_t2 and j == 3:
-                try:
-                    clr = _C_DARK if float(val) >= 0 else _C_MED
-                except ValueError:
-                    pass
-            ax.text(px, y_top + row_h * 0.5, str(val),
-                    ha=ha, va="center", fontsize=FONT_ANNOT,
-                    color=clr, transform=ax.transAxes)
-            x += cw * tw
+    # The delta column keeps the reading it had: dark where the first technique
+    # scores higher, grey where the second does.
+    if has_t2:
+        for r, row in enumerate(rows, start=1):
+            try:
+                tbl[r, 3].set_text_props(
+                    color=_C_DARK if float(row[3]) >= 0 else _C_MED)
+            except (ValueError, KeyError):
+                pass
 
     sort_note = f"stratified by fitness level  ·  {n_groups} unique value groups"
     title = f"Per-Trace Fitness Detail  ·  {n:,} traces  ·  {sort_note}"
@@ -682,33 +664,11 @@ def task37_table_bar_chart(data, output_dir):
     ax_tbl.axis("off")
     col_headers = ["Statistic", data["t1_name"]] + ([data["t2_name"]] if has_t2 else [])
     col_widths  = [0.36, 0.32] + ([0.32] if has_t2 else [])
-    t_ = 0.94; tw = 0.98; row_h = (t_ - 0.04) / (len(stat_names) + 1)
-    x = 0.01
-
-    for hdr, cw in zip(col_headers, col_widths):
-        ax_tbl.add_patch(plt.Rectangle((x, t_ - row_h), cw * tw, row_h,
-                                       fc=_HDR_BG, ec="white", linewidth=0.5,
-                                       transform=ax_tbl.transAxes, clip_on=False))
-        ax_tbl.text(x + cw * tw * 0.5, t_ - row_h * 0.5, hdr,
-                    ha="center", va="center", fontsize=FONT_ANNOT,
-                    color="white", transform=ax_tbl.transAxes)
-        x += cw * tw
-
-    for i, (name, v1) in enumerate(zip(stat_names, t1_stat_v)):
-        y_top = t_ - (i + 2) * row_h
-        x = 0.01
-        bg = "#f5f5f5" if i % 2 == 0 else "white"
-        row_v = [name, f"{v1:.3f}"] + ([f"{t2_stat_v[i]:.3f}"] if has_t2 else [])
-        for j, (val, cw) in enumerate(zip(row_v, col_widths)):
-            ax_tbl.add_patch(plt.Rectangle((x, y_top), cw * tw, row_h,
-                                           fc=bg, ec="#eeeeee", linewidth=0.4,
-                                           transform=ax_tbl.transAxes, clip_on=False))
-            ha = "left" if j == 0 else "center"
-            px = x + 0.008 if j == 0 else x + cw * tw * 0.5
-            ax_tbl.text(px, y_top + row_h * 0.5, val,
-                        ha=ha, va="center", fontsize=FONT_ANNOT,
-                        color=_C_DARK, transform=ax_tbl.transAxes)
-            x += cw * tw
+    stat_rows = [[name, f"{v1:.3f}"] + ([f"{t2_stat_v[i]:.3f}"] if has_t2 else [])
+                 for i, (name, v1) in enumerate(zip(stat_names, t1_stat_v))]
+    make_table(ax_tbl, cell_text=stat_rows, col_labels=col_headers,
+               bbox=[0.01, 0.04, 0.98, 0.90], col_widths=col_widths,
+               cell_loc="center", font_size=FONT_ANNOT, cell_pad=0.06)
 
     # ── Right: fitness bucket grouped bar ────────────────────────────────────
     ax_bar.set_facecolor("#fafbfc")
