@@ -44,6 +44,20 @@ TASK_MODULES: dict[str, Any] = {
 # Fallback for tasks that declare no params.
 DEFAULT_PARAM_SPEC: list[dict] = []
 
+# Tasks that expose no generated configuration to the admin: no built-in idioms
+# to pick and no parameters to set. The only visualization they can carry is a
+# custom idiom the admin uploads on /idiom. Their module code is left intact
+# (other tasks still import from them, e.g. task20 -> task18, task17 -> task26),
+# so this is an offer-side restriction, not a change to what the modules do.
+# Answer format and grading rubric are set per experiment on the task_instance
+# and are unaffected.
+CUSTOM_IDIOM_ONLY: set[str] = {"task17", "task18", "task26"}
+
+
+def is_custom_idiom_only(task_key: str) -> bool:
+    """True for tasks that offer only an admin-uploaded custom idiom."""
+    return task_key in CUSTOM_IDIOM_ONLY
+
 
 def _module(task_key: str):
     mod = TASK_MODULES.get(task_key)
