@@ -108,18 +108,18 @@ def task22_bar_chart(panels, overall_mean, output_dir):
     fig, axes = plt.subplots(1, ncols, figsize=(max(5.0, ncols * 4.2), 5.0), squeeze=False)
     for ax, (m, (labels, rates, _counts)) in zip(axes[0], panels):
         pos = np.arange(len(labels))
-        ax.bar(pos, rates, color=GREY_MED, edgecolor="white")
+        ax.bar(pos, rates, color=GREY_DARK, edgecolor="white", width=0.6)
         for p, rate in zip(pos, rates):
             if rate + 0.08 > 1.0:
                 ax.text(p, rate - 0.015, f"{rate:.3f}", ha="center", va="top",
-                        fontsize=FONT_ANNOT - 1, color="white")
+                        fontsize=FONT_ANNOT, color="white")
             else:
                 ax.text(p, rate + 0.015, f"{rate:.3f}", ha="center", va="bottom",
-                        fontsize=FONT_ANNOT - 1, color="#333333")
+                        fontsize=FONT_ANNOT, color="#333333")
         ax.axhline(overall_mean, color="#555555", linestyle="--", linewidth=1.2,
                   alpha=0.85, zorder=2, label=f"Overall mean: {overall_mean:.3f}")
         ax.set_xticks(pos)
-        ax.set_xticklabels(labels, fontsize=FONT_ANNOT - 1, rotation=20, ha="right")
+        ax.set_xticklabels(labels, fontsize=FONT_ANNOT, rotation=20, ha="right")
         ax.set_title(m["label"], fontsize=FONT_LABEL)
         ax.set_ylim(0, 1.0)
         ax.spines[["top", "right"]].set_visible(False)

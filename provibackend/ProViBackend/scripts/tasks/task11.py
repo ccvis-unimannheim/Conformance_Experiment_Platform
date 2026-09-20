@@ -254,10 +254,10 @@ def task11_bar_chart(selected, trace_coverage, n_traces, output_dir, *,
     ax.set_xticks(x)
     ax.set_xticklabels(labels, rotation=30, ha="right", fontsize=FONT_ANNOT)
     ax.set_ylabel("Number of traces containing this violation", fontsize=FONT_LABEL)
-    ax.set_title(
-        f"{title_prefix} by Activity  ({n} activit{'y' if n == 1 else 'ies'})",
-        fontsize=FONT_TITLE,
-    )
+    # Every idiom of this task carries the same heading: they answer one
+    # question, and a per-idiom suffix ("by Activity", ": Activity x Type", a
+    # count) made four figures of one thing look like four different findings.
+    ax.set_title(title_prefix, fontsize=FONT_TITLE)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
@@ -333,10 +333,7 @@ def task11_matrix(selected, trace_coverage, n_traces, output_dir, *,
     ax.set_yticklabels([_short_label(a, 30) for a in selected_acts], fontsize=FONT_ANNOT - 1)
     ax.set_xlabel("Violation Type", fontsize=FONT_LABEL)
 
-    ax.set_title(
-        f"{title_prefix}: Activity × Type",
-        fontsize=FONT_TITLE,
-    )
+    ax.set_title(title_prefix, fontsize=FONT_TITLE)
     ax.tick_params(axis="both", length=0)
     # Spines left at their default (black) so the grid is framed the way every
     # other matrix is — shared.draw_value_heatmap never hides them either.
@@ -385,10 +382,7 @@ def task11_table(selected, trace_coverage, n_traces, output_dir, *,
         font_size=10,
         cell_pad=0.09,
     )
-    ax.set_title(
-        f"{title_prefix}  ({n_rows} violation{'s' if n_rows != 1 else ''})",
-        fontsize=FONT_TITLE, pad=14,
-    )
+    ax.set_title(title_prefix, fontsize=FONT_TITLE, pad=14)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, filename))
 
@@ -455,11 +449,7 @@ def task11_table_bar_chart(selected, trace_coverage, n_traces, output_dir, *,
     ax_bar.set_axisbelow(True)
     ax_bar.set_xlim(0, max_c * 1.38)
 
-    fig.suptitle(
-        f"{title_prefix}  ({n} violation{'s' if n != 1 else ''})"
-        f"  ·  {n_traces:,} total traces",
-        fontsize=FONT_TITLE + 1, y=1.01,
-    )
+    fig.suptitle(title_prefix, fontsize=FONT_TITLE + 1, y=1.01)
     fig.tight_layout()
     save_svg(fig, os.path.join(output_dir, filename))
 

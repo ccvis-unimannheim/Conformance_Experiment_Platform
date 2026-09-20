@@ -159,12 +159,12 @@ def task21_bar_chart(ranking, evidence_df, output_dir):
     fig, axes = plt.subplots(1, ncols, figsize=(max(5.0, ncols * 4.2), 5.0), squeeze=False)
     for ax, (r, (labels, rates, counts)) in zip(axes[0], panels):
         pos = np.arange(len(labels))
-        ax.bar(pos, rates, color=GREY_MED, edgecolor="white")
+        ax.bar(pos, rates, color=GREY_DARK, edgecolor="white", width=0.6)
         for p, rate, c in zip(pos, rates, counts):
             ax.text(p, rate + 1.5, f"{rate:.0f}%\n(n={c})", ha="center", va="bottom",
-                    fontsize=FONT_ANNOT - 1, color="#333333")
+                    fontsize=FONT_ANNOT, color="#333333")
         ax.set_xticks(pos)
-        ax.set_xticklabels(labels, fontsize=FONT_ANNOT - 1)
+        ax.set_xticklabels(labels, fontsize=FONT_ANNOT)
         ax.set_xlabel(f"{r['label']}  (assoc.={r['strength']:.2f})", fontsize=FONT_LABEL)
         ax.set_ylim(0, 100)
         ax.spines[["top", "right"]].set_visible(False)
