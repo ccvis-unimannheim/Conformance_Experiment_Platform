@@ -11,7 +11,11 @@ conformance between attribute values): here fitness is the explained variable,
 the attribute is the explanatory one, and every idiom below states the
 deviation from the log's overall mean fitness, not just the raw per-bucket
 value — bar_chart with a reference line, table with a "Δ vs Overall" column,
-and the BPMN model localises *where* conformance breaks.
+and parallel_sets with a proportional conformant/deviating split. stacked_bar
+was dropped: it read the fitness-band *distribution* per bucket rather than
+its deviation from the overall mean, the one statistic every other idiom here
+shares — a different analytical answer, not just a different rendering of the
+same one.
 
 bar_chart/table/parallel_sets are task22's own rendering (only the *data*
 helpers — task20_trace_feature_dataframe, _default_attributes,
@@ -22,17 +26,14 @@ particular used to delegate to task20's shared renderer, which assumed its
 scale instead, so that reuse silently produced near-zero, meaningless ribbon
 splits. It is now its own correctly-scaled implementation.
 
-Building blocks (sub-log split, violation extraction, annotated BPMN) are reused
-from task30/shared, so a new dataset flows through unchanged: the admin picks the
-candidate attributes, and each is cut by its own type unless a split strategy is
-set (see trace_features).
+The admin picks the candidate attributes, and each is cut by its own type
+unless a split strategy is set (see trace_features).
 
 Public API:
     generate(log, fitness_df, alignments, output_dir, model_path=None,
              attribute_set=None, split_strategy=None, group_cap=None)
         attribute_set  – candidate reasons (attributes); empty = the
-                         discovered default set. The distribution idioms use
-                         only the first one.
+                         discovered default set.
         split_strategy – "binary" | "nominal_n" | "ordered_bins"; None picks
                          by each attribute's type
         group_cap      – most groups named before the rest become "Other"
@@ -43,7 +44,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 IDIOMS = [
-    "bar_chart", "stacked_bar", "table",
+    "bar_chart", "table",
     "parallel_sets",
 ]
 
@@ -68,7 +69,6 @@ PARAM_SPEC = [*trace_features.grouping_params(
     levels=trace_features.TRACE_COMPARING_LEVELS)]
 import os
 import numpy as np
-import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -76,13 +76,9 @@ from matplotlib import gridspec
 
 from shared import (
     save_svg, make_table, auto_col_widths, draw_parallel_sets,
-    render_empty_state_svg, format_threshold,
+    render_empty_state_svg,
     GREY_MED, GREY_LIGHT, GREY_DARK, GREY_LIGHTER, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
-
-# Reuse the proven sub-log split + attribute helpers from task30.
-from tasks.task30 import (split_by_attribute, _available_case_attributes,
-                          MAX_CATEGORICAL_GROUPS)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -90,69 +86,8 @@ from tasks.task30 import (split_by_attribute, _available_case_attributes,
 
 _GROUP_PALETTE = [GREY_MED, GREY_LIGHT, GREY_DARK, GREY_LIGHTER]
 
-# Fitness bands: (label, lo, hi, fill_color, text_color) — shared look with task33
-_FITNESS_BANDS = [
-    ("0.00–0.25", 0.00, 0.25, "#333333", "white"),
-    ("0.25–0.50", 0.25, 0.50, "#777777", "white"),
-    ("0.50–0.75", 0.50, 0.75, "#AAAAAA", "#333333"),
-    ("0.75–1.00", 0.75, 1.01, "#D9D9D9", "#333333"),
-]
-
 def _group_colors(groups: list) -> list:
     return [_GROUP_PALETTE[i % len(_GROUP_PALETTE)] for i in range(len(groups))]
-
-
-# ---------------------------------------------------------------------------
-# Aggregation
-# ---------------------------------------------------------------------------
-
-def _build_trace_df(fitness_df: pd.DataFrame, assignment: list, meta: dict) -> pd.DataFrame:
-    n = min(len(fitness_df), len(assignment))
-    df = fitness_df.iloc[:n].copy()
-    df["group"] = assignment[:n]
-    if meta["type"] == "numeric":
-        df["value"] = meta["numeric_values"][:n]
-    return df[df["group"].notna()].reset_index(drop=True)
-
-
-def _group_stats(trace_df: pd.DataFrame, groups: list, overall_mean: float) -> pd.DataFrame:
-    """Per sub-log fitness summary plus this task's explanatory deviation."""
-    import trace_response
-
-    stats = trace_response.fitness_stats(
-        trace_df["fitness"], trace_df["group"], groups,
-    )
-    return pd.DataFrame({
-        "group":       stats["group"],
-        "n":           stats["n"],
-        "mean":        stats["mean"],
-        "median":      stats["median"],
-        "std":         stats["std"],
-        "delta":       stats["mean"] - overall_mean,   # explanatory deviation
-    })
-
-
-def _band_rates(trace_df: pd.DataFrame, groups: list) -> np.ndarray:
-    """(n_bands × n_groups): % of sub-log traces per fitness band."""
-    data = np.zeros((len(_FITNESS_BANDS), len(groups)), dtype=float)
-    for gi, g in enumerate(groups):
-        sub = trace_df[trace_df["group"] == g]["fitness"]
-        n = len(sub)
-        if n == 0:
-            continue
-        for bi, (_, lo, hi, _, _) in enumerate(_FITNESS_BANDS):
-            data[bi, gi] = float(((sub >= lo) & (sub < hi)).sum() / n * 100)
-    return data
-
-
-def _band_counts(trace_df: pd.DataFrame, groups: list) -> np.ndarray:
-    """(n_groups × n_bands) raw counts — for parallel sets ribbons."""
-    data = np.zeros((len(groups), len(_FITNESS_BANDS)), dtype=int)
-    for gi, g in enumerate(groups):
-        sub = trace_df[trace_df["group"] == g]["fitness"]
-        for bi, (_, lo, hi, _, _) in enumerate(_FITNESS_BANDS):
-            data[gi, bi] = int(((sub >= lo) & (sub < hi)).sum())
-    return data
 
 
 # ---------------------------------------------------------------------------
@@ -197,47 +132,6 @@ def task22_bar_chart(panels, overall_mean, output_dir):
     fig.suptitle(_SPLIT_SUPTITLE, fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2, rect=[0, 0.04, 1, 1])
     save_svg(fig, path)
-
-
-# ---------------------------------------------------------------------------
-# Idiom 2: stacked_bar — fitness-band composition per reason group
-# ---------------------------------------------------------------------------
-
-def task22_stacked_bar(trace_df, groups, attr, output_dir):
-    band_names   = [b[0] for b in _FITNESS_BANDS]
-    band_colors  = [b[3] for b in _FITNESS_BANDS]
-    band_txtcols = [b[4] for b in _FITNESS_BANDS]
-    rates = _band_rates(trace_df, groups)
-
-    fig, ax = plt.subplots(figsize=(max(6, len(groups) * 2.2), 5.5))
-    bottoms = np.zeros(len(groups))
-    x = np.arange(len(groups))
-    for bi, (band, fill, tc) in enumerate(zip(band_names, band_colors, band_txtcols)):
-        vals = rates[bi]
-        lbl = band if np.any(vals > 0) else "_nolegend_"
-        bars = ax.bar(x, vals, bottom=bottoms, color=fill,
-                      edgecolor="white", linewidth=0.5, label=lbl, width=0.6)
-        for rect, val in zip(bars, vals):
-            if val >= 6:
-                ax.text(rect.get_x() + rect.get_width() / 2,
-                        rect.get_y() + rect.get_height() / 2,
-                        f"{val:.0f}%", ha="center", va="center",
-                        fontsize=FONT_ANNOT - 1, color=tc)
-        bottoms += vals
-
-    ax.set_xticks(x)
-    ax.set_xticklabels(groups, rotation=0, ha="center", fontsize=FONT_ANNOT)
-    ax.set_ylabel("% of sub-log traces", fontsize=FONT_LABEL)
-    ax.set_ylim(0, 105)
-    ax.set_title(f"Fitness Band Composition by {attr}", fontsize=FONT_TITLE)
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
-    ax.set_axisbelow(True)
-    handles, labels = ax.get_legend_handles_labels()
-    ax.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, -0.25),
-              ncol=max(1, len(handles)), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task22_stacked_bar.svg"))
 
 
 # ---------------------------------------------------------------------------
@@ -384,7 +278,6 @@ def task22_parallel_sets(panels, output_dir):
 
 _ALL_FNAMES_TITLES = [
     ("task22_bar_chart.svg",     "Conformance Explained by Reason"),
-    ("task22_stacked_bar.svg",   "Fitness Band Composition by Reason"),
     ("task22_table.svg",         "Conformance Summary by Reason"),
     ("task22_parallel_sets.svg", "Reason vs. Fitness Band"),
 ]
@@ -394,10 +287,8 @@ def generate(log, fitness_df, alignments, output_dir: str, model_path: str = Non
              attribute_set=None, split_strategy=None, group_cap=None):
     """Render Task ID 22 into output_dir.
 
-    The panel idioms draw mean fitness per bucket of every chosen attribute
-    (own rendering — only the data helpers below are reused from task20). The
-    distribution idioms need a single grouping, so they use the first
-    attribute selected and name it in their own titles.
+    Own rendering — only the data helpers below are reused from task20. Each
+    idiom draws mean fitness per bucket of every chosen attribute.
     """
     import trace_response
     import tasks.task20 as task20   # data helpers only — see module docstring
@@ -419,42 +310,3 @@ def generate(log, fitness_df, alignments, output_dir: str, model_path: str = Non
     task22_bar_chart(panels, overall_mean, output_dir)
     task22_table(panels, overall_mean, output_dir)
     task22_parallel_sets(panels, output_dir)
-
-    compare_attribute = attrs[0] if attrs else ""
-    groups, assignment, meta = split_by_attribute(
-        log, compare_attribute, max_groups=group_cap or MAX_CATEGORICAL_GROUPS,
-        strategy=split_strategy)
-    if groups is None:
-        available = _available_case_attributes(log)
-        logger.error(
-            f"      task22: attribute '{compare_attribute}' not found in any trace. "
-            f"Available case attributes: {available}"
-        )
-        for fname, title in _ALL_FNAMES_TITLES:
-            render_empty_state_svg(
-                os.path.join(output_dir, fname), title,
-                f"Attribute '{compare_attribute}' not found in the event log.")
-        return
-
-    if meta["type"] == "numeric":
-        logger.info(f"      -> numeric reason '{compare_attribute}', "
-                    f"median split at {format_threshold(meta['median'])}")
-    else:
-        logger.info(f"      -> categorical reason '{compare_attribute}', "
-                    f"{len(groups)} sub-logs")
-    if meta["n_missing"]:
-        logger.warning(f"      task22: {meta['n_missing']} traces without "
-                       f"'{compare_attribute}' — excluded.")
-
-    trace_df = _build_trace_df(fitness_df, assignment, meta)
-    # Scoped to this attribute's own non-missing traces — deliberately not the
-    # same `overall_mean` bar_chart/table use above, which is the whole log's.
-    attr_overall_mean = float(trace_df["fitness"].mean()) if len(trace_df) else 0.0
-    stats_df = _group_stats(trace_df, groups, attr_overall_mean)
-    for _, row in stats_df.iterrows():
-        g_ascii = str(row["group"]).replace("≤", "<=")
-        logger.info(f"         {g_ascii:<30} n={int(row['n']):>6}  "
-                    f"mean={row['mean']:.4f}  Δ={row['delta']:+.4f}")
-
-    # One grouping only: this reads a distribution, not a per-bucket summary.
-    task22_stacked_bar(trace_df, groups, compare_attribute, output_dir)
