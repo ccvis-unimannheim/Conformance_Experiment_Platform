@@ -447,7 +447,8 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
             log, fitness_df, alignments, d, model_path=model_path,
             conformant_threshold=conformant_threshold(),
             trace_ids=trace_ids(),
-            trace_count=trace_alignment.trace_count(p, 1)),
+            trace_count=trace_alignment.trace_count(p, 1),
+            nonconformant_pick_rule=(p.get("nonconformant_pick_rule") or "most_frequent")),
         "task28": lambda d: task28.generate(alignments, model_path, d, log=log,
                                             **perspective_kwargs("first_nonconformant", 1)),
         "task29": lambda d: task29.generate(
