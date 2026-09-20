@@ -224,6 +224,10 @@ class TaskInstance(BaseModel):
     answer_format: Optional[str] = None
     number_kind: Optional[str] = None    # percentage | integer | decimal (numeric formats)
     answer_options: List[OptionItem] = []  # option-bearing formats only
+    # Reference text for whoever codes free-text answers by hand — never shown to
+    # a participant, feeds no automatic scoring. Per experiment (like the answer
+    # shape above), so one experiment's rubric is not forced on every other.
+    rubric: Optional[str] = None
     generation_status: str = "pending"   # pending | running | ready | failed
     generation_error: Optional[str] = None
     # Set when this task's images came from an idiom bundle import: where they
@@ -318,7 +322,6 @@ class CustomTaskCreate(BaseModel):
 class TaskUpdate(BaseModel):
     label: str | None = None
     description: str | None = None
-    rubric: str | None = None
 
 class Question(BaseModel):
     model_config = ConfigDict(populate_by_name=True)

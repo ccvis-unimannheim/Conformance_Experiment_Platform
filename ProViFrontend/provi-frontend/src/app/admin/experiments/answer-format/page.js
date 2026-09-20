@@ -392,9 +392,9 @@ function NumberKindSelector({ kinds, value, onChange }) {
   );
 }
 
-// Empty until an admin writes one: the rubric is stored on the Task document
-// (PATCH /admin/tasks/{task_id}) and shared by every experiment. Reference text
-// for manually coding answers — it feeds no automatic scoring.
+// Empty until an admin writes one: the rubric is stored on this experiment's
+// task_instance and applies to this experiment only. Reference text for
+// manually coding answers — it feeds no automatic scoring.
 function RubricEditor({ taskId, rubric, onSave }) {
   const [draft, setDraft] = useState(rubric ?? "");
   const [saving, setSaving] = useState(false);
@@ -434,7 +434,7 @@ function RubricEditor({ taskId, rubric, onSave }) {
         {saving ? "Saving…" : "Save rubric"}
       </button>
       <p className="text-[11px] text-on-surface-variant italic">
-        Shared across experiments; used when coding answers by hand, never for scoring.
+        This experiment only; used when coding answers by hand, never for scoring.
       </p>
     </div>
   );
@@ -471,7 +471,6 @@ function AnswerFormatContent() {
   const [answerFormats, setAnswerFormats] = useState(FALLBACK_ANSWER_FORMATS);
   const [numberKinds, setNumberKinds] = useState(FALLBACK_NUMBER_KINDS);
   const [defaultNumberKind, setDefaultNumberKind] = useState("decimal");
-  const [rubricsByTask, setRubricsByTask] = useState({});
   const [loading, setLoading] = useState(true);
   const [bundleOnly, setBundleOnly] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -532,31 +531,14 @@ function AnswerFormatContent() {
         answer_format: ti.answer_format ?? null,
         number_kind: ti.number_kind ?? null,
         answer_options: ti.answer_options ?? [],
+        rubric: ti.rubric ?? "",
       }));
       setTaskInstances(instances);
-      await loadRubrics(instances, tMap);
     } catch (e) {
       showToast(`Could not load experiment: ${e.message}`, true);
     } finally {
       setLoading(false);
     }
-  }
-
-  async function loadRubrics(instances, tMap) {
-    const rubrics = {};
-    await Promise.all(
-      instances.map(async (ti) => {
-        const taskKey = tMap[ti.task_id]?.task_key;
-        if (!taskKey) return;
-        try {
-          const res = await fetch(`/api/admin/tasks/${encodeURIComponent(taskKey)}/rubric`);
-          if (res.ok) rubrics[ti.task_id] = (await res.json()).rubric ?? null;
-        } catch {
-          // A missing rubric is fine — the panel says so.
-        }
-      })
-    );
-    setRubricsByTask(rubrics);
   }
 
   function patchInstance(taskId, patch) {
@@ -591,14 +573,14 @@ function AnswerFormatContent() {
   }
 
   async function handleRubricSave(taskId, text) {
+    // The rubric is per experiment now: it lives on the task_instance and is
+    // saved with the rest of the answer shape, not on the shared Task bank.
+    const next = taskInstances.map((ti) =>
+      ti.task_id === taskId ? { ...ti, rubric: text } : ti
+    );
+    setTaskInstances(next);
     try {
-      const res = await fetch(`/api/admin/tasks/${encodeURIComponent(taskId)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rubric: text }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      setRubricsByTask((prev) => ({ ...prev, [taskId]: text }));
+      await persist(next);
       showToast("Rubric saved.");
     } catch (e) {
       showToast(`Failed to save rubric: ${e.message}`, true);
@@ -735,7 +717,7 @@ function AnswerFormatContent() {
 
                     <RubricEditor
                       taskId={ti.task_id}
-                      rubric={rubricsByTask[ti.task_id] ?? ""}
+                      rubric={ti.rubric ?? ""}
                       onSave={(text) => handleRubricSave(ti.task_id, text)}
                     />
                   </div>
