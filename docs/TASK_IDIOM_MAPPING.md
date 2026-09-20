@@ -708,10 +708,11 @@ it (line graph, horizon chart) were never implemented here.
 `line_graph`, `horizon_chart` and `calendar` are listed in the spreadsheet and
 were never in `IDIOMS`; all three answer the dropped trend question.
 
-All four idioms read one payload: how many traces the alignment technique puts
-in fitness band X while token-based replay puts them in band Y. Each technique's
-own distribution is a row or column sum of it. The bar chart gives the counts as
-length, the heatmap as colour, the table as numbers, the stacked bar as
-proportions within each alignment band — four encodings, one answer. Colour means
-the replay band in every idiom that uses it; the technique is carried by position
-alone. The fitness bands are the admin's choice (`conformance_bins`).
+All four idioms read one payload: how many traces each technique puts in each
+fitness band — two columns, read by comparing them. The bar chart gives the
+counts as length (two bars per band), the heatmap as colour, the table as
+numbers, the stacked bar as one bar per technique split into bands. Four
+encodings, one answer. Where the bands are on an axis the techniques are told
+apart by colour (`PAIR_COLORS`); where the techniques are on the axis the bands
+carry the colour. The fitness bands are the admin's choice
+(`conformance_bins`).
