@@ -2,6 +2,36 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: task07's Two Idioms Now Agree on How Big a Swing Looks (2026-09-20)
+
+### Problem solved
+
+`task07_line_graph` drew the y-axis on a fixed 0-100% range;
+`task07_horizon_chart` zoomed to `[y.min() - pad, y.max() + pad]`, this
+series' own range. The same data — a conformance rate moving between 90.8%
+and 98.8% — read as a nearly flat line on one idiom and a sharply serrated
+one on the other, purely from the axis choice: a participant given the line
+graph would call conformance "stable, near-constant"; one given the horizon
+chart would call the same numbers "swinging noticeably." task07 answers "how
+does the degree of conformance change over time", so how big a change looks
+is the answer, and it cannot depend on which idiom the participant saw.
+
+### Changes
+
+`scripts/shared.py`:
+- `render_conformance_horizon_chart`: `ax.set_ylim(-0.05, 1.1)`, the same fixed
+  range `render_conformance_line_graph` already used, replacing the
+  data-relative `y_pad` zoom.
+- The mean-value labels on both idioms now read the same way: the line graph's
+  legend was `f"Overall mean: {overall_mean:.2f}"` (a bare fraction, "0.95")
+  while the horizon chart's side label was `f"Mean: {mean_val:.0%}"` ("95%") —
+  same statistic, two formats, next to axes that are both percent-formatted.
+  Both are now `.1%`.
+
+### Verification
+
+`py_compile`. Not regenerated.
+
 ## Session: Remove the Overview Page's Import Button (2026-09-20)
 
 ### Problem solved
