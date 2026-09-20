@@ -60,7 +60,7 @@ function IdiomPreviewModal({ experimentId, taskKey, idiomKey, idiomLabel, datase
           {status === "unavailable" && (
             <div className="flex flex-col items-center gap-3">
               <span className="material-symbols-outlined text-4xl text-on-surface-variant">image_not_supported</span>
-              <p className="text-sm text-on-surface-variant text-center">Preview not available.<br/><span className="text-xs">Generate the visualizations on the Specify step first.</span></p>
+              <p className="text-sm text-on-surface-variant text-center">Preview not available.<br/><span className="text-xs">Generate the visualizations on the Specify step, or upload an image for this idiom.</span></p>
             </div>
           )}
           <img
@@ -123,7 +123,7 @@ function imageSourceNote(idiom, ti, uploaded, datasetTitle) {
 // Import here keeps this experiment's parameters: a task whose zip parameters
 // differ is rejected. Importing images together with their parameters happens
 // on the Specify step.
-function IdiomFilesPanel({ experimentId, editable, overrides, importInfo, onChanged, showToast }) {
+function IdiomFilesPanel({ experimentId, editable, bundleOnly, overrides, importInfo, onChanged, showToast }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null); // see IdiomImportResult
 
@@ -159,18 +159,17 @@ function IdiomFilesPanel({ experimentId, editable, overrides, importInfo, onChan
             them or reproduce the study. Importing a downloaded zip keeps those images fixed, even if the
             experiment is regenerated.
           </p>
-          {editable && (
+          {editable && !bundleOnly && (
             <p className="text-xs text-on-surface-variant mt-2">
               <span className="font-semibold text-on-surface">Import here only takes images that match this experiment:</span>{" "}
               a task is rejected if its images come from a different dataset or were drawn with different
-              parameters than the ones set on the Specify step. To import images together with their own
-              parameters, use Import on the{" "}
-              <Link
-                href={`/admin/experiments/specify?experiment_id=${encodeURIComponent(experimentId)}`}
-                className="text-primary hover:underline"
-              >
-                Specify step
-              </Link>.
+              parameters than the ones set on the Specify step. It changes the images and those tasks&apos;
+              parameters, and asks before it does. To use a zip with its own tasks, idioms and settings
+              instead, create a new experiment from it on the{" "}
+              <Link href="/admin/experiments/new" className="text-primary hover:underline">
+                Create New Experiment
+              </Link>{" "}
+              page.
             </p>
           )}
         </div>
@@ -182,7 +181,7 @@ function IdiomFilesPanel({ experimentId, editable, overrides, importInfo, onChan
             <span className="material-symbols-outlined text-sm">download</span>
             Download Idioms
           </a>
-          {editable && (
+          {editable && !bundleOnly && (
             <IdiomImportButton
               experimentId={experimentId}
               mode="overview"
@@ -206,9 +205,11 @@ function IdiomFilesPanel({ experimentId, editable, overrides, importInfo, onChan
                 {from?.experiment_name ? ` from "${from.experiment_name}"` : from?.file ? ` from ${from.file}` : ""}
               </>
             )}
-            . They stay in place when the experiment is regenerated.
+            {bundleOnly
+              ? ". This experiment has no dataset, so these are the only images it has."
+              : ". They stay in place when the experiment is regenerated."}
           </p>
-          {editable && (
+          {editable && !bundleOnly && (
             <button
               type="button"
               onClick={handleRevertAll}
@@ -223,6 +224,58 @@ function IdiomFilesPanel({ experimentId, editable, overrides, importInfo, onChan
       )}
 
       <IdiomImportResult result={result} mode="overview" />
+    </div>
+  );
+}
+
+// What participants meet before the tasks. Every experiment has these, set or
+// not: an experiment that skipped those wizard steps — one built from a zip
+// always does — is on the defaults, which is a choice the admin never made.
+// The card says what each is now and links to the step that changes it.
+function ParticipantFlowCard({ experiment, experimentId }) {
+  const q = `?experiment_id=${encodeURIComponent(experimentId)}`;
+  const sections = (list, all) => (list ? list.length : all);
+  const prequestionnaire = sections(experiment.prequestionnaire_sections, 4);
+  const concepts = sections(experiment.concept_sections, 4);
+  const taskintro = sections(experiment.taskintro_sections, 6);
+  const knowledge = experiment.knowledge_questions_configured
+    ? `${(experiment.knowledge_question_ids || []).length} selected`
+    : "all system questions (default)";
+
+  const rows = [
+    {
+      label: "Pre-questionnaire",
+      value: prequestionnaire === 0 ? "skipped" : `${prequestionnaire} section(s)`,
+      href: `/admin/experiments/prequestionnaire${q}`,
+    },
+    { label: "Knowledge questions", value: knowledge, href: `/admin/experiments/knowledge${q}` },
+    {
+      label: "Intro pages",
+      value: `Key Concepts: ${concepts === 0 ? "skipped" : `${concepts} section(s)`} · `
+        + `Before You Begin: ${taskintro === 0 ? "skipped" : `${taskintro} section(s)`}`,
+      href: `/admin/experiments/concepts${q}`,
+    },
+  ];
+
+  return (
+    <div className="bg-white border border-border-subtle rounded-lg p-5">
+      <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">
+        Participant flow
+      </p>
+      <p className="text-xs text-on-surface-variant mb-3">
+        What participants see before the tasks. Anything not set here uses the platform&apos;s defaults.
+      </p>
+      <div className="flex flex-col divide-y divide-border-subtle">
+        {rows.map((row) => (
+          <div key={row.label} className="flex flex-wrap items-center gap-2 py-2">
+            <span className="text-xs font-semibold text-on-surface w-44">{row.label}</span>
+            <span className="text-xs text-on-surface-variant flex-1 min-w-[10rem]">{row.value}</span>
+            <Link href={row.href} className="text-xs text-primary hover:underline">
+              View / change
+            </Link>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -592,6 +645,18 @@ function ExperimentOverviewContent() {
           </p>
         </div>
 
+        {/* Built from an uploaded zip: there is no dataset and nothing to generate. */}
+        {experiment?.bundle_only && (
+          <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 text-blue-900 rounded-lg px-4 py-3">
+            <span className="material-symbols-outlined text-base">folder_zip</span>
+            <p className="text-xs">
+              <span className="font-semibold">This experiment&apos;s images come from an uploaded zip.</span>{" "}
+              Its tasks, idioms and images are the ones in that file, so it has no dataset and no
+              Specify step — there is nothing to generate. Replace a single image below to change one.
+            </p>
+          </div>
+        )}
+
         {/* Metadata strip */}
         {experiment && (
           <div className={`border rounded-lg p-5 flex flex-wrap items-center gap-6 ${
@@ -635,10 +700,13 @@ function ExperimentOverviewContent() {
           </div>
         )}
 
+        {experiment && <ParticipantFlowCard experiment={experiment} experimentId={experimentId} />}
+
         {experiment && (
           <IdiomFilesPanel
             experimentId={experimentId}
             editable={status === "draft"}
+            bundleOnly={!!experiment.bundle_only}
             overrides={overrides}
             importInfo={importInfo}
             onChanged={refreshImages}
@@ -768,7 +836,9 @@ function ExperimentOverviewContent() {
                                     <span className="material-symbols-outlined text-[16px]">upload</span>
                                   </button>
                                 )}
-                                {idiom && status === "draft" && overrides.has(`${task.task_key}/${idiom.idiom_key}`) && (
+                                {/* A bundle experiment has no generated image to go back to. */}
+                                {idiom && status === "draft" && !experiment?.bundle_only
+                                  && overrides.has(`${task.task_key}/${idiom.idiom_key}`) && (
                                   <button
                                     onClick={() => revertImage(task.task_key, idiom.idiom_key)}
                                     title="Revert to the generated image"

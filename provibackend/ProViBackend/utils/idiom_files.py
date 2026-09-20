@@ -21,6 +21,13 @@ logger = logging.getLogger(__name__)
 IMAGE_EXTENSIONS = (".svg", ".png", ".jpg", ".jpeg")
 TRACES_FILENAME = "traces.json"
 
+#: The dataset id of an experiment built from an uploaded idiom bundle. Such an
+#: experiment has no dataset, but every image is addressed through one
+#: (`/participant/vis/{dataset_id}/…`), so it carries this placeholder instead
+#: of an empty string, which is not a URL path segment. Nothing is ever read
+#: from disk under it: only the overrides written from the zip.
+BUNDLE_DATASET_ID = "_bundle"
+
 
 def override_dir(experiment_id: str, task_key: str) -> pl.Path:
     return config.IDIOM_OVERRIDE_DIRECTORY / experiment_id / task_key
@@ -87,7 +94,9 @@ def resolve_idiom_image(dataset_id: str | None, experiment_id: str | None,
         return override, "uploaded"
     if idiom.get("is_custom"):
         return custom_asset_path(idiom), "custom"
-    if not dataset_id:
+    # A bundle experiment has no dataset to generate from: the override above is
+    # the only image there is, so anything else would be a path that cannot exist.
+    if not dataset_id or dataset_id == BUNDLE_DATASET_ID:
         return None, None
     output_dir = config.BASE_DIRECTORY / "data" / dataset_id / "output"
     if experiment_id:
@@ -104,7 +113,7 @@ def resolve_traces(dataset_id: str | None, experiment_id: str | None, task_key: 
         imported = override_dir(experiment_id, task_key) / TRACES_FILENAME
         if imported.exists():
             return imported
-    if not dataset_id:
+    if not dataset_id or dataset_id == BUNDLE_DATASET_ID:
         return None
     output_dir = config.BASE_DIRECTORY / "data" / dataset_id / "output"
     if experiment_id:

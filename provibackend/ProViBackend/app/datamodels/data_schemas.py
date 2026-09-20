@@ -282,6 +282,12 @@ class Experiment(BaseModel):
     # never written to the shared Task question bank, so other experiments don't
     # see them; they are deleted together with the experiment.
     custom_tasks: List[Dict[str, Any]] = []
+    # Built from an uploaded idiom bundle (POST /admin/experiments/from-bundle):
+    # every image comes from that zip, so the experiment has no dataset and
+    # nothing to generate. /specify is skipped, the generate endpoint refuses it
+    # and a dataset cannot be attached afterwards — regenerating would replace
+    # the very images the admin uploaded.
+    bundle_only: bool = False
     created_by: str             # FK → Administrator
     created_at: str
 

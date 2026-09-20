@@ -477,8 +477,10 @@ export default function AdminPage() {
                           <div className="flex items-center gap-2 ml-2 flex-shrink-0">
                             {status === "draft" && (() => {
                               const current = LEGACY_STEPS[exp.current_step] ?? exp.current_step;
-                              const step = WIZARD_STEPS.includes(current)
-                                ? current
+                              // An experiment built from a zip has no Specify step to resume at.
+                              const resolved = exp.bundle_only && current === "specify" ? "overview" : current;
+                              const step = WIZARD_STEPS.includes(resolved)
+                                ? resolved
                                 : (exp.task_configs && exp.task_configs.length > 0 ? "idiom" : "knowledge");
                               const href = `/admin/experiments/${step}?experiment_id=${encodeURIComponent(expId)}`;
                               return (
