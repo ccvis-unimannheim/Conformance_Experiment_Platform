@@ -91,7 +91,7 @@ from matplotlib import gridspec
 from scipy import stats
 
 from shared import (
-    save_svg, make_table, draw_parallel_sets, render_empty_state_svg, wrap_text,
+    save_svg, make_table, auto_col_widths, draw_parallel_sets, render_empty_state_svg, wrap_text,
     chevron_nodes_from_alignment_rows, draw_chevron_strip, chevron_figure_width,
     parse_bpmn_model, compose_bpmn_panels, alignment_violation_node_style, format_threshold,
     GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
@@ -415,12 +415,12 @@ def task13_bar_chart(attr_meta, evidence_df, output_dir):
     fig, axes = plt.subplots(1, ncols, figsize=(max(5.0, ncols * 4.2), 5.0), squeeze=False)
     for ax, (m, (labels, rates, counts)) in zip(axes[0], panels):
         pos = np.arange(len(labels))
-        ax.bar(pos, rates, color=GREY_MED, edgecolor="white")
+        ax.bar(pos, rates, color=GREY_DARK, edgecolor="white", width=0.6)
         for p, rate, c in zip(pos, rates, counts):
             ax.text(p, rate + 1.5, f"{rate:.0f}%\n(n={c})", ha="center", va="bottom",
-                    fontsize=FONT_ANNOT - 1, color="#333333")
+                    fontsize=FONT_ANNOT, color="#333333")
         ax.set_xticks(pos)
-        ax.set_xticklabels(labels, fontsize=FONT_ANNOT - 1)
+        ax.set_xticklabels(labels, fontsize=FONT_ANNOT)
         ax.set_xlabel(f"{m['label']} ({m['type']})", fontsize=FONT_LABEL)
         ax.set_ylim(0, 100)
         ax.spines[["top", "right"]].set_visible(False)
@@ -507,19 +507,20 @@ def task13_table(ranking, evidence_df, output_dir):
 
     ncols = len(panels)
     max_rows = max(len(labels) for _, (labels, _, _) in panels)
-    fig_h = max(3.2, 1.6 + max_rows * 0.5)
-    fig, axes = plt.subplots(1, ncols, figsize=(max(5.0, ncols * 3.8), fig_h), squeeze=False)
+    fig_h = max(3.2, 1.6 + max_rows * 0.58)
+    fig, axes = plt.subplots(1, ncols, figsize=(max(5.0, ncols * 4.3), fig_h), squeeze=False)
     for ax, (r, (labels, rates, counts)) in zip(axes[0], panels):
         ax.axis("off")
         cell_text = [[lab, str(c), f"{rate:.0f}%"] for lab, rate, c in zip(labels, rates, counts)]
+        col_labels = ["Bucket", "# Traces", "Violation Rate"]
         make_table(
             ax,
             cell_text=cell_text,
-            col_labels=["Bucket", "# Traces", "Violation Rate"],
+            col_labels=col_labels,
             bbox=[0.02, 0.06, 0.96, 0.74],
-            col_widths=[0.46, 0.27, 0.27],
-            font_size=9.5,
-            cell_pad=0.08,
+            col_widths=auto_col_widths(col_labels, cell_text),
+            font_size=10,
+            cell_pad=0.09,
         )
         ax.set_title(f"{r['label']}\n({r['type']}, assoc.={r['strength']:.2f})",
                      fontsize=FONT_LABEL, pad=8)
@@ -541,9 +542,9 @@ def task13_table_and_bar_chart(ranking, output_dir):
         cell_text=cell_text,
         col_labels=col_labels,
         bbox=[0.02, 0.05, 0.96, 0.80],
-        col_widths=[0.26, 0.20, 0.16, 0.38],
-        font_size=9.5,
-        cell_pad=0.08,
+        col_widths=auto_col_widths(col_labels, cell_text),
+        font_size=10,
+        cell_pad=0.09,
     )
     ax_t.set_title("Attribute Evidence (ranked)", fontsize=FONT_TITLE, pad=8)
 
@@ -646,9 +647,9 @@ def task13_flow_chart_and_table(ctx, ranking, output_dir):
         cell_text=cell_text,
         col_labels=col_labels,
         bbox=[0.04, 0.05, 0.92, 0.84],
-        col_widths=[0.26, 0.20, 0.16, 0.38],
-        font_size=9.5,
-        cell_pad=0.08,
+        col_widths=auto_col_widths(col_labels, cell_text),
+        font_size=10,
+        cell_pad=0.09,
     )
     ax_tab.set_title("Attributes Explaining the Violations (ranked)", fontsize=FONT_TITLE, pad=6)
     fig.tight_layout(pad=1.2)

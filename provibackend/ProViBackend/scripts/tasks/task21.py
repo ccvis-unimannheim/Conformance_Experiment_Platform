@@ -95,7 +95,7 @@ import matplotlib.pyplot as plt
 import matplotlib.transforms as transforms
 
 from shared import (
-    save_svg, make_table, draw_parallel_sets, render_empty_state_svg, wrap_text,
+    save_svg, make_table, auto_col_widths, draw_parallel_sets, render_empty_state_svg, wrap_text,
     GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
@@ -196,19 +196,20 @@ def task21_table(ranking, evidence_df, output_dir):
 
     ncols = len(panels)
     max_rows = max(len(labels) for _, (labels, _, _) in panels)
-    fig_h = max(3.2, 1.6 + max_rows * 0.5)
-    fig, axes = plt.subplots(1, ncols, figsize=(max(5.0, ncols * 3.8), fig_h), squeeze=False)
+    fig_h = max(3.2, 1.6 + max_rows * 0.58)
+    fig, axes = plt.subplots(1, ncols, figsize=(max(5.0, ncols * 4.3), fig_h), squeeze=False)
     for ax, (r, (labels, rates, counts)) in zip(axes[0], panels):
         ax.axis("off")
         cell_text = [[lab, str(c), f"{rate:.0f}%"] for lab, rate, c in zip(labels, rates, counts)]
+        col_labels = ["Bucket", "# Traces", "Violation Rate"]
         make_table(
             ax,
             cell_text=cell_text,
-            col_labels=["Bucket", "# Traces", "Violation Rate"],
+            col_labels=col_labels,
             bbox=[0.02, 0.06, 0.96, 0.74],
-            col_widths=[0.46, 0.27, 0.27],
-            font_size=9.5,
-            cell_pad=0.08,
+            col_widths=auto_col_widths(col_labels, cell_text),
+            font_size=10,
+            cell_pad=0.09,
         )
         ax.set_title(f"{r['label']}\n(assoc.={r['strength']:.2f})", fontsize=FONT_LABEL, pad=8)
     fig.suptitle(_TITLE, fontsize=FONT_TITLE)

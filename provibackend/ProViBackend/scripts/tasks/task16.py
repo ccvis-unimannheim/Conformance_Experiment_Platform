@@ -63,7 +63,7 @@ import matplotlib.patches as mpatches
 from matplotlib import gridspec
 
 from shared import (
-    save_svg, make_table, draw_parallel_sets,
+    save_svg, make_table, auto_col_widths, draw_parallel_sets,
     parse_bpmn_model, render_bpmn_annotated, compose_bpmn_panels,
     alignment_pairs_to_rows,
     draw_chevron_strip, chevron_nodes_from_alignment_rows, chevron_figure_width,
@@ -276,14 +276,15 @@ def task16_flow_chart_table(alignments, fitness_df, s, output_dir):
     ax_chev.set_title("Trace Alignment Flow", fontsize=FONT_TITLE, pad=7)
 
     ax_tbl.axis("off")
+    col_labels = ["Step", "Activity", "Move Type"]
     make_table(
         ax_tbl,
         cell_text=cell_text,
-        col_labels=["Step", "Activity", "Move Type"],
+        col_labels=col_labels,
         bbox=[0.01, 0.04, 0.98, 0.82],
-        col_widths=[0.10, 0.50, 0.40],
-        font_size=9,
-        scale_xy=(1, 1.5),
+        col_widths=auto_col_widths(col_labels, cell_text),
+        font_size=10,
+        cell_pad=0.09,
     )
     ax_tbl.set_title("Violation Steps", fontsize=FONT_TITLE, pad=7)
 
