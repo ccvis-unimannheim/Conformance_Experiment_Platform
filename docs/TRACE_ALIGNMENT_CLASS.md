@@ -290,11 +290,26 @@ one process already disagree), and pm4py exposes no deterministic tie-break. So:
   trace-level trio is literally task09's renderers; the difference is
   `HIGHLIGHT_VIOLATIONS = False`, a task property rather than an admin choice.
   **The two no longer offer the same idiom set**: task28 has dropped its
-  scatter plot, flow chart & table, table & bar chart, flow chart+ & table and
-  network diagram, leaving `flow_chart_basic`, `flow_chart_elaborate`, `table`,
-  `bar_chart`, `stacked_bar`, `boxplot`, `matrix` and `heatmap`. task09 still
-  declares all five of the dropped ones. Trimming task09 to match is the open
-  half of that decision.
+  scatter plot, flow chart & table, table & bar chart, flow chart+ & table,
+  network diagram and box plot, leaving `flow_chart_basic`,
+  `flow_chart_elaborate`, `table`, `bar_chart`, `stacked_bar`, `matrix` and
+  `heatmap`. task09 still declares five of the dropped ones. Trimming task09 to
+  match is the open half of that decision.
+* **task28's aggregates are on the trace level too.** `bar_chart`,
+  `stacked_bar`, `matrix` and `heatmap` used to read `_dev_df(alignments)`: the
+  whole log's deviation patterns, ranked by frequency, capped at the top 12, and
+  untouched by the trace selection — so the chevron, BPMN and table pinpointed
+  the chosen traces while the bar chart beside them summarised thirteen thousand
+  others. They read `_selected_step_payload(records)` now, whose unit is one
+  deviating step's `(activity, move type)` — where it happened and what kind it
+  was, which is what this task asks. Over one to four traces the cells hold 0, 1
+  or 2, so the number stops being a ranking and the figure reads as a location.
+  **This makes task28's aggregates the same shape as task34's.** The two are not
+  the same task — task28 is Explore, `HIGHLIGHT_VIOLATIONS = False`, and does not
+  hand the participant the violations — but whether that difference is enough to
+  put both in one study is an experiment-design question, not a code one.
+  The perspective is the other open edge: the trio draws value verdicts in the
+  data and resource views, while these four still read move types.
 * **task34** draws one trace exactly as before; two or more go through task04's
   renderers. **The per-activity summaries follow the selection too.** They used
   to stay on the first trace, on the argument that stacking one of those per
