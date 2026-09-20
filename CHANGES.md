@@ -127,6 +127,45 @@ task. A log move of a modelled activity — the common case — could never reac
 Separately, the rows sit in model order, so a trace that runs two activities out
 of order read exactly like one that runs them in order. The chevron shows that
 difference; the table dropped it.
+## Session: task28 Pinpoints the Traces It Was Asked About (2026-09-20)
+
+### Problem solved
+
+task28 asks "where exactly does the process execution differ from the guideline"
+and its own subtitle says "pinpoint specific violations in traces". Three of its
+idioms did that. The other five aggregated the whole log: `_dev_df(alignments)`,
+deviation patterns ranked by frequency, capped at the top 12, untouched by the
+trace selection. So the chevron, BPMN and table pinpointed the chosen traces
+while the bar chart beside them summarised thirteen thousand others — and
+ranked by how often, which is not what the task asks.
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| Box plot removed | Its unit was the trace and its measure the count of deviating steps per trace, summarised as median, IQR and outliers: a distribution over the whole log, where the task asks about named traces. Seven idioms left. |
+| Trace level | `_selected_step_payload(records)` is the new shared source for bar chart, stacked bar, matrix and heatmap. Its unit is one deviating step's `(activity, move type)` — where it happened and what kind it was — over the traces the admin chose, from the same `select_records` call the trio reads. |
+| Counts stop being a ranking | Over one to four traces the cells hold 0, 1 or 2. The figure reads as a location rather than a frequency, which is what "where exactly, and how" needs. The four carry one title, `_DEVIATION_TITLE`; they used to name the log ("Where Does the Log Deviate?", "top-12 activities"). |
+| Encodings | Bar chart: one bar per trace per step, grouped. Stacked bar: one bar per step, split by which trace it happened in. Matrix: numbers on white cells. Heatmap: the same grid as colour. |
+| Trace naming | `build_task28_context` labelled its fallback trace `f"Trace {idx + 1}"` with `idx` the position in the whole log — "Trace 4818" — while the table beside it numbers from one. That path draws exactly one trace, so it is "Trace 1". |
+| Swept | `_dev_df`, `_trace_dev_df`, `_activity_movetype_pivot`, `_present_move_types`, `_move_color`, `_wrap_pat`, `TOP_N`, `MOVE_TYPE_COLORS`, `_MOVE_RANK` and the `build_violation_pattern_df` import went with the log-wide view. |
+
+### Verification
+
+Generating at `trace_count` 1 and 3 on BPIC12-A: seven SVGs each, and all seven
+differ between the two runs. Before, four of them were byte-identical whatever
+the admin chose. `pyflakes` shows only task28's four pre-existing unused
+imports.
+
+### Open points
+
+* task28's aggregates are now the same shape as task34's. The two are not the
+  same task — task28 is Explore and does not hand the participant the violations
+  — but whether that is enough to put both in one study is an experiment-design
+  question.
+* In the data and resource perspectives the trio draws value verdicts while
+  these four still read move types.
+
 ## Session: task29 Keeps the Six Idioms That Can Answer Its Parameter (2026-09-20)
 
 ### Changes

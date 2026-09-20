@@ -512,7 +512,6 @@ This task is similar to ``Present: Present Guideline violations'', but rather th
 |---|---|---|
 | Bar Chart | `bar_chart` | High |
 | Stacked Bar Graph | `stacked_bar` | Medium/Reviewed |
-| Box and Whisker Plot | `boxplot` | Medium/Reviewed |
 | Flow Chart (Chevron Diagram) | `flow_chart_basic` | Medium/Reviewed |
 | Flow Chart+ (BPMN / Petri Net / DFG) | `flow_chart_elaborate` | Medium/Reviewed |
 | Tree | `tree` | Medium/Reviewed |

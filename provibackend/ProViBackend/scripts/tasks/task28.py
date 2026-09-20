@@ -29,7 +29,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 IDIOMS = ["flow_chart_basic", "flow_chart_elaborate", "table", "bar_chart",
-          "stacked_bar", "boxplot", "matrix", "heatmap"]
+          "stacked_bar", "matrix", "heatmap"]
 
 import trace_alignment
 
@@ -70,19 +70,19 @@ import os
 import xml.etree.ElementTree as ET
 
 import numpy as np
-import pandas as pd
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.colors import LinearSegmentedColormap, to_hex
 
 from shared import (
     save_svg, make_table, GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT,
     chevron_figure_width, chevron_nodes_from_alignment_rows, draw_chevron_strip,
-    alignment_pairs_to_rows, build_violation_pattern_df,
-    draw_value_heatmap, draw_rate_matrix, draw_grouped_box_plot,
+    alignment_pairs_to_rows,
+    draw_value_heatmap, draw_rate_matrix, CIVIDIS_R,
     parse_bpmn_model, render_bpmn_annotated,
     render_empty_state_svg, contrasting_text_color,
 )
@@ -123,7 +123,11 @@ def build_task28_context(alignments):
         return None
     return {
         "trace_index": idx,
-        "trace_label": f"Trace {idx + 1}",
+        # "Trace 1", because this path draws exactly one trace. It used to be
+        # the trace's position in the whole log — "Trace 4818" — while the table
+        # beside it numbers the traces it shows from one, the way
+        # trace_alignment.trace_records does for every task in this class.
+        "trace_label": "Trace 1",
         "fitness": float(result.get("fitness", 0.0)),
         "cost": result.get("cost"),
         "rows": rows,
@@ -353,170 +357,215 @@ def task28_flow_chart_elaborate_bpmn(ctx: dict, model_path: str, output_dir: str
 # judgment: Model Move (activity skipped) or Log Move (extra activity).
 # ===========================================================================
 
-TOP_N = 12
+_BAR_WIDTH_TOTAL = 0.76
+#: One title over the four aggregates. They used to name the log ("Where Does
+#: the Log Deviate?", "top-12 activities"), which is not what they draw any more.
+_DEVIATION_TITLE = "Deviating Steps in the Shown Traces"
 MOVE_TYPES = ["Model Move", "Log Move"]
-MOVE_TYPE_COLORS = {"Model Move": GREY_DARK, "Log Move": GREY_MED}
-_MOVE_RANK = {m: i for i, m in enumerate(MOVE_TYPES)}
 
 
-def _move_color(mt):
-    return MOVE_TYPE_COLORS.get(mt, "#777777")
+def _step_activity(row):
+    """The activity a deviating step names: the side that carries a label."""
+    return (row.get("model_move") if row.get("moveType") == "Model Move"
+            else row.get("log_move"))
 
 
-def _present_move_types(df):
-    present = set(df["move_type"])
-    return [m for m in MOVE_TYPES if m in present] or list(present)
+def _category(key) -> str:
+    """"Ship Order (Model Move)" — where the step is, and what kind it is."""
+    activity, move_type = key
+    return f"{activity} ({move_type})"
 
 
-def _wrap_pat(p):
-    return str(p).replace(" (", "\n(", 1)
+def _wrap_category(key, width: int = 14) -> str:
+    """The same label over several lines, the move type on its own."""
+    activity, move_type = key
+    words, lines, cur = str(activity).split(), [], ""
+    for w in words:
+        cand = f"{cur} {w}".strip()
+        if len(cand) > width and cur:
+            lines.append(cur)
+            cur = w
+        else:
+            cur = cand
+    if cur:
+        lines.append(cur)
+    return "\n".join(lines) + f"\n({move_type})"
 
 
-def _dev_df(alignments):
-    """Log-level deviation-pattern frame (pattern, activity, move_type, count, pct)."""
-    df = build_violation_pattern_df(alignments)
-    if df.empty:
-        return df
-    df = df.copy()
-    df["move_rank"] = df["move_type"].map(_MOVE_RANK).fillna(len(MOVE_TYPES))
-    return df.sort_values("count", ascending=False).reset_index(drop=True)
+def _trace_colors(n: int) -> list:
+    """One colour per shown trace, navy through cividis's yellow end."""
+    return [to_hex(CIVIDIS_R(0.12 + 0.76 * i / max(n - 1, 1))) for i in range(n)]
 
 
-def _trace_dev_df(alignments):
-    """Per-trace frame: trace_index, fitness, n_dev (non-sync moves)."""
-    rows = []
-    for i, res in enumerate(alignments or []):
-        steps = alignment_pairs_to_rows(res.get("alignment") or [])
-        n_dev = sum(1 for s in steps if s["moveType"] != "Synchronous Move")
-        rows.append({"trace_index": i, "fitness": float(res.get("fitness", 0.0)),
-                     "n_dev": n_dev})
-    return pd.DataFrame(rows) if rows else pd.DataFrame(
-        columns=["trace_index", "fitness", "n_dev"])
+def _selected_step_payload(records):
+    """(keys, trace_labels, counts) over the traces the admin chose.
+
+    A key is one deviating step's ``(activity, move type)`` {EMD} where it happened
+    and what kind it was, which is what this task asks. ``counts`` is
+    (n_keys {X} n_traces).
+
+    The four aggregate idioms used to read ``_dev_df(alignments)``: the whole
+    log's deviation patterns, ranked, capped at the top 12, and untouched by the
+    trace selection. So the chevron, BPMN and table pinpointed the chosen traces
+    while the bar chart beside them summarised thirteen thousand others. They
+    also ranked by frequency, and this task does not ask how often {EMD} it asks
+    where exactly, and how. Over one to four traces the cells hold 0, 1 or 2, so
+    the number stops being a ranking and the figure reads as a location.
+    """
+    keys, seen = [], set()
+    for rec in records:
+        for r in rec.get("rows", []):
+            mt = r.get("moveType")
+            act = _step_activity(r)
+            if mt not in MOVE_TYPES or not act or act in (">>", "-"):
+                continue
+            if (act, mt) not in seen:
+                seen.add((act, mt))
+                keys.append((act, mt))
+
+    labels = [rec.get("label", f"Trace {i + 1}") for i, rec in enumerate(records)]
+    at = {k: i for i, k in enumerate(keys)}
+    counts = np.zeros((len(keys), len(records)), dtype=float)
+    for ti, rec in enumerate(records):
+        for r in rec.get("rows", []):
+            i = at.get((_step_activity(r), r.get("moveType")))
+            if i is not None:
+                counts[i, ti] += 1
+    return keys, labels, counts
 
 
-def _activity_movetype_pivot(df, top_n=TOP_N):
-    move_types = _present_move_types(df)
-    act_totals = df.groupby("activity")["count"].sum().sort_values(ascending=False)
-    top_acts = act_totals.head(top_n).index.tolist()
-    sub = df[df["activity"].isin(top_acts)]
-    pivot = (sub.groupby(["activity", "move_type"])["count"].sum()
-             .unstack(fill_value=0)
-             .reindex(index=top_acts, columns=move_types, fill_value=0))
-    return pivot, top_acts, move_types
+def _records_from_context(ctx):
+    """The fallback path's single trace, in the record shape."""
+    return [] if ctx is None else [{"label": ctx["trace_label"], "rows": ctx["rows"]}]
 
 
-# --- Idiom: boxplot — deviations-per-trace distribution (find outliers) -------
+# --- Idiom: bar_chart — the deviating steps of the chosen traces -----------
 
-def task28_boxplot(tdf, output_dir):
-    out = os.path.join(output_dir, "task28_boxplot.svg")
-    if tdf.empty:
-        render_empty_state_svg(out, "Deviations per Trace", "No traces.")
-        return
-    data = [tdf["n_dev"].to_numpy(dtype=float)]
-    vmax = float(data[0].max()) if data[0].size else 1.0
-    fig, ax = plt.subplots(figsize=(5.0, 6))
-    draw_grouped_box_plot(ax, data, ["All traces"], [GREY_MED],
-                          ylabel="Deviating steps per trace", ylim=(-0.3, vmax + 1))
-    ax.set_title("Deviations per Trace — spot the outliers", fontsize=FONT_TITLE)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, out)
-
-
-# --- Idiom: bar_chart — frequency per deviation pattern ----------------------
-
-def task28_bar_chart(df, output_dir):
+def task28_bar_chart(records, output_dir):
+    """Grouped bars: one bar per chosen trace, per deviating step."""
     out = os.path.join(output_dir, "task28_bar_chart.svg")
-    if df.empty:
-        render_empty_state_svg(out, "Where Does the Log Deviate?", "No deviations found.")
+    keys, labels, counts = _selected_step_payload(records)
+    if not keys or not counts.any():
+        render_empty_state_svg(out, _DEVIATION_TITLE, "No deviations found.")
         return
-    top = df.head(TOP_N)
-    patterns = top["pattern"].tolist()
-    counts = top["count"].to_numpy(dtype=float)
-    colors = [_move_color(m) for m in top["move_type"]]
-    move_types = _present_move_types(df)
-    x = np.arange(len(patterns))
 
-    fig, ax = plt.subplots(figsize=(max(8, len(patterns) * 1.25), 6))
-    ax.bar(x, counts, color=colors, edgecolor="white", linewidth=0.6, width=0.72)
-    for xi, c in zip(x, counts):
-        ax.text(xi, c, f"{int(c)}", ha="center", va="bottom",
-                fontsize=FONT_ANNOT - 1, color="#444444")
+    colors = _trace_colors(len(labels))
+    x = np.arange(len(keys))
+    fig, ax = plt.subplots(figsize=(max(8.0, len(keys) * 1.35 + 2.0), 5.4))
+    ax.set_facecolor("#fafbfc")
+
+    bw = _BAR_WIDTH_TOTAL / max(len(labels), 1)
+    offsets = (np.arange(len(labels)) - (len(labels) - 1) / 2.0) * bw
+    vmax = float(counts.max())
+    for ti, label in enumerate(labels):
+        ax.bar(x + offsets[ti], counts[:, ti], bw * 0.92, color=colors[ti],
+               edgecolor="white", linewidth=0.6, label=label)
+        for xi in range(len(keys)):
+            val = counts[xi, ti]
+            if val > 0:
+                ax.text(x[xi] + offsets[ti], val + vmax * 0.02, f"{int(val)}",
+                        ha="center", va="bottom", fontsize=FONT_ANNOT - 1,
+                        color=GREY_DARK)
+
     ax.set_xticks(x)
-    ax.set_xticklabels([_wrap_pat(p) for p in patterns], rotation=0,
-                       ha="center", fontsize=FONT_ANNOT - 2)
-    ax.set_ylabel("Observed count", fontsize=FONT_LABEL)
-    ax.set_ylim(0, counts.max() * 1.12)
-    ax.set_title("Observed Deviating Steps per Pattern", fontsize=FONT_TITLE)
-    ax.legend(handles=[mpatches.Patch(color=_move_color(m), label=m) for m in move_types],
-              loc="lower center", bbox_to_anchor=(0.5, -0.25),
-              ncol=len(move_types), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
+    ax.set_xticklabels([_wrap_category(k) for k in keys], fontsize=FONT_ANNOT - 1)
+    ax.set_ylabel("Deviating steps", fontsize=FONT_LABEL)
+    ax.yaxis.set_major_locator(plt.MaxNLocator(integer=True))
+    ax.set_ylim(0, max(vmax * 1.18, 1.0))
+    ax.set_title(_DEVIATION_TITLE, fontsize=FONT_TITLE)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
+    if len(labels) > 1:
+        ax.legend(frameon=False, fontsize=FONT_ANNOT, ncol=min(len(labels), 4))
     fig.tight_layout(pad=1.2)
     save_svg(fig, out)
 
 
-# --- Idiom: stacked_bar — per activity, segmented by deviation type ----------
+# --- Idiom: stacked_bar — the same steps, each bar split by trace ------------
 
-def task28_stacked_bar(df, output_dir):
+def task28_stacked_bar(records, output_dir):
+    """The bar chart's steps, one bar per step split by which trace it
+    happened in."""
     out = os.path.join(output_dir, "task28_stacked_bar.svg")
-    if df.empty:
-        render_empty_state_svg(out, "Deviations per Activity", "No deviations found.")
+    keys, labels, counts = _selected_step_payload(records)
+    if not keys or not counts.any():
+        render_empty_state_svg(out, _DEVIATION_TITLE, "No deviations found.")
         return
-    pivot, top_acts, move_types = _activity_movetype_pivot(df)
-    x = np.arange(len(top_acts))
-    bottoms = np.zeros(len(top_acts))
-    fig, ax = plt.subplots(figsize=(max(8, len(top_acts) * 0.95), 5.5))
-    for m in move_types:
-        vals = pivot[m].values
-        ax.bar(x, vals, bottom=bottoms, color=_move_color(m),
-               edgecolor="white", linewidth=0.5, label=m)
+
+    colors = _trace_colors(len(labels))
+    x = np.arange(len(keys))
+    fig, ax = plt.subplots(figsize=(max(8.0, len(keys) * 1.35 + 2.0), 5.4))
+    ax.set_facecolor("#fafbfc")
+
+    bottoms = np.zeros(len(keys))
+    for ti, label in enumerate(labels):
+        vals = counts[:, ti]
+        ax.bar(x, vals, bottom=bottoms, width=0.6, color=colors[ti],
+               edgecolor="white", linewidth=0.5, label=label)
+        for xi, (v, b) in enumerate(zip(vals, bottoms)):
+            if v > 0:
+                ax.text(xi, b + v / 2, f"{int(v)}", ha="center", va="center",
+                        fontsize=FONT_ANNOT - 1,
+                        color=contrasting_text_color(colors[ti]))
         bottoms += vals
+
+    ymax = max(float(bottoms.max()), 1.0)
     ax.set_xticks(x)
-    ax.set_xticklabels(top_acts, rotation=0, ha="center", fontsize=FONT_ANNOT - 1)
-    ax.set_ylabel("Observed count", fontsize=FONT_LABEL)
-    ax.set_title(f"Deviations per Activity, by Type (top-{len(top_acts)})", fontsize=FONT_TITLE)
-    handles, labels = ax.get_legend_handles_labels()
-    ax.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, -0.25),
-              ncol=max(1, len(handles)), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
+    ax.set_xticklabels([_wrap_category(k) for k in keys], fontsize=FONT_ANNOT - 1)
+    ax.set_ylabel("Deviating steps", fontsize=FONT_LABEL)
+    ax.yaxis.set_major_locator(plt.MaxNLocator(integer=True))
+    ax.set_ylim(0, ymax * 1.16)
+    ax.set_title(_DEVIATION_TITLE, fontsize=FONT_TITLE)
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
+    ax.legend(frameon=True, framealpha=0.9, fontsize=FONT_ANNOT,
+              ncol=min(len(labels), 4))
     fig.tight_layout(pad=1.2)
     save_svg(fig, out)
 
 
-# --- Idiom: matrix / heatmap — activity × deviation type ---------------------
+# --- Idiom: matrix / heatmap — the same grid, as numbers and as colour -------
 
-def task28_matrix(df, output_dir):
+def _grid_size(row_labels, col_labels):
+    """(height, width) for the matrix and the heatmap, which share a grid."""
+    longest = max((len(r) for r in row_labels), default=10)
+    return (max(3.4, len(row_labels) * 0.5 + 2.0),
+            max(5.2, len(col_labels) * 1.5 + 1.6 + longest * 0.105))
+
+
+def task28_matrix(records, output_dir):
+    """The payload as numbers on white cells. The heatmap is the colour."""
     out = os.path.join(output_dir, "task28_matrix.svg")
-    if df.empty:
-        render_empty_state_svg(out, "Activity × Deviation Type", "No deviations found.")
+    keys, labels, counts = _selected_step_payload(records)
+    if not keys or not counts.any():
+        render_empty_state_svg(out, _DEVIATION_TITLE, "No deviations found.")
         return
-    pivot, top_acts, move_types = _activity_movetype_pivot(df)
-    data = pivot.values.astype(float)
-    fig_h = max(3.5, 0.55 * len(top_acts) + 1.5)
-    fig, ax = plt.subplots(figsize=(max(5, len(move_types) * 2.0), fig_h))
-    draw_rate_matrix(fig, ax, data, top_acts, move_types,
-                     xlabel="Deviation Type", cell_fmt="{:.0f}", colorless=True)
-    ax.set_title(f"Explore: Activity × Deviation Type (top-{len(top_acts)})", fontsize=FONT_TITLE)
+    rows = [_category(k) for k in keys]
+    fig_h, fig_w = _grid_size(rows, labels)
+    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+    draw_rate_matrix(fig, ax, counts, rows, labels, xlabel="Trace",
+                     cell_fmt="{:.0f}", colorless=True)
+    ax.set_title(_DEVIATION_TITLE, fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, out)
 
 
-def task28_heatmap(df, output_dir):
+def task28_heatmap(records, output_dir):
+    """The same grid as colour. The matrix is the numbers."""
     out = os.path.join(output_dir, "task28_heatmap.svg")
-    if df.empty:
-        render_empty_state_svg(out, "Deviation Heatmap", "No deviations found.")
+    keys, labels, counts = _selected_step_payload(records)
+    if not keys or not counts.any():
+        render_empty_state_svg(out, _DEVIATION_TITLE, "No deviations found.")
         return
-    pivot, top_acts, move_types = _activity_movetype_pivot(df)
-    data = pivot.values.astype(float)
-    fig_h = max(3.5, 0.55 * len(top_acts) + 1.5)
-    fig, ax = plt.subplots(figsize=(max(5, len(move_types) * 2.0), fig_h))
-    draw_value_heatmap(fig, ax, data, top_acts, move_types,
-                       xlabel="Deviation Type", cbar_label="Count", annotate=False)
-    ax.set_title(f"Deviation Heatmap (top-{len(top_acts)} activities)", fontsize=FONT_TITLE)
+    rows = [_category(k) for k in keys]
+    fig_h, fig_w = _grid_size(rows, labels)
+    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+    draw_value_heatmap(fig, ax, counts, rows, labels, xlabel="Trace",
+                       cbar_label="Deviating steps", annotate=False,
+                       vmax=max(float(counts.max()), 1.0))
+    ax.set_title(_DEVIATION_TITLE, fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, out)
 
@@ -525,12 +574,11 @@ def task28_heatmap(df, output_dir):
 # Public entry point
 # ===========================================================================
 
-_LOG_FNAMES_TITLES = [
-    ("task28_bar_chart.svg",                  "Where Does the Log Deviate?"),
-    ("task28_stacked_bar.svg",                "Deviations per Activity"),
-    ("task28_boxplot.svg",                    "Deviations per Trace"),
-    ("task28_matrix.svg",                     "Activity × Deviation Type"),
-    ("task28_heatmap.svg",                    "Deviation Heatmap"),
+_AGGREGATE_FNAMES = [
+    "task28_bar_chart.svg",
+    "task28_stacked_bar.svg",
+    "task28_matrix.svg",
+    "task28_heatmap.svg",
 ]
 
 
@@ -574,19 +622,18 @@ def generate(alignments, model_path: str, output_dir: str, log=None,
     else:
         logger.warning("      task28: no deviating trace — trace-level idioms skipped.")
 
-    # Log-level exploratory overview
-    df = _dev_df(alignments)
-    tdf = _trace_dev_df(alignments)
-    if df.empty:
-        logger.warning("      task28: no deviations — emitting log-level zero-state SVGs.")
-        for fname, title in _LOG_FNAMES_TITLES:
-            render_empty_state_svg(os.path.join(output_dir, fname), title, "No deviations found.")
+    # The same traces again, as four aggregates over their deviating steps.
+    drawn = records or _records_from_context(ctx)
+    keys, labels, counts = _selected_step_payload(drawn)
+    if not keys:
+        logger.warning("      task28: the shown traces have no deviating step.")
+        for fname in _AGGREGATE_FNAMES:
+            render_empty_state_svg(os.path.join(output_dir, fname),
+                                   _DEVIATION_TITLE, "No deviations found.")
         return
 
-    logger.info(f"      -> {len(df)} deviation patterns; "
-                f"{int((tdf['n_dev'] > 0).sum())}/{len(tdf)} traces deviate.")
-    task28_bar_chart(df, output_dir)
-    task28_stacked_bar(df, output_dir)
-    task28_boxplot(tdf, output_dir)
-    task28_matrix(df, output_dir)
-    task28_heatmap(df, output_dir)
+    logger.info(f"      -> {len(keys)} deviating step(s) over {len(labels)} trace(s).")
+    task28_bar_chart(drawn, output_dir)
+    task28_stacked_bar(drawn, output_dir)
+    task28_matrix(drawn, output_dir)
+    task28_heatmap(drawn, output_dir)
