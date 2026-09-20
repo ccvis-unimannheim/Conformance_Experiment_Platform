@@ -42,6 +42,9 @@ services:
       timeout: 3s
       retries: 10
 
+  # Due to the use of docker mount, the container sometimes holds an old version
+  # of the code instead of the code currently being developed. When that happens,
+  # delete the container and the volume and re-deploy this compose file.
   provibackend:
     build:
       context: ./provibackend
@@ -105,6 +108,12 @@ services:
     depends_on:
       - dfgbackend
 
+  # Server only. Locally no DNS points here and both the certificate and the
+  # .htpasswd it mounts live on the host, so local development runs without it.
+  # Two things follow from its absence, and both look like bugs: the session
+  # cookie is never set, because it carries the `secure` attribute and that
+  # needs HTTPS; and a user cannot be authenticated until at least one active
+  # dataset exists, so a fresh empty database presents as a broken login.
   nginx:
     build:
       context: ./provibackend/nginx
