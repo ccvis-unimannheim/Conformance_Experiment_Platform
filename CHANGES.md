@@ -52,18 +52,18 @@ figure. This costs nothing: on BPIC12-A all 13,087 traces take **five** distinct
 fitness values — 1.000 (11,497 traces), 0.875 (327), 0.857 (3), 0.833 (69),
 0.818 (1,191), mean 0.9794. A five-row table beats any binning.
 
-**Four idioms, chosen for the contrast.** The bar chart and the table hand over
-the counts for the reader to pool. The pie chart and the stacked bar encode the
-share of the whole directly — the quantity being asked for — one by angle,
-the other by length. A heatmap is excluded because colour cannot be pooled back
-into a mean; a box plot because median and quartiles are already aggregates and
-the mean is not derivable from them; a tile metric and a gauge because they
-*are* the answer.
+**Two idioms, both handing over the counts to pool** — the bar chart as length
+from a common baseline, the table as text. A heatmap is excluded because colour
+cannot be pooled back into a mean; a box plot because median and quartiles are
+already aggregates and the mean is not derivable from them; a tile metric and a
+gauge because they *are* the answer; a scatter plot because one dot per trace
+shows the distribution's shape but no exact count.
 
-A slice or segment holding less than 4% of the log cannot carry its label
-inside, and one of the five values covers three traces in thirteen thousand.
-Those get their value and count on a leader line (pie) or in the legend
-(stacked bar), so no idiom silently drops a category the others show.
+A pie chart and a stacked bar were built and then taken out again. Both encode
+the share of the whole, which is the quantity being asked for, and both let it
+be read off an angle or a length rather than off a number — a reasonable thing
+to measure, but not in a task whose premise is that the degree has to be
+*derived* rather than seen.
 
 The derivable mean is logged for whoever sets the answer key. It appears on no
 figure: `total` is only ever a divisor and an axis limit, and `mean` reaches
@@ -72,10 +72,10 @@ nothing but `logger`.
 ### Files changed
 
 - `provibackend/ProViBackend/scripts/tasks/task25.py` — rewritten.
-  `_fitness_distribution`, `_labels`, `_colors` and the four renderers added;
+  `_fitness_distribution`, `_labels`, `_colors` and the two renderers added;
   `_task25_activity_replay`, `_annotated_model`, `_node_style_fn`, `_draw`,
   `task25_flow_chart_elaborate` and the BPMN machinery deleted. `IDIOMS` is
-  `bar_chart`, `table`, `pie_chart`, `stacked_bar`.
+  `bar_chart`, `table`.
 - `provibackend/ProViBackend/scripts/create_all_visualizations.py` — the
   task25 lambda no longer passes `model_path`; the task does not use a model.
 - `docs/TASK_IDIOM_MAPPING.md` — task25's set, and why it departs from the
@@ -84,7 +84,7 @@ nothing but `logger`.
 ### Known costs
 
 With 87.9% of BPIC12-A's traces at fitness 1.0, the answer may be easy to
-approximate from any of the four ("nearly all perfect, so about 0.98"), which
+approximate from either figure ("nearly all perfect, so about 0.98"), which
 limits how well this task separates the encodings. That is a property of this
 dataset's conformance, not of the design; a log with wider spread would
 separate them further.

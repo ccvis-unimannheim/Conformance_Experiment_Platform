@@ -473,8 +473,6 @@ misstated it. The table carries the branching in a column instead.
 |---|---|---|
 | Bar Chart | `bar_chart` | Medium/Reviewed |
 | Table | `table` | Medium/Reviewed |
-| Pie Chart | `pie_chart` | Added |
-| Stacked Bar Graph | `stacked_bar` | Added |
 
 This set is chosen on the task's own terms rather than from the spreadsheet.
 The spreadsheet listed a **Tile Metric at Priority High** — a single tile
@@ -491,12 +489,14 @@ Scatter Plot (dotted chart) and a Flow Chart+.
   CHANGES.md.
 - The **scatter plot** was planned and dropped: one dot per trace conveys the
   distribution's shape but not the counts, so a reader cannot take exact
-  figures off it the way the other four allow.
-- **Pie chart** and **stacked bar** were added. They encode the share of the
-  whole directly, which is the quantity being asked for, one by angle and one
-  by length; the bar chart and table carry the counts for the reader to pool
-  themselves. Two count encodings against two part-of-whole encodings is the
-  contrast worth measuring here.
+  figures off it the way the other two allow.
+- A **pie chart** and a **stacked bar** were built and then taken out again.
+  Both encode the share of the whole and let it be read off an angle or a
+  length rather than off a number — a reasonable thing to measure, but not in
+  a task whose premise is that the degree has to be *derived* rather than seen.
+
+What remains hands the reader the counts to pool: the bar chart as length from
+a common baseline, the table as text.
 
 ## task26
 
