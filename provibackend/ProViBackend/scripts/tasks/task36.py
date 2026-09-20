@@ -10,7 +10,9 @@ coloured declarative process model)". The declarative half had already been
 abandoned in the code: `_extract_data` read `violation_profile.profile()` like
 its siblings, and the two idioms that needed activity-pair constraints — the
 heatmap and the network diagram — rendered a byte-identical empty state on
-every run. task36 had one working idiom.
+every run. task36 had one working idiom. The spreadsheet also lists
+`flow_chart_elaborate`, which this module never implemented: with no
+declarative model there is nothing for it to colour.
 
 **What now makes this task its own.** task11 (Describe · Summarize), task29
 (Explore · Summarize) and task32 (Present · Compare) read the same violation

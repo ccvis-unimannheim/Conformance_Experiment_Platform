@@ -5,9 +5,10 @@ Question: How do fitness values of traces differ when applying two different
 techniques to compute them?
 
 **The second half of the question is gone.** It used to continue "What is the
-overall trend of trace fitness?", which is a question about time, and the two
-idioms that answered it — line graph and horizon chart — are not in IDIOMS.
-The wording promised something no idiom offered.
+overall trend of trace fitness?", which is a question about time, and the three
+idioms that answered it — line graph, horizon chart and calendar — are listed
+in the spreadsheet but were never in IDIOMS. The wording promised something no
+idiom offered.
 
 **One payload, drawn four ways.** Every idiom reads the same table: how many
 traces each technique puts in each fitness band. Two columns, one per
