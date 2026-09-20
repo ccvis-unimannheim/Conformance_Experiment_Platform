@@ -2,6 +2,30 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: A Bundle Experiment's Bar and "Previous Step" Match What It Has (2026-09-20)
+
+### Problem solved
+
+A bundle experiment (built from a zip on /new) has no Specify step, which the
+bar already knew, but it still offered Tasks and Idioms as steps to walk
+through — there is nothing to choose there either, since the zip fixed both.
+Overview's "Previous Step" pointed at /answer-format regardless, which a
+version-3 zip's experiment never visits at all (it goes straight to
+/overview), so that link led to a page with no path back to where editing this
+kind of experiment actually starts.
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `ProViFrontend/.../components/Admin/WizardSteps.js` | A bundle experiment's bar also leaves out Tasks and Idioms, not just Specify. A non-bundle experiment is unaffected — it still needs all three to choose what it uses. |
+| `ProViFrontend/.../admin/experiments/overview/page.js` | Overview's "Previous Step" goes to /new for a bundle experiment instead of /answer-format. |
+
+An admin can still trim a bundle experiment's tasks or idioms by opening
+/task or /idiom directly; the bar just no longer offers that as a step.
+
+`eslint` — no errors on either file.
+
 ## Session: Idiom Export 500s After the Task Bank Dropped answer_type (2026-09-20)
 
 ### Problem solved

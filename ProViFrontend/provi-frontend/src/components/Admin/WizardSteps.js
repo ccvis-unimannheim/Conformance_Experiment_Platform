@@ -33,9 +33,16 @@ const STEPS = [
   { slug: "overview", label: "Overview" },
 ];
 
+// A bundle experiment's tasks and idioms are exactly what the zip supplied —
+// nothing is generated, and nothing can be added from the shared bank or a
+// dataset — so choosing them is not a step of its wizard the way it is for a
+// dataset-built experiment, and Specify has nothing to do at all. An admin
+// still trims the zip's tasks or idioms from /task and /idiom directly, but
+// the bar does not offer that as a step to march through.
+const HIDDEN_WHEN_BUNDLE = new Set(["task", "idiom", "specify"]);
+
 export default function WizardSteps({ experimentId, current, bundleOnly = false }) {
-  // A bundle experiment generates nothing, so it has no Specify step at all.
-  const steps = bundleOnly ? STEPS.filter((s) => s.slug !== "specify") : STEPS;
+  const steps = bundleOnly ? STEPS.filter((s) => !HIDDEN_WHEN_BUNDLE.has(s.slug)) : STEPS;
 
   return (
     <nav
