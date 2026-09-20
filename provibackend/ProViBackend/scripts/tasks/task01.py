@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 IDIOMS = [
     "bar_chart", "table", "stacked_bar", "matrix",
     # "box_plot",             # draws quantiles, not the per-group shares; its boxes collapse at 1.0
-    # "table_and_bar_chart",  # two idioms in one (still drawn: task04's log level offers it)
+    # "table_and_bar_chart",  # two idioms in one (task04's log level dropped it too)
     # "parallel_sets",        # shows no count of traces per conformance category
 ]
 
@@ -404,12 +404,15 @@ def task01_box_plot(df: pd.DataFrame, output_dir: str, outcome_activity: str):
 def task01_matrix(counts: np.ndarray, output_dir: str, outcome_activity: str):
     """Outcome group × conformance category, annotated share of each group's traces.
 
-    The scale is fixed at 0–100% so a colour means the same share in both rows.
+    Colourless: each cell carries its share as a printed number alone, ruled into
+    a grid. With a colour scale the matrix would be a heatmap that also prints
+    its numbers — one variable encoded twice, as in tasks 27-32.
     """
     fig, ax = plt.subplots(figsize=(7, 3.4))
     draw_value_heatmap(fig, ax, _task01_shares(counts), _task01_group_labels(counts), _CAT_LABELS,
                        xlabel="Conformance Category", cbar_label=_SHARE_LABEL,
-                       cell_fmt="{:.1f}%", annotate=True, rotate_xticks=15, vmax=100)
+                       cell_fmt="{:.1f}%", annotate=True, rotate_xticks=15, vmax=100,
+                       colorless=True)
     ax.set_title(f"Group × Conformance Category {_group_suffix(outcome_activity)}",
                  fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
@@ -439,9 +442,7 @@ def generate(log, fitness_df, output_dir: str, outcome_activity: str = "Activate
 
     task01_bar_chart(counts, output_dir, outcome_activity)
     task01_table(counts, output_dir, outcome_activity)
-    # Not one of task01's idioms any more, but task04's log level (which runs
-    # this generate()) still offers it as table_bar_chart.
-    task01_table_and_bar_chart(counts, output_dir, outcome_activity)
+    # task01_table_and_bar_chart(counts, output_dir, outcome_activity)  # removed idiom
     # task01_parallel_sets(counts, output_dir, outcome_activity)  # removed idiom
     task01_stacked_bar(counts, output_dir, outcome_activity)
     # task01_box_plot(df, output_dir, outcome_activity)  # removed idiom

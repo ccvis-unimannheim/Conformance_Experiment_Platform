@@ -72,9 +72,7 @@ Source: *Conformance Checking Tasks Working Table.xlsx* + *Task_Idiom_Complete_M
 | Scatter Plot (Dotted Chart) | `scatter_plot` | Medium/Reviewed |
 | Box and Whisker Plot | `boxplot` | Medium/Reviewed |
 | Table | `table` | Medium/Reviewed |
-| Table & Bar Chart | `table_bar_chart` | Medium/Reviewed |
 | Matrix | `matrix` | Medium/Reviewed |
-| Heatmap | `heatmap` | Medium/Reviewed |
 
 ## task05
 

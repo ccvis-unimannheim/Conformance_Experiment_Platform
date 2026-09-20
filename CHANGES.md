@@ -2,6 +2,65 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: task04 Colours Its Traces, and Drops Two Idioms (2026-09-20)
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| Bar chart | Every bar was `GREY_MED`, cividis's olive-grey middle, which read as a muted category rather than the figure's subject. Each trace now takes its own colour from `categorical_colors(len(tdf))` — navy and yellow for the usual two traces, the pair task01 and task03 draw their bars with, spread over cividis's blue and yellow ends for the three or four this task also allows. The colour encodes **which trace**, never how conformant it is: task04 asks the participant to read conformance off the fitness values, so no idiom here colours a trace by conformance. |
+| Line graph | One line cannot be navy at one end and yellow at the other, so the line stays neutral (`_LINE_COLOR`, `GREY_DARK`) — it joins every trace and belongs to none — and the markers become a `scatter` in each trace's own colour. A trace is the same colour in the bar chart and the line graph. |
+| Matrix | `colorless=True`, as tasks 01, 03 and 27-32 now draw theirs: white cells ruled into a grid, each fitness carried by its printed number, no colorbar. |
+| `heatmap` removed | Activity × trace, cell colour = move type. Its whole payload was colour over four nominal categories, and `table` already carries the same activity × trace move types as words. |
+| `table_bar_chart` removed | Two idioms in one — the same reason the review dropped it from task01 and task03. |
+
+task04 is down to six idioms: `flow_chart_basic`, `flow_chart_elaborate`,
+`bar_chart`, `table`, `line_graph`, `matrix`. Renderers, `IDIOMS` entries and
+`generate()` calls are deleted rather than commented out, as in tasks 24-32.
+
+### Knock-on in task01
+
+`task01_table_and_bar_chart` was already out of task01's own `IDIOMS` but still
+called, because task04's log level ran task01's `generate()` and offered the
+file as `table_bar_chart` (`_FILE_RENAME` maps the stem). With task04 dropping
+that idiom the call had no consumer left anywhere, so it is commented out beside
+`box_plot` and `parallel_sets`, and the note at `IDIOMS` that pointed at task04
+is corrected. The entry earlier in this log that calls it "still drawn" records
+what was true then; this section supersedes it.
+
+### Docs
+
+`docs/TASK_IDIOM_MAPPING.md`: the `Table & Bar Chart` and `Heatmap` rows under
+task04.
+
+### Verification
+
+`py_compile` on both modules, and a grep for the removed names across the repo.
+`pyflakes` is not installed in this environment; nothing the change orphans was
+found by hand — `mpatches`, `gridspec`, `GREY_MED`, `_MOVE_LEGEND` and
+`_task04_move_map` all keep other callers (the chevron, BPMN and table idioms).
+Not regenerated.
+
+## Session: task01 and task03 Matrices Lose Their Colour (2026-09-20)
+
+Tasks 27-32 already draw their matrices colourless: white cells ruled into a
+grid, the value carried by the printed number alone. task01 and task03 were the
+two left over. Numbers, geometry, labels, titles and empty states are unchanged
+— only the fill and the colorbar go.
+
+| File | Change |
+|------|--------|
+| `scripts/tasks/task01.py` | `task01_matrix` passes `colorless=True` to `draw_value_heatmap`. It was a cividis heatmap that also printed its shares, which encodes one variable twice and left it differing from a heatmap only in annotation. The `vmax=100` fixed scale and the colorbar label stay in the call, ignored while colourless, as tasks 30 and 32 pass them. |
+| `scripts/tasks/task03.py` | `task03_matrix` draws its own cells rather than an `imshow`, so the flag does not reach it: the per-column fill (`_COLOR_CONFORM` / `_COLOR_NON_CONFORM`) becomes white and the white cell border becomes `#CCCCCC`, the grey `draw_cell_grid` rules the shared matrices with — on a white fill it is the rule, not the fill, that makes the cells a grid. Cell text is `GREY_DARK` throughout, so `contrasting_text_color` has no caller left here and leaves the imports. The column headers already name the group the fill stood for. |
+
+The two idioms stay distinct from their tables: a matrix is the bucket × group
+grid, a table is one row per record.
+
+### Verification
+
+`py_compile` on both modules. `pyflakes` is not installed in this environment;
+the one import the change orphans was removed by hand. Not regenerated.
+
 ## Session: Name, Design and Task Order on the Overview Page (2026-09-20)
 
 An experiment's name, between/within design and task-order setting were asked
