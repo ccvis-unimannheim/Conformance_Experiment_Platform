@@ -197,6 +197,23 @@ task. A log move of a modelled activity — the common case — could never reac
 Separately, the rows sit in model order, so a trace that runs two activities out
 of order read exactly like one that runs them in order. The chevron shows that
 difference; the table dropped it.
+## Session: task29 Keeps the Six Idioms That Can Answer Its Parameter (2026-09-20)
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| Parallel sets, sunburst removed | Both need two levels to draw anything — an axis to flow to, a ring to nest — and under "By move type", the default strategy, this task has one: two move types and nothing else. Taking the second level from the activities, as they did, is exactly the information that strategy removes, so those two said more than the other six. task29 has six idioms, all reading the same grid. `_task29_activity_type_pivot` and `_PIVOT_TOP_N` went with them, and with them the last code path that read `alignments` behind the admin's back. |
+| Tick rotation | `_rotate_tick_labels` measures instead of estimating: the figure is drawn once, matplotlib reports each label's rendered width, and the widest is compared with the room one category gets. The 0.6-em-per-character estimate it replaces turned three comfortable labels on end, which is worse than the overlap it avoids. Three "Ship Order (Model Move)" labels now stay horizontal; four turn. |
+| Pie chart | The legend read `move_type`, so three activities that are all Model Moves gave three identical swatches labelled "Model Move" three times, and the activity names appeared nowhere. The wedges carry their group name on a leader line now, beside the count they already had, and the legend explains the two colours, each once. |
+
+### Verification
+
+Generating under all three strategies: six SVGs each, and all six differ
+between "By move type" and "By activity" — every idiom answers the parameter.
+The rotation rule over a 8.5-inch figure: False for two and three labels, True
+from four. `pyflakes` clean after the orphan sweep.
+
 ## Session: task29's Grid Idioms Follow the Grouping Strategy (2026-09-20)
 
 ### Problem solved
