@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import AdminNav from "../../../../components/Admin/AdminNav";
 import ExperimentDetailsForm from "../../../../components/Admin/ExperimentDetailsForm";
 import DatasetSelectTable from "../../../../components/Admin/DatasetSelectTable";
@@ -39,6 +40,10 @@ export default function NewExperimentPage() {
   // This draft's images came from an uploaded zip: it has no dataset, and
   // taking one would mean generating over those images (the backend refuses).
   const [bundleOnly, setBundleOnly] = useState(false);
+  // What that zip was, so returning here says what is already in place —
+  // without it the panel only offered Replace/Discard with no way to tell
+  // what either one would be acting on.
+  const [bundleInfo, setBundleInfo] = useState(null); // { taskCount, file, importedAt }
   // Whether the zip-upload card is open. Lifted up (rather than the card's own
   // state) so the dataset table below can be swapped for a note while it is —
   // a dataset genuinely isn't needed for that route, and showing both at once
@@ -58,6 +63,12 @@ export default function NewExperimentPage() {
         if (exp.design_type) setDesignType(exp.design_type);
         setRandomizeOrder((exp.within_sequence_mode || "random") === "random");
         setBundleOnly(!!exp.bundle_only);
+        setBundleInfo(exp.bundle_only ? {
+          taskCount: (exp.task_instances || []).length,
+          file: exp.idioms_imported_from?.file || null,
+          sourceName: exp.idioms_imported_from?.experiment_name || null,
+          importedAt: exp.idioms_imported_at || null,
+        } : null);
       })
       .catch(() => {});
   }, [resumedId]);
@@ -65,10 +76,12 @@ export default function NewExperimentPage() {
   // Undo a bundle upload: the images, the tasks and idioms that came with them
   // go, and the experiment can take a dataset like any other.
   async function discardBundle() {
+    const zipName = bundleInfo?.file ? ` (${bundleInfo.file})` : "";
     if (!window.confirm(
-      "Discard the uploaded images? This experiment's tasks, idioms and images all came from that " +
-      "zip, so all three are removed and it starts again from choosing a dataset. Its name and " +
-      "study design are kept. Download the zip again from the source experiment if you need it."
+      `Discard the uploaded images${zipName}? This experiment's tasks, idioms and images all came ` +
+      "from that zip, so all three are removed and it starts again from choosing a dataset. Its name " +
+      "and study design are kept. Keep a copy of the zip first if you might want it again — once " +
+      "discarded, this experiment no longer has it."
     )) return;
     try {
       const res = await fetch(
@@ -80,6 +93,7 @@ export default function NewExperimentPage() {
         throw new Error(typeof body.detail === "string" ? body.detail : `HTTP ${res.status}`);
       }
       setBundleOnly(false);
+      setBundleInfo(null);
       setSelectedIds(new Set());
     } catch (e) {
       setSubmitError(e.message);
@@ -323,10 +337,42 @@ export default function NewExperimentPage() {
             <>
               <section className="bg-surface-container-lowest p-gutter rounded-xl border border-outline-variant">
                 <h2 className="text-h2 text-primary mb-3">Dataset</h2>
+
+                {/* What is actually in place: neither "Replace" nor "Discard" below
+                    means anything if the admin can't tell what they'd be acting on —
+                    the panel used to say "the zip you uploaded" with no way to see
+                    which one, or how many tasks it left this experiment with. */}
+                <div className="flex items-start gap-3 bg-surface border border-outline-variant rounded-lg p-4 mb-4">
+                  <span className="material-symbols-outlined text-primary text-[20px] mt-0.5">folder_zip</span>
+                  <div className="text-body-sm text-on-surface">
+                    <p className="font-medium">
+                      {bundleInfo?.file || (bundleInfo?.sourceName ? `From "${bundleInfo.sourceName}"` : "Uploaded zip")}
+                    </p>
+                    <p className="text-body-xs text-secondary">
+                      {bundleInfo?.taskCount ?? 0} task{bundleInfo?.taskCount === 1 ? "" : "s"}
+                      {bundleInfo?.importedAt && ` · uploaded ${new Date(bundleInfo.importedAt).toLocaleString()}`}
+                    </p>
+                    <p className="text-body-xs mt-1">
+                      <Link
+                        href={`/admin/experiments/overview?experiment_id=${encodeURIComponent(resumedId)}`}
+                        className="text-primary hover:underline"
+                      >
+                        Review on Overview
+                      </Link>
+                      {" · "}
+                      <a
+                        href={`/api/admin/experiments/${encodeURIComponent(resumedId)}/idioms/export`}
+                        className="text-primary hover:underline"
+                      >
+                        Download it
+                      </a>
+                    </p>
+                  </div>
+                </div>
+
                 <p className="text-body-sm text-secondary mb-2">
-                  The zip you uploaded is saved — this experiment shows exactly its images, so it
-                  needs no dataset and nothing is generated for it. A dataset cannot be added while
-                  that is the case.
+                  This experiment shows exactly this zip&apos;s images, so it needs no dataset and
+                  nothing is generated for it. A dataset cannot be added while that is the case.
                 </p>
                 <p className="text-body-sm text-secondary mb-4">
                   Uploaded the wrong zip, or want a different one? Replace it below without starting
