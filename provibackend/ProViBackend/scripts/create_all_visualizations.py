@@ -441,7 +441,7 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
         "task24": lambda d: task24.generate(
             log, model_path, d, trace_ids=trace_ids(),
             trace_count=trace_alignment.trace_count(p, task24.DEFAULT_VARIANTS)),
-        "task25": lambda d: task25.generate(log, alignments, d, model_path=model_path),
+        "task25": lambda d: task25.generate(log, alignments, d),
         "task26": lambda d: task26.generate(alignments, d, model_path=model_path),
         "task27": lambda d: task27.generate(
             log, fitness_df, alignments, d, model_path=model_path,
@@ -486,7 +486,7 @@ def make_task_generators(log, alignments, fitness_df, model_path, compare_attrib
             violation_pattern=violation_pattern()),
         "task35": lambda d: task35.generate(log, alignments, d, model_path=model_path,
                                             move_types=(p.get("move_types") or None)),
-        "task36": lambda d: task36.generate(log, alignments, d, model_path=model_path,
+        "task36": lambda d: task36.generate(log, alignments, d,
             grouping_strategy=(p.get("grouping_strategy") or "pattern"),
             selection=(p.get(violation_profile.STRATEGY_SELECTION_KEY.get(
                 p.get("grouping_strategy") or "pattern", "")) or None),

@@ -2107,7 +2107,7 @@ def render_bpmn_annotated(parsed, out_path, *, title, summary,
 
 
 def compose_bpmn_panels(panels, out_path, *, title, legend_items,
-                        table_rows=None, table_cols=None,
+                        table_rows=None, table_cols=None, table_subtitle=None,
                         legend_below_panels=True, legend_center=True,
                         table_stretch: bool = False,
                         table_header_bg: str = GREY_DARK,
@@ -2120,6 +2120,9 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
 
     panels: list of {"parsed", "node_style_fn", "faded_flow_fn"(opt), "subtitle"}.
     table_rows/table_cols: optional comparison table rendered beneath the panels.
+    table_subtitle: optional caption above that table, in the same lettering a
+        panel's own subtitle uses, so a table and a diagram in one figure are
+        introduced the same way (opt-in; None keeps the table uncaptioned).
     legend_below_panels: place the legend strip between the diagram and the table
         (default) rather than at the very bottom of the canvas.
     legend_center: horizontally centre the legend strip on the canvas (default).
@@ -2161,6 +2164,12 @@ def compose_bpmn_panels(panels, out_path, *, title, legend_items,
         canvas_w = max(max_w, legend_min_w)
         tx0 = max(24.0, (canvas_w - table_total_w) / 2.0)
         ty0 = y_cursor + 6.0
+        if table_subtitle:
+            table_lines.append(
+                f'<text x="24" y="{ty0 + 16:.1f}" font-family="Arial, sans-serif" '
+                f'font-size="11" fill="#333">{_bpmn_esc(table_subtitle)}</text>'
+            )
+            ty0 += 26.0
         table_lines.append(
             f'<rect x="{tx0:.1f}" y="{ty0:.1f}" '
             f'width="{table_total_w:.1f}" height="{row_h:.1f}" fill="{table_header_bg}"/>'

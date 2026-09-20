@@ -448,14 +448,18 @@ This task is similar to ``Present: Present Guideline violations'', but rather th
 | Idiom (Excel label) | Canonical key | Priority |
 |---|---|---|
 | Flow Chart+ (BPMN / Petri Net / DFG) | `flow_chart_elaborate` | High |
-| Flow Chart (Chevron Diagram) | `flow_chart_basic` | Added |
 | Table | `table` | Added |
 
-Priority "Added" marks the two idioms this task has beyond the source
-spreadsheet. The spreadsheet gives task24 one idiom, and one figure cannot be
-compared with anything: the task asks where two models differ, so a set that
-shows the comparison in more than one encoding is what the experiment needs.
-Every other task in this repository has only ever had idioms *removed*.
+Priority "Added" marks the idiom this task has beyond the source spreadsheet.
+The spreadsheet gives task24 one idiom, and one figure cannot be compared with
+anything: the task asks where two models differ, so a set that shows the
+comparison in more than one encoding is what the experiment needs. Every other
+task in this repository has only ever had idioms *removed*.
+
+A chevron diagram was added alongside and then removed again. A model
+discovered from several variants branches, and a chevron strip says "these
+steps, in this order, all of them" — it did not simplify the model, it
+misstated it. The table carries the branching in a column instead.
 
 ## task25
 
@@ -466,10 +470,31 @@ Every other task in this repository has only ever had idioms *removed*.
 | Idiom (Excel label) | Canonical key | Priority |
 |---|---|---|
 | Bar Chart | `bar_chart` | Medium/Reviewed |
-| Scatter Plot (Dotted Chart) | `scatter_plot` | Medium/Reviewed |
-| Flow Chart+ (BPMN / Petri Net / DFG) | `flow_chart_elaborate` | Medium/Reviewed |
-| Tile Metric | `tile_metric` | High |
 | Table | `table` | Medium/Reviewed |
+
+This set is chosen on the task's own terms rather than from the spreadsheet.
+The spreadsheet listed a **Tile Metric at Priority High** — a single tile
+stating the conformance rate, which is precisely the value this task exists to
+have the analyst derive, and which task06 already provides. It also listed a
+Scatter Plot (dotted chart) and a Flow Chart+.
+
+- The **tile metric** and the **gauge** are the answer, so they cannot be in
+  this task at all.
+- The **Flow Chart+** annotated the guideline with per-activity replay counts.
+  A model's topology says *where* behaviour deviates, not how much of it does,
+  and pooling ten label pairs off a diagram measures arithmetic stamina rather
+  than the encoding. It also produced a different answer from task06's — see
+  CHANGES.md.
+- The **scatter plot** was planned and dropped: one dot per trace conveys the
+  distribution's shape but not the counts, so a reader cannot take exact
+  figures off it the way the other two allow.
+- A **pie chart** and a **stacked bar** were built and then taken out again.
+  Both encode the share of the whole and let it be read off an angle or a
+  length rather than off a number — a reasonable thing to measure, but not in
+  a task whose premise is that the degree has to be *derived* rather than seen.
+
+What remains hands the reader the counts to pool: the bar chart as length from
+a common baseline, the table as text.
 
 ## task26
 
@@ -639,11 +664,27 @@ Every other task in this repository has only ever had idioms *removed*.
 
 **Goal · Means · Characteristics:** Present · Present · Process conformance per rule
 
-**Description:** Which concrete violations of guidelines are predominant in my process? Based on concrete guidelines (e.g., LTL-formulas), we first have to calculate the average grade of conformance to each of these guidelines. These averages are presented in cunjuction (e.g., as a colored declarative process model).
+**Description:** Which guideline violations are predominant in my process?
+
+The addendum was dropped — "based on concrete guidelines (e.g. LTL-formulas),
+compute the average conformance per guideline and present them in conjunction
+(e.g. as a coloured declarative process model)". The declarative half had
+already gone from the code, and the two idioms that depended on it drew an
+empty state on every run.
 
 | Idiom (Excel label) | Canonical key | Priority |
 |---|---|---|
-| Flow Chart+ (BPMN / Petri Net / DFG) | `flow_chart_elaborate` | Medium/Reviewed |
+| Bar Chart | `bar_chart` | Added |
+| Table | `table` | Added |
+| Pie Chart | `pie_chart` | Added |
+
+The spreadsheet lists `flow_chart_elaborate`, which this module never
+implemented; with no declarative model there is nothing for it to colour. What
+separates this task from task11, task29 and task32 — all reading the same
+`violation_profile.profile()` — is the word *predominant*, so the
+`prominence_threshold` is the subject: every idiom ranks the groups by share of
+all violations, shows where the cut falls and pools the rest into one entry.
+Matrix, heatmap, stacked bar and parallel sets are left to those three tasks.
 
 ## task37
 
@@ -657,9 +698,6 @@ Every other task in this repository has only ever had idioms *removed*.
 | Stacked Bar Graph | `stacked_bar` | High |
 | Line Graph | `line_graph` | High |
 | Horizon Chart | `horizon_chart` | High |
-| Scatter Plot (Dotted Chart) | `scatter_plot` | Medium/Reviewed |
-| Box and Whisker Plot | `boxplot` | High |
 | Table | `table` | Medium/Reviewed |
-| Table & Bar Chart | `table_bar_chart` | Medium/Reviewed |
 | Heatmap | `heatmap` | High |
 | Calendar | `calendar` | High |

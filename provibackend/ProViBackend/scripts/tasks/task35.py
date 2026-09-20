@@ -55,9 +55,12 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+from matplotlib.colors import to_hex
+
 from shared import (most_common_stable, save_svg, GREY_DARK, GREY_MED,
                     FONT_TITLE, FONT_ANNOT, classify_step as _classify_step,
-                    parse_bpmn_model, render_bpmn_annotated, render_empty_state_svg)
+                    parse_bpmn_model, render_bpmn_annotated, render_empty_state_svg,
+                    contrasting_text_color, CIVIDIS_R)
 
 _C_DARK = GREY_DARK
 _C_MED  = GREY_MED
@@ -95,17 +98,44 @@ def _extract_data(alignments, move_types=None):
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-def _violation_shade(rate: float) -> str:
-    """Light (#F0F0F0) → dark (#444444) as rate goes 0 → 1.
+#: The three points of cividis the bands are drawn in. Not the full range: at
+#: 0.0 cividis is a saturated yellow, which would make an activity with no
+#: violations at all the loudest thing on the model.
+_SHADE_LO, _SHADE_MID, _SHADE_HI = 0.18, 0.53, 0.88
 
-    The ramp the other violation-shaded models use, to the byte — task15 and
-    task16 answer a neighbouring question about the same model and a reader
-    comparing them should be comparing the models, not two greys.
+#: The bands themselves, as (upper bound on the rate, fill, label). An activity
+#: falls in the first band whose bound its rate does not exceed.
+#:
+#: Three named classes, not a continuous ramp. The ramp asked the reader to
+#: rank activities by comparing fills — a judgement a shaded model does not
+#: support: the fills are close together, they sit far apart on the canvas with
+#: other colours between them, and the rate behind them is normalised by the
+#: worst activity, so the scale moves with the log. What the model can carry is
+#: which class an activity is in, and that is now all it claims. The legend is
+#: the same three swatches it always showed; the difference is that a node's
+#: fill is now one of them exactly, instead of a shade between two of them.
+_BANDS = (
+    (1.0 / 3.0, to_hex(CIVIDIS_R(_SHADE_LO)),  "Few / no violations"),
+    (2.0 / 3.0, to_hex(CIVIDIS_R(_SHADE_MID)), "Some violations"),
+    (1.0,       to_hex(CIVIDIS_R(_SHADE_HI)),  "Most violations"),
+)
+
+
+def _violation_shade(rate: float) -> str:
+    """The fill of the band `rate` falls in.
+
+    Cividis, like every other scale in the platform. It used to be a greyscale
+    ramp (#F0F0F0 to #444444) held byte-identical with task09, task15 and
+    task16, which annotate the same model for neighbouring questions. **That
+    agreement is now broken and those three are still grey.** They should
+    follow when they come up for review; until then a reader comparing task35's
+    model with task15's compares two palettes.
     """
     rate = max(0.0, min(1.0, rate))
-    lo, hi = 0xF0, 0x44
-    v = int(round(lo + (hi - lo) * rate))
-    return f"#{v:02X}{v:02X}{v:02X}"
+    for bound, fill, _ in _BANDS:
+        if rate <= bound:
+            return fill
+    return _BANDS[-1][1]
 
 
 def _short(label, n=26):
@@ -248,8 +278,7 @@ def _make_bpmn_svg(activity_type, activity_totals, model_path):
         rate  = name_to_rate.get(name, 0.0)
         fill  = _violation_shade(rate) if kind == "task" else "#f0f0f0"
         stroke = "#777"
-        v_int  = int(fill[1:3], 16)
-        tc     = "white" if v_int < 140 else _C_DARK
+        tc     = contrasting_text_color(fill)
 
         if kind == "task":
             mom   = activity_type.get((name, "Model Move"), 0)
@@ -281,7 +310,10 @@ def _make_bpmn_svg(activity_type, activity_totals, model_path):
                     f"{esc(line)}</text>"
                 )
             if has_ann:
-                ann_tc    = "white" if v_int < 155 else _C_MED
+                # The annotation is a muted second line, so it takes the
+                # dimmer grey wherever the fill is light enough to carry it.
+                ann_tc    = ("white" if contrasting_text_color(fill) == "white"
+                             else _C_MED)
                 ann       = f"↑{mom}  ↓{mol}"
                 ann_fs    = max(6, fs - 1.5)
                 max_ann_w = w - 6
@@ -323,16 +355,17 @@ def _make_bpmn_svg(activity_type, activity_totals, model_path):
                 f"font-family='Arial,sans-serif' font-size='8' fill='{stroke}'>{lbl}</text>"
             )
 
-    # Greyscale legend
+    # One swatch per band, each carrying the band's own words. It used to be a
+    # five-step ramp labelled "0", "50%" and the worst activity's count, which
+    # is a scale for reading values off a fill the model no longer offers.
     ly       = H - 58
-    STEP     = 58; SW_W = 26; SW_H = 16; LBL_FS = 10
-    cnt_lbl  = f"{max_cnt:,}"
-    tail_str = f"violations  ·  most: {_short(max_act, 20)}"
-    sbar_w   = 4 * STEP + SW_W
-    cnt_w    = len(cnt_lbl) * 6.5 + 10
+    SW_W = 26; SW_H = 16; LBL_FS = 10; GAP = 6; PAIR_GAP = 22
+    tail_str = f"{max_cnt:,} violations  ·  most: {_short(max_act, 20)}"
     tail_w   = len(tail_str) * 5.8 + 8
+    widths   = [SW_W + GAP + len(lbl) * 5.8 for _, _, lbl in _BANDS]
+    sbar_w   = sum(widths) + PAIR_GAP * (len(_BANDS) - 1)
     box_pad  = 14
-    box_w    = sbar_w + cnt_w + tail_w + 2 * box_pad
+    box_w    = sbar_w + PAIR_GAP + tail_w + 2 * box_pad
     off      = max(10.0, (W - box_w) / 2)
 
     out.append(
@@ -340,22 +373,20 @@ def _make_bpmn_svg(activity_type, activity_totals, model_path):
         f"width='{box_w:.1f}' height='{SW_H + 22:.1f}' "
         f"rx='5' fill='#fafafa' stroke='#cccccc' stroke-width='1'/>"
     )
-    for i, (lvl, lbl) in enumerate([(0.0, "0"), (0.25, ""), (0.5, "50%"), (0.75, ""), (1.0, cnt_lbl)]):
-        bx    = off + i * STEP
-        shade = _violation_shade(lvl)
+    bx = off
+    for (_, shade, lbl), wd in zip(_BANDS, widths):
         out.append(
             f"<rect x='{bx:.1f}' y='{ly:.1f}' width='{SW_W}' height='{SW_H}' "
             f"fill='{shade}' stroke='#aaa' stroke-width='0.8'/>"
         )
-        if lbl:
-            out.append(
-                f"<text x='{bx + SW_W + 4:.1f}' y='{ly + SW_H - 2:.1f}' "
-                f"font-family='Arial,sans-serif' font-size='{LBL_FS}' fill='{_C_MED}'>"
-                f"{esc(lbl)}</text>"
-            )
-    tail_x = off + 4 * STEP + SW_W + cnt_w
+        out.append(
+            f"<text x='{bx + SW_W + GAP:.1f}' y='{ly + SW_H - 2:.1f}' "
+            f"font-family='Arial,sans-serif' font-size='{LBL_FS}' fill='{_C_MED}'>"
+            f"{esc(lbl)}</text>"
+        )
+        bx += wd + PAIR_GAP
     out.append(
-        f"<text x='{tail_x:.1f}' y='{ly + SW_H - 2:.1f}' "
+        f"<text x='{bx:.1f}' y='{ly + SW_H - 2:.1f}' "
         f"font-family='Arial,sans-serif' font-size='{LBL_FS}' fill='{_C_MED}'>"
         f"{esc(tail_str)}</text>"
     )
@@ -377,8 +408,11 @@ def task35_flow_chart_elaborate_bpmn(activity_type, activity_totals, model_path,
 
     The per-node skip/insert counts the hand-built version printed under each
     label are gone with it: the shared renderer fits one label to a node and has
-    nowhere to put a second line. The counts are in the table idiom, and the
-    move-type parameter draws skips and inserts separately when they matter.
+    nowhere to put a second line. This used to say the counts were "in the table
+    idiom" — but `flow_chart_elaborate_table` is not in IDIOMS, so they are in
+    no idiom this task offers. What remains is the shading, which ranks the
+    activities without giving their counts, and the move-type parameter, which
+    draws skips and inserts separately when they need telling apart.
     """
     out_path = os.path.join(output_dir, "task35_flow_chart_elaborate_bpmn.svg")
     title = "Guideline Violations in Process Model"
@@ -403,26 +437,24 @@ def task35_flow_chart_elaborate_bpmn(activity_type, activity_totals, model_path,
         if kind == "task":
             rate = (activity_totals.get(name, 0) / max_v) if max_v else 0.0
             fill = _violation_shade(rate)
-            tc = "white" if int(fill[1:3], 16) < 0x99 else "#222222"
+            tc = contrasting_text_color(fill)
             return fill, "#777777", 1.2, tc
         if kind in {"exclusiveGateway", "parallelGateway"}:
             return "#FFFFFF", "#777777", 1.2, "#333333"
         return "#EFEFEF", "#777777", 1.5, "#333333"
 
-    legend_items = [
-        ("#F0F0F0", "#777777", 1.0, "Few / no violations"),
-        ("#9A9A9A", "#777777", 1.0, "Some violations"),
-        ("#444444", "#777777", 1.0, "Most violations"),
-    ]
-    top_act, top_n = "", 0
-    if activity_totals:
-        top_act, top_n = most_common_stable(activity_totals, 1)[0]
+    # The bands themselves, so a swatch cannot drift away from the fill it
+    # stands for, nor a label away from its band.
+    legend_items = [(fill, "#777777", 1.0, lbl) for _, fill, lbl in _BANDS]
+    # No subtitle. It restated the legend ("lighter = fewer violations") and
+    # then added two figures the legend does not carry — the log's total
+    # violation count and the worst activity by name. The second is the answer
+    # to "where does the recorded behaviour violate which guidelines" written
+    # out above the model that is supposed to show it.
     render_bpmn_annotated(
         parsed, out_path,
         title=title,
-        summary=("Activity shade: lighter = fewer violations · darker = more violations"
-                 f"   |   {sum(activity_totals.values())} violations"
-                 f" · most: {top_act} ({top_n})"),
+        summary="",
         node_style_fn=node_style_fn,
         legend_items=legend_items,
         legend_center=True,
@@ -609,8 +641,7 @@ def task35_petri_net(activity_type, activity_totals, model_path, output_dir):
                 total = activity_totals.get(name, 0)
                 rate  = total / max_v
                 fill  = _violation_shade(rate)
-                v_int = int(fill[1:3], 16)
-                fc    = "white" if v_int < 140 else _C_DARK
+                fc    = contrasting_text_color(fill)
                 # Wrap long names at underscore
                 disp  = name.replace("_", "\\n")
                 ann   = f"\\n↑{skip} ↓{ins}" if total > 0 else ""
@@ -627,18 +658,16 @@ def task35_petri_net(activity_type, activity_totals, model_path, output_dir):
 
         # ── Legend group ───────────────────────────────────────────────────
         with dot.subgraph(name="cluster_legend") as leg:
-            leg.attr(label="violation rate →", style="rounded",
+            leg.attr(label="Violations", style="rounded",
                      color="#cccccc", bgcolor="#fafafa",
                      fontsize="9", fontcolor=_C_MED)
             prev = None
-            for lvl, lbl in [(0.0, "0%"), (0.33, "33%"), (0.66, "66%"), (1.0, "100%")]:
-                nid  = f"_leg_{int(lvl*100)}"
-                fill = _violation_shade(lvl)
-                v    = int(fill[1:3], 16)
-                fc   = "white" if v < 140 else _C_DARK
+            for i, (_, fill, lbl) in enumerate(_BANDS):
+                nid  = f"_leg_{i}"
+                fc   = contrasting_text_color(fill)
                 leg.node(nid, label=lbl, shape="rectangle",
                          style="filled", fillcolor=fill, fontcolor=fc,
-                         fontsize="8", width="0.7", height="0.35",
+                         fontsize="8", width="1.5", height="0.35",
                          fixedsize="true", color="#aaaaaa")
                 if prev:
                     leg.edge(prev, nid, style="invis")
@@ -698,8 +727,7 @@ def task35_flow_chart_elaborate_dfg(activity_type, activity_totals, log, output_
             total = activity_totals.get(act, 0)
             rate  = total / max_v
             fill  = _violation_shade(rate)
-            v_int = int(fill[1:3], 16)
-            fc    = "white" if v_int < 140 else _C_DARK
+            fc    = contrasting_text_color(fill)
 
             ann  = f"\\n↑{skip} ↓{ins}" if total > 0 else ""
             disp = act.replace("_", "\\n")
@@ -744,18 +772,16 @@ def task35_flow_chart_elaborate_dfg(activity_type, activity_totals, log, output_
 
         # ── Legend ─────────────────────────────────────────────────────────
         with dot.subgraph(name="cluster_legend") as leg:
-            leg.attr(label="violation rate →", style="rounded",
+            leg.attr(label="Violations", style="rounded",
                      color="#cccccc", bgcolor="#fafafa",
                      fontsize="9", fontcolor=_C_MED)
             prev = None
-            for lvl, lbl in [(0.0, "0%"), (0.33, "33%"), (0.66, "66%"), (1.0, "100%")]:
-                nid  = f"_dleg_{int(lvl*100)}"
-                fill = _violation_shade(lvl)
-                v    = int(fill[1:3], 16)
-                fc   = "white" if v < 140 else _C_DARK
+            for i, (_, fill, lbl) in enumerate(_BANDS):
+                nid  = f"_dleg_{i}"
+                fc   = contrasting_text_color(fill)
                 leg.node(nid, label=lbl, shape="rectangle",
                          style="filled", fillcolor=fill, fontcolor=fc,
-                         fontsize="8", width="0.7", height="0.3",
+                         fontsize="8", width="1.5", height="0.3",
                          fixedsize="true", color="#aaaaaa")
                 if prev:
                     leg.edge(prev, nid, style="invis")
