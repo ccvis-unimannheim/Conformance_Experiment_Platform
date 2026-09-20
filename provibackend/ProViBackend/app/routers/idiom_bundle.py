@@ -113,7 +113,6 @@ def _layout(exp: dict) -> list[dict]:
             "task_key": task_key,
             "label": wording["label"],
             "description": wording["description"],
-            "answer_type": wording["answer_type"],
             "is_custom": task_id in custom_by_id,
             "dataset_id": ti.get("dataset_id") or "",
             "parameters": ti.get("parameters") or {},
@@ -347,7 +346,6 @@ async def export_experiment_idioms(experiment_id: str):
                 "task_key": task_key,
                 "label": entry["label"],
                 "description": entry["description"],
-                "answer_type": entry["answer_type"],
                 "is_custom": entry["is_custom"],
                 "dataset_id": dataset_id,
                 "dataset": datasets[dataset_id],
@@ -595,18 +593,16 @@ def _resolve_bundle_task(zip_task: dict, task_key: str) -> tuple[str, dict | Non
     task = dbc.get_document("Task", {"task_key": task_key})
     label = (zip_task.get("label") or "").strip()
     description = (zip_task.get("description") or "").strip()
-    answer_type = zip_task.get("answer_type") or "text"
     if task:
         override = None
         if label and label != task.get("label"):
-            override = {"label": label, "description": description, "answer_type": answer_type}
+            override = {"label": label, "description": description}
         return task["_id"], None, override
     custom = {
         "_id": str(uuid.uuid4()),
         "task_key": task_key,
         "label": label or task_key,
         "description": description,
-        "answer_type": answer_type,
         "is_custom": True,
     }
     return custom["_id"], custom, None

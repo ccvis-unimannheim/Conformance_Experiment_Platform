@@ -2,6 +2,38 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: Idiom Export 500s After the Task Bank Dropped answer_type (2026-09-20)
+
+### Problem solved
+
+`GET /admin/experiments/{id}/idioms/export` raised `KeyError: 'answer_type'`
+(an uncaught 500) on every experiment. "Drop the Task bank's answer_type"
+removed the field from `Task`, `TaskInstance`, `TaskConfig`, the custom-task
+stub, the per-experiment wording override and all 37 seed entries, and dropped
+it from `task_wording.WORDING_FIELDS` — but `idiom_bundle.py`'s export and
+import were not on that list, and still read/wrote the field.
+
+`effective_wording()` builds its return dict from `WORDING_FIELDS` alone, so
+once `answer_type` left that tuple the dict stopped carrying the key;
+`idiom_bundle.py:116`'s `wording["answer_type"]` then raised on every call.
+
+### Changes
+
+`provibackend/ProViBackend/app/routers/idiom_bundle.py`:
+- Export: `_layout()` no longer reads `wording["answer_type"]`; the manifest's
+  per-task record no longer writes `answer_type`.
+- Import: `_resolve_bundle_task()` no longer reads `zip_task.get("answer_type")`
+  or puts it on the `task_overrides` record or the custom-task stub — both now
+  match the `{label, description}` shape `task_wording.py`'s own docstring
+  already described.
+
+An export taken before this fix still has `answer_type` in its manifest.json;
+importing it is unaffected, since the field is simply not read any more.
+
+### Verification
+
+`py_compile`. Not run against a live export — no server available here.
+
 ## Session: /new Stops Asking for the Name and Design Twice (2026-09-20)
 
 ### Problem solved
