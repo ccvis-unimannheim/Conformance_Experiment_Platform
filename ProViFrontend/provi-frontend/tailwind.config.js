@@ -8,7 +8,7 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Base vars + DESIGN.md tokens
+        // Base vars + design tokens
         background: "var(--background)",
         foreground: "var(--foreground)",
         primary: "#0f3463",
