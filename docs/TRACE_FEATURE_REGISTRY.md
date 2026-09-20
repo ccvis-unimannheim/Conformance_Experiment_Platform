@@ -237,8 +237,10 @@ was conformant in one task and not in another. Dropping "% conformant" as a
 response removed the cut from task15, task16, task22 and task33 entirely.
 task01 keeps it — a binary split is its point — and it is now the
 `conformant_threshold` parameter, defaulting to 1.0. The remaining
-`_FIT_THRESHOLD` constants in task15 and task33 only position reference lines on
-fitness charts; they no longer decide any reported number.
+`_FIT_THRESHOLD` constant in task15 only positions reference lines on fitness
+charts; it decides no reported number. task33's went with its distribution
+idioms — every idiom it has left is one of task20's panel renderers, and those
+draw a mean, which needs no cut.
 
 ---
 
@@ -281,7 +283,9 @@ task30 used to be the other exception, with a single `compare_attribute`,
 because its response is `patterns` — a pattern-by-group matrix rather than one
 value per bucket, which the shared panel renderers have no shape for. It now
 takes the same multi-select picker and cuts the log by the **first** selected
-attribute, the rule task22 and task33 already use for their distribution idioms.
+attribute, the rule task22 already uses for its distribution idioms. (task33's
+distribution idioms are gone; all four of its idioms now cover every selected
+attribute.)
 The picker is the family's; what the response can draw decides how much of the
 selection is used.
 

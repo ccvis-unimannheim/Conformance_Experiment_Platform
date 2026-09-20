@@ -825,6 +825,26 @@ def task20_network_diagram(alignments, output_dir: str, top_n: int = 12):
 _ATTR_BAR_COLOR = GREY_DARK
 _ATTR_SUPTITLE = "Guideline-Violation Rate by Candidate Attribute"
 
+# --- WHERE THE ATTRIBUTE NAME GOES, in the five panel renderers below ---
+#
+# By default it is a subplot title: centred over the bar chart, centred over the
+# matrix and the heatmap, left-aligned above the table, and inside the table a
+# generic "Attribute Value" header. Four placements for one thing, and over the
+# grids it reads as a floating caption rather than as a label of anything.
+#
+# ``attribute_on_axis=True`` puts it on the axis its own buckets sit on instead
+# — the x axis of the bar chart, the y axis of the matrix and the heatmap, and
+# the header of the table column that holds its values. The suptitle then
+# carries the measure and each panel carries its attribute, with nothing said
+# twice.
+#
+# Only task33 asks for it. The default stays because task15, task16, task20 and
+# task22 have tuned screenshots in the running experiment
+# (CONFORMANCE_ATTRIBUTE_CLASS.md), and moving a label moves the layout. When
+# those tasks come up for review, the switch is what to delete: it exists to
+# keep one change out of four other tasks, not because two placements are
+# right.
+
 # Candidate attributes excluded from task20's default set. org:resource is an
 # identifier (not a magnitude): its buckets add no interpretable root-cause signal
 # here, so the default shows only AMOUNT_REQ and Throughput time. The admin can
@@ -875,7 +895,8 @@ def _task20_attribute_panels(log, alignments, attributes=None):
 
 def task20_bar_chart(panels, output_dir, *, filename=None, suptitle=None,
                      value_label=None, value_label_header=None,
-                     value_fmt=None, value_max=None):
+                     value_fmt=None, value_max=None,
+                     attribute_on_axis=False):
     """One sub-panel per attribute: violation rate (%) per bucket, uniform colour,
     fixed 0–100 scale, rate labelled above each bar (no sample sizes)."""
     title = suptitle or _ATTR_SUPTITLE
@@ -908,7 +929,10 @@ def task20_bar_chart(panels, output_dir, *, filename=None, suptitle=None,
                         ha="center", va="bottom", fontsize=FONT_ANNOT - 1, color="#333333")
         ax.set_xticks(pos)
         ax.set_xticklabels(labels, fontsize=FONT_ANNOT - 1, rotation=20, ha="right")
-        ax.set_title(m["label"], fontsize=FONT_LABEL)
+        if attribute_on_axis:
+            ax.set_xlabel(m["label"], fontsize=FONT_LABEL)
+        else:
+            ax.set_title(m["label"], fontsize=FONT_LABEL)
         ax.set_ylim(0, value_max)
         ax.spines[["top", "right"]].set_visible(False)
         ax.yaxis.grid(True, linestyle="--", alpha=0.45)
@@ -921,7 +945,8 @@ def task20_bar_chart(panels, output_dir, *, filename=None, suptitle=None,
 
 def task20_table(panels, output_dir, *, filename=None, suptitle=None,
                  value_label=None, value_label_header=None,
-                     value_fmt=None, value_max=None):
+                     value_fmt=None, value_max=None,
+                     attribute_on_axis=False):
     """One section per attribute (header = attribute name): Bucket | Violation Rate (%)."""
     title = suptitle or _ATTR_SUPTITLE
     vlabel = value_label or "Violation rate (%)"
@@ -935,32 +960,40 @@ def task20_table(panels, output_dir, *, filename=None, suptitle=None,
     if not panels:
         render_empty_state_svg(path, title, "No candidate attribute could be bucketed.")
         return
-    col_labels = ["Attribute Value", vlabel_header]
     height_ratios = [max(1, len(labels)) for (_m, (labels, _r, _c)) in panels]
     fig_h = max(4.0, 1.0 + sum(height_ratios) * 0.42 + len(panels) * 0.55)
     fig = plt.figure(figsize=(8, fig_h))
     gs = gridspec.GridSpec(len(panels), 1, height_ratios=height_ratios, hspace=0.7)
     for i, (m, (labels, rates, _counts)) in enumerate(panels):
         ax = fig.add_subplot(gs[i]); ax.axis("off")
+        col_labels = [m["label"] if attribute_on_axis else "Attribute Value",
+                      vlabel_header]
         cell_text = [[lab, value_fmt.format(rate)] for lab, rate in zip(labels, rates)]
         make_table(ax, cell_text=cell_text, col_labels=col_labels,
                    bbox=[0.04, 0.02, 0.92, 0.82],
                    col_widths=auto_col_widths(col_labels, cell_text),
                    font_size=10, cell_pad=0.09)
-        ax.set_title(m["label"], fontsize=FONT_TITLE, pad=4, loc="left")
+        if not attribute_on_axis:
+            ax.set_title(m["label"], fontsize=FONT_TITLE, pad=4, loc="left")
     fig.suptitle(title, fontsize=FONT_TITLE, y=0.99)
     save_svg(fig, path)
 
 
 def task20_matrix(panels, output_dir, *, filename=None, suptitle=None,
                   value_label=None, value_label_header=None,
-                     value_fmt=None, value_max=None):
-    """Side-by-side per-attribute grids (same layout as Heatmap: one column per
-    attribute, rows = buckets), but with a flat, non-value-encoded colour wash per
-    panel — alternating between task03's matrix palette (GREY_DARK = cividis blue
-    #243c6e, GREY_LIGHTER = cividis yellow #e5cf52) purely to tell the panels apart.
-    Unlike Heatmap's per-cell gradient, the colour here carries no data; the number is
-    the only thing being read (that's Heatmap's job)."""
+                     value_fmt=None, value_max=None,
+                     attribute_on_axis=False, colorless=False):
+    """Side-by-side per-attribute grids (same layout as Heatmap: one column
+    per attribute, rows = buckets), the value carried by the printed number alone.
+
+    By default the panels alternate between a flat yellow and a flat blue wash.
+    That colour carries no data {EMD} it only tells the panels apart, something
+    their own labels already do, and a reader cannot know a colour means nothing
+    without being told while the Heatmap beside it uses colour for the value.
+    ``colorless=True`` is the platform's matrix instead (tasks 01, 03, 27-34):
+    white cells ruled into a grid. Only task33 asks for it, for the same reason
+    ``attribute_on_axis`` is opt-in.
+    """
     title = suptitle or _ATTR_SUPTITLE
     vlabel = value_label or "Violation rate (%)"
     # Axis labels read as sentence case, column headers and tick labels as Title
@@ -979,12 +1012,14 @@ def task20_matrix(panels, output_dir, *, filename=None, suptitle=None,
     fig_h = max(3.0, 0.5 * max_rows + 1.8)
     fig, axes = plt.subplots(1, ncols, figsize=(max(5.0, ncols * 3.6), fig_h), squeeze=False)
     for i, (ax, (m, (labels, rates, _counts))) in enumerate(zip(axes[0], panels)):
-        face = panel_colors[i % len(panel_colors)]
-        text_color = contrasting_text_color(face)
+        face = "white" if colorless else panel_colors[i % len(panel_colors)]
+        edge = "#CCCCCC" if colorless else "white"
+        lw = 0.8 if colorless else 1.2
+        text_color = GREY_DARK if colorless else contrasting_text_color(face)
         n = len(labels)
         for ri, rate in enumerate(rates):
             ax.add_patch(plt.Rectangle((0, ri), 1, 1, facecolor=face,
-                                       edgecolor="white", linewidth=1.2))
+                                       edgecolor=edge, linewidth=lw))
             ax.text(0.5, ri + 0.5, value_fmt.format(rate), ha="center", va="center",
                     fontsize=FONT_ANNOT, color=text_color)
         ax.set_xlim(0, 1)
@@ -997,7 +1032,10 @@ def task20_matrix(panels, output_dir, *, filename=None, suptitle=None,
         ax.tick_params(length=0)
         for spine in ax.spines.values():
             spine.set_visible(False)
-        ax.set_title(m["label"], fontsize=FONT_LABEL)
+        if attribute_on_axis:
+            ax.set_ylabel(m["label"], fontsize=FONT_LABEL)
+        else:
+            ax.set_title(m["label"], fontsize=FONT_LABEL)
     fig.suptitle(title, fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, path)
@@ -1005,7 +1043,8 @@ def task20_matrix(panels, output_dir, *, filename=None, suptitle=None,
 
 def task20_parallel_sets(panels, output_dir, *, filename=None, suptitle=None,
                          value_label=None, value_label_header=None,
-                     value_fmt=None, value_max=None):
+                     value_fmt=None, value_max=None,
+                     attribute_on_axis=False):
     """One flow per attribute: bucket → Violation / No violation; ribbon = #traces.
     Left axis carries the per-bucket violation rate (%); right axis is just the
     Violation / No violation category names, unlabelled with a percentage — matching
@@ -1063,7 +1102,8 @@ _GREY_PALETTE = [GREY_MED, GREY_LIGHT, GREY_DARK, GREY_LIGHTER]
 
 def task20_table_bar_chart(panels, output_dir, *, filename=None, suptitle=None,
                            value_label=None, value_label_header=None,
-                     value_fmt=None, value_max=None):
+                     value_fmt=None, value_max=None,
+                     attribute_on_axis=False):
     """Table & Bar Chart combo: per attribute, the Bucket | Violation Rate (%) table
     beside a horizontal bar of the SAME per-bucket rates (fixed 0–100). A native
     combination of task20_table + task20_bar_chart — no derived measures."""
@@ -1079,19 +1119,21 @@ def task20_table_bar_chart(panels, output_dir, *, filename=None, suptitle=None,
     if not panels:
         render_empty_state_svg(path, title, "No candidate attribute could be bucketed.")
         return
-    col_labels = ["Attribute Value", vlabel_header]
     height_ratios = [max(1, len(labels)) for (_m, (labels, _r, _c)) in panels]
     fig_h = max(4.0, 1.0 + sum(height_ratios) * 0.5 + len(panels) * 0.6)
     fig = plt.figure(figsize=(11, fig_h))
     gs = gridspec.GridSpec(len(panels), 2, width_ratios=[1.5, 1.0], hspace=0.7, wspace=0.15)
     for i, (m, (labels, rates, _counts)) in enumerate(panels):
         ax_t = fig.add_subplot(gs[i, 0]); ax_t.axis("off")
+        col_labels = [m["label"] if attribute_on_axis else "Attribute Value",
+                      vlabel_header]
         cell_text = [[lab, value_fmt.format(rate)] for lab, rate in zip(labels, rates)]
         make_table(ax_t, cell_text=cell_text, col_labels=col_labels,
                    bbox=[0.04, 0.02, 0.92, 0.82],
                    col_widths=auto_col_widths(col_labels, cell_text),
                    font_size=10, cell_pad=0.09)
-        ax_t.set_title(m["label"], fontsize=FONT_TITLE, pad=4, loc="left")
+        if not attribute_on_axis:
+            ax_t.set_title(m["label"], fontsize=FONT_TITLE, pad=4, loc="left")
         ax_b = fig.add_subplot(gs[i, 1])
         ypos = np.arange(len(labels))[::-1]   # top row = first bucket (match table order)
         ax_b.barh(ypos, rates, color=_ATTR_BAR_COLOR, edgecolor="white")
@@ -1111,7 +1153,8 @@ def task20_table_bar_chart(panels, output_dir, *, filename=None, suptitle=None,
 
 def task20_heatmap(panels, output_dir, *, filename=None, suptitle=None,
                    value_label=None, value_label_header=None,
-                     value_fmt=None, value_max=None):
+                     value_fmt=None, value_max=None,
+                     attribute_on_axis=False):
     """Heatmap: like the Matrix idiom but pure colour intensity (no per-cell numbers)
     — one column per attribute, rows = buckets, violation rate (%) on a fixed 0→100
     colour scale (platform convention: Matrix = annotated, Heatmap = colour only)."""
@@ -1137,7 +1180,10 @@ def task20_heatmap(panels, output_dir, *, filename=None, suptitle=None,
             fig, ax, data, labels, [vlabel_header],
             cbar_label=vlabel_header, annotate=False, vmax=value_max,
         )
-        ax.set_title(m["label"], fontsize=FONT_LABEL)
+        if attribute_on_axis:
+            ax.set_ylabel(m["label"], fontsize=FONT_LABEL)
+        else:
+            ax.set_title(m["label"], fontsize=FONT_LABEL)
     fig.suptitle(title, fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, path)
@@ -1145,7 +1191,8 @@ def task20_heatmap(panels, output_dir, *, filename=None, suptitle=None,
 
 def task20_tile_metric(panels, output_dir, *, filename=None, suptitle=None,
                        value_label=None, value_label_header=None,
-                     value_fmt=None, value_max=None):
+                     value_fmt=None, value_max=None,
+                     attribute_on_axis=False):
     """Tile Metric: one KPI tile per bucket showing the violation rate (%) as a
     headline number (+ bucket label), grouped per attribute — the same per-bucket
     rate as a scannable metric grid (tile shade redundantly encodes the rate)."""
