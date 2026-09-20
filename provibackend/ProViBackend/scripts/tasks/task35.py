@@ -55,7 +55,9 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from shared import most_common_stable, save_svg, GREY_DARK, GREY_MED, FONT_TITLE, FONT_ANNOT, classify_step as _classify_step
+from shared import (most_common_stable, save_svg, GREY_DARK, GREY_MED,
+                    FONT_TITLE, FONT_ANNOT, classify_step as _classify_step,
+                    parse_bpmn_model, render_bpmn_annotated, render_empty_state_svg)
 
 _C_DARK = GREY_DARK
 _C_MED  = GREY_MED
@@ -93,10 +95,17 @@ def _extract_data(alignments, move_types=None):
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-def _violation_shade(rate):
-    """Light (#eeeeee) → dark (#333333) as rate goes 0 → 1."""
-    v = round(238 - max(0.0, min(1.0, rate)) * (238 - 51))
-    return f"#{v:02x}{v:02x}{v:02x}"
+def _violation_shade(rate: float) -> str:
+    """Light (#F0F0F0) → dark (#444444) as rate goes 0 → 1.
+
+    The ramp the other violation-shaded models use, to the byte — task15 and
+    task16 answer a neighbouring question about the same model and a reader
+    comparing them should be comparing the models, not two greys.
+    """
+    rate = max(0.0, min(1.0, rate))
+    lo, hi = 0xF0, 0x44
+    v = int(round(lo + (hi - lo) * rate))
+    return f"#{v:02X}{v:02X}{v:02X}"
 
 
 def _short(label, n=26):
@@ -358,19 +367,66 @@ def _make_bpmn_svg(activity_type, activity_totals, model_path):
 # ── Idiom 1: flow_chart_elaborate ─────────────────────────────────────────────
 
 def task35_flow_chart_elaborate_bpmn(activity_type, activity_totals, model_path, output_dir):
-    fname = "task35_flow_chart_elaborate_bpmn.svg"
+    """The model shaded by how much each activity is violated.
+
+    Drawn by shared.render_bpmn_annotated, as every other annotated model in the
+    platform is. This task used to build the SVG string itself, which is why its
+    arrows, strokes, node corners and legend all differed slightly from the rest
+    — differences a participant comparing two tasks' models would read as
+    meaning something.
+
+    The per-node skip/insert counts the hand-built version printed under each
+    label are gone with it: the shared renderer fits one label to a node and has
+    nowhere to put a second line. The counts are in the table idiom, and the
+    move-type parameter draws skips and inserts separately when they matter.
+    """
+    out_path = os.path.join(output_dir, "task35_flow_chart_elaborate_bpmn.svg")
+    title = "Guideline Violations in Process Model"
     if model_path is None:
-        _save_empty(output_dir, fname, "No process model provided — BPMN file required.")
+        render_empty_state_svg(out_path, title, "No BPMN model available.")
         return
     if not activity_totals:
-        _save_empty(output_dir, fname, "No guideline violations found.")
+        render_empty_state_svg(out_path, title, "No guideline violations found.")
         return
-    svg = _make_bpmn_svg(activity_type, activity_totals, model_path)
-    if svg is None:
-        _save_empty(output_dir, fname, "Could not parse process model.")
+    try:
+        parsed = parse_bpmn_model(model_path)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"      task35: BPMN parse failed: {e}")
+        render_empty_state_svg(out_path, title, "Could not parse the BPMN model.")
         return
-    with open(os.path.join(output_dir, fname), "w", encoding="utf-8") as f:
-        f.write(svg)
+
+    max_v = max(activity_totals.values()) if activity_totals else 0
+
+    def node_style_fn(eid, elem):
+        kind = elem.get("kind", "task")
+        name = elem.get("name", "")
+        if kind == "task":
+            rate = (activity_totals.get(name, 0) / max_v) if max_v else 0.0
+            fill = _violation_shade(rate)
+            tc = "white" if int(fill[1:3], 16) < 0x99 else "#222222"
+            return fill, "#777777", 1.2, tc
+        if kind in {"exclusiveGateway", "parallelGateway"}:
+            return "#FFFFFF", "#777777", 1.2, "#333333"
+        return "#EFEFEF", "#777777", 1.5, "#333333"
+
+    legend_items = [
+        ("#F0F0F0", "#777777", 1.0, "Few / no violations"),
+        ("#9A9A9A", "#777777", 1.0, "Some violations"),
+        ("#444444", "#777777", 1.0, "Most violations"),
+    ]
+    top_act, top_n = "", 0
+    if activity_totals:
+        top_act, top_n = most_common_stable(activity_totals, 1)[0]
+    render_bpmn_annotated(
+        parsed, out_path,
+        title=title,
+        summary=("Activity shade: lighter = fewer violations · darker = more violations"
+                 f"   |   {sum(activity_totals.values())} violations"
+                 f" · most: {top_act} ({top_n})"),
+        node_style_fn=node_style_fn,
+        legend_items=legend_items,
+        legend_center=True,
+    )
 
 
 # ── Idiom 2: flow_chart_elaborate_table ───────────────────────────────────────
