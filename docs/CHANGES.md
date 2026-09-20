@@ -2,6 +2,29 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: The Makefile Goes (2026-09-21)
+
+`make up` / `make down` / `make logs` wrapped three `docker compose` commands
+against the root `docker-compose.yml`. Nothing calls it: `.github/workflows/`
+deploys by invoking `docker compose config`, `build` and `up -d` directly, and
+a search of every file in the repo, hidden ones included, found no reference
+to it outside this log's own record of when it was added (2026-05-07,
+`2f0f1a2`). Its only users were developers running the whole stack locally;
+the project now runs on the university server, deployed from `develop` by the
+self-hosted runner, so that group is empty. `make` is not installed on Windows
+by default either, so half the team could not use it regardless.
+
+`docker-compose.yml` and the six Dockerfiles stay — the deploy workflow builds
+and starts every service through them.
+
+A `prune` target wrapping `docker builder prune -af` was added and then removed
+with the rest of the file. It would have been redundant: `deploy.yml` already
+caps the build cache on every deploy (`docker builder prune -af
+--max-used-space 10GB`, plus `docker image prune -f`), added after the cache
+filled the disk and took MongoDB down on 2026-09-14, and its 10GB ceiling is
+the better policy — the target would have wiped the cache outright and made
+the next build slower for nothing.
+
 ## Session: This Log Moves Into docs/, .claude/ Goes (2026-09-21)
 
 `CHANGES.md` now lives in `docs/` with the rest of the written record, moved
