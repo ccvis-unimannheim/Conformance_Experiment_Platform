@@ -6,23 +6,40 @@ traces?", and `analysis_level` picks which half is answered. At log level the
 task draws task01's sub-log comparison instead (see LEVEL_PARAM below); what
 follows describes the trace level, the default.
 
-Every idiom shows the *same* concrete traces (individual traces, NOT
-aggregated variants) with their conformance fitness, just encoded differently, so
-no idiom exposes more information than another (information equivalence):
+Every idiom shows the *same* concrete traces (individual traces, NOT aggregated
+variants), and every one states each trace's fitness — the "overall degree of
+conformance" the task asks about. That is the payload they share:
 
+  fitness only — how far apart the traces are
     * bar_chart        – one bar per trace in that trace's colour, fitness on the y-axis
-    * table            – Trace | Fitness, one row per trace
-    * line_graph       – fitness profile across the sampled traces
     * matrix           – trace × Fitness grid, numbers only (colourless)
-    * flow_chart_basic     – one chevron strip per trace, each activity coloured
-                             by its alignment move type (needs alignments)
-    * flow_chart_elaborate – the BPMN model drawn once per trace, coloured the
+
+  fitness + alignment — and where the difference comes from
+    * table                – a leading Fitness row, then activity × trace,
+                             cell = "step · move type"
+    * flow_chart_basic     – one chevron strip per trace, labelled with its
+                             fitness, each activity coloured by its alignment
+                             move type (needs alignments)
+    * flow_chart_elaborate – the BPMN model drawn once per trace, subtitled the
                              same way (needs alignments and the model)
 
-Fitness is rounded to 3 decimals in every idiom; there is no #Traces column, no
-conformant/non-conformant colour coding, and no pre-computed differences — the
-participant derives the conformance assessment from the fitness values (the flow
-charts colour individual moves, not whole traces).
+The second family is therefore not information-*equivalent* to the first: it
+adds where the deviations are. Nothing is missing from it, which is what a
+participant needs to answer the question at all. Within it the three differ in
+what they can express: the chevron lays the moves out in alignment order, the
+BPMN adds the model's structure but not that order, and the table carries the
+order as a step number per cell. All three show a log move separately from the
+model task of the same name.
+
+The fitness labels are opt-in on the three shared renderers (``show_fitness``),
+because task09, task14, task27, task28 and task34 reuse them to ask about the
+deviations themselves, where a fitness number would be a payload no other idiom
+of theirs carries.
+
+Fitness is rounded to 3 decimals wherever it appears; there is no #Traces
+column, no conformant/non-conformant colour coding, and no pre-computed
+differences — the participant derives the conformance assessment themselves (the
+alignment idioms mark individual moves, not whole traces).
 
 Public API:
     generate(log, fitness_df, output_dir, trace_ids=None, alignments=None,
@@ -49,8 +66,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 IDIOMS = ["flow_chart_basic", "flow_chart_elaborate",
-          "bar_chart", "table",
-          "line_graph", "matrix"]
+          "bar_chart", "table", "matrix"]
 
 
 import trace_alignment
@@ -150,15 +166,12 @@ from shared import (
 # Default number of traces to sample when the admin doesn't pick specific ones.
 SAMPLE_N = 2
 
-# The bar chart and the line graph give each compared trace one colour, from
-# `categorical_colors` — cividis's blue and yellow ends, the pair task01 and
-# task03 draw their bars with, extended to the 3-4 traces this task also allows.
-# It encodes WHICH trace, never how conformant it is: the task asks the
-# participant to read conformance off the fitness values, so no idiom here
-# colours a trace by conformance.
-#
-# Neutral colour for marks that belong to no single trace (the line itself).
-_LINE_COLOR = GREY_DARK
+# The bar chart gives each compared trace one colour, from `categorical_colors`
+# — cividis's blue and yellow ends, the pair task01 and task03 draw their bars
+# with, extended to the 3-4 traces this task also allows. It encodes WHICH
+# trace, never how conformant it is: the task asks the participant to read
+# conformance off the fitness values, so no idiom here colours a trace by
+# conformance.
 
 # Consistent figure title across every idiom.
 TITLE = "Trace Conformance Fitness"
@@ -294,20 +307,55 @@ def _task04_violation_activities(rows):
     return {str(r["model_move"]) for r in rows if r["moveType"] == "Model Move"}
 
 
-def _task04_move_map(rows):
-    """activity name -> table/chevron colour for one trace, by alignment move
-    type: synchronous move (yellow), model move (grey), log move (dark blue)."""
-    m = {}
+def _task04_move_steps(rows):
+    """[(activity, move type, step)] for one trace, in alignment order.
+
+    Positional, not keyed by activity name. An activity can take part in more
+    than one move of the same trace: in the order-to-cash log a trace executes
+    an extra "Ship Order" (log move) and later skips the modelled "Ship Order"
+    (model move). The name-keyed map this replaces let the second overwrite the
+    first, so the log move — the deviation the task asks about, and the one the
+    chevron draws in navy — never reached the table at all.
+
+    ``step`` is the position in the alignment, which is the order the chevron
+    lays its arrows out in; a model move therefore has a step although the log
+    never executed it.
+    """
+    out = []
     for r in rows:
         mt = r["moveType"]
         if mt == "Synchronous Move":
             a = str(r["log_move"]) if str(r["log_move"]) not in _MISSING else str(r["model_move"])
-            m[a] = GREY_LIGHTER
         elif mt == "Model Move":
-            m[str(r["model_move"])] = GREY_MED
+            a = str(r["model_move"])
         elif mt == "Log Move":
-            m[str(r["log_move"])] = GREY_DARK
-    return m
+            a = str(r["log_move"])
+        else:
+            continue
+        out.append((a, mt, len(out) + 1))
+    return out
+
+
+#: Row-label suffix for a log move — an activity the model does not expect at
+#: that point. It gets a row of its own even when an activity of that name is
+#: also a model task, which is what the BPMN idiom draws as an external badge
+#: rather than colouring the model node.
+_INSERTED_SUFFIX = " (inserted)"
+
+
+def _task04_row_cells(steps):
+    """row label -> "step · move type" for one trace.
+
+    Log moves take their own row label so they cannot collide with the model
+    task of the same name. An activity that appears twice in the *same* role
+    (a modelled loop) still keeps only its first occurrence — rare, and one row
+    per activity is what makes this a table rather than a second chevron.
+    """
+    cells = {}
+    for a, mt, step in steps:
+        key = f"{a}{_INSERTED_SUFFIX}" if mt == "Log Move" else a
+        cells.setdefault(key, f"{step} · {mt}")
+    return cells
 
 
 def _task04_model_task_names(model_path):
@@ -322,8 +370,21 @@ def _task04_model_task_names(model_path):
     return [e.get("name", "") for e in vals if e.get("kind") == "task" and e.get("name")]
 
 
+def _trace_caption(trace, show_fitness: bool) -> str:
+    """"Trace 1", or "Trace 1 — Fitness 0.571" when the caller asks for it.
+
+    Falls back to the bare label when the record carries no fitness, so a caller
+    that builds its own records cannot break on the key.
+    """
+    label = str(trace["label"])
+    if not show_fitness or trace.get("fitness") is None:
+        return label
+    return f"{label} — Fitness {float(trace['fitness']):.3f}"
+
+
 def task04_flow_chart_basic(selected, output_dir: str, model_path=None, *,
-                            filename="task04_flow_chart_basic.svg", title=None):
+                            filename="task04_flow_chart_basic.svg", title=None,
+                            show_fitness=False):
     """Chevron flow chart: one horizontal chevron strip per selected trace, stacked
     so the two traces sit side by side (top vs bottom). Each activity chevron is
     coloured by its alignment move type — Synchronous Move, Model Move or Log Move;
@@ -333,7 +394,13 @@ def task04_flow_chart_basic(selected, output_dir: str, model_path=None, *,
     task28, task34) draw this same figure into their own output directory —
     the figure is the class's, not task04's, and one renderer keeps them from
     drifting into five encodings of one thing. ``title`` is opt-in (None keeps
-    every existing caller's current, title-less layout unchanged)."""
+    every existing caller's current, title-less layout unchanged).
+
+    ``show_fitness`` puts each trace's fitness in its strip label. Opt-in,
+    because it answers task04's question — the overall degree of conformance —
+    and the other tasks in this class ask about the deviations themselves, where
+    a fitness number would be an extra payload no other idiom of theirs carries.
+    """
     path = os.path.join(output_dir, filename)
     if not selected:
         fig, ax = plt.subplots(figsize=(7, 3)); ax.axis("off")
@@ -358,7 +425,8 @@ def task04_flow_chart_basic(selected, output_dir: str, model_path=None, *,
             ax.axis("off")
             ax.text(0.5, 0.5, "(empty trace)", ha="center", va="center",
                     transform=ax.transAxes, fontsize=FONT_ANNOT)
-        ax.set_title(trace["label"], fontsize=FONT_LABEL, loc="left", pad=6)
+        ax.set_title(_trace_caption(trace, show_fitness), fontsize=FONT_LABEL,
+                     loc="left", pad=6)
 
     handles = [mpatches.Patch(facecolor=c, edgecolor="#4a4a4a", label=lbl)
                for lbl, c in _MOVE_LEGEND]
@@ -437,14 +505,18 @@ def _task04_log_move_badges(rows):
 
 def task04_flow_chart_elaborate(selected, model_path, output_dir, *,
                                 filename="task04_flow_chart_elaborate.svg",
-                                title="Trace-Level Conformance on the Process Model"):
+                                title="Trace-Level Conformance on the Process Model",
+                                show_fitness=False):
     """BPMN idiom, information-equivalent to the chevron: the guideline model is
     drawn once per trace (stacked), each model task coloured by that trace's
     alignment — Synchronous Move (yellow) or Model Move / skipped (grey). Log Move
     (inserted) activities aren't part of the model, so they are drawn as external
     navy dashed badges floating above their sequence position (never highlighted on
     a model node). Together the panels + badges encode the three move types the
-    chevron shows."""
+    chevron shows.
+
+    ``show_fitness`` puts each trace's fitness in its panel subtitle; opt-in for
+    the reason given on task04_flow_chart_basic."""
     path = os.path.join(output_dir, filename)
     if not selected or not model_path:
         render_empty_state_svg(path, title, "No traces or model available.")
@@ -462,7 +534,7 @@ def task04_flow_chart_elaborate(selected, model_path, output_dir, *,
     panels = [{
         "parsed": parsed,
         "node_style_fn": _task04_bpmn_node_style(t["rows"]),
-        "subtitle": t["label"],
+        "subtitle": _trace_caption(t, show_fitness),
         # Every log move is drawn as an external badge — never highlighted inside
         # the model, since a log move is not part of the model.
         "badges": _task04_log_move_badges(t["rows"]),
@@ -505,13 +577,22 @@ def task04_bar_chart(tdf: pd.DataFrame, output_dir: str):
 
 def task04_table(selected, model_path, output_dir, *,
                  filename="task04_table.svg",
-                 title="Move Type by Activity Across Traces"):
+                 title="Move Type by Activity Across Traces",
+                 show_fitness=False):
     """Activity × trace move-type table: one row per activity (model tasks plus
-    any inserted ones), one column per compared trace, cell = the alignment move
-    type in that trace (Synchronous Move / Model Move / Log Move). Only activities
-    at least one trace touches are listed; a "—" marks the rare case an activity
-    appears in one trace but not the other. The tabular twin of the chevron /
-    BPMN views, read as plain text (only the header row is coloured)."""
+    any inserted ones), one column per compared trace, cell = the step at which
+    that trace made the move, and the move (Synchronous Move / Model Move / Log
+    Move). Only activities at least one trace touches are listed; a "—" marks an
+    activity one trace touches and another does not.
+
+    The tabular twin of the chevron / BPMN views, read as plain text (only the
+    header row is coloured). The step carries what the rows cannot: the rows sit
+    in model order, so without it a trace that runs two activities out of order
+    reads exactly like one that runs them in order — the chevron shows that, and
+    this table used to lose it.
+
+    ``show_fitness`` puts a leading "Fitness (0-1)" row above the activities;
+    opt-in for the reason given on task04_flow_chart_basic."""
     path = os.path.join(output_dir, filename)
     activities = _task04_model_task_names(model_path)
     if not activities or not selected:
@@ -524,30 +605,36 @@ def task04_table(selected, model_path, output_dir, *,
         save_svg(fig, path)
         return
 
-    move_maps = [_task04_move_map(t["rows"]) for t in selected]
-    # inserted (log-move) activities become extra rows
+    cells_per_trace = [_task04_row_cells(_task04_move_steps(t["rows"])) for t in selected]
+    # Log moves become extra rows, in the order the traces make them.
     inserted = []
-    for mm in move_maps:
-        for a, c in mm.items():
-            if c == GREY_DARK and a not in activities and a not in inserted:
-                inserted.append(a)
+    for cells in cells_per_trace:
+        for key in cells:
+            if key.endswith(_INSERTED_SUFFIX) and key not in inserted:
+                inserted.append(key)
     # keep only activities at least one trace actually touches (drop never-touched)
-    present = set().union(*(set(mm) for mm in move_maps)) if move_maps else set()
+    present = set().union(*(set(c) for c in cells_per_trace)) if cells_per_trace else set()
     rows = [a for a in (list(activities) + inserted) if a in present]
     labels = [t["label"] for t in selected]
-    label_by_color = {c: lbl for lbl, c in _MOVE_LEGEND}
 
     cell_text = []
+    # Fitness leads the table: it is what the task asks for (the overall degree
+    # of conformance), and the move rows below are where that degree comes from.
+    # A column header would carry it too, but at three or four traces the header
+    # widths are what set the figure width.
+    if show_fitness and any(t.get("fitness") is not None for t in selected):
+        cell_text.append(["Fitness (0-1)"] +
+                         [("—" if t.get("fitness") is None
+                           else f"{float(t['fitness']):.3f}") for t in selected])
     for a in rows:
         text_row = [a]
-        for mm in move_maps:
-            c = mm.get(a)
-            text_row.append("—" if c is None else label_by_color.get(c, ""))
+        for cells in cells_per_trace:
+            text_row.append(cells.get(a, "—"))
         cell_text.append(text_row)
 
-    col_labels = ["Activity"] + labels
+    col_labels = ["Activity"] + [f"{lbl} (step · move)" for lbl in labels]
     fig_h = max(3.0, 1.2 + len(cell_text) * 0.46)
-    fig_w = max(6.5, 3.2 + 2.1 * len(labels))
+    fig_w = max(6.5, 3.2 + 2.7 * len(labels))
     fig, ax = plt.subplots(figsize=(fig_w, fig_h))
     ax.axis("off")
     make_table(
@@ -559,35 +646,6 @@ def task04_table(selected, model_path, output_dir, *,
     ax.set_title(title, fontsize=FONT_TITLE, pad=3)
     fig.tight_layout(pad=1.2)
     save_svg(fig, path)
-
-
-def task04_line_graph(tdf: pd.DataFrame, output_dir: str):
-    """Fitness profile across the sampled traces (x = trace, y = fitness).
-
-    The line joins every trace, so it belongs to none of them and stays neutral;
-    the markers carry each trace's own colour, the same one the bar chart gives
-    it."""
-    fig, ax = plt.subplots(figsize=(max(7, len(tdf) * 0.7), 5))
-    x = np.arange(len(tdf))
-    colors = categorical_colors(len(tdf))
-    ax.plot(x, tdf["fitness"], color=_LINE_COLOR, linewidth=1.8, zorder=2)
-    ax.scatter(x, tdf["fitness"], c=colors, s=55, edgecolor="white", linewidth=0.8,
-               zorder=3)
-    ax.fill_between(x, tdf["fitness"], alpha=0.15, color=_LINE_COLOR)
-    for xi, val in zip(x, tdf["fitness"]):
-        ax.text(xi, val + 0.02, f"{val:.3f}", ha="center", va="bottom", fontsize=FONT_ANNOT - 1)
-
-    ax.set_xticks(x)
-    ax.set_xticklabels(tdf["label"], rotation=35, ha="right", fontsize=FONT_ANNOT - 1)
-    ax.set_xlabel("Trace", fontsize=FONT_LABEL)
-    ax.set_ylabel("Fitness (0-1)", fontsize=FONT_LABEL)
-    ax.set_ylim(0, 1.12)
-    ax.set_title(TITLE, fontsize=FONT_TITLE)
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.4)
-    ax.set_axisbelow(True)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task04_line_graph.svg"))
 
 
 def task04_matrix(tdf: pd.DataFrame, output_dir: str):
@@ -677,11 +735,16 @@ def generate(log, fitness_df, output_dir: str, trace_ids=None, alignments=None, 
 
     task04_bar_chart(tdf, output_dir)
     task04_matrix(tdf, output_dir)
-    task04_line_graph(tdf, output_dir)
 
     # Trace-level pattern comparison — chevron, BPMN and the move-type table of
     # the same traces (all need the alignments / model).
     if selected:
-        task04_flow_chart_basic(selected, output_dir, model_path=model_path)
-        task04_flow_chart_elaborate(selected, model_path, output_dir)
-        task04_table(selected, model_path, output_dir)
+        # show_fitness: task04 asks for the overall degree of conformance, so
+        # the alignment idioms state it too and every idiom of this task can
+        # answer the question. The other tasks that reuse these renderers ask
+        # about the deviations themselves and leave it off.
+        task04_flow_chart_basic(selected, output_dir, model_path=model_path,
+                                show_fitness=True)
+        task04_flow_chart_elaborate(selected, model_path, output_dir,
+                                    show_fitness=True)
+        task04_table(selected, model_path, output_dir, show_fitness=True)

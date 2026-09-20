@@ -121,7 +121,8 @@ CANONICAL_TASKS = [
     {
         "task_key": "task04",
         "label": "How does the overall degree of conformance with a set of guidelines differ between multiple logs or traces?",
-        "description": "Compare the trace-level conformance patterns of two traces — where each conforms to or deviates from the guideline.",
+        "description": "Compare how far the traces conform to the guideline overall, and by how much they differ.",
+       
     },
     {
         "task_key": "task05",
