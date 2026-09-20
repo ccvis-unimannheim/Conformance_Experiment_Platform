@@ -293,7 +293,7 @@ function TaskParametersSection({ spec, values, imported, editable, bundleOnly, e
         </p>
         {editable && !bundleOnly && !imported && (
           <Link
-            href={`/admin/experiments/specify?experiment_id=${encodeURIComponent(experimentId)}`}
+            href={`/admin/experiments/specify?experiment_id=${encodeURIComponent(experimentId)}&return_to=overview`}
             className="text-xs text-primary border border-primary/30 px-3 py-1.5 rounded hover:bg-blue-50 transition-colors flex-shrink-0"
           >
             Change on Specify
@@ -434,7 +434,10 @@ function ExperimentSettingsCard({ experiment, experimentId, editable, showToast,
 // always does — is on the defaults, which is a choice the admin never made.
 // The card says what each is now and links to the step that changes it.
 function ParticipantFlowCard({ experiment, experimentId }) {
-  const q = `?experiment_id=${encodeURIComponent(experimentId)}`;
+  // return_to=overview: these steps otherwise send Next on to the next step in
+  // sequence, which would walk the admin through the whole wizard again just to
+  // fix one setting reviewed from here.
+  const q = `?experiment_id=${encodeURIComponent(experimentId)}&return_to=overview`;
   const sections = (list, all) => (list ? list.length : all);
   const prequestionnaire = sections(experiment.prequestionnaire_sections, 4);
   const concepts = sections(experiment.concept_sections, 4);
@@ -994,7 +997,7 @@ function ExperimentOverviewContent() {
             {groupedTasks.map(({ task, idiomIds }) => {
               const tid = getId(task);
               const ti = taskInstancesByTask[tid];
-              const formatHref = `/admin/experiments/answer-format?experiment_id=${encodeURIComponent(experimentId)}`;
+              const formatHref = `/admin/experiments/answer-format?experiment_id=${encodeURIComponent(experimentId)}&return_to=overview`;
               return (
                 <div
                   key={tid}
@@ -1038,7 +1041,7 @@ function ExperimentOverviewContent() {
                           </span>
                         </p>
                         <Link
-                          href={`/admin/experiments/idiom?experiment_id=${encodeURIComponent(experimentId)}`}
+                          href={`/admin/experiments/idiom?experiment_id=${encodeURIComponent(experimentId)}&return_to=overview`}
                           className="text-xs text-primary border border-primary/30 px-3 py-1.5 rounded hover:bg-blue-50 transition-colors flex-shrink-0"
                         >
                           Edit

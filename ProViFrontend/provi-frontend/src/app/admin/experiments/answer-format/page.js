@@ -328,6 +328,11 @@ function AnswerFormatContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const experimentId = searchParams.get("experiment_id");
+  // Set when reached by jumping back from a later step; Next then returns
+  // there instead of continuing forward (see WizardSteps.js) — moot here since
+  // this step's normal next stop is already Overview, but Previous Step still
+  // needs to carry it back in case the admin steps further behind first.
+  const returnTo = searchParams.get("return_to");
 
   const [taskInstances, setTaskInstances] = useState([]);
   const [tasksById, setTasksById] = useState({});
@@ -496,7 +501,7 @@ function AnswerFormatContent() {
     setSaving(true);
     try {
       await persist();
-      router.push(`/admin/experiments/overview?experiment_id=${encodeURIComponent(experimentId)}`);
+      router.push(`/admin/experiments/${returnTo || "overview"}?experiment_id=${encodeURIComponent(experimentId)}`);
     } catch (e) {
       showToast(`Failed to save: ${e.message}`, true);
     } finally {
@@ -611,7 +616,7 @@ function AnswerFormatContent() {
       <div className="border-t border-border-subtle bg-white sticky bottom-0">
         <div className="max-w-[1140px] mx-auto px-8 py-4 flex justify-between items-center">
           <Link
-            href={`/admin/experiments/${bundleOnly ? "idiom" : "specify"}${experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""}`}
+            href={`/admin/experiments/${bundleOnly ? "idiom" : "specify"}${experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""}${returnTo ? `&return_to=${encodeURIComponent(returnTo)}` : ""}`}
             className="text-sm text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors"
           >
             <span className="material-symbols-outlined text-sm">arrow_back</span> Previous Step
@@ -635,7 +640,7 @@ function AnswerFormatContent() {
               disabled={!ready || saving || loading}
               className="flex items-center gap-2 font-button text-button bg-primary text-on-primary px-12 py-3 rounded-lg hover:opacity-90 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              Next
+              {returnTo && returnTo !== "overview" ? "Save & Return" : "Next"}
               <span className="material-symbols-outlined text-sm">chevron_right</span>
             </button>
           </div>

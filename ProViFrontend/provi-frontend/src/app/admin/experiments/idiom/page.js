@@ -298,6 +298,9 @@ function IdiomSelectionContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const experimentId = searchParams.get("experiment_id");
+  // Set when reached by jumping back from a later step; Next then returns
+  // there instead of continuing forward (see WizardSteps.js).
+  const returnTo = searchParams.get("return_to");
 
   const [selectedTasks, setSelectedTasks] = useState([]);
   const [allIdioms, setAllIdioms] = useState([]);
@@ -486,6 +489,10 @@ function IdiomSelectionContent() {
 
     try {
       await queueWizardSave(experimentId, "idiom", { task_configs: buildTaskConfigs(taskIdiomMap) });
+      if (returnTo) {
+        router.push(`/admin/experiments/${returnTo}?experiment_id=${encodeURIComponent(experimentId)}`);
+        return;
+      }
       if (onlyCustom) {
         showToast("Every selected idiom is an uploaded image — no visualizations to generate.");
         router.push(`/admin/experiments/answer-format?experiment_id=${encodeURIComponent(experimentId)}`);
@@ -672,7 +679,7 @@ function IdiomSelectionContent() {
       <div className="border-t border-border-subtle bg-white sticky bottom-0">
         <div className="max-w-[1140px] mx-auto px-8 py-4 flex justify-between items-center">
           <Link
-            href={`/admin/experiments/task${experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""}`}
+            href={`/admin/experiments/task${experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""}${returnTo ? `&return_to=${encodeURIComponent(returnTo)}` : ""}`}
             className="text-sm text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors"
           >
             <span className="material-symbols-outlined text-sm">arrow_back</span> Previous Step
@@ -687,7 +694,7 @@ function IdiomSelectionContent() {
               onClick={handleNext}
               className="flex items-center gap-2 font-button text-button bg-primary text-on-primary px-12 py-3 rounded-lg hover:opacity-90 transition-all active:scale-95"
             >
-              Next
+              {returnTo ? "Save & Return" : "Next"}
               <span className="material-symbols-outlined text-sm">chevron_right</span>
             </button>
           </div>

@@ -17,6 +17,9 @@ export default function NewExperimentPage() {
   // that draft is edited in place. Without one, this is a new experiment and the
   // draft is created as soon as the form has a name and a dataset.
   const resumedId = searchParams.get("experiment_id");
+  // Set when reached by jumping back from a later step; Next then returns
+  // there instead of continuing forward (see WizardSteps.js).
+  const returnTo = searchParams.get("return_to");
   const [experimentId] = useState(() => resumedId || crypto.randomUUID());
   const createdRef = useRef(Boolean(resumedId));
 
@@ -207,7 +210,11 @@ export default function NewExperimentPage() {
         }
         createdRef.current = true;
       }
-      router.push(`/admin/experiments/prequestionnaire?experiment_id=${encodeURIComponent(experimentId)}`);
+      router.push(
+        returnTo
+          ? `/admin/experiments/${returnTo}?experiment_id=${encodeURIComponent(experimentId)}`
+          : `/admin/experiments/prequestionnaire?experiment_id=${encodeURIComponent(experimentId)}`
+      );
     } catch (e) {
       setSubmitError(e.message);
     } finally {
@@ -356,7 +363,7 @@ export default function NewExperimentPage() {
             disabled={isSubmitting}
             className="flex items-center gap-2 text-button bg-primary text-on-primary px-12 py-3 rounded-lg hover:opacity-90 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isSubmitting ? "Saving…" : "Next"}
+            {isSubmitting ? "Saving…" : returnTo ? "Save & Return" : "Next"}
             {!isSubmitting && (
               <span className="material-symbols-outlined text-sm">chevron_right</span>
             )}

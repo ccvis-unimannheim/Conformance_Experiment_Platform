@@ -284,6 +284,9 @@ function SpecifyContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const experimentId = searchParams.get("experiment_id");
+  // Set when reached by jumping back from a later step; Next then returns
+  // there instead of continuing forward (see WizardSteps.js).
+  const returnTo = searchParams.get("return_to");
 
   const [taskInstances, setTaskInstances] = useState([]);
   const [tasksById, setTasksById] = useState({});
@@ -332,7 +335,10 @@ function SpecifyContent() {
       // stepping back, and bouncing forward would trap the admin in a loop
       // between the two.
       if (exp.bundle_only) {
-        router.replace(`/admin/experiments/idiom?experiment_id=${encodeURIComponent(experimentId)}`);
+        router.replace(
+          `/admin/experiments/idiom?experiment_id=${encodeURIComponent(experimentId)}` +
+          (returnTo ? `&return_to=${encodeURIComponent(returnTo)}` : "")
+        );
         return;
       }
 
@@ -567,7 +573,10 @@ function SpecifyContent() {
       showToast(`Could not discard the generated images: ${e.message}`, true);
       return;
     }
-    router.push(`/admin/experiments/idiom?experiment_id=${encodeURIComponent(experimentId)}`);
+    router.push(
+      `/admin/experiments/idiom?experiment_id=${encodeURIComponent(experimentId)}` +
+      (returnTo ? `&return_to=${encodeURIComponent(returnTo)}` : "")
+    );
   }
 
   const allReady = taskInstances.length > 0 && taskInstances.every((ti) => ti.generation_status === "ready");
@@ -581,7 +590,11 @@ function SpecifyContent() {
       showToast("All tasks must finish generating (status: Ready) before continuing.", true);
       return;
     }
-    router.push(`/admin/experiments/answer-format?experiment_id=${encodeURIComponent(experimentId)}`);
+    router.push(
+      returnTo
+        ? `/admin/experiments/${returnTo}?experiment_id=${encodeURIComponent(experimentId)}`
+        : `/admin/experiments/answer-format?experiment_id=${encodeURIComponent(experimentId)}`
+    );
   }
 
   return (
@@ -749,7 +762,7 @@ function SpecifyContent() {
               disabled={!allReady}
               className="flex items-center gap-2 font-button text-button bg-primary text-on-primary px-12 py-3 rounded-lg hover:opacity-90 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              Next
+              {returnTo ? "Save & Return" : "Next"}
               <span className="material-symbols-outlined text-sm">chevron_right</span>
             </button>
           </div>

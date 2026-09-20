@@ -2,6 +2,34 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: Jumping to an Earlier Step Returns There Instead of Marching Forward (2026-09-20)
+
+### Problem solved
+
+The step bar (previous session) let an admin jump from Overview straight to
+Concepts to fix the intro pages, but its Next button did not know that: it
+saved and carried on to Tasks, so returning to Overview still meant clicking
+Next through Tasks, Idioms, Specify and Answer Format again.
+
+### Changes
+
+Every jump made through `WizardSteps` (and the equivalent "View / change" /
+"Change on Specify" / "Edit" links on Overview) now carries `return_to=<page
+jumped from>`. The page landed on reads it: Next saves and goes straight back
+there instead of to its normal next step, its label changes to "Save & Return",
+and its own Previous Step link forwards the same `return_to` — so stepping
+further back and later forward still returns to Overview rather than resuming
+the ordinary forward march.
+
+| File | Change |
+|------|--------|
+| `ProViFrontend/.../components/Admin/WizardSteps.js` | Every step link appends `return_to=<current>`. |
+| `ProViFrontend/.../admin/experiments/overview/page.js` | The Participant flow card's links, the idiom "Edit" link, the answer-format link and "Change on Specify" all carry `return_to=overview`. |
+| `ProViFrontend/.../admin/experiments/{new,prequestionnaire,knowledge,concepts,task,idiom,specify,answer-format}/page.js` | Each reads `return_to`; Next/Save targets it when present (idiom's "all-custom" and specify's "nothing to generate" shortcuts still yield to it), the button reads "Save & Return", and each page's own Previous Step link/handler carries it onward. |
+
+`eslint` — no errors under `admin/experiments` or `components/Admin`, only the
+same 8 pre-existing warnings. Not exercised in a browser.
+
 ## Session: A Step Bar for the Setup Wizard (2026-09-20)
 
 ### Problem solved
