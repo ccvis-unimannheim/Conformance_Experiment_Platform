@@ -1,0 +1,787 @@
+"use client";
+
+import { useState, useEffect, useCallback, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupHeader";
+import Toast from "../../../../components/Admin/Toast";
+import { queueWizardSave } from "../../../../utils/wizardSave";
+
+function getId(obj) {
+  return obj._id || obj.id;
+}
+
+// Mirrors app/answer_formats.py; only used if /admin/answer-formats is unreachable.
+const FALLBACK_ANSWER_FORMATS = [
+  { key: "free-text", label: "Free text", widget: "free_text", needs_options: false },
+];
+const FALLBACK_NUMBER_KINDS = ["percentage", "integer", "decimal"];
+
+const NUMBER_KIND_HINT = {
+  percentage: "0–100, one decimal, shown with a % suffix",
+  integer: "whole numbers ≥ 0",
+  decimal: "any decimal value",
+};
+
+function emptyOption() {
+  return { label: "", value: "" };
+}
+
+function formatByKey(formats, key) {
+  return (formats || []).find((f) => f.key === key);
+}
+
+// --- Option editing ------------------------------------------------------
+//
+// One editor for every option-bearing format (mc-single, mc-multi, rank,
+// matrix, number-set). Options are written by the admin. They used to be
+// importable from an event-log source, which mostly produced rows labelled with
+// the counts the question was about to ask for. They carry no correctness
+// marking; nothing here is graded.
+
+// How much of the value an admin needs to see depends on what reads it:
+//
+//   "structure"  matrix — the participant grid is REBUILT from the value: the
+//                widget splits "a__b" to recover both axes and ignores the
+//                label, which keeps the pair in its original order. Always
+//                shown, never hidden.
+//   "token"      mc-single, mc-multi, rank — the value is what the participant's
+//                click records. Worth a second field only when it should differ
+//                from the displayed text, so it is folded away until then.
+//   "unused"     number-set — NumericSet keys its answers by the LABEL
+//                (`value[label]`), so the value field is never read at all.
+//
+function valueRole(format) {
+  if (format === "matrix") return "structure";
+  if (format === "number-set") return "unused";
+  return "token";
+}
+
+function OptionRows({ options, onChange, wideValue = false, role = "token" }) {
+  // Rows whose value the admin has chosen to write themselves. A row the admin
+  // has not touched mirrors its label (see updateRow), so renaming an option
+  // cannot silently leave the recorded value on the previous wording.
+  const [unfolded, setUnfolded] = useState(() => new Set());
+
+  function updateRow(i, field, val) {
+    onChange(options.map((o, idx) => {
+      if (idx !== i) return o;
+      if (field === "label" && !unfolded.has(i) && (o.value ?? "") === (o.label ?? "")) {
+        return { ...o, label: val, value: val };
+      }
+      return { ...o, [field]: val };
+    }));
+  }
+  function unfold(i) {
+    setUnfolded((prev) => new Set(prev).add(i));
+  }
+  function move(i, dir) {
+    const j = i + dir;
+    if (j < 0 || j >= options.length) return;
+    const next = [...options];
+    [next[i], next[j]] = [next[j], next[i]];
+    onChange(next);
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      {options.map((opt, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <span className="text-xs text-on-surface-variant w-6 text-right tabular-nums">{i + 1}.</span>
+          <input
+            type="text"
+            placeholder="Label (what the participant sees)"
+            value={opt.label ?? ""}
+            onChange={(e) => updateRow(i, "label", e.target.value)}
+            className="flex-1 text-sm border border-border-subtle rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+          {role === "unused" ? null : role === "token"
+            && !unfolded.has(i) && (opt.value ?? "") === (opt.label ?? "") ? (
+            <button
+              onClick={() => unfold(i)}
+              title="Record a different value than the participant sees"
+              className="text-xs text-on-surface-variant hover:text-primary whitespace-nowrap px-2"
+            >
+              recorded as the label
+            </button>
+          ) : (
+            <input
+              type="text"
+              placeholder="Value"
+              value={opt.value ?? ""}
+              onChange={(e) => updateRow(i, "value", e.target.value)}
+              title={opt.value ?? ""}
+              className={`${wideValue ? "w-72" : "w-40"} text-sm border border-border-subtle rounded-lg px-3 py-2 bg-white font-mono text-xs focus:outline-none focus:ring-2 focus:ring-primary/30`}
+            />
+          )}
+          <button
+            onClick={() => move(i, -1)}
+            disabled={i === 0}
+            title="Move up"
+            className="text-on-surface-variant hover:text-primary disabled:opacity-25"
+          >
+            <span className="material-symbols-outlined text-sm">arrow_upward</span>
+          </button>
+          <button
+            onClick={() => move(i, 1)}
+            disabled={i === options.length - 1}
+            title="Move down"
+            className="text-on-surface-variant hover:text-primary disabled:opacity-25"
+          >
+            <span className="material-symbols-outlined text-sm">arrow_downward</span>
+          </button>
+          <button
+            onClick={() => onChange(options.filter((_, idx) => idx !== i))}
+            title="Remove"
+            className="text-on-surface-variant hover:text-error"
+          >
+            <span className="material-symbols-outlined text-sm">delete</span>
+          </button>
+        </div>
+      ))}
+      <button
+        onClick={() => onChange([...options, emptyOption()])}
+        className="self-start text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+      >
+        <span className="material-symbols-outlined text-sm">add</span>
+        {role === "unused" ? " Add row" : " Add option"}
+      </button>
+    </div>
+  );
+}
+
+// --- Matrix: author the axis, not the pairs -------------------------------
+//
+// A matrix option is a pair token "a__b", and the participant's grid is built
+// from it: the widget splits the value to recover both axis members and never
+// reads the label, which is only `a × b` spelled out. So the pair rows carry no
+// decision of their own — N members imply all N(N-1)/2 of them — while asking
+// an admin to type them meant 45 hand-written tokens for a 10-member axis, any
+// one of which could break the whole grid (parsePairs is all-or-nothing) or
+// collide with its own reverse.
+//
+// The editor therefore edits the members and generates the rows, which makes
+// the three invariants the widget depends on — pair shape, no reversed
+// duplicate, label in step with value — impossible to violate by hand.
+
+const PAIR_SEP_TOKEN = "__";
+
+function axisMembersFrom(options) {
+  const members = [];
+  for (const o of options || []) {
+    const parts = String(o?.value ?? "").split(PAIR_SEP_TOKEN);
+    if (parts.length !== 2) return null;          // not pair-shaped: cannot derive
+    for (const part of parts) if (!members.includes(part)) members.push(part);
+  }
+  return members;
+}
+
+function pairsFrom(members) {
+  const out = [];
+  for (let i = 0; i < members.length; i++) {
+    for (let j = i + 1; j < members.length; j++) {
+      out.push({ label: `${members[i]} × ${members[j]}`,
+                 value: `${members[i]}${PAIR_SEP_TOKEN}${members[j]}` });
+    }
+  }
+  return out;
+}
+
+function axisError(members) {
+  const trimmed = members.map((m) => m.trim());
+  if (trimmed.some((m) => !m)) return "Every member needs a name.";
+  if (trimmed.some((m) => m.includes(PAIR_SEP_TOKEN)))
+    return `A member's name cannot contain "${PAIR_SEP_TOKEN}" — that is what separates the two halves of a pair.`;
+  if (new Set(trimmed).size !== trimmed.length) return "Two members have the same name.";
+  if (trimmed.length < 2) return "A matrix needs at least two members.";
+  return "";
+}
+
+function MatrixAxisEditor({ options, onChange }) {
+  const derived = axisMembersFrom(options);
+  const [members, setMembers] = useState(() => derived ?? []);
+  const signature = (derived ?? []).join("\u0000");
+
+  // Follow the stored options when they change underneath us, but not while
+  // the admin is typing: the
+  // draft only reaches `options` once it is valid, so the two agree by then.
+  useEffect(() => {
+    if (derived && derived.join("\u0000") !== members.join("\u0000")
+        && axisError(members)) {
+      setMembers(derived);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signature]);
+
+  function commit(next) {
+    setMembers(next);
+    if (!axisError(next)) onChange(pairsFrom(next.map((m) => m.trim())));
+  }
+  function move(i, dir) {
+    const j = i + dir;
+    if (j < 0 || j >= members.length) return;
+    const next = [...members];
+    [next[i], next[j]] = [next[j], next[i]];
+    commit(next);
+  }
+
+  if (!derived) {
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="flex items-start gap-3 flex-wrap">
+          <p className="text-xs text-error flex-1 min-w-[18rem]">
+            These options were written for another answer format: a matrix cell is a
+            pair, and these are single values, so there is no axis to read back from
+            them. As they stand the participant would see a checkbox list, not a grid.
+          </p>
+          <button
+            onClick={() => onChange([])}
+            className="text-xs font-semibold text-primary hover:underline whitespace-nowrap"
+          >
+            Clear and start from members
+          </button>
+        </div>
+        <OptionRows options={options} onChange={onChange} wideValue role="structure" />
+      </div>
+    );
+  }
+
+  const error = axisError(members);
+  const pairCount = (members.length * (members.length - 1)) / 2;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-[11px] text-on-surface-variant">
+        Name what goes on the axis. The participant picks one on the left and ticks the
+        others it co-occurs with, so every pair of members becomes one cell — they are
+        generated from this list, not written by hand.
+      </p>
+      {members.map((m, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <span className="text-xs text-on-surface-variant w-6 text-right tabular-nums">{i + 1}.</span>
+          <input
+            type="text"
+            placeholder="Axis member (e.g. Ship Order · Model Move)"
+            value={m}
+            onChange={(e) => commit(members.map((x, idx) => (idx === i ? e.target.value : x)))}
+            className="flex-1 text-sm border border-border-subtle rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+          <button
+            onClick={() => move(i, -1)}
+            disabled={i === 0}
+            title="Move up"
+            className="text-on-surface-variant hover:text-primary disabled:opacity-25"
+          >
+            <span className="material-symbols-outlined text-sm">arrow_upward</span>
+          </button>
+          <button
+            onClick={() => move(i, 1)}
+            disabled={i === members.length - 1}
+            title="Move down"
+            className="text-on-surface-variant hover:text-primary disabled:opacity-25"
+          >
+            <span className="material-symbols-outlined text-sm">arrow_downward</span>
+          </button>
+          <button
+            onClick={() => commit(members.filter((_, idx) => idx !== i))}
+            title="Remove"
+            className="text-on-surface-variant hover:text-error"
+          >
+            <span className="material-symbols-outlined text-sm">delete</span>
+          </button>
+        </div>
+      ))}
+      <div className="flex items-center gap-3 flex-wrap">
+        <button
+          onClick={() => commit([...members, ""])}
+          className="self-start text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+        >
+          <span className="material-symbols-outlined text-sm">add</span> Add member
+        </button>
+        <span className="text-[11px] text-on-surface-variant">
+          {members.length} member{members.length === 1 ? "" : "s"} → {pairCount} cell
+          {pairCount === 1 ? "" : "s"}
+        </span>
+      </div>
+      {error && <p className="text-xs text-error">{error} The cells are left as they were.</p>}
+    </div>
+  );
+}
+
+function OptionsEditor({ format, options, onChange }) {
+  const isMatrix = format === "matrix";
+  const role = valueRole(format);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-2 flex-wrap">
+        <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Options</p>
+        <span className="text-xs text-on-surface-variant">
+          {options.length} configured
+        </span>
+      </div>
+
+      {/* How to use this format: a number set's rows are not candidate answers
+          but the categories the question is asked about, which is the one thing
+          about it an admin is likely to expect the other way round. */}
+      {role === "unused" && (
+        <div className="text-xs text-on-surface-variant bg-surface-container-low rounded-lg px-3 py-2.5 flex flex-col gap-1.5">
+          <p>
+            <span className="font-semibold text-on-surface">One number per row.</span>{" "}
+            The participant sees every row you write here and fills a number into each —
+            they do not choose between them. Write one row per category the question asks
+            about: the conformance bands, the violation types, the sub-logs.
+          </p>
+          <p>
+            Set <span className="font-semibold">Number kind</span> above to the shape of a
+            single cell — a percentage, a whole count, or a decimal — and say in the task
+            question what the numbers should add up to, if anything. An answer counts as
+            given once one row is filled, so a participant may leave a row blank rather
+            than guess.
+          </p>
+        </div>
+      )}
+
+      {options.length === 0 && !isMatrix ? (
+        <p className="text-xs text-on-surface-variant italic">
+          {role === "unused"
+            ? "No rows yet — add one per category the question asks about."
+            : "No options yet — add the answers the participant chooses between."}
+        </p>
+      ) : null}
+
+      {options.length > 0 && !isMatrix && (
+        <p className="text-[11px] text-on-surface-variant">
+          <span className="font-semibold">Label</span> is what the participant reads.{" "}
+          {role === "unused" ? (
+            <>This format records one number per option, filed under that label — there is
+            no separate value to set.</>
+          ) : (
+            <>The <span className="font-semibold">value</span> beside it is what a click records
+            in the answer data; it follows the label unless you set it apart, which is worth
+            doing when the label carries counts the data should not.</>
+          )}
+        </p>
+      )}
+
+      {isMatrix ? (
+        <MatrixAxisEditor options={options} onChange={onChange} />
+      ) : (
+        <OptionRows options={options} onChange={onChange} role={role} />
+      )}
+    </div>
+  );
+}
+
+function NumberKindSelector({ kinds, value, onChange }) {
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Number type</p>
+      <select
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value)}
+        className="text-sm border border-border-subtle rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+      >
+        {kinds.map((k) => (
+          <option key={k} value={k}>{k}</option>
+        ))}
+      </select>
+      <span className="text-xs text-on-surface-variant italic">
+        {NUMBER_KIND_HINT[value] || ""}
+      </span>
+    </div>
+  );
+}
+
+// Empty until an admin writes one: the rubric is stored on this experiment's
+// task_instance and applies to this experiment only. Reference text for
+// manually coding answers — it feeds no automatic scoring.
+function RubricEditor({ taskId, rubric, onSave }) {
+  const [draft, setDraft] = useState(rubric ?? "");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setDraft(rubric ?? "");
+  }, [taskId, rubric]);
+
+  const dirty = draft !== (rubric ?? "");
+
+  async function save() {
+    setSaving(true);
+    try {
+      await onSave(draft);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
+        Grading rubric
+      </p>
+      <textarea
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        rows={4}
+        placeholder="Write the grading rubric for this task…"
+        className="w-full max-w-2xl text-sm border border-border-subtle rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+      />
+      <button
+        onClick={save}
+        disabled={!dirty || saving}
+        className="self-start text-xs font-semibold text-primary border border-primary/30 px-3 py-1.5 rounded hover:bg-blue-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        {saving ? "Saving…" : "Save rubric"}
+      </button>
+      <p className="text-[11px] text-on-surface-variant italic">
+        This experiment only; used when coding answers by hand, never for scoring.
+      </p>
+    </div>
+  );
+}
+
+function FormatSelector({ formats, value, onChange }) {
+  return (
+    <select
+      value={value ?? ""}
+      onChange={(e) => onChange(e.target.value)}
+      className="text-sm border border-border-subtle rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+    >
+      <option value="" disabled>Select format…</option>
+      {formats.map((f) => (
+        <option key={f.key} value={f.key}>{f.label || f.key}</option>
+      ))}
+    </select>
+  );
+}
+
+function AnswerFormatContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const experimentId = searchParams.get("experiment_id");
+  // Set when reached by jumping back from a later step; Next then returns
+  // there instead of continuing forward (see WizardSteps.js) — moot here since
+  // this step's normal next stop is already Overview, but Previous Step still
+  // needs to carry it back in case the admin steps further behind first.
+  const returnTo = searchParams.get("return_to");
+
+  const [taskInstances, setTaskInstances] = useState([]);
+  const [tasksById, setTasksById] = useState({});
+  const [idiomsById, setIdiomsById] = useState({});
+  const [answerFormats, setAnswerFormats] = useState(FALLBACK_ANSWER_FORMATS);
+  const [numberKinds, setNumberKinds] = useState(FALLBACK_NUMBER_KINDS);
+  const [defaultNumberKind, setDefaultNumberKind] = useState("decimal");
+  const [loading, setLoading] = useState(true);
+  const [bundleOnly, setBundleOnly] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const [toast, setToast] = useState({ visible: false, message: "", isError: false });
+  const showToast = useCallback((message, isError = false) => {
+    setToast({ visible: true, message, isError });
+  }, []);
+  const hideToast = useCallback(() => setToast((t) => ({ ...t, visible: false })), []);
+
+  useEffect(() => {
+    if (!experimentId) {
+      router.replace("/admin/experiments/task");
+      return;
+    }
+    init();
+  }, [experimentId]);
+
+  async function init() {
+    setLoading(true);
+    try {
+      const [expRes, tasksRes, idiomsRes, formatsRes] = await Promise.all([
+        fetch(`/api/admin/experiments/${experimentId}`),
+        fetch(`/api/admin/tasks?experiment_id=${encodeURIComponent(experimentId)}`),
+        fetch(`/api/admin/idioms`),
+        fetch(`/api/admin/answer-formats`),
+      ]);
+      if (!expRes.ok) throw new Error(`Experiment HTTP ${expRes.status}`);
+      if (!tasksRes.ok) throw new Error(`Tasks HTTP ${tasksRes.status}`);
+      if (!idiomsRes.ok) throw new Error(`Idioms HTTP ${idiomsRes.status}`);
+
+      const [exp, tasks, idioms] = await Promise.all([
+        expRes.json(), tasksRes.json(), idiomsRes.json(),
+      ]);
+      setBundleOnly(!!exp.bundle_only);  // no Specify step in the step bar
+
+      if (formatsRes.ok) {
+        const fmt = await formatsRes.json();
+        if (Array.isArray(fmt.answer_formats) && fmt.answer_formats.length > 0) {
+          setAnswerFormats(fmt.answer_formats);
+        }
+        if (Array.isArray(fmt.number_kinds) && fmt.number_kinds.length > 0) {
+          setNumberKinds(fmt.number_kinds);
+        }
+        if (fmt.default_number_kind) setDefaultNumberKind(fmt.default_number_kind);
+      }
+
+      const tMap = {};
+      tasks.forEach((t) => { tMap[getId(t)] = t; });
+      setTasksById(tMap);
+
+      const iMap = {};
+      idioms.forEach((i) => { iMap[getId(i)] = i; });
+      setIdiomsById(iMap);
+
+      const instances = (exp.task_instances || []).map((ti) => ({
+        ...ti,
+        answer_format: ti.answer_format ?? null,
+        number_kind: ti.number_kind ?? null,
+        answer_options: ti.answer_options ?? [],
+        rubric: ti.rubric ?? "",
+      }));
+      setTaskInstances(instances);
+    } catch (e) {
+      showToast(`Could not load experiment: ${e.message}`, true);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function patchInstance(taskId, patch) {
+    setTaskInstances((prev) =>
+      prev.map((ti) => (ti.task_id === taskId ? { ...ti, ...patch } : ti))
+    );
+  }
+
+  function handleFormatChange(taskId, formatKey) {
+    const fmt = formatByKey(answerFormats, formatKey);
+    setTaskInstances((prev) =>
+      prev.map((ti) => {
+        if (ti.task_id !== taskId) return ti;
+        // Drop state the new format cannot use, so nothing stale is persisted.
+        // A matrix cannot use another format's options at all: its cells are
+        // pair tokens, and a flat set carried over from multiple choice leaves
+        // the editor with an axis it cannot read back.
+        let carried = fmt?.needs_options ? (ti.answer_options || []) : [];
+        if (formatKey === "matrix" && axisMembersFrom(carried) === null) carried = [];
+        return {
+          ...ti,
+          answer_format: formatKey,
+          answer_options: carried,
+          number_kind: fmt?.numeric ? (ti.number_kind || defaultNumberKind) : null,
+        };
+      })
+    );
+  }
+
+  async function persist(instances = taskInstances) {
+    await queueWizardSave(experimentId, "answer-format", { task_instances: instances });
+  }
+
+  async function handleRubricSave(taskId, text) {
+    // The rubric is per experiment now: it lives on the task_instance and is
+    // saved with the rest of the answer shape, not on the shared Task bank.
+    const next = taskInstances.map((ti) =>
+      ti.task_id === taskId ? { ...ti, rubric: text } : ti
+    );
+    setTaskInstances(next);
+    try {
+      await persist(next);
+      showToast("Rubric saved.");
+    } catch (e) {
+      showToast(`Failed to save rubric: ${e.message}`, true);
+    }
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await persist();
+      showToast("Answer formats saved.");
+    } catch (e) {
+      showToast(`Failed to save: ${e.message}`, true);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // A format alone isn't enough: an option-bearing format with no options would
+  // show the participant an empty question.
+  const incomplete = taskInstances.filter((ti) => {
+    if (!ti.answer_format) return true;
+    const fmt = formatByKey(answerFormats, ti.answer_format);
+    return !!fmt?.needs_options && (ti.answer_options || []).length === 0;
+  });
+  const ready = taskInstances.length > 0 && incomplete.length === 0;
+
+  async function handleNext() {
+    if (!ready) {
+      showToast(
+        "Every task needs an answer format, and option-based formats need at least one option.",
+        true
+      );
+      return;
+    }
+    setSaving(true);
+    try {
+      await persist();
+      router.push(`/admin/experiments/${returnTo || "overview"}?experiment_id=${encodeURIComponent(experimentId)}`);
+    } catch (e) {
+      showToast(`Failed to save: ${e.message}`, true);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="bg-surface text-on-surface min-h-screen flex flex-col">
+      <ExperimentSetupHeader experimentId={experimentId} step="answer-format" bundleOnly={bundleOnly} />
+
+      <main className="flex-grow max-w-[1140px] mx-auto w-full px-8 py-10 flex flex-col gap-8">
+        <div className="flex flex-col gap-1">
+          <h1 className="font-h1 text-h1 text-primary mb-2">Answer Format</h1>
+          <p className="font-body-lg text-body-lg text-secondary max-w-2xl">
+            Choose how participants answer each task. Every format is available to every task.
+            Formats that present a closed set need the options written out.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-6">
+          {loading ? (
+            <div className="text-center text-on-surface-variant text-sm py-10 border-2 border-dashed border-outline-variant rounded-lg">
+              <span className="material-symbols-outlined text-3xl block mb-2 text-outline-variant">
+                hourglass_empty
+              </span>
+              Loading…
+            </div>
+          ) : taskInstances.length === 0 ? (
+            <div className="text-center text-on-surface-variant text-sm py-10 border-2 border-dashed border-outline-variant rounded-lg">
+              <span className="material-symbols-outlined text-3xl block mb-2 text-outline-variant">
+                inbox
+              </span>
+              No tasks found for this experiment.
+            </div>
+          ) : (
+            taskInstances.map((ti) => {
+              const task = tasksById[ti.task_id] || {};
+              const fmt = formatByKey(answerFormats, ti.answer_format);
+              return (
+                <div
+                  key={ti.task_id}
+                  className="bg-white rounded-lg border border-border-subtle shadow-sm overflow-hidden"
+                >
+                  <div className="border-l-4 border-primary p-5 flex items-start gap-3">
+                    <span className="text-xs font-bold bg-blue-100 text-primary px-2 py-0.5 rounded flex-shrink-0 mt-0.5">
+                      {task.task_key || ti.task_id}
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold text-on-surface leading-snug">
+                        {task.label || "(unknown task)"}
+                      </p>
+                      {ti.idiom_ids?.length > 0 && (
+                        <p className="text-xs text-on-surface-variant mt-1">
+                          {ti.idiom_ids.map((iid) => idiomsById[iid]?.label || iid).join(", ")}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="p-5 pt-3 border-t border-border-subtle flex flex-col gap-4">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
+                        Answer format
+                      </p>
+                      <FormatSelector
+                        formats={answerFormats}
+                        value={ti.answer_format}
+                        onChange={(key) => handleFormatChange(ti.task_id, key)}
+                      />
+                    </div>
+
+                    {!ti.answer_format ? (
+                      <p className="text-xs text-on-surface-variant italic">
+                        Select an answer format to configure this task.
+                      </p>
+                    ) : (
+                      <>
+                        {fmt?.numeric && (
+                          <NumberKindSelector
+                            kinds={numberKinds}
+                            value={ti.number_kind || defaultNumberKind}
+                            onChange={(kind) => patchInstance(ti.task_id, { number_kind: kind })}
+                          />
+                        )}
+                        {fmt?.needs_options && (
+                          <OptionsEditor
+                            format={ti.answer_format}
+                            options={ti.answer_options || []}
+                            onChange={(options) => patchInstance(ti.task_id, { answer_options: options })}
+                          />
+                        )}
+                      </>
+                    )}
+
+                    <RubricEditor
+                      taskId={ti.task_id}
+                      rubric={ti.rubric ?? ""}
+                      onSave={(text) => handleRubricSave(ti.task_id, text)}
+                    />
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </main>
+
+      <div className="border-t border-border-subtle bg-white sticky bottom-0">
+        <div className="max-w-[1140px] mx-auto px-8 py-4 flex justify-between items-center">
+          <Link
+            href={`/admin/experiments/${bundleOnly ? "idiom" : "specify"}${experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""}${returnTo ? `&return_to=${encodeURIComponent(returnTo)}` : ""}`}
+            className="text-sm text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors"
+          >
+            <span className="material-symbols-outlined text-sm">arrow_back</span> Previous Step
+          </Link>
+          <div className="flex items-center gap-3">
+            {!loading && incomplete.length > 0 && (
+              <span className="text-xs text-on-surface-variant italic">
+                {incomplete.length} task{incomplete.length === 1 ? "" : "s"} still incomplete
+              </span>
+            )}
+            <button
+              onClick={handleSave}
+              disabled={saving || loading}
+              className="flex items-center gap-2 text-sm font-semibold border border-border-subtle text-on-surface-variant px-6 py-2.5 rounded-lg hover:bg-surface-container transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <span className="material-symbols-outlined text-sm">save</span>
+              Save
+            </button>
+            <button
+              onClick={handleNext}
+              disabled={!ready || saving || loading}
+              className="flex items-center gap-2 font-button text-button bg-primary text-on-primary px-12 py-3 rounded-lg hover:opacity-90 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {returnTo && returnTo !== "overview" ? "Save & Return" : "Next"}
+              <span className="material-symbols-outlined text-sm">chevron_right</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <Toast
+        message={toast.message}
+        isError={toast.isError}
+        visible={toast.visible}
+        onHide={hideToast}
+      />
+    </div>
+  );
+}
+
+export default function AnswerFormatPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-surface">
+          <span className="text-on-surface-variant text-sm">Loading…</span>
+        </div>
+      }
+    >
+      <AnswerFormatContent />
+    </Suspense>
+  );
+}

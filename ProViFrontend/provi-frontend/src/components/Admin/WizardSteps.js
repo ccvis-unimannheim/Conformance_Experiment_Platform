@@ -1,0 +1,88 @@
+"use client";
+
+import Link from "next/link";
+
+/**
+ * The setup wizard's steps, as a bar every step shows.
+ *
+ * Each step used to link only to its neighbour, so returning to the first one
+ * from the last meant pressing "Previous Step" eight times — and an experiment
+ * built from a zip could not get back at all, since the step it skips sent it
+ * forward again. Any step already reachable is a link here.
+ *
+ * `current` is the slug of the page rendering it; without an `experimentId`
+ * (a brand-new experiment that has not been created yet) the steps are shown
+ * but inert, since there is no draft to open them for.
+ *
+ * Every jump carries `return_to=<current>`: an experiment already reviewed on
+ * Overview does not need the rest of the wizard walked again to fix one
+ * earlier step, so the page it lands on saves and comes straight back here
+ * instead of proceeding to its normal next step. `return_to` then travels with
+ * that page's own Previous Step link too, so stepping further back and later
+ * forward still returns to where the admin actually started.
+ */
+const STEPS = [
+  { slug: "new", label: "Details" },
+  { slug: "prequestionnaire", label: "Pre-questionnaire" },
+  { slug: "knowledge", label: "Knowledge" },
+  { slug: "concepts", label: "Intro pages" },
+  { slug: "task", label: "Tasks" },
+  { slug: "idiom", label: "Idioms" },
+  { slug: "specify", label: "Specify" },
+  { slug: "answer-format", label: "Answer format" },
+  { slug: "overview", label: "Overview" },
+];
+
+// A bundle experiment's tasks and idioms are exactly what the zip supplied —
+// nothing is generated, and nothing can be added from the shared bank or a
+// dataset — so choosing them is not a step of its wizard the way it is for a
+// dataset-built experiment, and Specify has nothing to do at all. An admin
+// still trims the zip's tasks or idioms from /task and /idiom directly, but
+// the bar does not offer that as a step to march through.
+const HIDDEN_WHEN_BUNDLE = new Set(["task", "idiom", "specify"]);
+
+export default function WizardSteps({ experimentId, current, bundleOnly = false }) {
+  const steps = bundleOnly ? STEPS.filter((s) => !HIDDEN_WHEN_BUNDLE.has(s.slug)) : STEPS;
+
+  return (
+    <nav
+      aria-label="Experiment setup steps"
+      className="bg-surface-container-lowest border-b border-border-subtle"
+    >
+      <div className="max-w-screen-2xl mx-auto px-8 py-2 flex flex-wrap items-center gap-x-1 gap-y-1">
+        {steps.map((step, i) => {
+          const isCurrent = step.slug === current;
+          const href = `/admin/experiments/${step.slug}${
+            experimentId
+              ? `?experiment_id=${encodeURIComponent(experimentId)}&return_to=${encodeURIComponent(current)}`
+              : ""
+          }`;
+          return (
+            <span key={step.slug} className="flex items-center gap-1">
+              {i > 0 && <span className="text-on-surface-variant/40 text-xs">›</span>}
+              {isCurrent || !experimentId ? (
+                <span
+                  aria-current={isCurrent ? "step" : undefined}
+                  className={`text-xs px-2 py-1 rounded ${
+                    isCurrent
+                      ? "font-semibold text-primary bg-primary/5"
+                      : "text-on-surface-variant/50"
+                  }`}
+                >
+                  {step.label}
+                </span>
+              ) : (
+                <Link
+                  href={href}
+                  className="text-xs px-2 py-1 rounded text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors"
+                >
+                  {step.label}
+                </Link>
+              )}
+            </span>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}

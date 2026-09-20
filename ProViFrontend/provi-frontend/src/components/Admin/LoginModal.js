@@ -7,7 +7,12 @@ export default function LoginModal({ onLoginSuccess }) {
   const [errorMessage, setErrorMessage] = useState("");
 
   const handleLogin = async () => {
-    // The pre-computed hash of the correct password change if required
+    // SHA-256 of the admin password. This check runs in the browser and the
+    // hash ships in the public JS bundle, so it only keeps casual visitors off
+    // the admin UI — it is not the security boundary. /admin and /api/admin
+    // are protected by nginx basic auth (provibackend/nginx/nginx.conf).
+    // To change the password, replace this hash with the new password's
+    // SHA-256 hex digest.
     const hashedPassword =
       "e7706d9d5f86be71deb7d7d36be1b68dfb762714fb9520a09cce1a5b4b7d42b6";
 

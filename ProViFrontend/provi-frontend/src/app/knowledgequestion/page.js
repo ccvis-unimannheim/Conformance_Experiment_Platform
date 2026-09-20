@@ -1,169 +1,344 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import Papa from "papaparse";
-import AlertPopup from '../../components/Questionnaire/AlertPopup';
-import ScrollProgressBar from "../../components/WelcomePage/ScrollProgressBar";
-import ExpNavigation from "../../components/General/ExpNavigation";
 
-import "@coreui/coreui/dist/css/coreui.min.css";
+import HeaderLogos from "../../components/General/HeaderLogos";
+import { DEFAULT_INTRO_PAGES, fetchIntroPages, pageAfterKnowledge } from "../../utils/introPages";
 
-export default function KnowledgeComponent() {
+const C = {
+  primary:       "#00305e",
+  primaryDim:    "#002345",
+  surface:       "#f9f9f9",
+  containerLow:  "#f2f4f4",
+  container:     "#ebeeef",
+  containerHigh: "#e4e9ea",
+  onSurface:     "#2d3435",
+  onVariant:     "#5a6061",
+  outline:       "#757c7d",
+  outlineVar:    "#adb3b4",
+  white:         "#ffffff",
+};
+
+function RadioOption({ label, selected, onChange, italic }) {
+  return (
+    <div
+      role="radio"
+      aria-checked={selected}
+      tabIndex={0}
+      onClick={onChange}
+      onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") onChange(); }}
+      style={{
+        display: "flex", alignItems: "center", gap: "0.875rem",
+        padding: "1rem 1.25rem",
+        borderRadius: "0.5rem",
+        border: selected ? `1px solid ${C.primary}` : `1px solid ${C.containerHigh}`,
+        backgroundColor: selected ? "rgba(0,48,94,0.05)" : C.containerLow,
+        cursor: "pointer",
+        marginBottom: "0.5rem",
+        transition: "all 0.15s ease",
+        boxShadow: selected ? `inset 0 0 0 1px ${C.primary}` : "none",
+      }}
+    >
+      <div style={{
+        width: "1rem", height: "1rem", borderRadius: "50%", flexShrink: 0,
+        border: selected ? `5px solid ${C.primary}` : `2px solid ${C.outlineVar}`,
+        backgroundColor: C.white,
+        transition: "border 0.15s ease",
+      }} />
+      <span style={{
+        fontSize: "0.875rem", color: selected ? C.primary : C.onSurface,
+        fontStyle: italic ? "italic" : "normal",
+        fontWeight: selected ? 600 : 400,
+      }}>
+        {label}
+      </span>
+    </div>
+  );
+}
+
+export default function KnowledgeQuestionPage() {
   const router = useRouter();
   const [questions, setQuestions] = useState([]);
+  const [loadingQs, setLoadingQs] = useState(true);
   const [answers, setAnswers] = useState({});
-  const [showModal, setShowModal] = useState(false);
-  const [alertMessage, setAlertMessage] = useState("");
-
-  const csvData = `
-      id,type,question,options
-      1,knowledge,What is process mining?,"A family of data-driven techniques that involves cleaning, transforming, and analyzing raw business data to uncover hidden patterns;A method for extracting data from process models to improve workflow efficiency;A method of creating flowcharts and diagrams to represent processes and optimize operations based on interviews and existing documentation;A family of techniques for discovering, monitoring, and improving real processes by extracting knowledge from event logs"
-      2,knowledge,What is a spaghetti process?,"A process that is heavily automated and linear;A process that is complex because of many interconnected subprocesses but still follows a clear structure;A highly complex, unstructured process with many variations and loops"
-      3,knowledge,What is a process variant?,"A specific activity sequence that corresponds to the control flow of at least one case in the process;A specific activity sequence that represents the 'happy path' and is expected to be followed by all process instances;A specific activity sequence that is part of a longer process execution"
-      4,knowledge,What are business process models for?,"To track and report the performance of business operations in real-time;To illustrate the organizational hierarchy and reporting structure of an organization;To support organizations in communicating, analyzing, documenting, redesigning, improving, monitoring, or implementing processes"
-      5,knowledge,Which of the following answers is NOT a business process modeling notation?,"Petri Net;ERM;BPMN;DFG"
-      6,knowledge,What is a DFG (Directly-Follows-Graph)?,"A diagram showing every possible trace of a process;A graphical notation used to represent business processes, including activities, events, and decision points;A graph that displays the sequence of events directly following each other in a process"
-      7,knowledge,Have you ever worked with a DFG?,"Yes;No"
-  `;
+  const [error, setError] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [skipping, setSkipping] = useState(false);
+  // Which page follows depends on which intro pages the admin enabled.
+  const [introPages, setIntroPages] = useState(null);
 
   useEffect(() => {
-    const parsedData = Papa.parse(csvData.trim(), { header: true }).data;
-    const formattedQuestions = parsedData.map((question) => ({
-      ...question,
-      id: String(question.id),
-      options: question.options
-        ? question.options.split(";").map((opt) => opt.trim())
-        : [],
-    }));
-    setQuestions(formattedQuestions);
+    fetchIntroPages().then(setIntroPages);
   }, []);
 
-  const handleAnswerChange = (e, questionId) => {
-    setAnswers((prevAnswers) => ({
-      ...prevAnswers,
-      [questionId]: e.target.value,
-    }));
-  };
+  const nextPage = pageAfterKnowledge(introPages ?? DEFAULT_INTRO_PAGES);
+  const nextLabel = {
+    "/conformance-terms": "Next: Key Concept",
+    "/taskintro": "Next: Before You Begin",
+  }[nextPage] ?? "Next: Start Tasks";
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  useEffect(() => {
+    fetch("/api/participant/knowledge-questions", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((data) => {
+        const qs = data.questions ?? [];
+        // The admin deselected every question, so there is nothing to ask.
+        // Reached directly (a bookmark, a refresh), this page would otherwise
+        // sit on an empty form whose Continue button can never enable.
+        // replace() rather than push() so it leaves no history entry to
+        // bounce back into.
+        if (qs.length === 0) {
+          setSkipping(true);
+          fetchIntroPages().then((cfg) => router.replace(pageAfterKnowledge(cfg)));
+          return;
+        }
+        setQuestions(qs);
+      })
+      .catch(() => setError("Failed to load knowledge questions. Please refresh the page."))
+      .finally(() => setLoadingQs(false));
+  }, [router]);
 
-    const unansweredQuestions = questions.filter((q) => !answers[q.id]);
+  const isValid = questions.length > 0 && questions.every((q) => answers[q._id] != null);
 
-    if (unansweredQuestions.length > 0) {
-      const missingQuestions = unansweredQuestions
-        .map((q, index) => `${questions.indexOf(q) + 1}. ${q.question}`)
-        .join("\n");
-
-      setAlertMessage(
-        `Please answer the following questions before starting the experiment:\n\n${missingQuestions}`
-      );
-      setShowModal(true);
+  const handleSubmit = async () => {
+    if (!isValid) {
+      setError("Please answer all questions before submitting.");
       return;
     }
-
-    // Create ordered answers using the questions array order
-    const orderedAnswers = questions.map(question => ({
-      questionId: question.id,
-      answer: answers[question.id]
-    }));
-
-    // Map the answers to the required format
-    const sendData = {
-      what_is_process_mining: orderedAnswers[0].answer,
-      spaghetti_process: orderedAnswers[1].answer,
-      what_is_process_variant: orderedAnswers[2].answer,
-      what_are_bpm_for: orderedAnswers[3].answer,
-      which_is_not_bpmn: orderedAnswers[4].answer,
-      what_is_dfg: orderedAnswers[5].answer,
-      worked_with_dfg: orderedAnswers[6].answer
-    };
-
+    setError(null);
+    setSubmitting(true);
     try {
-      const response = await fetch("https://pm-vis.uni-mannheim.de/api/auth/knowledge", {
+      const res = await fetch("/api/auth/knowledge", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(sendData),
+        body: JSON.stringify({ answers }),
       });
-
-      if (!response.ok) {
-        setAlertMessage(`Error submitting your answers: ${response.statusText}`);
-        setShowModal(true);
+      if (!res.ok) {
+        setError("Submission failed. Please try again.");
         return;
       }
-      const responseData = await response.json();
-      console.log("Success: ", responseData.message);
-      router.push("/home");
-    } catch (error) {
-      setAlertMessage(`An unexpected error occurred: ${error.message}`);
-      setShowModal(true);
+      router.push(pageAfterKnowledge(introPages ?? await fetchIntroPages()));
+    } catch {
+      setError("Network error. Please check your connection and try again.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  return (
-    <div>
-      <ExpNavigation />
-      <div className="bg-gray-50 p-10 shadow-xl rounded-lg h-auto w-3/5 mx-auto flex flex-col gap-10 items-center justify-center my-10">
-        <ScrollProgressBar />
-        <h1 className="text-3xl font-bold">Process Visualization Experiment</h1>
-        
-        <AlertPopup
-          visible={showModal}
-          message={alertMessage}
-          onClose={() => setShowModal(false)}
-        />
-        
-        <p className="text-xl mt-6">
-          Please answer in the following the 7 Knowledge Questions. For each question, there is one correct answer. 
-        </p>
-          
-        <div className="flex flex-col gap-6 mt-6">
-          <h2 className="text-3xl font-semibold">Knowledge Questions</h2>
-          {questions.map((q, index) => (
-            <div key={q.id} className="mb-6">
-              <h3 className="font-semibold mb-2 text-2xl">
-                {index + 1}. {q.question}
-              </h3>
-              {q.type === "multiple" || q.type === "knowledge" ? (
-                <div>
-                  {q.options.map((option, idx) => (
-                    <label key={idx} className="block text-xl">
-                      <input
-                        type="radio"
-                        name={`question-${q.id}`}
-                        value={option}
-                        onChange={(e) => handleAnswerChange(e, q.id)}
-                        className="mr-2"
-                      />
-                      {option}
-                    </label>
-                  ))}
-                </div>
-              ) : (
-                <input
-                  type="text"
-                  name={`question-${q.id}`}
-                  placeholder="Your answer"
-                  onChange={(e) => handleAnswerChange(e, q.id)}
-                  className="border p-2 rounded w-full text-m"
-                />
-              )}
-            </div>
-          ))}
-        </div>
+  // Group questions by section_title
+  const sections = questions.reduce((acc, q) => {
+    const key = q.section_title || "Knowledge Questions";
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(q);
+    return acc;
+  }, {});
 
-        <button
-          type="submit"
-          onClick={handleSubmit}
-          className="px-10 py-3 rounded-lg mt-4 self-center bg-blue-500 text-white hover:bg-blue-600"
-        >
-          Enter Experiment
-        </button>
-      </div>
+  // Number questions 1..n in display order, independent of any DB/admin ordering.
+  let questionCounter = 0;
+  const questionNumbers = {};
+  Object.values(sections).forEach((qs) => {
+    qs.forEach((q) => {
+      questionCounter += 1;
+      questionNumbers[q._id] = questionCounter;
+    });
+  });
+
+  // Seeded question text may already carry a leading "4. " style number; strip it
+  // so it doesn't clash with the display number computed above.
+  const stripLeadingNumber = (text) => text.replace(/^\s*\d+\s*[.)、]\s*/, "");
+
+  return (
+    <div style={{ backgroundColor: C.surface, color: C.onSurface, minHeight: "100vh", fontFamily: "'Inter', Arial, sans-serif" }}>
+
+      {/* ── Top Nav */}
+      <header style={{
+        position: "fixed", top: 0, left: 0, width: "100%", zIndex: 50,
+        backgroundColor: C.white,
+        borderBottom: `1px solid ${C.containerHigh}`,
+        height: "4rem",
+        display: "flex", alignItems: "center", padding: "0 2rem",
+        boxSizing: "border-box",
+      }}>
+        <div style={{
+          maxWidth: "56rem", margin: "0 auto", width: "100%",
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+        }}>
+          <HeaderLogos />
+          <div />
+        </div>
+      </header>
+
+      {/* ── Main */}
+      <main style={{ paddingTop: "6rem", paddingBottom: "6rem", minHeight: "100vh" }}>
+        <div style={{ maxWidth: "48rem", margin: "0 auto", padding: "0 1.5rem" }}>
+
+          <header style={{ marginBottom: "2.5rem", textAlign: "center" }}>
+            <h1 style={{
+              fontFamily: "'Work Sans', 'Inter', sans-serif",
+              fontSize: "1.875rem", fontWeight: 700,
+              color: C.primary, letterSpacing: "-0.02em", marginBottom: "0.5rem",
+            }}>
+              Knowledge Survey
+            </h1>
+            <p style={{ fontSize: "0.875rem", color: C.onVariant, maxWidth: "36rem", margin: "0 auto" }}>
+              Please answer the following questions based on your current knowledge. If you are unsure, select{" "}
+              <strong style={{ color: C.primary }}>&ldquo;I don&apos;t know.&rdquo;</strong>{" "}
+              There is no penalty for choosing that option.
+            </p>
+          </header>
+
+          {loadingQs || skipping ? (
+            <div style={{ textAlign: "center", padding: "4rem", color: C.onVariant }}>Loading questions…</div>
+          ) : error && questions.length === 0 ? (
+            <div style={{
+              padding: "0.875rem 1.25rem",
+              backgroundColor: "#fef2f2", border: "1px solid #fecaca",
+              borderRadius: "0.5rem", color: "#dc2626", fontSize: "0.875rem", fontWeight: 500,
+            }}>{error}</div>
+          ) : (
+            <div style={{
+              backgroundColor: C.white,
+              border: `1px solid ${C.containerHigh}`,
+              borderRadius: "0.75rem",
+              boxShadow: "0 1px 4px rgba(45,52,53,0.06)",
+              overflow: "hidden",
+            }}>
+              <div style={{ padding: "3rem", display: "flex", flexDirection: "column", gap: "3rem" }}>
+
+                {/* ── Knowledge sections (from DB) */}
+                {Object.entries(sections).map(([sectionTitle, qs], sIdx) => (
+                  <React.Fragment key={sectionTitle}>
+                    {sIdx > 0 && (
+                      <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />
+                    )}
+                    <section>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "2rem" }}>
+                        <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>rule</span>
+                        <h2 style={{ fontSize: "1.25rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>{sectionTitle}</h2>
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "2.5rem" }}>
+                        {qs.map((q) => (
+                          <div key={q._id}>
+                            <label style={{ display: "block", marginBottom: "0.75rem", fontSize: "0.875rem", fontWeight: 600, color: C.onSurface, whiteSpace: "pre-line" }}>
+                              {questionNumbers[q._id]}. {stripLeadingNumber(q.text)}
+                            </label>
+                            <div style={{ marginTop: "0.75rem" }}>
+                              {q.options.map((opt, optIdx) => (
+                                <RadioOption
+                                  key={optIdx}
+                                  label={opt}
+                                  selected={answers[q._id] === optIdx}
+                                  italic={opt === "I don't know"}
+                                  onChange={() => setAnswers((prev) => ({ ...prev, [q._id]: optIdx }))}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  </React.Fragment>
+                ))}
+
+              </div>
+
+              {/* ── CTA area */}
+              <div style={{
+                backgroundColor: C.containerLow,
+                borderTop: `1px solid ${C.containerHigh}`,
+                padding: "2rem 3rem",
+                display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem",
+              }}>
+                <button
+                  type="button"
+                  onClick={() => router.push("/prequestionnaire")}
+                  style={{
+                    padding: "0.75rem 2rem", borderRadius: "0.5rem", border: "none",
+                    backgroundColor: "transparent", color: C.onVariant,
+                    fontWeight: 600, fontSize: "0.875rem", cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: "0.5rem",
+                    transition: "background-color 0.15s ease",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = C.container; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: "1.1rem" }}>arrow_back</span>
+                  Back
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                  style={{
+                    padding: "0.75rem 2.5rem", borderRadius: "0.5rem", border: "none",
+                    backgroundColor: isValid && !submitting ? C.primary : C.outlineVar,
+                    color: C.white, fontWeight: 700, fontSize: "0.875rem",
+                    cursor: isValid && !submitting ? "pointer" : "not-allowed",
+                    boxShadow: isValid && !submitting ? "0 2px 8px rgba(0,48,94,0.25)" : "none",
+                    display: "flex", alignItems: "center", gap: "0.5rem",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  {submitting ? "Submitting…" : nextLabel}
+                  <span className="material-symbols-outlined" style={{ fontSize: "1.1rem" }}>arrow_forward</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {error && questions.length > 0 && (
+            <div style={{
+              marginTop: "1rem", padding: "0.875rem 1.25rem",
+              backgroundColor: "#fef2f2", border: "1px solid #fecaca",
+              borderRadius: "0.5rem", color: "#dc2626", fontSize: "0.875rem", fontWeight: 500,
+            }}>
+              {error}
+            </div>
+          )}
+        </div>
+      </main>
+
+      {/* ── Sticky Footer */}
+      <footer style={{
+        position: "fixed", bottom: 0, left: 0, width: "100%",
+        padding: "0.75rem 2rem",
+        backgroundColor: "rgba(255,255,255,0.85)",
+        backdropFilter: "blur(8px)",
+        borderTop: `1px solid ${C.containerHigh}`,
+        zIndex: 40, boxSizing: "border-box",
+      }}>
+        <div style={{
+          maxWidth: "56rem", margin: "0 auto",
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+        }}>
+          <span style={{ fontSize: "10px", color: C.onVariant, textTransform: "uppercase", letterSpacing: "0.15em", fontWeight: 500 }}>
+            © University of Mannheim
+          </span>
+          <div style={{ display: "flex", gap: "1.5rem" }}>
+            {[
+              { label: "Imprint",                    href: "/imprint" },
+              { label: "About",                       href: "/about" },
+              { label: "Data Protection Declaration", href: "/dataprotection" },
+            ].map(({ label, href }) => (
+              <Link key={label} href={href} style={{
+                fontSize: "10px", color: C.onVariant,
+                textTransform: "uppercase", letterSpacing: "0.15em", fontWeight: 500,
+                textDecoration: "none", transition: "color 0.15s ease",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = C.primary; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = C.onVariant; }}
+              >
+                {label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

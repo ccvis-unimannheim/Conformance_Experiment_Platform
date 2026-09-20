@@ -5,18 +5,24 @@ import os
 
 import ProViBackend.app.datamodels.data_schemas as ds
 
-# Todo: Add test assert script to test connection by calling db.client.admin.command("ping")
+_client: MongoClient | None = None
+
+
 def connect_to_database():
-    load_dotenv()
-    db_username = os.environ["LOCAL_DATABASE_USERNAME"]
-    db_password = os.environ["LOCAL_DATABASE_PASSWORD"]
-    uri = f"mongodb://{db_username}:{db_password}@mongo:27017/TeamProject?authSource=admin"
-    try:
-        client = MongoClient(uri, server_api=ServerApi('1'))
-        db_client = client.get_database("TeamProject")
-        return db_client
-    except Exception as e:
-        raise Exception("Unable to connect to the database due to the following error: ", e)
+    """Returns the TeamProject database. The MongoClient is created once and reused (singleton)."""
+    global _client
+    if _client is None:
+        load_dotenv()
+        db_username = os.environ["LOCAL_DATABASE_USERNAME"]
+        db_password = os.environ["LOCAL_DATABASE_PASSWORD"]
+        uri = f"mongodb://{db_username}:{db_password}@mongo:27017/TeamProject?authSource=admin"
+        try:
+            _client = MongoClient(uri, server_api=ServerApi('1'))
+            _client.admin.command("ping")
+        except Exception as e:
+            _client = None
+            raise Exception("Unable to connect to the database due to the following error: ", e)
+    return _client.get_database("TeamProject")
 
 
 def create_user(user: ds.User):
@@ -24,6 +30,18 @@ def create_user(user: ds.User):
     users_collection = db["User"]
     users_collection.insert_one(user.model_dump())
     print("User created successfully in database")
+
+
+def user_exists(user_id: str) -> bool:
+    """True if this user_id was issued by this app (i.e. POST /auth/ created a User for it).
+
+    Participant endpoints read the user id straight out of the session cookie.
+    Other apps are served from this same origin (see provibackend/nginx/nginx.conf),
+    so without this check a cookie minted elsewhere is accepted as a participant
+    and its rows land in this study's collections joined to nobody.
+    """
+    db = connect_to_database()
+    return db["User"].count_documents({"user_id": user_id}, limit=1) > 0
 
 
 def create_dataset(dataset: ds.Dataset):
@@ -43,11 +61,11 @@ def create_answer(answer: ds.AnswerForDatabase):
 def update_dataset_is_active_status(dataset_id: str, is_active: bool):
     db = connect_to_database()
     dataset_collection = db["Dataset"]
-    dataset_collection.update_one({"dataset_id": dataset_id}, {"$set": {"dataset_is_active": is_active}})
+    dataset_collection.update_one({"dataset_id": dataset_id}, {"$set": {"is_active": is_active}})
     print("Dataset is_active status updated successfully in database")
 
 
-def get_query_db(collection: str, query=None, projection=None) -> list :
+def get_query_db(collection: str, query=None, projection=None) -> list:
     if query is None:
         query = {}
     db = connect_to_database()
@@ -59,15 +77,106 @@ def get_query_db(collection: str, query=None, projection=None) -> list :
     return list(res)
 
 
-def update_user_knowledge_answers(user_id: str, knowledge_answers: ds.KnowledgeAnswers):
+def save_knowledge_answers(user_id: str, knowledge_answers: ds.KnowledgeAnswers):
     db = connect_to_database()
+    knowledge_collection = db["KnowledgeAnswers"]
+    knowledge_collection.insert_one(knowledge_answers.model_dump(by_alias=True))
     user_collection = db["User"]
-    user_collection.update_one({"user_id": user_id}, {"$set": {"knowledge_answers": knowledge_answers.model_dump()}})
-    print("User knowledge answers updated successfully in database")
+    user_collection.update_one({"user_id": user_id}, {"$set": {"knowledge_id": knowledge_answers.id}})
+    print("Knowledge answers saved and User.knowledge_id updated successfully in database")
 
 
 def save_ui_logging_data(ui_log_database: ds.UILogDataDatabase):
     db = connect_to_database()
     ui_log_collection = db["UILogging"]
-    ui_log_collection.insert_one(ui_log_database.model_dump())
+    for log_entry in ui_log_database.ui_log_data.ui_logs:
+        ui_log_collection.insert_one(log_entry.model_dump())
     print("UI logging data saved successfully in database")
+
+
+def create_document(collection_name: str, data: dict):
+    db = connect_to_database()
+    collection = db[collection_name]
+    collection.insert_one(data)
+    print(f"Document created successfully in collection '{collection_name}'")
+
+
+def update_document(collection_name: str, query: dict, update: dict) -> bool:
+    db = connect_to_database()
+    collection = db[collection_name]
+    result = collection.update_one(query, update)
+    return result.matched_count > 0
+
+
+def delete_document(collection_name: str, query: dict) -> bool:
+    """Deletes a single document matching the query. Returns True if a document was deleted."""
+    db = connect_to_database()
+    collection = db[collection_name]
+    result = collection.delete_one(query)
+    return result.deleted_count > 0
+
+
+def get_document(collection_name: str, query: dict) -> dict | None:
+    """Returns a single document matching the query, or None if not found."""
+    db = connect_to_database()
+    collection = db[collection_name]
+    return collection.find_one(query)
+
+
+def _find_custom_task(field: str, value: str) -> dict | None:
+    """Look up an experiment-scoped custom task (Experiment.custom_tasks) by one field."""
+    db = connect_to_database()
+    exp = db["Experiment"].find_one(
+        {f"custom_tasks.{field}": value},
+        {"custom_tasks": {"$elemMatch": {field: value}}},
+    )
+    tasks = (exp or {}).get("custom_tasks") or []
+    return tasks[0] if tasks else None
+
+
+def get_task(task_id: str) -> dict | None:
+    """Resolve a task_id to its Task document.
+
+    Checks the shared Task question bank first, then the custom tasks an admin
+    added to a single experiment (stored on that Experiment, never in Task).
+    """
+    if not task_id:
+        return None
+    return get_document("Task", {"_id": task_id}) or _find_custom_task("_id", task_id)
+
+
+def get_custom_task_by_key(task_key: str) -> dict | None:
+    """Return the experiment-scoped custom task with this task_key, or None."""
+    if not task_key:
+        return None
+    return _find_custom_task("task_key", task_key)
+
+
+def get_user_assignment(user_id: str, experiment_id: str) -> dict | None:
+    """Returns the UserAssignment for a given user and experiment, or None if not found."""
+    return get_document("UserAssignment", {"user_id": user_id, "experiment_id": experiment_id})
+
+
+def update_trial_index(assignment_id: str, new_index: int) -> bool:
+    """Updates current_trial_index for a UserAssignment. Returns True if the document was found."""
+    return update_document(
+        "UserAssignment",
+        query={"_id": assignment_id},
+        update={"$set": {"current_trial_index": new_index}},
+    )
+
+
+def create_experiment(experiment: ds.Experiment):
+    db = connect_to_database()
+    db["Experiment"].insert_one(experiment.model_dump())
+    print("Experiment created successfully in database")
+
+
+def get_experiment(experiment_id: str) -> dict | None:
+    db = connect_to_database()
+    return db["Experiment"].find_one({"experiment_id": experiment_id}, {"_id": 0})
+
+
+def update_experiment(experiment_id: str, fields: dict):
+    db = connect_to_database()
+    db["Experiment"].update_one({"experiment_id": experiment_id}, {"$set": fields})

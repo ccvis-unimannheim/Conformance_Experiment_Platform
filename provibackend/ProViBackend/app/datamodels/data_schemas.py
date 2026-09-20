@@ -1,54 +1,157 @@
-from pydantic import BaseModel
-from typing import List
+from pydantic import BaseModel,Field, ConfigDict
+from typing import List, Optional, Dict, Any
 
-class PreEliminaryAnswers(BaseModel):
+class PreliminaryAnswersRequest(BaseModel):
+    """Request body from frontend — no _id, generated server-side."""
+    gender: str
+    age_range: str                   # e.g. "18–24"
+    education: str
+    role: str
+    field_of_study: str
+    rating_business_process_management: int # 1–5
+    rating_process_mining: int       # 1–5
+    rating_conformance_checking: int # 1–5
+    years_experience: int            # 0–15
+    tools: List[str] = []            # PM tools used (moved from knowledge survey)
+
+class PreliminaryAnswers(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    id: str = Field(alias="_id")
     gender: str
     age: int
     professional_background: str
-    experience_time_process_mining: str
-    frequency_process_mining: str
-    expertise_level_process_mining: str
+    experience_time_pm: str
+    frequency_pm: str
+    expertise_level_pm: str
 
 class KnowledgeAnswers(BaseModel):
-    what_is_process_mining: str
-    spaghetti_process: str
-    what_is_process_variant: str
-    what_are_bpm_for: str
-    which_is_not_bpmn: str
-    what_is_dfg: str
-    worked_with_dfg: str
+    model_config = ConfigDict(populate_by_name=True)
+    id: str = Field(alias="_id")
+    notes: str
+    score: int
+    level: int
+
+class KnowledgeAnswersRequest(BaseModel):
+    answers: Dict[str, int]   # {question_id: option_index}
+    tools: List[str] = []
+
+class KnowledgeQuestion(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    id: str = Field(alias="_id")
+    section_title: str
+    text: str
+    options: List[str]
+    include_idk: bool
+    correct_option_index: Optional[int]
+    is_system: bool
+    created_at: str
+
+class KnowledgeQuestionCreate(BaseModel):
+    section_title: str
+    text: str
+    options: List[str]          # does NOT include "I don't know" (added automatically if include_idk=True)
+    include_idk: bool = False
+    correct_option_index: Optional[int] = None
+
+class KnowledgeQuestionIds(BaseModel):
+    knowledge_question_ids: List[str]
+    current_step: Optional[str] = None
+
+class PrequestionnaireSections(BaseModel):
+    sections: List[str]  # e.g. ["personal_info", "academic_profile", "technical_expertise", "tool_experience"]
+    current_step: Optional[str] = None
+
+class IntroPageSections(BaseModel):
+    concept_sections: List[str]    # Key Concepts page (/conformance-terms); empty = page skipped
+    taskintro_sections: List[str]  # Before You Begin page (/taskintro); empty = page skipped
+    # Per-page citation at the bottom of the page. Text None/blank = the default Carmona et al. (2018) reference.
+    concept_citation_enabled: bool = True
+    concept_citation_text: Optional[str] = None
+    taskintro_citation_enabled: bool = True
+    taskintro_citation_text: Optional[str] = None
+    current_step: Optional[str] = None
+
+class FeedbackAnswersRequest(BaseModel):
+    # Keyed by the `key` of each question in the endpage's QUESTIONS (the NASA-TLX
+    # items mentalDemand … frustration, currently commented out, so this arrives
+    # empty). The admin export's "End Survey" sheet exports every key it finds
+    # (RATING_LABELS in routers/admin.py names the known ones).
+    ratings:  dict
+    feedback: str | None = None
 
 class User(BaseModel):
     user_id: str
-    dataset_id: str
-    pre_eliminary_answers: PreEliminaryAnswers
+    preliminary_id: str
+    knowledge_id: str
+    insert_datetime: str
 
 class Dataset(BaseModel):
     dataset_id: str
     dataset_title: str
-    dataset_checksum: str
+    checksum: str
+    is_active: bool
+    location: str
+
+class DatasetFile(BaseModel):
+    filename: str
+    location: str
+    checksum: str
+
+class DatasetPair(BaseModel):
+    dataset_id: str
+    dataset_title: str
     dataset_is_active: bool
-    dataset_location: str
     insert_datetime: str
+    log: DatasetFile
+    guideline: DatasetFile
 
 class DatasetFromFrontend(BaseModel):
     dataset_id: str
     dataset_title: str
-    dataset_is_active: bool
+    is_active: bool
 
 class ListDatasetsFromFrontend(BaseModel):
     datasets: List[DatasetFromFrontend]
 
 class AnswerFromFrontend(BaseModel):
+    experiment_id: Optional[str] = None
     question_id: str
+    task_id: str
+    idiom_id: str
+    dataset_id: str
+    trial_index: int
+    presentation_order: int
     answer: str
+    response_time_ms: int
+    capabilities_meet_requirements: Optional[int] = None
+    easy_to_use: Optional[int] = None
 
 class AnswerForDatabase(BaseModel):
     user_id: str
-    answer: AnswerFromFrontend
+    group_id: Optional[str] = None
+    experiment_id: Optional[str] = None
+    question_id: str
+    task_id: str
+    idiom_id: str
+    dataset_id: str
+    trial_index: int
+    presentation_order: int
+    answer: str
+    response_time_ms: int
+    capabilities_meet_requirements: Optional[int] = None
+    easy_to_use: Optional[int] = None
     insert_datetime: str
 
 class UILogging(BaseModel):
+    user_id: str
+    group_id: str
+    experiment_id: str
+    question_id: str
+    task_id: str
+    idiom_id: str
+    dataset_id: str
+    trial_index: int
+    presentation_order: int
     activity: str
     uiElement: str
     uiGroup: str
@@ -56,9 +159,212 @@ class UILogging(BaseModel):
     insert_datetime: str
 
 class UILogDataFrontend(BaseModel):
-    question_id: str
+    ui_logs: List[UILogging]
+
+class UILogBatch(BaseModel):
+    """Frontend sends a batch of UI logs"""
     ui_logs: List[UILogging]
 
 class UILogDataDatabase(BaseModel):
-    user_id: str
     ui_log_data: UILogDataFrontend
+
+
+class FitnessHelpEvent(BaseModel):
+    """One open→close interaction with the fitness help popup."""
+    experiment_id: Optional[str] = None
+    open_index: int             # which open this was (1-based cumulative counter)
+    open_datetime: Optional[str] = None  # ISO timestamp when the user clicked to open
+    dwell_ms: int               # ms the popup was visible
+    insert_datetime: str        # ISO timestamp when the popup was closed / event was posted
+
+
+class TermHelpEvent(BaseModel):
+    """One open→close interaction with a per-task term explanation chip."""
+    experiment_id: Optional[str] = None
+    task_key: str               # e.g. "task06"
+    term_key: str               # e.g. "degree_of_conformance"
+    open_index: int             # cumulative open count for this term in this session
+    open_datetime: Optional[str] = None
+    dwell_ms: int
+    insert_datetime: str
+
+
+class Administrator(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    id: str = Field(alias="_id")
+    username: str
+    password_hash: str
+    email: str
+    role: str
+    last_login: Optional[str] = None
+    created_at: str
+
+class TaskConfig(BaseModel):
+    task_id: str
+    idiom_id: str
+    dataset_id: str
+    question_ids: List[str]
+    # Legacy copy of the question bank frozen onto this config; see TaskInstance.
+    task_key: Optional[str] = None
+    label: Optional[str] = None
+    description: Optional[str] = None
+
+class OptionItem(BaseModel):
+    """One option in the closed set a participant chooses from / fills in."""
+    label: str
+    value: str = ""
+
+class TaskInstance(BaseModel):
+    """One task in an experiment, grouping its idioms + shared params/answer shape."""
+    task_id: str
+    dataset_id: str = ""
+    idiom_ids: List[str] = []
+    parameters: Dict[str, Any] = {}
+    # Answer shape — any task may use any format (app/answer_formats.py).
+    answer_format: Optional[str] = None
+    number_kind: Optional[str] = None    # percentage | integer | decimal (numeric formats)
+    answer_options: List[OptionItem] = []  # option-bearing formats only
+    # Reference text for whoever codes free-text answers by hand — never shown to
+    # a participant, feeds no automatic scoring. Per experiment (like the answer
+    # shape above), so one experiment's rubric is not forced on every other.
+    rubric: Optional[str] = None
+    generation_status: str = "pending"   # pending | running | ready | failed
+    generation_error: Optional[str] = None
+    # Set when this task's images came from an idiom bundle import: where they
+    # came from. While set, `parameters` are the ones those images were drawn
+    # with and cannot be edited (PATCH keeps them); reverting the import clears it.
+    images_imported_from: Optional[Dict[str, Any]] = None
+    question_ids: List[str] = []
+    # `task_key` identifies which generator drew this task's figures and is
+    # always stamped. The three wording fields are a legacy copy of the question
+    # bank, frozen here before Experiment.task_overrides existed; they still
+    # outrank the bank so an experiment that has run keeps the text its
+    # participants saw. scripts/reseed_task_questions.py --apply clears them.
+    task_key: Optional[str] = None
+    label: Optional[str] = None
+    description: Optional[str] = None
+
+class Experiment(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    id: str = Field(alias="_id")
+    name: str
+    type: str
+    status: str
+    design_type: str
+    between_factors: List[str]
+    within_factors: List[str]
+    stratification_fields: List[str]
+    between_balance_mode: str
+    within_sequence_mode: str
+    dataset_ids: List[str]
+    task_configs: List[TaskConfig] = []      # legacy flat view (mirror of task_instances)
+    task_instances: List[TaskInstance] = []  # canonical: one entry per task
+    # Questions this experiment asks in its own words: task_id -> {label,
+    # description}, written when an admin edits a task on /task or
+    # /overview. Every task missing here is asked in the shared question bank's
+    # words, so a correction to seed_data.py reaches it (app/task_wording.py).
+    task_overrides: Dict[str, Dict[str, str]] = {}
+    # The questions this experiment asks. An empty list is a real answer — the
+    # admin deselected every one — so it cannot *also* mean "not chosen yet";
+    # that is what the flag below is for. Experiments written before the flag
+    # existed have it absent (False) and so keep the old all-system default.
+    knowledge_question_ids: List[str] = []
+    knowledge_questions_configured: bool = False
+    prequestionnaire_sections: List[str] = ["personal_info", "academic_profile", "technical_expertise", "tool_experience"]  # enabled sections
+    concept_sections: List[str] = ["process_model", "event_log", "attribute", "guideline"]  # Key Concepts page; empty = page skipped
+    taskintro_sections: List[str] = ["the_process", "what_to_expect", "alignment", "violation", "conformant_traces", "fitness"]  # Before You Begin page; empty = page skipped
+    concept_citation_enabled: bool = True
+    concept_citation_text: Optional[str] = None     # None = default Carmona et al. (2018) reference
+    taskintro_citation_enabled: bool = True
+    taskintro_citation_text: Optional[str] = None   # None = default Carmona et al. (2018) reference
+    process_model_ext: Optional[str] = None  # extension of the uploaded process model image; None = bundled order-to-cash diagram
+    current_step: Optional[str] = None  # wizard route slug the admin last reached, e.g. "task", "specify"
+    # Tasks an admin added for this experiment only (see POST
+    # /admin/experiments/{id}/custom-tasks). Same shape as a Task document, but
+    # never written to the shared Task question bank, so other experiments don't
+    # see them; they are deleted together with the experiment.
+    custom_tasks: List[Dict[str, Any]] = []
+    # Built from an uploaded idiom bundle (POST /admin/experiments/from-bundle):
+    # every image comes from that zip, so the experiment has no dataset and
+    # nothing to generate. /specify is skipped, the generate endpoint refuses it
+    # and a dataset cannot be attached afterwards — regenerating would replace
+    # the very images the admin uploaded.
+    bundle_only: bool = False
+    created_by: str             # FK → Administrator
+    created_at: str
+
+class UserAssignment(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    id: str = Field(alias="_id")
+    experiment_id: str
+    user_id: str
+    group_id: str
+    assigned_between: Dict[str, str]
+    trial_sequence: List[str]
+    # Not live progress: 0 until POST /participant/complete sets it to
+    # len(trial_sequence). In practice a "has finished" marker, which is what the
+    # admin stats count as completed.
+    current_trial_index: int
+    insert_datetime: str
+
+class Task(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    id: str = Field(alias="_id")
+    task_key: str
+    label: str
+    description: str
+
+class CustomTaskCreate(BaseModel):
+    """An experiment-scoped task added from /admin/experiments/task."""
+    label: str
+    description: str = ""
+
+class TaskUpdate(BaseModel):
+    label: str | None = None
+    description: str | None = None
+
+class Question(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    id: str = Field(alias="_id")
+    task_id: str
+    question_text: str
+    answer_options: List[str]
+    scoring_rule: Dict[str, int]
+    metadata: Dict[str, str]
+
+class Idiom(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    id: str = Field(alias="_id")
+    idiom_key: str
+    label: str
+    granularity: str
+    renderer_type: str
+    active: bool
+    # Admin-uploaded static image/SVG idiom (see POST /admin/idioms/upload),
+    # served as a fixed asset rather than generated per dataset by a task
+    # script. Only selectable for the tasks listed in task_keys.
+    is_custom: bool = False
+    asset_ext: Optional[str] = None
+    task_keys: Optional[List[str]] = None
+    # The experiment it was uploaded in; it is offered on /admin/experiments/idiom
+    # for that experiment only. None on custom idioms uploaded before this field
+    # existed, which stay offered only where they are already selected.
+    experiment_id: Optional[str] = None
+
+class IdiomUpdate(BaseModel):
+    label: Optional[str] = None
+    task_keys: Optional[List[str]] = None
+
+class ExperimentUpdate(BaseModel):
+    task_configs: Optional[List[TaskConfig]] = None
+    task_instances: Optional[List[TaskInstance]] = None
+    status: Optional[str] = None
+    current_step: Optional[str] = None
+    name: Optional[str] = None
+    design_type: Optional[str] = None
+    between_balance_mode: Optional[str] = None
+    within_sequence_mode: Optional[str] = None
+    dataset_ids: Optional[List[str]] = None
+
+# Aliases for backward compatibility with older router code
+PreEliminaryAnswers = PreliminaryAnswers

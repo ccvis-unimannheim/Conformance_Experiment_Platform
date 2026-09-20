@@ -1,0 +1,619 @@
+"""
+tasks/task14.py – Task 14: Violation classification and annotation for a representative trace.
+
+Goal: Explain · Means: Annotate · Characteristics: Guideline violations
+"What kind of violation occurs in a given trace? This requires a classification of
+violations, and a textual description of them."
+
+Public API:
+    generate(alignments, model_path, output_dir, log=None, trace_ids=None,
+             trace_pick_rule="worst_fitness")
+        log             – needed for the chevron / BPMN idioms (drawn by task04's
+                          renderers) and for picking the trace by rule
+        trace_ids       – the one trace to annotate; empty = chosen by
+                          trace_pick_rule (see trace_alignment.PICK_RULES)
+"""
+
+import logging
+
+logger = logging.getLogger(__name__)
+
+IDIOMS = [
+    "table",
+    "flow_chart_basic",
+    "flow_chart_elaborate",
+    # "flow_chart_table",
+    # "flow_chart_elaborate_table",
+    # "table_bar_chart",
+    # "parallel_sets",
+]
+
+
+import trace_alignment
+
+#: One trace, by the task's own wording ("a given trace"), so there is no count
+#: to choose — only which one. The default rule reproduces what the task always
+#: did: the trace with the highest alignment cost, which is the worst-fitness
+#: one.
+PARAM_SPEC = [
+    *trace_alignment.selection_params(
+        rules=["worst_fitness", "first_nonconformant", "most_frequent_variants"],
+        default_rule="worst_fitness",
+        count_default=1, count_min=1, count_max=1,
+    ),
+    trace_alignment.VIOLATION_PATTERN_PARAM,
+]
+
+
+def validate_params(log, params) -> list:
+    return trace_alignment.validate_selection(log, params, min_traces=1, max_traces=1)
+
+
+import os
+import numpy as np
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from matplotlib import gridspec
+from matplotlib.patches import FancyBboxPatch
+
+from shared import (
+    save_svg, make_table, auto_col_widths,
+    alignment_pairs_to_rows,
+    GREY_MED, GREY_LIGHTER, GREY_DARK,
+    FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    contrasting_text_color,
+    draw_chevron_strip, chevron_nodes_from_alignment_rows, chevron_figure_width,
+    draw_parallel_sets,
+    parse_bpmn_model, render_bpmn_annotated, compose_bpmn_panels,
+    render_empty_state_svg,
+)
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+#: Columns of the per-step move table. One list, because the three idioms that
+#: draw it must size their columns off the same headers.
+_STEP_COLS = ["Step", "Activity", "Move Type"]
+
+# Alignment violation vocabulary for Task 14: the two move types there are.
+_MOVE_TYPES = ["Model Move", "Log Move"]
+# Conformant + violation types, in display order (Synchronous first as the
+# baseline). Used so every idiom shows synchronous moves alongside violations.
+_ALL_TYPES = ["Synchronous Move"] + _MOVE_TYPES
+
+_TYPE_COLOR = {
+    "Model Move":      GREY_MED,
+    "Log Move":        GREY_DARK,
+    "Synchronous Move": GREY_LIGHTER,
+}
+
+# SVG dash pattern marking that an activity is BOTH a Model and a Log move on the
+# Flow+ (BPMN) idiom — lets such a "both" node read at a glance.
+_BOTH_DASH = "6 4"
+
+# Domain-agnostic descriptions for each violation type
+_TYPE_DESC = {
+    "Model Move":    "Required step absent in recorded trace",
+    "Log Move":      "Unexpected step recorded; not prescribed by model",
+}
+
+_MISSING_TOKENS = {"-", "None", "(skip)", ""}
+
+# ---------------------------------------------------------------------------
+# Data helpers
+# ---------------------------------------------------------------------------
+
+def _pick_representative_trace(alignments, log=None, trace_ids=None,
+                               rule="worst_fitness", pattern=""):
+    """Index of the one trace to annotate.
+
+    Delegates to the class's picker so "the worst-fitness trace" means the same
+    trace here as in task04 and task34 — and so the trace shown actually
+    violates something, which is what this task asks the participant to
+    classify. Falls back to the highest-alignment-cost trace when there is no
+    log to pick from (cost and fitness rank the same traces).
+    """
+    if log is not None:
+        if trace_ids:
+            index_of = trace_alignment.case_index(log)
+            for tid in trace_ids:
+                if str(tid) in index_of and index_of[str(tid)] < len(alignments):
+                    return index_of[str(tid)]
+        import pandas as pd
+        n_traces = min(len(log), len(alignments))
+        fitness_df = pd.DataFrame(
+            [{"fitness": float(a.get("fitness", 1.0))} for a in alignments[:n_traces]])
+        picked = trace_alignment.pick_indices(log, alignments, fitness_df, 1, rule,
+                                              pattern=pattern)
+        if picked:
+            return picked[0]
+
+    best_idx, best_cost = 0, -1.0
+    for i, result in enumerate(alignments):
+        try:
+            c = float(result.get("cost") or 0)
+        except (TypeError, ValueError):
+            c = 0.0
+        if c > best_cost:
+            best_cost, best_idx = c, i
+    return best_idx
+
+
+def _build_context(alignments, log=None, trace_ids=None, rule="worst_fitness",
+                   pattern=""):
+    """Extract representative trace context. Returns None if no usable alignment."""
+    if not alignments:
+        return None
+    idx = _pick_representative_trace(alignments, log=log, trace_ids=trace_ids,
+                                     rule=rule, pattern=pattern)
+    result = alignments[idx]
+    rows = alignment_pairs_to_rows(result.get("alignment", []))
+    if not rows:
+        return None
+    return {
+        "trace_index": idx,
+        "trace_label": f"Trace {idx + 1}",
+        "fitness": float(result.get("fitness", 0.0)),
+        "rows": rows,
+        "violations": [r for r in rows if r["moveType"] != "Synchronous Move"],
+    }
+
+
+def _row_move_types(row):
+    """Canonical move type(s) a row contributes."""
+    return [row["moveType"]]
+
+
+def _display_move_type(row):
+    """Move-type label shown in tables."""
+    return row["moveType"]
+
+
+def _type_counts(ctx):
+    """Return {move_type: count} for violation steps in this trace."""
+    counts = {mt: 0 for mt in _MOVE_TYPES}
+    for r in ctx["violations"]:
+        for mt in _row_move_types(r):
+            if mt in counts:
+                counts[mt] += 1
+    return counts
+
+
+def _type_counts_all(ctx):
+    """Return {move_type: count} over ALL steps, incl. Synchronous Move.
+
+    Used by the idioms that show synchronous (conformant) moves next to the
+    violation types for consistency across Task 14.
+    """
+    counts = {mt: 0 for mt in _ALL_TYPES}
+    for r in ctx["rows"]:
+        for mt in _row_move_types(r):
+            if mt in counts:
+                counts[mt] += 1
+    return counts
+
+
+def _all_step_rows(ctx):
+    """cell_text for every trace step (synchronous + violations), in order."""
+    return [
+        [str(r["step"]), _activity_for_row(r), _display_move_type(r)]
+        for r in ctx["rows"]
+    ]
+
+
+def _build_act_types_map(rows):
+    """Map activity name -> set of move types it exhibits across the trace.
+
+    Keeps every move type per activity — including Synchronous Move — so the
+    Flow+ idiom can mark an activity that is *both* conformant and a violation
+    (rather than a single last-deviation-wins label).
+    """
+    act_types = {}
+    for r in rows:
+        act = _activity_for_row(r)
+        if act and act not in _MISSING_TOKENS:
+            act_types.setdefault(act, set()).update(_row_move_types(r))
+    return act_types
+
+
+def _activity_for_row(row):
+    """Return the activity label for a violation row (domain-agnostic anchor)."""
+    mt = row["moveType"]
+    if mt == "Model Move":
+        return str(row["model_move"])
+    lm = str(row["log_move"])
+    return lm if lm not in _MISSING_TOKENS else str(row["model_move"])
+
+
+# ---------------------------------------------------------------------------
+# Idiom 1: table
+# ---------------------------------------------------------------------------
+
+def task14_table(ctx, output_dir):
+    """Move classification table: every trace step (synchronous + violations)."""
+    out = os.path.join(output_dir, "task14_table.svg")
+    cell_text = _all_step_rows(ctx)
+    if not cell_text:
+        render_empty_state_svg(out, "Move Classification", "No trace steps.")
+        return
+
+    fig_h = max(3.2, 1.5 + len(cell_text) * 0.42)
+    fig, ax = plt.subplots(figsize=(12, fig_h))
+    ax.axis("off")
+    make_table(
+        ax,
+        cell_text=cell_text,
+        col_labels=_STEP_COLS,
+        bbox=[0.02, 0.05, 0.96, 0.78],
+        col_widths=auto_col_widths(_STEP_COLS, cell_text),
+        font_size=10,
+        cell_pad=0.09,
+    )
+    ax.set_title(
+        f"Trace Alignment — {ctx['trace_label']}",
+        fontsize=FONT_TITLE, pad=10,
+    )
+    fig.tight_layout(pad=1.2)
+    save_svg(fig, out)
+
+
+# ---------------------------------------------------------------------------
+# Idiom 4: flow_chart_table
+# ---------------------------------------------------------------------------
+
+def task14_flow_chart_and_table(ctx, output_dir):
+    """Chevron flow strip (top) + violation classification table (bottom)."""
+    out = os.path.join(output_dir, "task14_flow_chart_and_table.svg")
+    rows = ctx["rows"]
+    nodes = chevron_nodes_from_alignment_rows(rows)
+
+    if not nodes:
+        render_empty_state_svg(out, "Trace Flow & Move Classification", "No trace steps.")
+        return
+
+    cell_text = _all_step_rows(ctx) or [["—", "No trace steps", "—"]]
+
+    n_rows = len(cell_text) + 1
+    fig_w = max(18.0, chevron_figure_width(nodes, uniform_width=True))
+    tbl_h = max(2.2, 0.36 * n_rows)
+    chev_h = 2.2
+    fig_h = tbl_h + chev_h + 1.2
+
+    fig = plt.figure(figsize=(fig_w, fig_h))
+    gs = gridspec.GridSpec(2, 1, height_ratios=[chev_h, tbl_h], hspace=0.35)
+    ax_chev = fig.add_subplot(gs[0])
+    ax_tbl  = fig.add_subplot(gs[1])
+
+    draw_chevron_strip(ax_chev, nodes, fontsize=10, uniform_width=True)
+    ax_chev.set_title("Trace Alignment Flow", fontsize=FONT_TITLE, pad=7)
+
+    ax_tbl.axis("off")
+    make_table(
+        ax_tbl,
+        cell_text=cell_text,
+        col_labels=_STEP_COLS,
+        bbox=[0.0, 0.0, 1.0, 1.0],
+        col_widths=auto_col_widths(_STEP_COLS, cell_text),
+        font_size=10,
+        cell_pad=0.09,
+    )
+    ax_tbl.set_title("Move Classification", fontsize=FONT_TITLE, pad=7)
+
+    legend_handles = [
+        mpatches.Patch(facecolor=GREY_LIGHTER, label="Synchronous (Conformant)"),
+        mpatches.Patch(facecolor=GREY_MED,     label="Model Move"),
+        mpatches.Patch(facecolor=GREY_DARK,    label="Log Move"),
+    ]
+    fig.legend(
+        handles=legend_handles,
+        loc="lower center", bbox_to_anchor=(0.5, 0.01),
+        ncol=2, fontsize=FONT_ANNOT, frameon=True, fancybox=False, edgecolor="#cccccc",
+    )
+    fig.suptitle(
+        f"Move Classification — {ctx['trace_label']}  (fitness {ctx['fitness']:.4f})",
+        fontsize=FONT_TITLE, y=0.99,
+    )
+    fig.tight_layout(pad=1.2)
+    save_svg(fig, out)
+
+
+# ---------------------------------------------------------------------------
+# Flow+ (BPMN) shared styling
+#
+# Fill colour encodes the (worst) move type at an activity; a DASHED node
+# outline marks that the activity is BOTH a Model and a Log move somewhere in the
+# trace. That makes those "both" activities readable at a glance, which the
+# solid-fill-only encoding (worst-wins) could not show. Synchronous (conformant)
+# activities are drawn with a plain solid outline — no dash.
+# ---------------------------------------------------------------------------
+
+_BPMN_FILL = {
+    "Model Move":    "#999999",
+    "Log Move":      "#555555",
+}
+_BPMN_CONFORM_FILL = "#E8E8E8"   # in trace, only synchronous (conformant) moves
+_BPMN_ABSENT_FILL  = "#F4F4F4"   # activity not present in this trace
+
+_BPMN_SUMMARY = ("Node colour = move type at this activity; a dashed outline "
+                 "marks an activity that is both a Model and a Log move.")
+
+
+def _bpmn_fill_for_types(types):
+    """Fill for an activity's set of move types: worst violation wins
+    (Model > Log); else conformant grey if only synchronous; else None when the
+    activity does not appear in the trace at all."""
+    for mt in _MOVE_TYPES:
+        if mt in types:
+            return _BPMN_FILL[mt]
+    if "Synchronous Move" in types:
+        return _BPMN_CONFORM_FILL
+    return None
+
+
+def _make_bpmn_node_style_fn(ctx):
+    """Build a node_style_fn returning the optional 5th element (dash pattern)."""
+    act_types = _build_act_types_map(ctx["rows"])
+
+    def node_style_fn(eid, elem):
+        if elem.get("kind") != "task":
+            return "white", "#888888", 2, "#333333"
+        types = act_types.get(elem.get("name", ""), set())
+        fill = _bpmn_fill_for_types(types)
+        # Dash marks a "both" activity (a Model move AND a Log move in the trace).
+        dash = _BOTH_DASH if {"Model Move", "Log Move"} <= types else None
+        if fill is None:
+            return _BPMN_ABSENT_FILL, "#bbbbbb", 1.2, "#333333", None
+        return fill, "#333333", 2.5, contrasting_text_color(fill), dash
+
+    return node_style_fn
+
+
+def _bpmn_legend():
+    return [
+        (_BPMN_ABSENT_FILL,  "#bbbbbb", 1.0, "Not in this trace"),
+        (_BPMN_CONFORM_FILL, "#333333", 1.5, "Synchronous (conformant)"),
+        (_BPMN_FILL["Model Move"], "#333333", 1.0, "Model Move"),
+        (_BPMN_FILL["Log Move"],   "#333333", 1.0, "Log Move"),
+        (_BPMN_FILL["Model Move"], "#333333", 2.5, "Both Model & Log Move", _BOTH_DASH),
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Idiom 5: flow_chart_elaborate (BPMN annotated by move type)
+# ---------------------------------------------------------------------------
+
+def task14_flow_chart_elaborate(ctx, model_path, output_dir):
+    """BPMN diagram with activity nodes coloured by move type; dashed = synchronous."""
+    out = os.path.join(output_dir, "task14_flow_chart_elaborate.svg")
+    if not model_path or not os.path.exists(model_path):
+        render_empty_state_svg(out, "Move Classification on Model", "No BPMN model available.")
+        return
+    try:
+        parsed = parse_bpmn_model(model_path)
+    except Exception as e:
+        logger.warning(f"      task14: BPMN parse failed: {e}")
+        render_empty_state_svg(out, "Move Classification on Model", "Could not parse BPMN model.")
+        return
+
+    render_bpmn_annotated(
+        parsed, out,
+        title=f"Move Classification on Model — {ctx['trace_label']}  "
+              f"(fitness {ctx['fitness']:.4f})",
+        summary=_BPMN_SUMMARY,
+        node_style_fn=_make_bpmn_node_style_fn(ctx),
+        legend_items=_bpmn_legend(),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Idiom 6: flow_chart_elaborate_table
+# ---------------------------------------------------------------------------
+
+def task14_flow_chart_elaborate_table(ctx, model_path, output_dir):
+    """BPMN diagram (top) + move classification table (bottom)."""
+    out = os.path.join(output_dir, "task14_flow_chart_elaborate_table.svg")
+    if not model_path or not os.path.exists(model_path):
+        render_empty_state_svg(out, "Move Classification on Model + Table",
+                               "No BPMN model available.")
+        return
+    if not ctx["rows"]:
+        render_empty_state_svg(out, "Move Classification on Model + Table",
+                               "No trace steps.")
+        return
+    try:
+        parsed = parse_bpmn_model(model_path)
+    except Exception as e:
+        logger.warning(f"      task14: BPMN parse failed: {e}")
+        render_empty_state_svg(out, "Move Classification on Model + Table",
+                               "Could not parse BPMN model.")
+        return
+
+    table_cols = ["Step", "Activity", "Move Type"]
+    table_rows = _all_step_rows(ctx)
+    panels = [{
+        "parsed": parsed,
+        "node_style_fn": _make_bpmn_node_style_fn(ctx),
+        "subtitle": (f"{ctx['trace_label']} · fitness {ctx['fitness']:.4f} · "
+                     "node colour = move type · dashed = both Model & Log"),
+    }]
+    compose_bpmn_panels(
+        panels, out,
+        title="Move Classification on Model — with Annotation Table",
+        legend_items=_bpmn_legend(),
+        table_rows=table_rows,
+        table_cols=table_cols,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Idiom 9: table_bar_chart
+# ---------------------------------------------------------------------------
+
+def task14_table_bar_chart(ctx, output_dir):
+    """Composite: move classification table (left) + move type bar chart (right)."""
+    out = os.path.join(output_dir, "task14_table_bar_chart.svg")
+
+    cell_text = _all_step_rows(ctx) or [["—", "No trace steps", "—"]]
+
+    counts = _type_counts_all(ctx)
+    present = [(mt, counts[mt]) for mt in _ALL_TYPES if counts[mt] > 0]
+
+    fig_h = max(4.5, 1.4 + len(cell_text) * 0.42)
+    fig = plt.figure(figsize=(16, fig_h))
+    gs = gridspec.GridSpec(1, 2, width_ratios=[1.5, 1.0], wspace=0.45)
+
+    ax_tbl = fig.add_subplot(gs[0])
+    ax_tbl.axis("off")
+    n_rows = len(cell_text) + 1
+    tbl_frac = min(0.85, 0.50 * n_rows / fig_h)
+    make_table(
+        ax_tbl,
+        cell_text=cell_text,
+        col_labels=_STEP_COLS,
+        bbox=[0.01, max(0.05, 0.85 - tbl_frac), 0.98, tbl_frac],
+        col_widths=auto_col_widths(_STEP_COLS, cell_text),
+        font_size=10,
+        cell_pad=0.09,
+    )
+    ax_bar = fig.add_subplot(gs[1])
+    if present:
+        labels, vals = zip(*present)
+        colors = [_TYPE_COLOR[mt] for mt in labels]
+        ymax = max(vals)
+        bars = ax_bar.bar(labels, vals, color=colors, edgecolor="white", width=0.55, alpha=0.90)
+        for bar, v in zip(bars, vals):
+            ax_bar.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + ymax * 0.015,
+                str(v), ha="center", va="bottom", fontsize=FONT_ANNOT,
+            )
+        ax_bar.set_ylim(0, ymax * 1.18)
+        ax_bar.set_ylabel("Occurrences", fontsize=FONT_LABEL)
+        ax_bar.tick_params(axis="x", labelrotation=20)
+    else:
+        ax_bar.axis("off")
+        ax_bar.text(0.5, 0.5, "No trace steps", ha="center", va="center",
+                    fontsize=FONT_ANNOT, color="#888888", transform=ax_bar.transAxes)
+    ax_bar.spines[["top", "right"]].set_visible(False)
+    ax_bar.yaxis.grid(True, linestyle="--", alpha=0.45)
+    ax_bar.set_axisbelow(True)
+
+    fig.suptitle(
+        f"Move Classification Summary — {ctx['trace_label']}  "
+        f"(fitness {ctx['fitness']:.4f})",
+        fontsize=FONT_TITLE, y=0.99,
+    )
+    fig.tight_layout(pad=1.2)
+    save_svg(fig, out)
+
+
+# ---------------------------------------------------------------------------
+# Idiom 10: parallel_sets
+# ---------------------------------------------------------------------------
+
+def task14_parallel_sets(ctx, output_dir):
+    """Parallel Sets: left = step status (Conformant / Violation), right = violation types."""
+    out = os.path.join(output_dir, "task14_parallel_sets.svg")
+    rows = ctx["rows"]
+    if not rows:
+        render_empty_state_svg(out, "Step Flow to Violation Types", "No trace steps.")
+        return
+
+    counts = _type_counts(ctx)
+    active_types = [mt for mt in _MOVE_TYPES if counts[mt] > 0]
+    if not active_types:
+        render_empty_state_svg(out, "Step Flow to Violation Types", "No violations in this trace.")
+        return
+
+    n_sync = sum(1 for r in rows if r["moveType"] == "Synchronous Move")
+
+    # Left: Conformant / Violation; Right: None(Conformant) + active violation types
+    left_labels = ["Conformant", "Violation"]
+    right_labels = ["None (Conformant)"] + active_types
+
+    matrix = np.zeros((2, len(right_labels)), dtype=float)
+    matrix[0, 0] = float(n_sync)
+    for ci, mt in enumerate(active_types):
+        matrix[1, ci + 1] = float(counts[mt])
+
+    left_colors  = [GREY_LIGHTER, "#777777"]
+    right_colors = ["#CCCCCC"] + [_TYPE_COLOR[mt] for mt in active_types]
+
+    fig, ax = plt.subplots(figsize=(9, 5.5))
+    ax.axis("off")
+    ax.set_xlim(-0.05, 1.05)
+    ax.set_ylim(-0.05, 1.20)
+
+    draw_parallel_sets(
+        ax,
+        left_labels=left_labels,
+        right_labels=right_labels,
+        matrix=matrix,
+        left_colors=left_colors,
+        right_colors=right_colors,
+        left_title="Step Status",
+        right_title="Classification",
+    )
+    ax.set_title(
+        f"Step Flow to Violation Types — {ctx['trace_label']}  "
+        f"(fitness {ctx['fitness']:.4f})",
+        fontsize=FONT_TITLE, pad=12,
+    )
+    fig.tight_layout(pad=1.2)
+    save_svg(fig, out)
+
+
+# ---------------------------------------------------------------------------
+# Public entry point
+# ---------------------------------------------------------------------------
+
+def generate(alignments, model_path: str, output_dir: str, log=None,
+             trace_ids=None, trace_pick_rule="worst_fitness",
+             violation_pattern=""):
+    """Generate all Task 14 SVGs into output_dir.
+
+    The chevron and BPMN idioms are task04's renderers on this one trace, so the
+    trace-alignment tasks show one picture of an alignment rather than five.
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    logger.info("\n--- Generating Task 14 visualizations ---")
+
+    ctx = _build_context(alignments, log=log, trace_ids=trace_ids,
+                         rule=trace_pick_rule, pattern=violation_pattern)
+    if ctx is None:
+        logger.warning("      task14: no usable alignment — emitting zero-state SVGs.")
+        _msg = "No alignment data available."
+        for idiom in IDIOMS:
+            render_empty_state_svg(
+                os.path.join(output_dir, f"task14_{idiom}.svg"),
+                "Violation Classification", _msg,
+            )
+        return
+
+    logger.info(
+        f"      Using {ctx['trace_label']} (index {ctx['trace_index']}, "
+        f"fitness={ctx['fitness']:.4f}, violations={len(ctx['violations'])})"
+    )
+
+    if log is not None and model_path:
+        import tasks.task04 as task04
+        records = trace_alignment.trace_records(log, alignments, [ctx["trace_index"]])
+        heading = f"Trace Alignment — {ctx['trace_label']}"
+        # uniform_width: every chevron the same size, so no step reads as bigger
+        # than another just because its activity name is longer (task09 draws
+        # its chevron strip the same way).
+        task04.task04_flow_chart_basic(records, output_dir, model_path=model_path,
+                                       filename="task14_flow_chart_basic.svg", title=heading,
+                                       uniform_width=True)
+        task04.task04_flow_chart_elaborate(records, model_path, output_dir,
+                                           filename="task14_flow_chart_elaborate.svg", title=heading)
+
+    task14_table(ctx, output_dir)
+    # task14_flow_chart_and_table(ctx, output_dir)
+    # task14_flow_chart_elaborate(ctx, model_path, output_dir)  # superseded: task04's renderer draws it above
+    # task14_flow_chart_elaborate_table(ctx, model_path, output_dir)
+    # task14_table_bar_chart(ctx, output_dir)
+    # task14_parallel_sets(ctx, output_dir)

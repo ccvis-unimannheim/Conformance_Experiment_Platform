@@ -1,0 +1,127 @@
+# Container logs are written to an unbounded file per container by default, so
+# they only ever grow. That is the same failure mode as the build cache that
+# filled the disk and took MongoDB down on 2026-09-14, just slower. Every
+# service below caps its logs at 3 files of 10MB, i.e. 30MB per container.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  mongo:
+    image: mongo
+    container_name: mongo
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USERNAME:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-example}
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "127.0.0.1:27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    build:
+      context: ./provibackend/redis
+    container_name: redis
+    restart: unless-stopped
+    logging: *default-logging
+    command: redis-server /usr/local/etc/redis/redis.conf --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  provibackend:
+    build:
+      context: ./provibackend
+    container_name: provibackend
+    restart: unless-stopped
+    logging: *default-logging
+    ports:
+      - "127.0.0.1:1234:80"
+    environment:
+      LOCAL_DATABASE_USERNAME: ${MONGO_USERNAME:-root}
+      LOCAL_DATABASE_PASSWORD: ${MONGO_PASSWORD:-example}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - /srv/provi-data:/code/ProViBackend/data
+      - ./provibackend/ProViBackend/new_input:/code/ProViBackend/new_input:ro
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  provifrontend:
+    build:
+      context: ./ProViFrontend
+    container_name: provifrontend
+    restart: unless-stopped
+    logging: *default-logging
+    ports:
+      - "127.0.0.1:22222:3000"
+    environment:
+      BACKEND_INTERNAL_URL: http://provibackend:80
+    depends_on:
+      - provibackend
+
+  dfgbackend:
+    build:
+      context: ./dfg-service/backend
+    container_name: dfgbackend
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      LOCAL_DATABASE_USERNAME: ${MONGO_USERNAME:-root}
+      LOCAL_DATABASE_PASSWORD: ${MONGO_PASSWORD:-example}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - /srv/provi-data:/code/DfgBackend/data
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  dfgfrontend:
+    build:
+      context: ./dfg-service/frontend
+    container_name: dfgfrontend
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      BACKEND_INTERNAL_URL: http://dfgbackend:80
+    depends_on:
+      - dfgbackend
+
+  nginx:
+    build:
+      context: ./provibackend/nginx
+    container_name: nginx
+    restart: unless-stopped
+    logging: *default-logging
+    ports:
+      - "443:443"
+    volumes:
+      - /etc/ssl/ccvis-selfsigned:/etc/ssl/ccvis-selfsigned:ro
+      - /etc/nginx-secrets/.htpasswd:/etc/nginx/.htpasswd:ro
+    depends_on:
+      - provibackend
+      - provifrontend
+      - dfgbackend
+      - dfgfrontend
+
+volumes:
+  mongo_data:
+  redis_data:
