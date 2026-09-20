@@ -295,9 +295,19 @@ one process already disagree), and pm4py exposes no deterministic tie-break. So:
   declares all five of the dropped ones. Trimming task09 to match is the open
   half of that decision.
 * **task34** draws one trace exactly as before; two or more go through task04's
-  renderers. The per-activity summaries (bar, stacked bar, heatmap, matrix) stay
-  on the first trace — stacking one of those per trace answers a different
-  question.
+  renderers. **The per-activity summaries follow the selection too.** They used
+  to stay on the first trace, on the argument that stacking one of those per
+  trace answers a different question — but the chevron, BPMN and move table
+  beside them showed all of the chosen traces, so one figure set spoke about
+  different traces depending on which idiom you read. bar_chart and stacked_bar
+  now give each trace its own bar per activity, heatmap and matrix its own
+  column; `_build_canonical_payload` returns the whole (activity × trace) table
+  they share.
+* **task34 lost four idioms** — flow chart & table, table & bar chart, flow
+  chart+ & table and parallel sets — leaving `bar_chart`, `stacked_bar`,
+  `table`, `flow_chart_basic`, `flow_chart_elaborate`, `heatmap` and `matrix`.
+  Its per-activity idioms stand upright, with the activities on the x axis, and
+  all four carry one title that names neither a trace nor a fitness.
 * **task35** keeps aggregating over the whole log and is trimmed to
   `flow_chart_elaborate`; the Petri-net and DFG variants re-drew the same
   annotation in another notation, which is a notation comparison, not this task.

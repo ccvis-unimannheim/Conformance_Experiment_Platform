@@ -2,6 +2,27 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: task34's Idioms All Speak About the Chosen Traces (2026-09-20)
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| Idioms removed | flow chart & table, table & bar chart, flow chart+ & table, parallel sets. Seven left. `_log_activity_violations` and `_add_trace_heading` went with them, the heading being where the trace id and fitness were printed. |
+| Multi-trace | bar_chart, stacked_bar, heatmap and matrix drew the first selected trace however many the admin asked for, while the chevron, BPMN and move table drew all of them — one figure set, different traces depending on which idiom you read. `_build_canonical_payload` now takes the list and returns the whole (activity × trace) table: totals plus the Model Move / Log Move split. The four read only from it. |
+| Orientation | bar_chart and stacked_bar stand upright, activities on the x axis, one bar per trace within each activity; the stacked bar splits each of those by move type. They used to lie on their side. `_wrap_activity` breaks long names so the tick labels stay apart. |
+| Heatmap and matrix | Both are activities × traces now, one column per trace instead of a single row or column. The heatmap carries the count as colour, the matrix as a number on a white cell (`colorless=True`), as in tasks 27-32. |
+| Titles | One constant, `_VIOLATION_TITLE = "Violations per Activity"`, across the four. They used to name the trace, and the stacked bar its fitness — a value the figure beside it did not carry, and wrong as soon as more than one trace was drawn. |
+
+This overrides what TRACE_ALIGNMENT_CLASS.md recorded for task34; that note is
+updated with why.
+
+### Verification
+
+`py_compile` and `pyflakes` (against HEAD, so only new warnings count — none),
+plus one run of `generate` with `trace_count=3` on BPIC12: the seven idioms
+render.
+
 ## Session: Removed Idioms Leave the Admin Panel, task01 and task03 (2026-09-20)
 
 The idiom review removed three of task01's idioms and two of task03's. They are
