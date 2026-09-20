@@ -1,6 +1,5 @@
 import json
 import uuid
-from itertools import combinations
 import io
 import csv
 import re
@@ -306,10 +305,11 @@ def _dataset_time_bins(dataset_id: str, granularity: str) -> list[dict]:
 # every one enumerates entities from the dataset itself, so any task may import
 # from any of them. `granularity` marks the one source that takes a second
 # argument (the page renders a granularity picker next to it).
-# Matrix axis size: the grid is read cell-by-cell, so a large axis is unusable
-# (n candidates -> n*(n-1)/2 cells). 10 mirrors task08's old _MATRIX_TOP_N.
+# How many candidates a matrix import takes as axis members. The grid is read
+# cell-by-cell, so a large axis is unusable (n members -> n*(n-1)/2 cells); 10
+# mirrors task08's old _MATRIX_TOP_N. The editor generates the cells and caps
+# the control, so this is the starting point rather than a limit.
 _MATRIX_AXIS_DEFAULT = 10
-_MATRIX_AXIS_MAX = 16
 
 OPTION_SOURCES: list[dict] = [
     {"source": "log.activities",           "label": "Activities"},
@@ -1233,16 +1233,13 @@ async def get_option_candidates(
     dataset_id: str,
     source: str,
     granularity: str | None = None,
-    pairs: bool = False,
-    axis_limit: int = _MATRIX_AXIS_DEFAULT,
 ):
     """Option rows for one source, ready to drop into the option editor.
 
-    `pairs=true` (matrix) turns the candidates into the upper triangle of a
-    symmetric grid: the first `axis_limit` candidates become the shared axis and
-    each cell is one {label: "a × b", value: "a__b"} option, matching the token
-    shape AnswerWidgets.parsePairs expects. `axis_total` reports how many
-    candidates existed so the page can say what it truncated.
+    One shape for every answer format. A matrix used to ask for `pairs=true`
+    and get the upper triangle of a grid built here; it now takes these
+    candidates as its axis members and derives the cells in the editor, which
+    is where the members stay editable.
     """
     known = {s["source"] for s in OPTION_SOURCES}
     if source not in known:
@@ -1254,20 +1251,7 @@ async def get_option_candidates(
         _logger.exception("Failed to enumerate option candidates (%s / %s)", dataset_id, source)
         raise HTTPException(status_code=500, detail=f"Could not read the event log: {e}")
 
-    axis_total = len(rows)
-    if not pairs:
-        return JSONResponse(content={"options": rows, "axis_total": axis_total})
-
-    axis = [r for r in rows if "__" not in r["label"]][:max(2, min(axis_limit, _MATRIX_AXIS_MAX))]
-    options = [
-        {"label": f"{a['label']} × {b['label']}", "value": f"{a['label']}__{b['label']}"}
-        for a, b in combinations(axis, 2)
-    ]
-    return JSONResponse(content={
-        "options": options,
-        "axis": [a["label"] for a in axis],
-        "axis_total": axis_total,
-    })
+    return JSONResponse(content={"options": rows, "axis_total": len(rows)})
 
 
 

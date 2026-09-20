@@ -333,7 +333,6 @@ function OptionsEditor({ datasetId, format, options, onChange, showToast }) {
     try {
       const qs = new URLSearchParams({ source });
       if (selected?.granularity) qs.set("granularity", granularity);
-      if (isMatrix) { qs.set("pairs", "true"); qs.set("axis_limit", String(axisLimit)); }
       const res = await fetch(
         `/api/admin/datasets/${encodeURIComponent(datasetId)}/option-candidates?${qs}`
       );
@@ -344,11 +343,31 @@ function OptionsEditor({ datasetId, format, options, onChange, showToast }) {
         showToast("That source produced no options for this dataset.", true);
         return;
       }
+      // A matrix takes the candidates as its axis members and derives the cells
+      // itself (pairsFrom), so the import is the same one request every other
+      // format makes. The server used to build the pairs; the axis editor owns
+      // that now, and doing it here keeps the members editable — an imported
+      // label carries counts that would otherwise be printed along the axis.
+      if (isMatrix) {
+        const members = [];
+        for (const r of rows) {
+          const name = String(r.label ?? r.value ?? "");
+          if (name && !members.includes(name)) members.push(name);
+          if (members.length >= axisLimit) break;
+        }
+        if (members.length < 2) {
+          showToast("That source gave fewer than two axis members.", true);
+          return;
+        }
+        onChange(pairsFrom(members));
+        const cells = (members.length * (members.length - 1)) / 2;
+        const truncated = rows.length > members.length
+          ? ` (first ${members.length} of ${rows.length})` : "";
+        showToast(`Imported ${members.length} axis members → ${cells} cells${truncated}.`);
+        return;
+      }
       onChange(rows);
-      const truncated = isMatrix && data.axis_total > (data.axis || []).length
-        ? ` (axis limited to ${data.axis.length} of ${data.axis_total})`
-        : "";
-      showToast(`Imported ${rows.length} option${rows.length === 1 ? "" : "s"}${truncated}.`);
+      showToast(`Imported ${rows.length} option${rows.length === 1 ? "" : "s"}.`);
     } catch (e) {
       showToast(`Import failed: ${e.message}`, true);
     } finally {
@@ -414,8 +433,11 @@ function OptionsEditor({ datasetId, format, options, onChange, showToast }) {
           </select>
         )}
         {isMatrix && (
+          // How many candidates to take as axis members. 16 is where the grid
+          // stops being readable cell by cell (16 members = 120 cells); the
+          // list stays editable afterwards, so this only sets the starting set.
           <label className="text-xs text-on-surface-variant flex items-center gap-1">
-            axis
+            members
             <input
               type="number"
               min={2}
