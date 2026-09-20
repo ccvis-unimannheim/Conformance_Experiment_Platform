@@ -358,9 +358,11 @@ def task28_flow_chart_elaborate_bpmn(ctx: dict, model_path: str, output_dir: str
 # ===========================================================================
 
 _BAR_WIDTH_TOTAL = 0.76
-#: One title over the four aggregates. They used to name the log ("Where Does
-#: the Log Deviate?", "top-12 activities"), which is not what they draw any more.
-_DEVIATION_TITLE = "Deviating Steps in the Shown Traces"
+#: One title over all seven idioms. They used to carry four different ones —
+#: task04's per-figure defaults on the trio, and on the aggregates a name for the
+#: whole log ("Where Does the Log Deviate?", "top-12 activities") that stopped
+#: being true when they moved onto the chosen traces.
+_DEVIATION_TITLE = "Where the Shown Traces Differ from the Guideline"
 MOVE_TYPES = ["Model Move", "Log Move"]
 
 
@@ -612,7 +614,8 @@ def generate(alignments, model_path: str, output_dir: str, log=None,
         logger.info(f"      -> {len(records)} trace(s) shown, {perspective} perspective.")
         task09.alignment_figures(output_dir, model_path, view=perspective,
                                  records=records, attribute=data_attribute,
-                                 prefix="task28")
+                                 prefix="task28", title=_DEVIATION_TITLE,
+                                 show_order=False)
     elif ctx is not None:
         logger.info(f"      Using {ctx['trace_label']} (log index {ctx['trace_index']}, "
                     f"fitness={ctx['fitness']:.4f})")
