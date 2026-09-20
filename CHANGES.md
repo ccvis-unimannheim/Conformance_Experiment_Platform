@@ -2,6 +2,121 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: Fix the /idiom ↔ /specify Loop for a Bundle Experiment (2026-09-20)
+
+### Problem solved
+
+Walking a bundle experiment forward through the wizard (/new → … → /task →
+/idiom) hung: /idiom's "skip Specify" check asked whether every selected idiom
+was custom-uploaded, but a bundle experiment's idioms are just as often the
+same key as a built-in generated idiom (not custom) as an unfamiliar one, so
+the check came back false. Next then sent it to /specify, which redirects a
+bundle experiment straight back to /idiom — an infinite bounce between the two
+pages that looked, from the admin's side, like being stuck there.
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `ProViFrontend/.../admin/experiments/idiom/page.js` | The skip-Specify condition is `bundleOnly \|\| onlyCustom`: a bundle experiment has no dataset to generate from regardless of what its idioms are called, so it always goes on to /answer-format. The "no visualizations to generate" toast is shown only for the non-bundle (all-custom) case, since a bundle experiment already says as much elsewhere. |
+
+`eslint` — no errors, same pre-existing warnings as before.
+
+## Session: /new Says What Zip a Bundle Experiment Actually Has (2026-09-20)
+
+### Problem solved
+
+Stepping back to /new for a bundle experiment offered *Replace* and *Discard*
+without saying what either would act on: no file name, no task count, no
+link back to see the images. An admin who had uploaded more than one zip while
+setting things up had no way to tell which one this was.
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `ProViFrontend/.../admin/experiments/new/page.js` | Loading a bundle experiment also reads its `idioms_imported_from` / `idioms_imported_at` / task count into a small card: the zip's file name (or the experiment it was exported from, for an older manifest with no file name), how many tasks, when, and links to review it on Overview or download it. `discardBundle`'s confirmation names the file when known and points at downloading a copy first, since a discarded zip cannot be recovered from this experiment afterwards. |
+
+`eslint` — no errors.
+
+## Session: Replace a Bundle Experiment's Zip Without Starting Over (2026-09-20)
+
+### Problem solved
+
+Stepping back to /new for an experiment built from a zip showed only "this
+experiment needs no dataset" and a *Discard* button — no way to say "wrong zip,
+here's the right one" short of discarding (which also drops the tasks and
+idioms) or deleting the whole draft from the admin page. `POST
+/admin/experiments/from-bundle` also always minted a new `experiment_id`, which
+is why the upload card was hidden whenever a draft was already open: uploading
+there would have silently created an unrelated second experiment.
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `provibackend/.../app/routers/idiom_bundle.py` | `POST /admin/experiments/from-bundle` takes an optional `experiment_id`: given one, it replaces that (already `bundle_only`) draft's tasks, idioms and images with the new zip's instead of creating a new experiment, keeping its name/design unless the form changes them. The new zip is fully parsed and confirmed to yield at least one task before anything of the old one is removed, so a bad replacement leaves the experiment as it was. Shared logic (`_build_bundle_pieces`, `_write_bundle_images`, `_clear_bundle_content`) now also backs `discard-bundle`. |
+| `ProViFrontend/.../components/Admin/BundleStartCard.js` | New `replaceExperimentId` prop switches the copy, adds a confirmation before uploading, and sends the id along. |
+| `ProViFrontend/.../admin/experiments/new/page.js` | The bundle-experiment panel says the uploaded zip is saved and offers *Replace with a different zip* next to *Discard*. |
+
+`py_compile` and `eslint` — no errors.
+
+## Session: A Bundle Experiment's Bar and "Previous Step" Match What It Has (2026-09-20)
+
+### Problem solved
+
+A bundle experiment (built from a zip on /new) has no Specify step, which the
+bar already knew, but it still offered Tasks and Idioms as steps to walk
+through — there is nothing to choose there either, since the zip fixed both.
+Overview's "Previous Step" pointed at /answer-format regardless, which a
+version-3 zip's experiment never visits at all (it goes straight to
+/overview), so that link led to a page with no path back to where editing this
+kind of experiment actually starts.
+
+### Changes
+
+| File | Change |
+|------|--------|
+| `ProViFrontend/.../components/Admin/WizardSteps.js` | A bundle experiment's bar also leaves out Tasks and Idioms, not just Specify. A non-bundle experiment is unaffected — it still needs all three to choose what it uses. |
+| `ProViFrontend/.../admin/experiments/overview/page.js` | Overview's "Previous Step" goes to /new for a bundle experiment instead of /answer-format. |
+
+An admin can still trim a bundle experiment's tasks or idioms by opening
+/task or /idiom directly; the bar just no longer offers that as a step.
+
+`eslint` — no errors on either file.
+
+## Session: Idiom Export 500s After the Task Bank Dropped answer_type (2026-09-20)
+
+### Problem solved
+
+`GET /admin/experiments/{id}/idioms/export` raised `KeyError: 'answer_type'`
+(an uncaught 500) on every experiment. "Drop the Task bank's answer_type"
+removed the field from `Task`, `TaskInstance`, `TaskConfig`, the custom-task
+stub, the per-experiment wording override and all 37 seed entries, and dropped
+it from `task_wording.WORDING_FIELDS` — but `idiom_bundle.py`'s export and
+import were not on that list, and still read/wrote the field.
+
+`effective_wording()` builds its return dict from `WORDING_FIELDS` alone, so
+once `answer_type` left that tuple the dict stopped carrying the key;
+`idiom_bundle.py:116`'s `wording["answer_type"]` then raised on every call.
+
+### Changes
+
+`provibackend/ProViBackend/app/routers/idiom_bundle.py`:
+- Export: `_layout()` no longer reads `wording["answer_type"]`; the manifest's
+  per-task record no longer writes `answer_type`.
+- Import: `_resolve_bundle_task()` no longer reads `zip_task.get("answer_type")`
+  or puts it on the `task_overrides` record or the custom-task stub — both now
+  match the `{label, description}` shape `task_wording.py`'s own docstring
+  already described.
+
+An export taken before this fix still has `answer_type` in its manifest.json;
+importing it is unaffected, since the field is simply not read any more.
+
+### Verification
+
+`py_compile`. Not run against a live export — no server available here.
+
 ## Session: /new Stops Asking for the Name and Design Twice (2026-09-20)
 
 ### Problem solved
@@ -74,6 +189,20 @@ Four pre-existing `react/no-unescaped-entities` errors fixed along the way
 
 `py_compile` and `eslint` — no errors left under `admin/experiments` or
 `components/Admin`. Not exercised in a browser.
+
+## Session: task06's Bar Chart and Matrix Follow the Same Fix (2026-09-20)
+
+| Area | Change |
+|------|--------|
+| Bar chart | Its one "Overall" bar was `GREY_MED`, cividis's olive-grey middle — the same colour the review has been moving other idioms off of. task02 draws the same shape (one "Overall" bar, one log, no second group to pair it against) in `GREY_DARK`; task06 now matches it. |
+| Matrix | Was a single cell shaded on a light→dark grey scale with a colorbar — the value encoded twice, once by shade and once by the printed number. Now colourless: a white cell ruled by `draw_cell_grid` (the same helper tasks 01, 03, 04 and 27-32 use), the fitness carried by the number alone, no colorbar. |
+
+`LinearSegmentedColormap` and the two-tone `GREY_LIGHT`/`GREY_LIGHTER` import it
+needed are gone with it.
+
+### Verification
+
+`py_compile`. Not regenerated.
 
 ## Session: task04's Table Keeps Its Log Moves, and Its Order (2026-09-20)
 

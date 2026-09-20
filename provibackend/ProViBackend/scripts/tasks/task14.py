@@ -19,7 +19,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 IDIOMS = [
-    "table", "bar_chart",
+    "table",
     "flow_chart_basic",
     "flow_chart_elaborate",
     # "flow_chart_table",
@@ -252,46 +252,6 @@ def task14_table(ctx, output_dir):
         f"Trace Alignment — {ctx['trace_label']}",
         fontsize=FONT_TITLE, pad=10,
     )
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, out)
-
-
-# ---------------------------------------------------------------------------
-# Idiom 2: bar_chart
-# ---------------------------------------------------------------------------
-
-def task14_bar_chart(ctx, output_dir):
-    """Bar chart: count of each move type (synchronous + violations) in the trace."""
-    out = os.path.join(output_dir, "task14_bar_chart.svg")
-    counts = _type_counts_all(ctx)
-    present = [(mt, counts[mt]) for mt in _ALL_TYPES if counts[mt] > 0]
-    if not present:
-        render_empty_state_svg(out, "Move Type Distribution", "No trace steps.")
-        return
-
-    labels, vals = zip(*present)
-    colors = [_TYPE_COLOR[mt] for mt in labels]
-    ymax = max(vals)
-
-    fig, ax = plt.subplots(figsize=(7.5, 5.5))
-    bars = ax.bar(labels, vals, color=colors, edgecolor="white", width=0.55, alpha=0.90)
-    for bar, v in zip(bars, vals):
-        ax.text(
-            bar.get_x() + bar.get_width() / 2,
-            bar.get_height() + ymax * 0.015,
-            str(v), ha="center", va="bottom", fontsize=FONT_ANNOT,
-        )
-    ax.set_ylabel("Occurrences in Trace", fontsize=FONT_LABEL)
-    ax.set_title(
-        f"Trace Alignment — {ctx['trace_label']}",
-        fontsize=FONT_TITLE,
-    )
-    ax.set_ylim(0, ymax * 1.22)
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
-    ax.set_axisbelow(True)
-    ax.tick_params(axis="x", labelrotation=0)
-
     fig.tight_layout(pad=1.2)
     save_svg(fig, out)
 
@@ -644,7 +604,6 @@ def generate(alignments, model_path: str, output_dir: str, log=None,
                                            filename="task14_flow_chart_elaborate.svg", title=heading)
 
     task14_table(ctx, output_dir)
-    task14_bar_chart(ctx, output_dir)
     # task14_flow_chart_and_table(ctx, output_dir)
     # task14_flow_chart_elaborate(ctx, model_path, output_dir)  # superseded: task04's renderer draws it above
     # task14_flow_chart_elaborate_table(ctx, model_path, output_dir)
