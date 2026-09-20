@@ -182,6 +182,24 @@ def _counts(agg_df: pd.DataFrame, groups: list) -> np.ndarray:
 # Idiom 1: bar_chart — Pareto of total violation frequency (whole-log ranking)
 # ---------------------------------------------------------------------------
 
+def _rotate_bar_labels(ax, bar_width_data, n_cats, longest_label, font_size,
+                       margin: float = 1.25) -> bool:
+    """Does a value label have to stand on end to fit inside its bar?
+
+    Horizontal reads better and is what the bars usually have room for — ten
+    patterns across four sub-processes is the crowded case, two across three is
+    not. So measure instead of assuming: the bar's width in inches against the
+    label's, at 0.6 em per digit, with a margin so the text never touches the
+    bar's edges.
+    """
+    x_lo, x_hi = ax.get_xlim()
+    span = (x_hi - x_lo) or max(n_cats, 1)
+    axes_inches = ax.get_window_extent().width / ax.figure.dpi
+    bar_inches = bar_width_data / span * axes_inches
+    label_inches = longest_label * font_size * 0.6 / 72.0
+    return bar_inches < label_inches * margin
+
+
 def task32_bar_chart(agg_df, groups, attr, output_dir):
     """Grouped bars: per violation pattern (ranked by total), its occurrence COUNT
     in each sub-process (sub-log defined by the compare attribute, e.g. AMOUNT_REQ).
@@ -209,6 +227,9 @@ def task32_bar_chart(agg_df, groups, attr, output_dir):
     ymax = counts.max() if counts.size else 1.0
     bw = _BAR_WIDTH_TOTAL / max(len(groups), 1)
     offsets = (np.arange(len(groups)) - (len(groups) - 1) / 2.0) * bw
+    label_size = FONT_ANNOT - 2
+    longest = max((len(f"{int(v)}") for v in counts.flat if v > 0), default=1)
+    rotate = _rotate_bar_labels(ax, bw, len(patterns), longest, label_size)
     for gi, color in enumerate(colors):
         for ci in range(len(patterns)):
             val = counts[ci, gi]
@@ -216,11 +237,12 @@ def task32_bar_chart(agg_df, groups, attr, output_dir):
                 continue
             if val >= ymax * 0.12:
                 ax.text(x[ci] + offsets[gi], val / 2, f"{int(val)}",
-                        ha="center", va="center", fontsize=FONT_ANNOT - 2,
-                        color=contrasting_text_color(color), rotation=90)
+                        ha="center", va="center", fontsize=label_size,
+                        color=contrasting_text_color(color),
+                        rotation=90 if rotate else 0)
             else:
                 ax.text(x[ci] + offsets[gi], val + ymax * 0.015, f"{int(val)}",
-                        ha="center", va="bottom", fontsize=FONT_ANNOT - 2,
+                        ha="center", va="bottom", fontsize=label_size,
                         color=GREY_DARK)
 
     ax.set_xticks(x)

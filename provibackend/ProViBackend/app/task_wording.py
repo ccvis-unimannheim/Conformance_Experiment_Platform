@@ -4,7 +4,7 @@ The `Task` collection is the shared question bank: `seed_data.py` owns it, the
 startup seed rewrites it, and every experiment shows its wording by default. An
 admin who rewords a question on /task or /overview is answering for *their*
 experiment, so that text is stored on the experiment document
-(`task_overrides`, task_id -> {label, description, answer_type}) and read back
+(`task_overrides`, task_id -> {label, description}) and read back
 through here.
 
 It lives on the experiment rather than on its `task_instances` because the
@@ -12,7 +12,7 @@ rewording happens while the tasks are still being chosen — a task has no
 instance until the wizard step is saved — and because an override should
 survive deselecting the task and picking it again.
 """
-WORDING_FIELDS = ("label", "description", "answer_type")
+WORDING_FIELDS = ("label", "description")
 
 
 def effective_wording(exp: dict | None, task_id: str, task: dict | None,

@@ -26,7 +26,7 @@ _SEED_NAMESPACE = uuid.UUID("00000000-0000-0000-0000-000000000001")
 def _seed_collection(collection_name: str, items: list, key_field: str):
     """Upsert canonical items — code is the source of truth for canonical content.
 
-    Canonical fields (label, description, answer_type, …) are `$set` on every
+    Canonical fields (label, description, …) are `$set` on every
     startup so edits to seed_data.py propagate to existing documents; the `_id`
     is only assigned on insert. Any non-canonical fields already on the document
     (not present in seed_data) are left untouched.
