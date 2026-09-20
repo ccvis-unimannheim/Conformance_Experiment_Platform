@@ -228,6 +228,110 @@ function IdiomFilesPanel({ experimentId, editable, bundleOnly, overrides, import
   );
 }
 
+// A PARAM_SPEC entry only applies when the parameters it depends on have the
+// values it names — the mirror of entryApplies() on the Specify page, so this
+// page lists exactly the controls that page showed.
+function entryApplies(entry, values) {
+  const cond = entry.visible_if;
+  if (!cond) return true;
+  return Object.entries(cond).every(([key, want]) => {
+    const have = values?.[key];
+    return Array.isArray(want) ? want.includes(have) : have === want;
+  });
+}
+
+function showParamValue(value) {
+  if (value === undefined || value === null || value === "") return null;
+  if (Array.isArray(value)) return value.length ? value.join(", ") : null;
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  return String(value);
+}
+
+const PARAMS_SHOWN = 4;
+
+// One line of "label: value" for the preview modal's caption.
+function paramSummary(spec, values) {
+  const entries = Object.entries(values || {});
+  if (entries.length === 0) return null;
+  const labels = new Map((spec || []).map((e) => [e.key, e.label || e.key]));
+  return entries
+    .map(([key, value]) => [labels.get(key) || key, showParamValue(value)])
+    .filter(([, value]) => value !== null)
+    .map(([label, value]) => `${label}: ${value}`)
+    .join(" · ") || null;
+}
+
+// The hyperparameters this task was generated with. Reviewing an experiment
+// before publishing means checking what participants will be shown, and the
+// parameters decide what the figures say — they were only visible on /specify,
+// and in the preview modal as raw keys.
+function TaskParametersSection({ spec, values, imported, editable, bundleOnly, experimentId }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!spec || spec.length === 0) return null;
+
+  const rows = spec
+    .filter((entry) => entryApplies(entry, values))
+    .map((entry) => {
+      const set = showParamValue(values?.[entry.key]);
+      return {
+        key: entry.key,
+        label: entry.label || entry.key,
+        value: set ?? showParamValue(entry.default) ?? "—",
+        isDefault: set === null,
+      };
+    });
+  if (rows.length === 0) return null;
+
+  const shown = expanded ? rows : rows.slice(0, PARAMS_SHOWN);
+
+  return (
+    <div className="p-5">
+      <div className="flex items-center justify-between mb-3 gap-3">
+        <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
+          Parameters
+          <span className="ml-2 font-normal normal-case tracking-normal text-primary">({rows.length})</span>
+        </p>
+        {editable && !bundleOnly && !imported && (
+          <Link
+            href={`/admin/experiments/specify?experiment_id=${encodeURIComponent(experimentId)}`}
+            className="text-xs text-primary border border-primary/30 px-3 py-1.5 rounded hover:bg-blue-50 transition-colors flex-shrink-0"
+          >
+            Change on Specify
+          </Link>
+        )}
+      </div>
+
+      {imported && (
+        <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-3 py-2 mb-3">
+          These are the parameters the imported images were drawn with, so they cannot be edited.
+        </p>
+      )}
+
+      <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-2">
+        {shown.map((row) => (
+          <div key={row.key} className="min-w-0">
+            <dt className="text-xs text-on-surface-variant truncate" title={row.label}>{row.label}</dt>
+            <dd className="text-xs font-medium text-on-surface break-words">
+              {row.value}
+              {row.isDefault && <span className="ml-1 font-normal text-on-surface-variant">(default)</span>}
+            </dd>
+          </div>
+        ))}
+      </dl>
+
+      {rows.length > PARAMS_SHOWN && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-2 text-xs text-primary hover:underline"
+        >
+          {expanded ? "Show fewer" : `+${rows.length - PARAMS_SHOWN} more`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // Name, design and task order, changeable while the experiment is a draft.
 // The wizard asks for these on /new, which an experiment built from a zip never
 // visits — and which shows a dataset table that route has no use for, so
@@ -436,6 +540,8 @@ function ExperimentOverviewContent() {
   // Formats that present a closed option set (from /admin/answer-formats).
   const [optionFormats, setOptionFormats] = useState(new Set());
   const [datasetTitleById, setDatasetTitleById] = useState({});
+  // task_key -> PARAM_SPEC, for naming each task's parameters below.
+  const [paramSpecByTaskKey, setParamSpecByTaskKey] = useState({});
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("draft");
 
@@ -537,12 +643,41 @@ function ExperimentOverviewContent() {
           idiomIds: idiomsByTask[tid] || [],
         }))
       );
+      await loadParamSpecs(taskOrder, tMap, tiMap);
       await loadOverrides();
     } catch (e) {
       showToast(`Could not load experiment: ${e.message}`, true);
     } finally {
       setLoading(false);
     }
+  }
+
+  // The hyperparameters each task was generated with, read back through the
+  // same PARAM_SPEC the Specify page renders, so the review step names them as
+  // that step did instead of showing raw keys. Custom tasks have no generator
+  // and no spec.
+  async function loadParamSpecs(taskOrder, tMap, tiMap) {
+    const keys = new Map(); // task_key -> dataset_id, one request per task
+    taskOrder.forEach((tid) => {
+      const taskKey = tMap[tid]?.task_key;
+      if (taskKey && !tMap[tid]?.is_custom && !keys.has(taskKey)) {
+        keys.set(taskKey, tiMap[tid]?.dataset_id || "");
+      }
+    });
+    const specs = {};
+    await Promise.all(
+      [...keys].map(async ([taskKey, datasetId]) => {
+        try {
+          const res = await fetch(
+            `/api/admin/tasks/${encodeURIComponent(taskKey)}/param-spec?dataset_id=${encodeURIComponent(datasetId)}`
+          );
+          if (res.ok) specs[taskKey] = (await res.json()).param_spec || [];
+        } catch {
+          // No spec — the task's parameters section is simply left out.
+        }
+      })
+    );
+    setParamSpecByTaskKey(specs);
   }
 
   async function loadOverrides() {
@@ -961,9 +1096,10 @@ function ExperimentOverviewContent() {
                                       idiomKey: idiom.idiom_key,
                                       idiomLabel: resolveIdiomLabel(task.task_key, idiom.idiom_key, idiom.label),
                                       datasetTitle: datasetTitleById[ti?.dataset_id] || null,
-                                      paramsSummary: ti?.parameters && Object.keys(ti.parameters).length > 0
-                                        ? Object.entries(ti.parameters).map(([k, v]) => `${k}: ${v}`).join(", ")
-                                        : null,
+                                      // Named as the Specify page named them, not by raw key.
+                                      paramsSummary: paramSummary(
+                                        paramSpecByTaskKey[task.task_key], ti?.parameters
+                                      ),
                                     })}
                                     title="Preview this idiom"
                                     className="text-on-surface-variant hover:text-primary transition-colors p-0.5 rounded flex-shrink-0"
@@ -977,6 +1113,16 @@ function ExperimentOverviewContent() {
                         </div>
                       )}
                     </div>
+
+                    {/* What this task's figures were drawn with */}
+                    <TaskParametersSection
+                      spec={paramSpecByTaskKey[task.task_key]}
+                      values={ti?.parameters}
+                      imported={!!ti?.images_imported_from}
+                      editable={status === "draft"}
+                      bundleOnly={!!experiment?.bundle_only}
+                      experimentId={experimentId}
+                    />
 
                     {/* Answer Format */}
                     <div className="p-5">
@@ -1099,7 +1245,7 @@ function ExperimentOverviewContent() {
               <h2 className="text-h2 text-on-surface">Another experiment is published</h2>
             </div>
             <p className="text-body-sm text-on-surface-variant">
-              "<span className="font-semibold">{publishConflict.name || publishConflict.experiment_name || "(unnamed)"}</span>" is currently published. Only one experiment can be published at a time.
+              &quot;<span className="font-semibold">{publishConflict.name || publishConflict.experiment_name || "(unnamed)"}</span>&quot; is currently published. Only one experiment can be published at a time.
             </p>
             <p className="text-body-sm text-on-surface-variant">
               Publishing this experiment will mark the existing one as <span className="font-semibold">finished</span>. Continue?

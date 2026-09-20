@@ -10,12 +10,10 @@ Every idiom shows the *same* concrete traces (individual traces, NOT
 aggregated variants) with their conformance fitness, just encoded differently, so
 no idiom exposes more information than another (information equivalence):
 
-    * bar_chart        – one uniform-coloured bar per trace, fitness on the y-axis
+    * bar_chart        – one bar per trace in that trace's colour, fitness on the y-axis
     * table            – Trace | Fitness, one row per trace
     * line_graph       – fitness profile across the sampled traces
-    * table_bar_chart  – Trace | Fitness table + adjacent per-trace fitness bars
-    * matrix           – trace × Fitness grid, colour + numeric annotation
-    * heatmap          – trace × Fitness grid, continuous colour (no annotation)
+    * matrix           – trace × Fitness grid, numbers only (colourless)
     * flow_chart_basic     – one chevron strip per trace, each activity coloured
                              by its alignment move type (needs alignments)
     * flow_chart_elaborate – the BPMN model drawn once per trace, coloured the
@@ -52,8 +50,7 @@ logger = logging.getLogger(__name__)
 
 IDIOMS = ["flow_chart_basic", "flow_chart_elaborate",
           "bar_chart", "table",
-          "line_graph", "table_bar_chart",
-          "matrix", "heatmap"]
+          "line_graph", "matrix"]
 
 
 import trace_alignment
@@ -144,7 +141,7 @@ from shared import (
     alignment_pairs_to_rows, chevron_nodes_from_alignment_rows,
     draw_chevron_strip, chevron_figure_width,
     parse_bpmn_model, compose_bpmn_panels, render_empty_state_svg,
-    contrasting_text_color,
+    contrasting_text_color, categorical_colors,
     GREY_MED, GREY_LIGHTER, GREY_DARK,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT,
     trace_activities, write_traces_sidecar,
@@ -153,8 +150,15 @@ from shared import (
 # Default number of traces to sample when the admin doesn't pick specific ones.
 SAMPLE_N = 2
 
-# Single uniform bar/line colour — no conformant / non-conformant distinction.
-_TRACE_COLOR = GREY_MED
+# The bar chart and the line graph give each compared trace one colour, from
+# `categorical_colors` — cividis's blue and yellow ends, the pair task01 and
+# task03 draw their bars with, extended to the 3-4 traces this task also allows.
+# It encodes WHICH trace, never how conformant it is: the task asks the
+# participant to read conformance off the fitness values, so no idiom here
+# colours a trace by conformance.
+#
+# Neutral colour for marks that belong to no single trace (the line itself).
+_LINE_COLOR = GREY_DARK
 
 # Consistent figure title across every idiom.
 TITLE = "Trace Conformance Fitness"
@@ -291,7 +295,7 @@ def _task04_violation_activities(rows):
 
 
 def _task04_move_map(rows):
-    """activity name -> heatmap/chevron colour for one trace, by alignment move
+    """activity name -> table/chevron colour for one trace, by alignment move
     type: synchronous move (yellow), model move (grey), log move (dark blue)."""
     m = {}
     for r in rows:
@@ -477,10 +481,11 @@ def task04_flow_chart_elaborate(selected, model_path, output_dir, *,
 
 
 def task04_bar_chart(tdf: pd.DataFrame, output_dir: str):
-    """One uniform-coloured bar per trace; fitness value labelled above each bar."""
+    """One bar per trace in that trace's colour; fitness value labelled above it."""
     fig, ax = plt.subplots(figsize=(max(7, len(tdf) * 0.75), 5))
     x = np.arange(len(tdf))
-    bars = ax.bar(x, tdf["fitness"], color=_TRACE_COLOR, edgecolor="white", width=0.65)
+    bars = ax.bar(x, tdf["fitness"], color=categorical_colors(len(tdf)),
+                  edgecolor="white", width=0.65)
     for bar, val in zip(bars, tdf["fitness"]):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.012,
                 f"{val:.3f}", ha="center", va="bottom", fontsize=FONT_ANNOT - 1)
@@ -505,8 +510,8 @@ def task04_table(selected, model_path, output_dir, *,
     any inserted ones), one column per compared trace, cell = the alignment move
     type in that trace (Synchronous Move / Model Move / Log Move). Only activities
     at least one trace touches are listed; a "—" marks the rare case an activity
-    appears in one trace but not the other. The tabular twin of the chevron / BPMN
-    / heatmap, read as plain text (only the header row is coloured)."""
+    appears in one trace but not the other. The tabular twin of the chevron /
+    BPMN views, read as plain text (only the header row is coloured)."""
     path = os.path.join(output_dir, filename)
     activities = _task04_model_task_names(model_path)
     if not activities or not selected:
@@ -520,7 +525,7 @@ def task04_table(selected, model_path, output_dir, *,
         return
 
     move_maps = [_task04_move_map(t["rows"]) for t in selected]
-    # inserted (log-move) activities become extra rows, mirroring the heatmap
+    # inserted (log-move) activities become extra rows
     inserted = []
     for mm in move_maps:
         for a, c in mm.items():
@@ -557,11 +562,18 @@ def task04_table(selected, model_path, output_dir, *,
 
 
 def task04_line_graph(tdf: pd.DataFrame, output_dir: str):
-    """Fitness profile across the sampled traces (x = trace, y = fitness)."""
+    """Fitness profile across the sampled traces (x = trace, y = fitness).
+
+    The line joins every trace, so it belongs to none of them and stays neutral;
+    the markers carry each trace's own colour, the same one the bar chart gives
+    it."""
     fig, ax = plt.subplots(figsize=(max(7, len(tdf) * 0.7), 5))
     x = np.arange(len(tdf))
-    ax.plot(x, tdf["fitness"], color=_TRACE_COLOR, linewidth=1.8, marker="o", markersize=5)
-    ax.fill_between(x, tdf["fitness"], alpha=0.15, color=_TRACE_COLOR)
+    colors = categorical_colors(len(tdf))
+    ax.plot(x, tdf["fitness"], color=_LINE_COLOR, linewidth=1.8, zorder=2)
+    ax.scatter(x, tdf["fitness"], c=colors, s=55, edgecolor="white", linewidth=0.8,
+               zorder=3)
+    ax.fill_between(x, tdf["fitness"], alpha=0.15, color=_LINE_COLOR)
     for xi, val in zip(x, tdf["fitness"]):
         ax.text(xi, val + 0.02, f"{val:.3f}", ha="center", va="bottom", fontsize=FONT_ANNOT - 1)
 
@@ -578,45 +590,13 @@ def task04_line_graph(tdf: pd.DataFrame, output_dir: str):
     save_svg(fig, os.path.join(output_dir, "task04_line_graph.svg"))
 
 
-def task04_table_bar_chart(tdf: pd.DataFrame, output_dir: str):
-    """Trace | Fitness table (left) + adjacent uniform-coloured fitness bars (right)."""
-    cell_text = [[row["label"], f"{row['fitness']:.3f}"] for _, row in tdf.iterrows()] \
-        or [["—", "—"]]
-    col_labels = ["Trace", "Fitness"]
-
-    fig = plt.figure(figsize=(13, max(4.5, 1.2 + len(tdf) * 0.45)))
-    gs = gridspec.GridSpec(1, 2, width_ratios=[1.2, 1.0], wspace=0.28)
-
-    ax_tbl = fig.add_subplot(gs[0])
-    ax_tbl.axis("off")
-    make_table(
-        ax_tbl, cell_text=cell_text, col_labels=col_labels,
-        bbox=[0.02, 0.05, 0.96, 0.88],
-        col_widths=auto_col_widths(col_labels, cell_text),
-        font_size=9.5, scale_xy=(1, 1.7), cell_pad=0.09,
-    )
-    ax_tbl.set_title(TITLE, fontsize=FONT_TITLE, pad=4)
-
-    ax_bar = fig.add_subplot(gs[1])
-    y = np.arange(len(tdf))
-    bars = ax_bar.barh(y, tdf["fitness"], color=_TRACE_COLOR, edgecolor="white")
-    for bar, val in zip(bars, tdf["fitness"]):
-        ax_bar.text(min(val + 0.02, 1.02), bar.get_y() + bar.get_height() / 2,
-                    f"{val:.3f}", va="center", ha="left", fontsize=FONT_ANNOT - 1)
-    ax_bar.set_yticks(y)
-    ax_bar.set_yticklabels(tdf["label"], fontsize=FONT_ANNOT - 1)
-    ax_bar.invert_yaxis()
-    ax_bar.set_xlim(0, 1.18)
-    ax_bar.set_xlabel("Fitness (0-1)", fontsize=FONT_LABEL)
-    ax_bar.spines[["top", "right"]].set_visible(False)
-    ax_bar.xaxis.grid(True, linestyle="--", alpha=0.5)
-    ax_bar.set_axisbelow(True)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task04_table_bar_chart.svg"))
-
-
 def task04_matrix(tdf: pd.DataFrame, output_dir: str):
-    """Trace × Fitness grid: colour scales 0→light to 1→dark, with numeric labels."""
+    """Trace × Fitness grid: white cells ruled into a grid, each fitness carried
+    by the printed number alone.
+
+    Colourless, as in tasks 01, 03 and 27-32. With a colour scale the matrix
+    would be a heatmap that also prints its numbers — one variable encoded
+    twice."""
     labels = tdf["label"].tolist()
     data = tdf["fitness"].values.astype(float).reshape(-1, 1)
 
@@ -625,67 +605,11 @@ def task04_matrix(tdf: pd.DataFrame, output_dir: str):
     draw_value_heatmap(
         fig, ax, data, labels, ["Fitness"],
         cbar_label="Fitness", cell_fmt="{:.3f}", annotate=True,
+        colorless=True,
     )
     ax.set_title(TITLE, fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task04_matrix.svg"))
-
-
-def task04_heatmap(selected, model_path, output_dir):
-    """Activity × trace move-type heatmap: columns = the compared traces, rows =
-    the activities (model tasks plus any inserted ones), cell colour = the
-    alignment move type — synchronous move (yellow), model move (grey), log move
-    (dark blue), or white when the trace never touches that activity. Colour only,
-    using the same cividis-derived palette as the chevron / BPMN views; no fitness,
-    no numbers."""
-    path = os.path.join(output_dir, "task04_heatmap.svg")
-    title = "Move Type by Activity Across Traces"
-    activities = _task04_model_task_names(model_path)
-    if not activities or not selected:
-        render_empty_state_svg(path, title, "No model / traces available.")
-        return
-
-    move_maps = [_task04_move_map(t["rows"]) for t in selected]
-    # inserted (log-move) activities become extra rows so the log-move colour appears
-    inserted = []
-    for mm in move_maps:
-        for a, c in mm.items():
-            if c == GREY_DARK and a not in activities and a not in inserted:
-                inserted.append(a)
-    rows = list(activities) + inserted
-    cols = [t["label"] for t in selected]
-    n_rows, n_cols = len(rows), len(cols)
-
-    fig_h = max(3.0, 0.46 * n_rows + 1.9)
-    fig_w = max(4.5, 1.9 * n_cols + 3.2)
-    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
-    for ri, a in enumerate(rows):
-        for ci, mm in enumerate(move_maps):
-            ax.add_patch(mpatches.Rectangle(
-                (ci, ri), 1, 1, facecolor=mm.get(a, "#ffffff"),
-                edgecolor="#cfcfcf", linewidth=1.2))
-    ax.set_xlim(0, n_cols)
-    ax.set_ylim(0, n_rows)
-    ax.invert_yaxis()
-    ax.set_xticks([c + 0.5 for c in range(n_cols)])
-    ax.set_xticklabels(cols, fontsize=FONT_ANNOT)
-    ax.set_yticks([r + 0.5 for r in range(n_rows)])
-    ax.set_yticklabels(rows, fontsize=FONT_ANNOT - 1)
-    ax.set_xlabel("Trace", fontsize=FONT_LABEL)
-    ax.tick_params(length=0)
-    for s in ax.spines.values():
-        s.set_visible(False)
-    ax.set_title(title, fontsize=FONT_TITLE)
-
-    any_not_involved = any(
-        rows[ri] not in mm for ri in range(n_rows) for mm in move_maps)
-    legend = list(_MOVE_LEGEND) + ([("Not in this trace", "#ffffff")] if any_not_involved else [])
-    handles = [mpatches.Patch(facecolor=c, edgecolor="#4a4a4a", label=lbl)
-               for lbl, c in legend]
-    fig.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, 0.0),
-               ncol=len(legend), frameon=False, fontsize=FONT_ANNOT - 1)
-    fig.tight_layout(rect=[0, 0.07, 1, 1.0])
-    save_svg(fig, path)
 
 
 # ---------------------------------------------------------------------------
@@ -752,14 +676,12 @@ def generate(log, fitness_df, output_dir: str, trace_ids=None, alignments=None, 
     ])
 
     task04_bar_chart(tdf, output_dir)
-    task04_table_bar_chart(tdf, output_dir)
     task04_matrix(tdf, output_dir)
     task04_line_graph(tdf, output_dir)
 
-    # Trace-level pattern comparison — chevron, BPMN, violation heatmap and the
-    # move-type table of the same traces (all need the alignments / model).
+    # Trace-level pattern comparison — chevron, BPMN and the move-type table of
+    # the same traces (all need the alignments / model).
     if selected:
         task04_flow_chart_basic(selected, output_dir, model_path=model_path)
         task04_flow_chart_elaborate(selected, model_path, output_dir)
-        task04_heatmap(selected, model_path, output_dir)
         task04_table(selected, model_path, output_dir)
