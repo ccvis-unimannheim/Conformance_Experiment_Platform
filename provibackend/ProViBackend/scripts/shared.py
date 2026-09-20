@@ -1100,12 +1100,13 @@ def draw_value_heatmap(fig, ax, data, row_labels, col_labels,
 
 def draw_rate_matrix(fig, ax, data, row_labels, col_labels,
                      xlabel: str = "", cbar_label: str = "Rate (%)",
-                     cell_fmt: str = "{:.1f}%", colorless: bool = False):
+                     cell_fmt: str = "{:.1f}%", colorless: bool = False,
+                     rotate_xticks: int = 0):
     """Annotated rate matrix — thin wrapper over draw_value_heatmap(annotate=True)."""
     return draw_value_heatmap(fig, ax, data, row_labels, col_labels,
                               xlabel=xlabel, cbar_label=cbar_label,
                               cell_fmt=cell_fmt, annotate=True,
-                              colorless=colorless)
+                              colorless=colorless, rotate_xticks=rotate_xticks)
 
 
 def draw_grouped_box_plot(ax, data, labels, colors, *, ylabel: str = "",

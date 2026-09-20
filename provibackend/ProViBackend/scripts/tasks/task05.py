@@ -73,13 +73,32 @@ from shared import (
     save_svg, make_table, draw_parallel_sets, alignment_pairs_to_rows,
     draw_grouped_rate_bars, draw_composition_stacked_bars, draw_rate_matrix,
     draw_grouped_box_plot, draw_value_heatmap, render_empty_state_svg,
-    PAIR_COLORS, categorical_colors, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
+    wrap_text, PAIR_COLORS, categorical_colors, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 TOP_N = 10
 
 _COLOR_POSITIVE, _COLOR_NEGATIVE = PAIR_COLORS  # cividis blue / yellow
 _GROUP_COLORS   = {"Positive": _COLOR_POSITIVE, "Negative": _COLOR_NEGATIVE}
+
+#: Angle the sub-log names are rotated to where they sit under a two-column
+#: axis. They come from the split attribute, so their length is the dataset's
+#: to decide, not this module's: "AMOUNT_REQ ≤ 10000" already touches at 18
+#: characters and "CUSTOMER_SEGMENT = Small Business" is 33.
+_SUBLOG_TICK_ROTATION = 20
+
+
+def _wrapped_headers(headers, width: int):
+    """Table headers wrapped to `width`, with the tallest one's line count.
+
+    Matplotlib tables neither clip nor grow to fit their text: an over-long
+    header runs straight into the next column, and extra lines spill out of the
+    header row. Callers wrap at whatever width their column affords and add the
+    returned line count to the figure height, so both directions stay inside
+    the cell whatever the split attribute is called.
+    """
+    wrapped = [wrap_text(str(h), width) for h in headers]
+    return wrapped, max(w.count("\n") + 1 for w in wrapped)
 
 
 # ---------------------------------------------------------------------------
@@ -207,7 +226,10 @@ def task05_bar_chart(agg_df: pd.DataFrame, output_dir: str,
 def task05_stacked_bar(agg_df: pd.DataFrame, n_traces: dict, output_dir: str,
                        labels=("Sub-log 1", "Sub-log 2")):
     """Stacked bar: one bar per sub-log, segments = top-N patterns + Other."""
-    groups   = list(labels)
+    # Two bars in a 5-inch axis leave each sub-log name about 2 inches, and the
+    # longer ones ran into each other flat. Wrapping rather than rotating: the
+    # legend sits just under the axis, and rotated labels reach down into it.
+    groups   = [wrap_text(str(g), 16) for g in labels]
     patterns = agg_df["pattern"].tolist()
 
     fig, ax = plt.subplots(figsize=(5, 5.5))
@@ -241,16 +263,17 @@ def task05_table(agg_df: pd.DataFrame, output_dir: str,
         ]
         for _, row in agg_df.iterrows()
     ]
-    fig_h = max(3.5, 1.3 + len(cell_text) * 0.46)
+    heads, head_lines = _wrapped_headers(
+        [f"{labels[0]} (n / rate)", f"{labels[1]} (n / rate)"], 20)
+    fig_h = max(3.5, 1.3 + len(cell_text) * 0.46) + (head_lines - 1) * 0.22
     fig, ax = plt.subplots(figsize=(13, fig_h))
     ax.axis("off")
     make_table(
         ax,
         cell_text=cell_text,
-        col_labels=["Violation Pattern", f"{labels[0]} (n / rate)",
-                    f"{labels[1]} (n / rate)", "Total"],
+        col_labels=["Violation Pattern", heads[0], heads[1], "Total"],
         bbox=[0.01, 0.05, 0.98, 0.80],
-        col_widths=[0.50, 0.18, 0.18, 0.10],
+        col_widths=[0.44, 0.21, 0.21, 0.12],
         font_size=9.5,
         scale_xy=(1, 1.75),
         cell_pad=0.09,
@@ -264,7 +287,9 @@ def task05_table(agg_df: pd.DataFrame, output_dir: str,
 def task05_table_and_bar_chart(agg_df: pd.DataFrame, output_dir: str,
                                labels=("Sub-log 1", "Sub-log 2")):
     """Table (left) + grouped bar chart (right) in one figure."""
-    fig = plt.figure(figsize=(16, max(4.5, 1.2 + len(agg_df) * 0.45)))
+    heads, head_lines = _wrapped_headers(labels, 16)
+    fig = plt.figure(figsize=(16, max(4.5, 1.2 + len(agg_df) * 0.45)
+                              + (head_lines - 1) * 0.22))
     gs  = gridspec.GridSpec(1, 2, width_ratios=[1.5, 1.0], wspace=0.35)
 
     ax_tbl = fig.add_subplot(gs[0])
@@ -279,9 +304,12 @@ def task05_table_and_bar_chart(agg_df: pd.DataFrame, output_dir: str,
     make_table(
         ax_tbl,
         cell_text=cell_text,
-        col_labels=["Violation Pattern", labels[0], labels[1], "Total"],
+        # The table gets 1.5/2.5 of the figure here, not the whole of it as in
+        # task05_table, so a header that fits there does not fit here. The
+        # extra width comes from the pattern column, which had room.
+        col_labels=["Violation Pattern", heads[0], heads[1], "Total"],
         bbox=[0.01, 0.05, 0.98, 0.82],
-        col_widths=[0.52, 0.18, 0.18, 0.10],
+        col_widths=[0.40, 0.23, 0.23, 0.14],
         font_size=9,
         scale_xy=(1, 1.7),
         cell_pad=0.09,
@@ -298,7 +326,11 @@ def task05_table_and_bar_chart(agg_df: pd.DataFrame, output_dir: str,
     ax_bar.set_yticks(x)
     ax_bar.set_yticklabels(patterns, fontsize=FONT_ANNOT - 1)
     ax_bar.set_xlabel("Rate (%)", fontsize=FONT_LABEL)
-    ax_bar.legend(frameon=False, fontsize=FONT_ANNOT)
+    # Matplotlib's "best" placement drops a two-entry legend onto the bars once
+    # the sub-log names are long enough to need the width. Below the axes it
+    # cannot cover data whatever they are called.
+    ax_bar.legend(frameon=False, fontsize=FONT_ANNOT, ncol=2,
+                  loc="upper center", bbox_to_anchor=(0.5, -0.10))
     ax_bar.spines[["top", "right"]].set_visible(False)
     ax_bar.xaxis.grid(True, linestyle="--", alpha=0.5)
     ax_bar.set_axisbelow(True)
@@ -329,8 +361,11 @@ def task05_matrix(agg_df: pd.DataFrame, output_dir: str,
 
     fig_h = max(3.0, 0.55 * len(patterns) + 1.2)
     fig, ax = plt.subplots(figsize=(5, fig_h))
+    # The sub-log names come from the split attribute ("AMOUNT_REQ ≤ 10000"),
+    # so two of them side by side overrun a two-column axis; rotating is what
+    # the other tasks do with labels this long.
     draw_rate_matrix(fig, ax, data, patterns, groups, xlabel="Sub-log",
-                     colorless=True)
+                     colorless=True, rotate_xticks=_SUBLOG_TICK_ROTATION)
     ax.set_title("Violation Rate Matrix (%)", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task05_matrix.svg"))
@@ -498,7 +533,8 @@ def task05_heatmap(agg_df: pd.DataFrame, output_dir: str,
     fig_h = max(3.0, 0.55 * len(patterns) + 1.2)
     fig, ax = plt.subplots(figsize=(5, fig_h))
     draw_value_heatmap(fig, ax, data, patterns, list(labels), xlabel="Sub-log",
-                       cbar_label="Rate (%)", annotate=False)
+                       cbar_label="Rate (%)", annotate=False,
+                       rotate_xticks=_SUBLOG_TICK_ROTATION)
     ax.set_title("Violation Rate Heatmap (%)", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task05_heatmap.svg"))
