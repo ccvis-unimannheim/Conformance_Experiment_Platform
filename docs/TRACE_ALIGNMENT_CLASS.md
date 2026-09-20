@@ -325,6 +325,16 @@ one process already disagree), and pm4py exposes no deterministic tie-break. So:
   collapse: the pair is the row, so nothing can overwrite anything. task04's
   table keeps its own shape, because comparing *which kind of move* an activity
   got is task04's question; task34 presents violations.
+* **task34 drew fewer traces than were asked for.** `_build_contexts` keeps a
+  pool of 30, sorted by violation count, and `_select_ctxs` looked every chosen
+  trace up in that pool — so a trace outside it was silently dropped, whether
+  the admin had named it or a rule had picked it. Four hand-picked traces could
+  come back as one, and `most_frequent_variants` lost whichever of its picks was
+  a frequent-but-low-violation variant. `_context_at` now builds a context for
+  any trace index on demand, and the pool is only the fallback and what
+  `violated_activity` narrows. Where a log genuinely holds fewer distinct
+  violating variants than the admin asked for, `generate` says so in the log
+  rather than quietly showing fewer.
 * **task34 lost five idioms** — flow chart & table, table & bar chart, flow
   chart+ & table, parallel sets and the stacked bar — leaving `bar_chart`,
   `table`, `flow_chart_basic`, `flow_chart_elaborate`, `heatmap` and `matrix`.

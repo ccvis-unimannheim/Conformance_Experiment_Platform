@@ -2,6 +2,29 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: task34 Shows Every Trace That Was Asked For (2026-09-20)
+
+### Problem solved
+
+Asking for four traces gave three, or fewer depending on the rule; naming four
+by hand gave one. Every idiom agreed with every other, so the figures looked
+consistent — they were consistently short.
+
+### Changes
+
+| Area | Change |
+|------|--------|
+| The drop | `_build_contexts` keeps a pool of the 30 most-violating traces, and `_select_ctxs` looked each chosen trace up in it with `by_index[i]`, skipping whatever was missing. Anything outside the pool was discarded without a word, whether the admin had named it or a rule had picked it. On BPIC12-A: four hand-picked traces came back as one, and `most_frequent_variants` returned index 7549 — a frequent variant with few violations, nowhere near the top 30 — which left three of four. |
+| The fix | `_context_at(alignments, i)` builds one trace's context on demand; `_select_ctxs` falls back to it for any index the pool does not hold. `_build_contexts` is now only the fallback pool and what `violated_activity` narrows, and says so. |
+| Short selections | A log can hold fewer distinct violating variants than the admin asked for — the rules keep one trace per activity sequence. `generate` logs that case instead of leaving the figure quietly short. |
+
+### Verification
+
+On BPIC12-A (13087 traces), before and after: four hand-picked traces 1 -> 4,
+`most_frequent_variants` at count 4 3 -> 4, `worst_fitness` and
+`first_nonconformant` 4 -> 4. Two full `generate` runs, by rule and by hand,
+write six SVGs and a `traces.json` holding four traces.
+
 ## Session: Every task34 Idiom Names the Violation Type (2026-09-20)
 
 ### Problem solved

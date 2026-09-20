@@ -184,22 +184,36 @@ def _is_violation(row):
     return row["moveType"] != "Synchronous"
 
 
+def _context_at(alignments, i):
+    """The context for trace ``i``, or None if its alignment has no steps.
+
+    Built on demand, because _build_contexts only keeps a top-K pool: a trace
+    the admin names, or a rule picks, may well sit outside it.
+    """
+    if i < 0 or i >= len(alignments):
+        return None
+    result = alignments[i]
+    rows = _parse_alignment(result)
+    if not rows:
+        return None
+    return {
+        "trace_index":  i,
+        "trace_label":  f"Trace {i + 1}",
+        "fitness":      float(result.get("fitness", 1.0)),
+        "cost":         result.get("cost"),
+        "rows":         rows,
+        "n_violations": sum(1 for r in rows if _is_violation(r)),
+    }
+
+
 def _build_contexts(alignments, max_traces=30):
-    """Top-K traces sorted by violation count descending."""
-    ctxs = []
-    for i, result in enumerate(alignments):
-        rows = _parse_alignment(result)
-        if not rows:
-            continue
-        n_viol = sum(1 for r in rows if _is_violation(r))
-        ctxs.append({
-            "trace_index":  i,
-            "trace_label":  f"Trace {i + 1}",
-            "fitness":      float(result.get("fitness", 1.0)),
-            "cost":         result.get("cost"),
-            "rows":         rows,
-            "n_violations": n_viol,
-        })
+    """Top-K traces sorted by violation count descending.
+
+    The fallback pool, and what `violated_activity` narrows. It is *not* the set
+    of traces that can be drawn: ask `_context_at` for those.
+    """
+    ctxs = [c for c in (_context_at(alignments, i) for i in range(len(alignments)))
+            if c is not None]
     ctxs.sort(key=lambda c: (-c["n_violations"], c["fitness"]))
     return ctxs[:max_traces]
 
@@ -677,10 +691,14 @@ def _select_ctxs(ctxs, log, alignments, *, trace_ids=None, rule="worst_fitness",
         return []
     by_index = {c["trace_index"]: c for c in ctxs}
 
+    def context_for(i):
+        """The pool's context for trace i, else one built for it."""
+        return by_index.get(i) or _context_at(alignments, i)
+
     if trace_ids:
         index_of = trace_alignment.case_index(log)
-        chosen = [by_index[index_of[str(t)]] for t in trace_ids
-                  if str(t) in index_of and index_of[str(t)] in by_index]
+        chosen = [c for c in (context_for(index_of[str(t)]) for t in trace_ids
+                              if str(t) in index_of) if c is not None]
         if chosen:
             return chosen[:max(count, len(trace_ids))]
         # Every named trace is fully conformant (so has no context): fall through
@@ -705,7 +723,7 @@ def _select_ctxs(ctxs, log, alignments, *, trace_ids=None, rule="worst_fitness",
         [{"fitness": float(a.get("fitness", 1.0))} for a in alignments[:n_traces]])
     indices = trace_alignment.pick_indices(log, alignments, fitness_df, count, rule,
                                            pattern=pattern)
-    return [by_index[i] for i in indices if i in by_index]
+    return [c for c in (context_for(i) for i in indices) if c is not None]
 
 
 def _multi_trace_alignment_figures(log, alignments, shown, model_path, output_dir):
@@ -768,6 +786,7 @@ def generate(log, alignments, output_dir, model_path=None, violated_activity=Non
             _no_violations(output_dir, k)
         return
 
+    count_asked = max(int(trace_count or 1), 1)
     shown = _select_ctxs(ctxs, log, alignments, trace_ids=trace_ids,
                          rule=trace_pick_rule, count=trace_count,
                          pattern=violation_pattern,
@@ -780,6 +799,15 @@ def generate(log, alignments, output_dir, model_path=None, violated_activity=Non
     )
     if len(shown) > 1:
         logger.info(f"      -> {len(shown)} traces shown side by side.")
+    asked = len(trace_ids) if trace_ids else count_asked
+    if shown and len(shown) < asked:
+        # Not a failure in itself — the rules keep one trace per distinct
+        # activity sequence, and a log can hold fewer violating variants than
+        # the admin asked for. Worth saying out loud, because the figure then
+        # shows fewer traces than the picker offered.
+        logger.info(
+            f"      Note: {asked} traces requested, {len(shown)} available "
+            f"(distinct violating variants).")
 
     write_traces_sidecar(output_dir, [{
         "label":      f"Trace {position + 1}",
