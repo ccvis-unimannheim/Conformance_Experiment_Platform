@@ -1,17 +1,39 @@
 """
 tasks/task36.py – Task 36: Present · Present · Process conformance per rule
 
-Question: Which concrete violations of guidelines are predominant in my process?
-  Based on declarative guidelines (Declare model), compute per-rule conformance
-  and present as a colored process network.
+Question: Which guideline violations are predominant in my process?
 
-Visualizations:
-  bar_chart       – rules ranked by conformance rate (horizontal bars)
+**The question lost its addendum, and the task is built on what remains.** It
+used to continue "based on concrete guidelines (e.g. LTL-formulas), compute the
+average conformance per guideline and present them in conjunction (e.g. as a
+coloured declarative process model)". The declarative half had already been
+abandoned in the code: `_extract_data` read `violation_profile.profile()` like
+its siblings, and the two idioms that needed activity-pair constraints — the
+heatmap and the network diagram — rendered a byte-identical empty state on
+every run. task36 had one working idiom.
 
-The heatmap and the network diagram are gone. Both drew activity-pair
-constraints, and an alignment violation is not a pair, so both could only
-render a line of text saying they await a redesign — on every log, by
-construction, while still being offered to an admin as something to pick.
+**What now makes this task its own.** task11 (Describe · Summarize), task29
+(Explore · Summarize) and task32 (Present · Compare) read the same violation
+profile. task32 separates itself with a sub-log axis; without its addendum
+task36 has only the word *predominant* — which is not another number but a
+threshold on the same ones. So the threshold is the subject: every idiom ranks
+the violation groups by their share of all violations, shows where
+`prominence_threshold` cuts, and pools everything below it into one "all other
+violations" entry. The reader is told which violations are predominant, which
+is what Present · Present means.
+
+Idioms:
+  bar_chart  – groups ranked by occurrences, with the predominance cut drawn
+  table      – the same numbers as text, with a column saying which qualify
+  pie_chart  – each group's share of all violations, the remainder pooled
+
+Deliberately absent: matrix, heatmap, stacked bar and parallel sets. task11,
+task29 and task32 already draw those over this same profile, and a fourth set
+of them would be four tasks showing one payload four ways.
+
+Public API:
+    generate(log, alignments, output_dir, grouping_strategy="move_type",
+             selection=None, prominence_threshold=None)
 """
 
 import logging
