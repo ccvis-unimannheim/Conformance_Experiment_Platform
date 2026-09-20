@@ -86,7 +86,7 @@ import matplotlib.patches as mpatches
 import matplotlib.colors as mcolors
 import matplotlib.cm as cm
 
-from shared import most_common_stable, save_svg, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS, CIVIDIS_R, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
+from shared import most_common_stable, save_svg, draw_rate_matrix, GREY_DARK, GREY_MED, GREY_LIGHT, GREY_LIGHTER, CIVIDIS_R, FONT_TITLE, FONT_LABEL, FONT_ANNOT, classify_step as _classify_step
 
 # ── Cividis palette ───────────────────────────────────────────────────────────
 _C_DARK   = GREY_DARK
@@ -94,7 +94,6 @@ _C_MED    = GREY_MED
 _C_LIGHT  = GREY_LIGHT
 _C_XLIGHT = GREY_LIGHTER
 _HDR_BG   = GREY_DARK
-_CMAP_SEQ = CIVIDIS
 
 # Violation type → grey shade (light = skipped, dark = extra)
 _VTYPES = ["Model Move", "Log Move"]
@@ -418,7 +417,13 @@ def task09_table_bar_chart(activity_type, activity_totals, n_violations, output_
 # ── Idiom 8: Matrix ───────────────────────────────────────────────────────────
 
 def task09_matrix(activity_type, activity_totals, trace_label, output_dir):
-    """Activity × violation-type matrix for one trace. Cell = count. PowerNorm for contrast."""
+    """Activity × violation-type matrix for one trace. Cell = count.
+
+    Colorless (shared.draw_rate_matrix's strict-matrix mode), same as task28's
+    own matrix idiom: the payload is the printed number, not a colour scale —
+    a colour-coded count on top of the number would encode the same value
+    twice, which is what a Heatmap idiom is for, not a Matrix one.
+    """
     if not activity_totals:
         _no_violations(output_dir, "matrix")
         return
@@ -432,35 +437,13 @@ def task09_matrix(activity_type, activity_totals, trace_label, output_dir):
     ], dtype=float)
 
     fig_h = max(4, len(top_acts) * 0.6 + 2)
-    fig, ax = plt.subplots(figsize=(9, fig_h))
-    ax.set_facecolor("#fafbfc")
+    fig, ax = plt.subplots(figsize=(7, fig_h))
 
-    vmax = mat.max() if mat.max() > 0 else 1
-    im = ax.imshow(mat, cmap=_CMAP_SEQ, aspect="auto",
-                   norm=mcolors.PowerNorm(gamma=0.5, vmin=0, vmax=vmax))
-
-    ax.set_xticks(range(len(_VTYPES)))
-    ax.set_xticklabels(_VTYPES, fontsize=FONT_ANNOT, rotation=15, ha="right")
-    ax.set_yticks(range(len(top_acts)))
-    ax.set_yticklabels(short_labels, fontsize=FONT_ANNOT)
-
-    for i in range(len(top_acts)):
-        for j in range(len(_VTYPES)):
-            val = int(mat[i, j])
-            if val > 0:
-                brightness = im.norm(val)
-                txt_color = "white" if brightness > 0.55 else _C_DARK
-                ax.text(j, i, str(val), ha="center", va="center",
-                        fontsize=max(FONT_ANNOT - 1, 6), color=txt_color)
-
-    cbar = fig.colorbar(im, ax=ax, fraction=0.03, pad=0.01)
-    cbar.set_label("Violation count", fontsize=FONT_ANNOT)
-    cbar.outline.set_visible(False)
+    draw_rate_matrix(fig, ax, mat, short_labels, _VTYPES,
+                     xlabel="Move Type", cell_fmt="{:.0f}", colorless=True,
+                     rotate_xticks=15)
 
     ax.set_title(trace_label, fontsize=FONT_LABEL, pad=8)
-    ax.tick_params(axis="both", length=0)
-    for spine in ax.spines.values():
-        spine.set_visible(False)
 
     fig.suptitle(_TITLE, fontsize=FONT_TITLE, y=0.99)
     fig.tight_layout(pad=1.2, rect=[0, 0, 1, 0.94])
