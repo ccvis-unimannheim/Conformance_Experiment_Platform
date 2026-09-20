@@ -1,50 +1,58 @@
 """
 tasks/task25.py – Task ID 25: Explore / Discover / Process conformance.
 
-The analyst discovers the overall degree of conformance themself, from the
-process model rather than from a computed number. Three principles:
+The analyst works out the overall degree of conformance themself. Three
+principles, in the order they constrain the design:
 
   * **Discovery, not description.** No aggregated conformance value is handed
-    over — no fitness figure, no mean line, no summary row. The task's whole
-    difference from task06 (which states the number) is that here it has to be
-    worked out.
-  * **On the model.** The guideline model is the visual, annotated per activity
-    with how its recorded behaviour replayed: how often the activity was
-    executed where the model prescribes it, and how often it deviated (executed
-    where the model does not prescribe it, or prescribed and not executed).
-    Conformance is read off the process the analyst already knows.
-  * **Recoverable, not binned.** The counts are exact and per activity, never
-    bands or ranges, so the overall degree can actually be derived from them.
-    Colour only ranks the activities; the numbers carry the information.
+    over — no mean fitness, no conformance rate, no summary row, no tile. The
+    task's whole difference from task06 (which states the number) is that here
+    it has to be derived.
+  * **Per trace.** Fitness is defined per trace and the overall degree is the
+    mean over traces, so a decomposition that adds back up to it has to be a
+    decomposition by trace. Every idiom shows the distribution of per-trace
+    fitness: which values occur in the log, and how many traces have each.
+  * **Recoverable, not binned.** The values are the ones the alignments
+    actually produced, never ranges or bands, so the mean can be reconstructed
+    exactly from any of the four figures. On BPIC12-A the whole log takes five
+    distinct fitness values, so this costs nothing in table length.
 
-The idiom draws the per-activity counts on the model itself; the node labels
-carry the whole payload.
+**This replaced a per-activity payload, and that mattered.** The task used to
+annotate the guideline BPMN with per-activity replay counts. Pooling those
+gives the share of replayed steps that were synchronous — an *event*-weighted
+rate — while task06 states the mean of the per-trace fitness. On the
+order-to-cash log the two were 93.7% and 95.3%: two tasks asking verbatim the
+same question with two different right answers. Reading the same per-trace
+fitness task06 reads removes that by construction, and
+`io_helpers.fitness_summary_dataframe` builds its column from exactly the
+`result["fitness"]` this module reads, so the two cannot drift apart.
 
-**What the figure supports is not task06's number.** Pooling the labels gives
-the share of replayed steps that were synchronous — an event-weighted rate. The
-fitness task06 states is the mean of the per-trace alignment fitness, which
-weights every trace equally and is itself a cost ratio rather than a step count.
-On the order-to-cash log the two are 93.7% and 95.3%. Both are defensible
-readings of "overall degree of conformance", but an answer key for this task has
-to come from what this figure supports, not from pm4py's fitness — no
-per-activity decomposition reproduces that number exactly.
+**Why these four idioms.** The bar chart and the table let a reader take the
+counts off and do the arithmetic. The pie chart and the stacked bar encode the
+share of the whole directly — the very quantity being asked for — one by angle,
+the other by length. Two count encodings against two part-of-whole encodings is
+the contrast this task is worth running.
+
+Deliberately absent: a heatmap (colour cannot be pooled back into a mean), a
+box plot (median and quartiles are already aggregates, and the mean is not
+derivable from them), a tile metric or gauge (they *are* the answer), and the
+annotated BPMN (a model's topology says where behaviour deviates, not how much
+of it does).
 
 Reuses the centrally computed alignments; nothing is re-run here.
 
 Public API:
-    generate(log, alignments, output_dir, model_path=None)
+    generate(log, alignments, output_dir)
         log        – PM4Py EventLog (unused; kept for the calling convention)
         alignments – raw alignment results from io_helpers.run_alignments
         output_dir – directory where SVGs are written
-        model_path – the guideline BPMN; without it the idiom renders its
-                     empty state, since the model is the visual
 """
 
 import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["flow_chart_elaborate"]
+IDIOMS = ["bar_chart", "table", "pie_chart", "stacked_bar"]
 
 
 PARAM_SPEC = []
@@ -52,154 +60,252 @@ PARAM_SPEC = []
 
 import os
 
+import numpy as np
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 from matplotlib.colors import to_hex
 
 from shared import (
-    alignment_pairs_to_rows, parse_bpmn_model, compose_bpmn_panels,
-    render_empty_state_svg, contrasting_text_color, CIVIDIS_R,
+    save_svg, make_table, auto_col_widths, render_empty_state_svg,
+    contrasting_text_color, CIVIDIS_R,
+    GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
-#: Alignment labels naming no real activity (tau / hidden transitions).
-_MISSING = {"-", "None", "(skip)", ">>", ""}
+#: One title over all four. It names what the figures show — the traces and how
+#: they scored — and not what the reader is to conclude from them.
+_TITLE = "How the Log's Traces Scored Against the Guideline"
 
-_TITLE = "Recorded Behaviour on the Process Model"
-#: Says how to read the figure without saying what the answer is.
-_SUMMARY = ("Each activity: times executed as the model prescribes / times it was "
-            "involved at all. Darker = a larger share deviated.")
+#: Fitness printed to three decimals. Display only: the alignments produce
+#: values like 9/11, and three decimals keep the mean recoverable to better
+#: than a thousandth, which no reader of these figures needs to beat.
+_VALUE_FMT = "{:.3f}"
+
+#: Below this share of the log a slice or segment is too thin to hold its own
+#: label, and the label goes outside (pie) or to the legend (stacked bar).
+_INLINE_LABEL_MIN = 0.04
 
 
-# ---------------------------------------------------------------------------
-# Data
-# ---------------------------------------------------------------------------
+def _fitness_distribution(alignments) -> list:
+    """[(fitness, trace count)], best fitness first.
 
-def _task25_activity_replay(alignments):
-    """Per activity ``{"as_prescribed": n, "deviating": n}`` over the whole log.
-
-    A synchronous move is behaviour the model prescribes and the log records. A
-    model move (prescribed, not executed) and a log move (executed, not
-    prescribed) are both deviations of that activity.
+    The exact values the alignments produced, not bins. ``result["fitness"]``
+    is the same field `io_helpers.fitness_summary_dataframe` puts in the
+    `fitness` column, so this is task06's number taken apart rather than a
+    second measurement of the same thing.
     """
-    stats: dict = {}
-
-    def bump(activity, key):
-        activity = str(activity)
-        if activity in _MISSING:
-            return
-        stats.setdefault(activity, {"as_prescribed": 0, "deviating": 0})[key] += 1
-
+    counts: dict = {}
     for result in alignments or []:
-        for row in alignment_pairs_to_rows(result.get("alignment", [])):
-            move = row["moveType"]
-            log_label, model_label = str(row["log_move"]), str(row["model_move"])
-            if move == "Synchronous Move":
-                bump(log_label if log_label not in _MISSING else model_label,
-                     "as_prescribed")
-            elif move == "Model Move":
-                bump(model_label, "deviating")
-            elif move == "Log Move":
-                bump(log_label, "deviating")
-    return stats
+        value = result.get("fitness")
+        if value is None:
+            continue
+        key = round(float(value), 6)
+        counts[key] = counts.get(key, 0) + 1
+    return sorted(counts.items(), key=lambda pair: -pair[0])
 
 
-def _involved(entry) -> int:
-    return entry["as_prescribed"] + entry["deviating"]
+def _labels(distribution) -> list:
+    return [_VALUE_FMT.format(value) for value, _count in distribution]
 
 
-def _annotated_model(model_path, stats):
-    """``(parsed, by_element_id)``: the model with each task's counts appended to
-    its label, and the stats reachable by element id.
+def _colors(distribution) -> list:
+    """One cividis shade per fitness value, the best fitness lightest.
 
-    The shared renderer draws a node's ``name``, so the counts ride along with it
-    — there is no separate annotation channel, and putting them in the label
-    keeps them inside the node they describe. The style function is then keyed on
-    the element id rather than parsing the activity name back out of the label it
-    was just appended to.
+    Ordered, because the categories are: these are points on a scale, and a
+    palette that ran through unrelated hues would deny that.
     """
-    parsed = parse_bpmn_model(model_path, node_scale=1.6)
-    elements = parsed.get("elements", {})
-    items = elements.items() if isinstance(elements, dict) else enumerate(elements)
-    by_element_id = {}
-    for eid, elem in items:
-        if elem.get("kind") != "task":
-            continue
-        entry = stats.get(elem.get("name", ""))
-        if not entry or not _involved(entry):
-            continue
-        by_element_id[eid] = entry
-        elem["name"] = f"{elem['name']} {entry['as_prescribed']}/{_involved(entry)}"
-    return parsed, by_element_id
+    n = max(len(distribution), 1)
+    return [to_hex(CIVIDIS_R(0.12 + 0.72 * i / max(n - 1, 1))) for i in range(n)]
 
 
-def _node_style_fn(by_element_id):
-    """Shade each task by the share of its occurrences that deviated."""
-    def _style(eid, elem):
-        entry = by_element_id.get(eid)
-        if elem.get("kind") == "task" and entry:
-            deviating = entry["deviating"] / _involved(entry)
-            fill = to_hex(CIVIDIS_R(0.15 + 0.6 * deviating))
-            return (fill, "#444444", 2, contrasting_text_color(fill))
-        return ("white", "#888888", 2, "#333333")
-    return _style
-
-
-_LEGEND = [
-    (to_hex(CIVIDIS_R(0.15)), "#444444", 2, "Mostly as prescribed"),
-    (to_hex(CIVIDIS_R(0.45)), "#444444", 2, "Partly deviating"),
-    (to_hex(CIVIDIS_R(0.75)), "#444444", 2, "Mostly deviating"),
-    ("white", "#888888", 2, "Never recorded"),
-]
+def _empty(output_dir, idiom_key):
+    render_empty_state_svg(os.path.join(output_dir, f"task25_{idiom_key}.svg"),
+                           _TITLE, "No alignment data available.")
 
 
 # ---------------------------------------------------------------------------
 # Visualizations
 # ---------------------------------------------------------------------------
 
-def _draw(stats, model_path, output_dir, filename):
-    path = os.path.join(output_dir, filename)
-    if not model_path:
-        render_empty_state_svg(path, _TITLE, "No process model provided.")
-        return
-    if not stats:
-        render_empty_state_svg(path, _TITLE, "No alignment data available.")
-        return
-    try:
-        parsed, by_element_id = _annotated_model(model_path, stats)
-    except Exception as exc:
-        logger.warning(f"      task25: BPMN parse failed: {exc}")
-        render_empty_state_svg(path, _TITLE, "BPMN model could not be parsed.")
-        return
-    if not parsed.get("elements"):
-        render_empty_state_svg(path, _TITLE, "No BPMN geometry to render.")
+def task25_bar_chart(distribution, output_dir: str):
+    """One bar per fitness value, height = how many traces reached it."""
+    if not distribution:
+        _empty(output_dir, "bar_chart")
         return
 
-    compose_bpmn_panels(
-        [{"parsed": parsed, "node_style_fn": _node_style_fn(by_element_id),
-          "subtitle": _SUMMARY}],
-        path, title=_TITLE, legend_items=_LEGEND, node_font_size=18,
+    labels = _labels(distribution)
+    counts = [count for _value, count in distribution]
+    colors = _colors(distribution)
+    x = np.arange(len(labels))
+    ymax = max(counts)
+
+    fig, ax = plt.subplots(figsize=(max(7.0, len(labels) * 1.3 + 3.0), 5.4))
+    ax.set_facecolor("#fafbfc")
+    ax.bar(x, counts, 0.62, color=colors, edgecolor="white", linewidth=0.8)
+    for xi, count in zip(x, counts):
+        ax.text(xi, count + ymax * 0.015, f"{count:,}", ha="center", va="bottom",
+                fontsize=FONT_ANNOT, color=GREY_DARK)
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, fontsize=FONT_ANNOT)
+    ax.set_xlabel("Trace fitness", fontsize=FONT_LABEL)
+    ax.set_ylabel("Traces", fontsize=FONT_LABEL)
+    ax.set_ylim(0, ymax * 1.14)
+    ax.set_title(_TITLE, fontsize=FONT_TITLE)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
+    ax.set_axisbelow(True)
+    fig.tight_layout(pad=1.2)
+    save_svg(fig, os.path.join(output_dir, "task25_bar_chart.svg"))
+
+
+def task25_table(distribution, output_dir: str):
+    """The same two numbers per row, as text.
+
+    No total row and no share column. A total invites subtraction towards the
+    answer and a share is one division away from it; the counts are what the
+    other three idioms carry, and the table carries what they carry.
+    """
+    if not distribution:
+        _empty(output_dir, "table")
+        return
+
+    cell_text = [[_VALUE_FMT.format(value), f"{count:,}"]
+                 for value, count in distribution]
+    col_labels = ["Trace fitness", "Traces"]
+
+    fig_h = max(3.0, 1.2 + len(cell_text) * 0.46)
+    fig, ax = plt.subplots(figsize=(7.0, fig_h))
+    ax.axis("off")
+    make_table(
+        ax,
+        cell_text=cell_text,
+        col_labels=col_labels,
+        bbox=[0.06, 0.05, 0.88, 0.88],
+        col_widths=auto_col_widths(col_labels, cell_text),
+        font_size=10.5,
+        scale_xy=(1, 1.7),
+        zebra=True,
     )
+    ax.set_title(_TITLE, fontsize=FONT_TITLE, pad=12)
+    fig.tight_layout(pad=1.2)
+    save_svg(fig, os.path.join(output_dir, "task25_table.svg"))
 
 
-def task25_flow_chart_elaborate(stats, model_path, output_dir: str):
-    """The guideline model, each activity labelled with its replay counts and
-    shaded by the share that deviated. The overall degree of conformance is
-    derivable from the labels; it is nowhere stated."""
-    _draw(stats, model_path, output_dir, "task25_flow_chart_elaborate.svg")
+def task25_pie_chart(distribution, output_dir: str):
+    """The same counts as wedges: the share of the log at each fitness value.
+
+    The count rides in the wedge as every other idiom of this task carries it;
+    the share stays too, but as the angle, which is the pie's own encoding
+    rather than an extra number. A wedge too thin to hold its label gets it
+    outside on a leader line — on BPIC12-A one value covers three traces in
+    thirteen thousand, and a slice that thin would otherwise be a category the
+    figure silently drops.
+    """
+    if not distribution:
+        _empty(output_dir, "pie_chart")
+        return
+
+    labels = _labels(distribution)
+    counts = [count for _value, count in distribution]
+    colors = _colors(distribution)
+    total = float(sum(counts)) or 1.0
+
+    fig, ax = plt.subplots(figsize=(9, 6.5))
+    wedges, _texts, autotexts = ax.pie(
+        counts,
+        colors=colors,
+        startangle=90,
+        autopct=lambda pct: (f"{int(round(pct / 100.0 * total)):,}"
+                             if pct / 100.0 >= _INLINE_LABEL_MIN else ""),
+        pctdistance=0.68,
+        wedgeprops=dict(edgecolor="white", linewidth=2),
+        textprops=dict(fontsize=FONT_ANNOT),
+    )
+    for color, autotext in zip(colors, autotexts):
+        autotext.set_color(contrasting_text_color(color))
+
+    for wedge, label, count in zip(wedges, labels, counts):
+        mid = np.deg2rad((wedge.theta1 + wedge.theta2) / 2.0)
+        thin = count / total < _INLINE_LABEL_MIN
+        text = f"{label} — {count:,}" if thin else label
+        ax.annotate(text, xy=(np.cos(mid) * 0.85, np.sin(mid) * 0.85),
+                    xytext=(np.cos(mid) * 1.20, np.sin(mid) * 1.20),
+                    ha="left" if np.cos(mid) >= 0 else "right", va="center",
+                    fontsize=FONT_ANNOT,
+                    arrowprops=dict(arrowstyle="-", color="#999999", linewidth=0.8))
+
+    ax.set_title(_TITLE, fontsize=FONT_TITLE)
+    fig.tight_layout(pad=1.2)
+    save_svg(fig, os.path.join(output_dir, "task25_pie_chart.svg"))
+
+
+def task25_stacked_bar(distribution, output_dir: str):
+    """The same counts as one bar, segmented by fitness value.
+
+    The pie's payload with length in place of angle, which is the comparison
+    this task's idiom set exists to make.
+    """
+    if not distribution:
+        _empty(output_dir, "stacked_bar")
+        return
+
+    labels = _labels(distribution)
+    counts = [count for _value, count in distribution]
+    colors = _colors(distribution)
+    total = float(sum(counts)) or 1.0
+
+    fig, ax = plt.subplots(figsize=(11.0, 3.6))
+    ax.set_facecolor("#fafbfc")
+    left = 0.0
+    for label, count, color in zip(labels, counts, colors):
+        ax.barh([0], [count], left=[left], height=0.5, color=color,
+                edgecolor="white", linewidth=1.2)
+        if count / total >= _INLINE_LABEL_MIN:
+            ax.text(left + count / 2.0, 0, f"{count:,}", ha="center", va="center",
+                    fontsize=FONT_ANNOT, color=contrasting_text_color(color))
+        left += count
+
+    ax.set_yticks([])
+    ax.set_xlim(0, total)
+    ax.set_xlabel("Traces", fontsize=FONT_LABEL)
+    ax.set_title(_TITLE, fontsize=FONT_TITLE)
+    ax.spines[["top", "right", "left"]].set_visible(False)
+    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
+    ax.set_axisbelow(True)
+
+    # Every value in the legend with its count, so a segment too thin to be
+    # labelled inside is still a category the reader can take a number from.
+    handles = [mpatches.Patch(color=color, label=f"Fitness {label} — {count:,}")
+               for label, count, color in zip(labels, counts, colors)]
+    ax.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, -0.32),
+              ncol=min(len(handles), 3), frameon=False, fontsize=FONT_ANNOT)
+    fig.tight_layout(pad=1.2)
+    save_svg(fig, os.path.join(output_dir, "task25_stacked_bar.svg"))
 
 
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def generate(log, alignments, output_dir: str, model_path: str = None):
+def generate(log, alignments, output_dir: str):
     """Generate all Task 25 SVGs into output_dir."""
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 25 visualizations ---")
 
-    stats = _task25_activity_replay(alignments)
-    if not stats:
+    distribution = _fitness_distribution(alignments)
+    if not distribution:
         logger.warning("      Skipped Task 25: no alignment data.")
     else:
-        involved = sum(_involved(e) for e in stats.values())
-        logger.info(f"      -> {len(stats)} activities, {involved} replayed steps.")
+        traces = sum(count for _value, count in distribution)
+        mean = sum(value * count for value, count in distribution) / traces
+        # The mean is logged for whoever sets the answer key, and appears on no
+        # figure: stating it is what task06 does and what this task must not.
+        logger.info(f"      -> {traces:,} traces over {len(distribution)} distinct "
+                    f"fitness value(s); derivable mean {mean:.4f}.")
 
-    task25_flow_chart_elaborate(stats, model_path, output_dir)
+    task25_bar_chart(distribution, output_dir)
+    task25_table(distribution, output_dir)
+    task25_pie_chart(distribution, output_dir)
+    task25_stacked_bar(distribution, output_dir)
