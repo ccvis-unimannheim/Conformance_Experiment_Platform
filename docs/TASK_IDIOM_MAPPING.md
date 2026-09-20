@@ -540,8 +540,6 @@ This task is similar to ``Present: Present Guideline violations'', but rather th
 | Matrix | `matrix` | High |
 | Heatmap | `heatmap` | Medium/Reviewed |
 | Pie / Donut Chart | `pie_chart` | High |
-| Sunburst Diagram | `sunburst` | High |
-| Parallel Sets | `parallel_sets` | High |
 
 ## task30
 

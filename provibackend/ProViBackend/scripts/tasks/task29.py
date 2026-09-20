@@ -13,8 +13,16 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+#: Six idioms, all reading `_strategy_grid` or the summary frame behind it, so
+#: all six follow `grouping_strategy` and `selection`.
+#:
+#: The parallel sets and the sunburst are gone. Both need two levels to draw
+#: anything — an axis to flow to, a ring to nest — and under the "By move type"
+#: strategy, which is the default, this task has one: two move types and nothing
+#: else. Taking the second level from the activities is exactly the information
+#: that strategy removes, so those two would have said more than the other six.
 IDIOMS = ["bar_chart", "heatmap", "pie_chart", "table", "stacked_bar",
-          "matrix", "sunburst", "parallel_sets"]
+          "matrix"]
 
 
 def _param_spec():
@@ -35,43 +43,22 @@ import matplotlib.patches as mpatches
 
 from shared import (
     save_svg, make_table, render_empty_state_svg, GREY_DARK,
-    build_violation_pattern_df, draw_value_heatmap, draw_parallel_sets,
+    draw_value_heatmap,
     GREY_LIGHT, PAIR_COLORS, CIVIDIS_R,
     FONT_TITLE, FONT_LABEL, FONT_ANNOT,
     contrasting_text_color,
 )
-from tasks.task26 import _lighten
 
 
-# Move-type vocabulary + colours for the activity-level idioms (stacked_bar,
-# matrix, parallel_sets, tree_map, sunburst) — matches the move-type strings
-# produced by alignment_pairs_to_rows / build_violation_pattern_df.
+# Move-type vocabulary + colours, shared by every idiom — matches the move-type
+# strings
+# produced by alignment_pairs_to_rows.
 _VTYPES = ["Model Move", "Log Move"]
 #: The platform's two-category pair — cividis navy and cividis bright yellow,
 #: as task31 and task32 use it. It was GREY_MED over GREY_DARK: two neighbours
 #: in cividis's dark half, which read as one emphasis level rather than two
 #: categories, and left the bright secondary unused.
 _VTYPE_COLOR = dict(zip(_VTYPES, PAIR_COLORS))
-
-# Top-N activities (by total violation count) shown in stacked_bar/matrix/parallel_sets
-_PIVOT_TOP_N = 15
-
-
-def _task29_activity_type_pivot(alignments, top_n: int = _PIVOT_TOP_N):
-    """(pivot, top_acts) for the activity-level idioms.
-
-    pivot    – {(activity, move_type): count}
-    top_acts – top-N activities by total violation count, descending
-    """
-    pat_df = build_violation_pattern_df(alignments)
-    if pat_df.empty:
-        return {}, []
-
-    pivot = {(row["activity"], row["move_type"]): int(row["count"]) for _, row in pat_df.iterrows()}
-    totals = pat_df.groupby("activity")["count"].sum().sort_values(ascending=False)
-    top_acts = totals.head(top_n).index.tolist()
-    return pivot, top_acts
-
 
 # ---------------------------------------------------------------------------
 # Chevron helpers (same visual style as task28)
@@ -210,19 +197,30 @@ def _strategy_grid(df, grouping_strategy: str):
     return rows, cols, counts
 
 
-def _rotate_tick_labels(ax, n_cats: int, labels, font_size: float,
-                        margin: float = 1.15) -> bool:
-    """Do the category names have to stand on end to fit side by side?
+def _rotate_tick_labels(ax, gap: float = 1.04) -> bool:
+    """Do the tick labels overlap if they stay horizontal?
 
-    Measured rather than assumed: the width one category gets against the widest
-    label's longest line, at 0.6 em per character. Two move types across a
-    9-inch axis have room to spare; fifteen activities do not.
+    Measured, not estimated: the figure is drawn once, matplotlib reports
+    each label's rendered width, and the widest is compared with the room
+    one category gets. An estimate at 0.6 em per character turned three
+    comfortable labels on end, which is worse than the overlap it avoids.
+
+    ``gap`` is the clearance asked for between neighbours, so labels that
+    would just touch still turn.
     """
-    axes_inches = ax.get_window_extent().width / ax.figure.dpi
-    slot_inches = axes_inches / max(n_cats, 1)
-    longest = max((len(line) for lab in labels
-                   for line in str(lab).split("\n")), default=1)
-    return slot_inches < longest * font_size * 0.6 / 72.0 * margin
+    ticks = ax.get_xticks()
+    if len(ticks) < 2:
+        return False
+    fig = ax.figure
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    widths = [t.get_window_extent(renderer).width for t in ax.get_xticklabels()
+              if t.get_text()]
+    if not widths:
+        return False
+    xs = [ax.transData.transform((t, 0))[0] for t in ticks]
+    slot = min(abs(b - a) for a, b in zip(xs, xs[1:]))
+    return max(widths) > slot / gap
 
 
 # Task 3 visualizations
@@ -252,7 +250,7 @@ def task29_bar_chart(df: pd.DataFrame, output_dir: str):
     ax.spines[["top", "right"]].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    if _rotate_tick_labels(ax, len(df), df["violation_type"], FONT_ANNOT):
+    if _rotate_tick_labels(ax):
         ax.tick_params(axis="x", labelrotation=90)
         for lab in ax.get_xticklabels():
             lab.set_ha("center")
@@ -296,7 +294,13 @@ def task29_heatmap(df, output_dir: str, grouping_strategy: str = "move_type"):
 def task29_pie_chart(df: pd.DataFrame, output_dir: str):
     """Pie chart: proportion of violation move types."""
     colors = [_VTYPE_COLOR.get(mt, GREY_LIGHT) for mt in df["move_type"]]
-    labels = list(df["move_type"])
+    # The wedges are named by their group, not by their move type. With three
+    # activities all of them Model Moves, the legend read "Model Move" three
+    # times against three identical swatches and the activity names appeared
+    # nowhere — a legend that cannot tell its entries apart is not a legend.
+    # The move types keep the colour, so the legend below says what the two
+    # colours mean, once each.
+    labels = [str(v).replace("\n", " ") for v in df["violation_type"]]
 
     # The count in the wedge, as every other idiom of this task carries it. The
     # share stays too, but as the angle — that is the pie's encoding, not an
@@ -305,7 +309,7 @@ def task29_pie_chart(df: pd.DataFrame, output_dir: str):
     counts = list(df["count"])
     total = float(sum(counts)) or 1.0
 
-    fig, ax = plt.subplots(figsize=(8, 6))
+    fig, ax = plt.subplots(figsize=(9, 6.5))
     wedges, _texts, autotexts = ax.pie(
         df["count"],
         colors=colors,
@@ -318,7 +322,20 @@ def task29_pie_chart(df: pd.DataFrame, output_dir: str):
     )
     for color, autotext in zip(colors, autotexts):
         autotext.set_color(contrasting_text_color(color))
-    ax.legend(wedges, labels, loc="lower center", bbox_to_anchor=(0.5, -0.08), ncol=len(labels), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
+
+    # The group name on the wedge, beside the count autopct already writes.
+    for wedge, label in zip(wedges, labels):
+        mid = np.deg2rad((wedge.theta1 + wedge.theta2) / 2.0)
+        ax.annotate(label, xy=(np.cos(mid) * 0.85, np.sin(mid) * 0.85),
+                    xytext=(np.cos(mid) * 1.18, np.sin(mid) * 1.18),
+                    ha="left" if np.cos(mid) >= 0 else "right", va="center",
+                    fontsize=FONT_ANNOT,
+                    arrowprops=dict(arrowstyle="-", color="#999999", linewidth=0.8))
+
+    present = [mt for mt in _VTYPES if mt in set(df["move_type"])]
+    ax.legend([mpatches.Patch(color=_VTYPE_COLOR[mt]) for mt in present], present,
+              loc="lower center", bbox_to_anchor=(0.5, -0.08), ncol=max(len(present), 1),
+              frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.set_title("Violation Type Proportions", fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task29_pie_chart.svg"))
@@ -399,7 +416,7 @@ def task29_stacked_bar(df, output_dir: str, grouping_strategy: str = "move_type"
 
     ax.set_xticks(x)
     ax.set_xticklabels(rows, fontsize=FONT_ANNOT)
-    if _rotate_tick_labels(ax, len(rows), rows, FONT_ANNOT):
+    if _rotate_tick_labels(ax):
         ax.tick_params(axis="x", labelrotation=90)
         for lab in ax.get_xticklabels():
             lab.set_ha("center")
@@ -449,141 +466,6 @@ def task29_matrix(df, output_dir: str, grouping_strategy: str = "move_type"):
 
 
 # ---------------------------------------------------------------------------
-# New idiom 3: Parallel Sets — violation type (left) × activity (right)
-# ---------------------------------------------------------------------------
-
-def task29_parallel_sets(alignments, output_dir: str):
-    """Parallel Sets: move type (left) flows to top-N violated activities (right)."""
-    out_path = os.path.join(output_dir, "task29_parallel_sets.svg")
-    pivot, top_acts = _task29_activity_type_pivot(alignments)
-    if not top_acts:
-        render_empty_state_svg(out_path, "Parallel Sets: Violation Type × Activity")
-        return
-
-    # Build count matrix: shape (3 move_types, n_right)
-    pat_df = build_violation_pattern_df(alignments)
-    top_set = set(top_acts)
-    right_labels = top_acts + ["Other"]
-    n_right = len(right_labels)
-    matrix = np.zeros((3, n_right), dtype=int)
-
-    for vi, vtype in enumerate(_VTYPES):
-        sub = pat_df[pat_df["move_type"] == vtype]
-        for ai, act in enumerate(top_acts):
-            row = sub[sub["activity"] == act]
-            matrix[vi, ai] = int(row["count"].sum()) if not row.empty else 0
-        matrix[vi, -1] = int(sub[~sub["activity"].isin(top_set)]["count"].sum())
-
-    fig, ax = plt.subplots(figsize=(11, 5.5))
-    ax.axis("off")
-    ax.set_xlim(-0.05, 1.05)
-    ax.set_ylim(-0.05, 1.15)
-    ax.set_title("Parallel Sets: Violation Type × Activity", fontsize=FONT_TITLE, pad=12)
-
-    draw_parallel_sets(
-        ax,
-        left_labels=_VTYPES,
-        right_labels=right_labels,
-        matrix=matrix,
-        left_colors=[_VTYPE_COLOR[vt] for vt in _VTYPES],
-        left_title="Violation Type",
-        right_title="Activity",
-    )
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, out_path)
-
-
-# ---------------------------------------------------------------------------
-# New idiom 4: Tree Map — violation patterns by area = count
-# ---------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
-# New idiom 5: Sunburst — move_type (inner) → activity (outer)
-# ---------------------------------------------------------------------------
-
-def task29_sunburst(alignments, output_dir: str):
-    """Sunburst: inner ring = 3 move types, outer ring = top activities per type."""
-    out_path = os.path.join(output_dir, "task29_sunburst.svg")
-    pat_df = build_violation_pattern_df(alignments)
-    if pat_df.empty:
-        render_empty_state_svg(out_path, "Violation Sunburst (Move Type → Activity)")
-        return
-
-    total = float(pat_df["count"].sum())
-    if total == 0:
-        render_empty_state_svg(out_path, "Violation Sunburst (Move Type → Activity)")
-        return
-
-    # Inner ring: aggregated by move_type (in canonical order)
-    ring1 = pat_df.groupby("move_type")["count"].sum().reindex(_VTYPES, fill_value=0)
-
-    # Outer ring: top-N activities per move_type, rest → "Other"
-    _SB_TOP_PER_TYPE = 5
-    outer_items = []  # list of (move_type, activity, count)
-    for vtype in _VTYPES:
-        sub = pat_df[pat_df["move_type"] == vtype].sort_values("count", ascending=False)
-        top = sub.head(_SB_TOP_PER_TYPE)
-        for _, row in top.iterrows():
-            outer_items.append((vtype, row["activity"], int(row["count"])))
-        rest_count = int(sub.iloc[_SB_TOP_PER_TYPE:]["count"].sum()) if len(sub) > _SB_TOP_PER_TYPE else 0
-        if rest_count > 0:
-            outer_items.append((vtype, "Other", rest_count))
-
-    fig, ax = plt.subplots(figsize=(8.5, 7.0))
-    common = dict(startangle=90, counterclock=False)
-
-    # Inner ring
-    inner_colors = [_VTYPE_COLOR[vt] for vt in _VTYPES]
-    ax.pie(ring1.values, radius=0.50, colors=inner_colors,
-           wedgeprops=dict(width=0.30, edgecolor="white", linewidth=1.5), **common)
-
-    # Outer ring
-    outer_values = [c for _, _, c in outer_items]
-    outer_colors = [_lighten(_VTYPE_COLOR[vt], 0.45 if i % 2 == 0 else 0.35)
-                    for i, (vt, _, _) in enumerate(outer_items)]
-    ax.pie(outer_values, radius=0.82, colors=outer_colors,
-           wedgeprops=dict(width=0.30, edgecolor="white", linewidth=1.5), **common)
-
-    # Angle-based annotations
-    def _annotate_ring(values, labels, r_mid, fontsize, colors, min_frac=0.05):
-        angle = 90.0
-        val_total = sum(values)
-        if val_total == 0:
-            return
-        for i, (val, label) in enumerate(zip(values, labels)):
-            frac = val / val_total
-            mid_angle = angle - frac * 360.0 / 2.0
-            angle -= frac * 360.0
-            if frac < min_frac:
-                continue
-            theta = np.deg2rad(mid_angle)
-            x, y = r_mid * np.cos(theta), r_mid * np.sin(theta)
-            short = label if len(label) <= 14 else label[:12] + "…"
-            # The count under the name. The sunburst carried neither a number
-            # nor a share, so it was the only idiom here a reader could read
-            # nothing off but rank.
-            ax.text(x, y, f"{short}\n{int(val)}", ha="center", va="center",
-                    fontsize=fontsize, color=contrasting_text_color(colors[i]),
-                    linespacing=1.15)
-
-    _annotate_ring(ring1.values, list(ring1.index), 0.35, FONT_ANNOT, inner_colors, min_frac=0.04)
-    _annotate_ring(outer_values,
-                   [act for _, act, _ in outer_items],
-                   0.67, FONT_ANNOT - 1, outer_colors, min_frac=0.04)
-
-    ax.legend(
-        handles=[mpatches.Patch(color=_VTYPE_COLOR[vt], label=vt) for vt in _VTYPES],
-        title="Move Type (inner ring)", title_fontsize=FONT_ANNOT,
-        loc="lower center", bbox_to_anchor=(0.5, -0.05),
-        ncol=3, frameon=False, fontsize=FONT_ANNOT,
-    )
-    ax.set_title("Violation Sunburst (Move Type → Activity)",
-                 fontsize=FONT_TITLE, pad=10)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, out_path)
-
-
-# ---------------------------------------------------------------------------
 
 def generate(alignments, output_dir: str, grouping_strategy: str = "move_type",
              selection=None):
@@ -600,5 +482,3 @@ def generate(alignments, output_dir: str, grouping_strategy: str = "move_type",
     task29_table(df, output_dir)
     task29_stacked_bar(df, output_dir, grouping_strategy)
     task29_matrix(df, output_dir, grouping_strategy)
-    task29_parallel_sets(alignments, output_dir)
-    task29_sunburst(alignments, output_dir)
