@@ -79,10 +79,23 @@ _COLOR_POSITIVE, _COLOR_NEGATIVE = PAIR_COLORS  # cividis blue / yellow
 _GROUP_COLORS   = {"Positive": _COLOR_POSITIVE, "Negative": _COLOR_NEGATIVE}
 
 #: Angle the sub-log names are rotated to where they sit under a two-column
-#: axis. They come from the split attribute, so their length is the dataset's
-#: to decide, not this module's: "AMOUNT_REQ ≤ 10000" already touches at 18
-#: characters and "CUSTOMER_SEGMENT = Small Business" is 33.
+#: axis. _SUBLOG_LABELS is short enough to sit flat now; the rotation stays
+#: because the tick is one column wide either way, and a name that grows —
+#: those two are the only ones this module fixes — would run into its
+#: neighbour again.
 _SUBLOG_TICK_ROTATION = 20
+
+
+def _titled(title: str, caption: str) -> str:
+    """The figure's title with the split spelled out under it.
+
+    The columns and the legend name the sub-logs generically, so without this
+    line nothing on the figure says which traces are in which. It goes in the
+    title because that has the whole figure to wrap into, where a column header
+    has only its column — the length of an attribute value is the dataset's to
+    decide, and "__start_time__ = 2025-01-15 08:56:00+00:00" is not unusual.
+    """
+    return f"{title}\n{caption}" if caption else title
 
 
 def _wrapped_headers(headers, width: int):
@@ -102,12 +115,27 @@ def _wrapped_headers(headers, width: int):
 # Data helpers
 # ---------------------------------------------------------------------------
 
+#: What the figures call the two sub-logs. The split names them after the
+#: attribute and its value, which is unbounded: "region = Germany" is 16
+#: characters, "__start_time__ = 2025-01-15 08:56:00+00:00" is 42, and the long
+#: one overran the table's column and spilled out of the header row. It also
+#: began with an underscore, which matplotlib reads as "hide this artist", so
+#: the bar chart's legend came out empty.
+#:
+#: The split is always in two, and which half is which does not change between
+#: attributes, so naming the pair generically costs the figure nothing it was
+#: reliably carrying. Which attribute was split, and where, is a property of the
+#: task instance — the admin sets it on /specify and it is shown there.
+_SUBLOG_LABELS = ("Selected sub-log", "Remaining traces")
+
+
 def _task05_groups(log, split_attribute: str = ""):
-    """The two sub-logs compared, as (assignment, short_labels, long_labels).
+    """The two sub-logs compared, as (assignment, labels, caption).
 
     ``assignment`` holds the internal slot names "Positive"/"Negative" — kept so
-    the aggregation and every renderer's column keys are untouched — while the
-    labels are what the reader sees.
+    the aggregation and every renderer's column keys are untouched. ``labels`` is
+    what the reader sees on the columns and in the legend, and ``caption`` the
+    line under each title that says what those two names stand for.
 
     The outcome split this task used to make is gone with the parameter that
     configured it. It compared two outcome groups of one log, which its own
@@ -122,12 +150,13 @@ def _task05_groups(log, split_attribute: str = ""):
         if split:
             raw, (label_a, label_b) = split
             slot = {label_a: "Positive", label_b: "Negative"}
-            return [slot.get(v) for v in raw], (label_a, label_b), (label_a, label_b)
+            caption = (f"{_SUBLOG_LABELS[0]}: {label_a}"
+                       f"   ·   {_SUBLOG_LABELS[1]}: {label_b}")
+            return [slot.get(v) for v in raw], _SUBLOG_LABELS, caption
         logger.warning("      task05: '%s' does not split the log in two.", split_attribute)
 
     # No second sub-log: name it rather than leaving a blank axis label.
-    return ["Positive"] * len(log), ("All traces", "(no second sub-log)"), \
-           ("All traces", "(no second sub-log)")
+    return ["Positive"] * len(log), ("All traces", "(no second sub-log)"), ""
 
 
 def _task05_build_violation_df(log, alignments, assignment,
@@ -195,7 +224,7 @@ def _task05_aggregate(viol_df: pd.DataFrame, n_traces: dict, top_n: int = TOP_N)
 # ---------------------------------------------------------------------------
 
 def task05_bar_chart(agg_df: pd.DataFrame, output_dir: str,
-                     labels=("Sub-log 1", "Sub-log 2")):
+                     labels=("Sub-log 1", "Sub-log 2"), caption: str = ""):
     """Grouped bars: violation rate per top-N pattern for Positive vs Negative."""
     patterns = agg_df["pattern"].tolist()
 
@@ -210,7 +239,8 @@ def task05_bar_chart(agg_df: pd.DataFrame, output_dir: str,
     ax.set_xticks(x)
     ax.set_xticklabels(wrapped, fontsize=FONT_ANNOT - 1)
     ax.set_ylabel("% of group traces exhibiting violation", fontsize=FONT_LABEL)
-    ax.set_title(f"Top-{len(patterns)} Violation Patterns by Sub-log", fontsize=FONT_TITLE)
+    ax.set_title(_titled(f"Top-{len(patterns)} Violation Patterns by Sub-log", caption),
+                 fontsize=FONT_TITLE)
     ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.25),
               ncol=2, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
     ax.spines[["top", "right"]].set_visible(False)
@@ -221,7 +251,7 @@ def task05_bar_chart(agg_df: pd.DataFrame, output_dir: str,
 
 
 def task05_table(agg_df: pd.DataFrame, output_dir: str,
-                 labels=("Sub-log 1", "Sub-log 2")):
+                 labels=("Sub-log 1", "Sub-log 2"), caption: str = ""):
     """Table: Pattern | rate per sub-log.
 
     The rate alone, because that is what the bar chart, the matrix and the
@@ -252,14 +282,14 @@ def task05_table(agg_df: pd.DataFrame, output_dir: str,
         scale_xy=(1, 1.75),
         cell_pad=0.09,
     )
-    ax.set_title(f"Top-{len(cell_text)} Violation Patterns by Sub-log",
+    ax.set_title(_titled(f"Top-{len(cell_text)} Violation Patterns by Sub-log", caption),
                  fontsize=FONT_TITLE, pad=12)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task05_table.svg"))
 
 
 def task05_matrix(agg_df: pd.DataFrame, output_dir: str,
-                  labels=("Sub-log 1", "Sub-log 2")):
+                  labels=("Sub-log 1", "Sub-log 2"), caption: str = ""):
     """Rate as numbers: rows = violation pattern (top-N), cols = sub-log.
 
     The heatmap draws the same table as colour; this one carries the rate in the
@@ -285,13 +315,13 @@ def task05_matrix(agg_df: pd.DataFrame, output_dir: str,
     # the other tasks do with labels this long.
     draw_rate_matrix(fig, ax, data, patterns, groups, xlabel="Sub-log",
                      colorless=True, rotate_xticks=_SUBLOG_TICK_ROTATION)
-    ax.set_title("Violation Rate Matrix (%)", fontsize=FONT_TITLE)
+    ax.set_title(_titled("Violation Rate Matrix (%)", caption), fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task05_matrix.svg"))
 
 
 def task05_heatmap(agg_df: pd.DataFrame, output_dir: str,
-                   labels=("Sub-log 1", "Sub-log 2")):
+                   labels=("Sub-log 1", "Sub-log 2"), caption: str = ""):
     """Violation pattern × sub-log, rate, continuous colour (complements the matrix)."""
     if agg_df.empty:
         render_empty_state_svg(os.path.join(output_dir, "task05_heatmap.svg"),
@@ -304,7 +334,7 @@ def task05_heatmap(agg_df: pd.DataFrame, output_dir: str,
     draw_value_heatmap(fig, ax, data, patterns, list(labels), xlabel="Sub-log",
                        cbar_label="Rate (%)", annotate=False,
                        rotate_xticks=_SUBLOG_TICK_ROTATION)
-    ax.set_title("Violation Rate Heatmap (%)", fontsize=FONT_TITLE)
+    ax.set_title(_titled("Violation Rate Heatmap (%)", caption), fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task05_heatmap.svg"))
 
@@ -328,16 +358,16 @@ def generate(log, alignments, output_dir: str, split_attribute: str = "",
         logger.warning("      task05: no split attribute — the whole log is one group, "
                        "so there is nothing to compare it against.")
 
-    assignment, short_labels, long_labels = _task05_groups(log, split_attribute)
+    assignment, sublog_labels, split_caption = _task05_groups(log, split_attribute)
 
     # n_traces keys stay the internal slot names the aggregation pivots on.
     n_traces = {"Positive": 0, "Negative": 0}
     for slot in assignment:
         if slot in n_traces:
             n_traces[slot] += 1
-    logger.info(f"      -> {short_labels[0]}: {n_traces['Positive']}  |  "
-                f"{short_labels[1]}: {n_traces['Negative']}")
-    for slot, name in zip(("Positive", "Negative"), short_labels):
+    logger.info(f"      -> {sublog_labels[0]}: {n_traces['Positive']}  |  "
+                f"{sublog_labels[1]}: {n_traces['Negative']}")
+    for slot, name in zip(("Positive", "Negative"), sublog_labels):
         if n_traces[slot] == 0:
             logger.warning(f"      task05: '{name}' holds no traces.")
 
@@ -349,7 +379,7 @@ def generate(log, alignments, output_dir: str, split_attribute: str = "",
     agg_df = _task05_aggregate(viol_df, n_traces)
     logger.info(f"      -> Top-{len(agg_df)} violation groups aggregated.")
 
-    task05_bar_chart(agg_df, output_dir, long_labels)
-    task05_table(agg_df, output_dir, short_labels)
-    task05_matrix(agg_df, output_dir, short_labels)
-    task05_heatmap(agg_df, output_dir, short_labels)
+    task05_bar_chart(agg_df, output_dir, sublog_labels, split_caption)
+    task05_table(agg_df, output_dir, sublog_labels, split_caption)
+    task05_matrix(agg_df, output_dir, sublog_labels, split_caption)
+    task05_heatmap(agg_df, output_dir, sublog_labels, split_caption)
