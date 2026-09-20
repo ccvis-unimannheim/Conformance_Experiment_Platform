@@ -1274,13 +1274,14 @@ async def get_option_candidates(
 
 @router.get("/tasks/{task_key}/rubric", tags=["admin"])
 async def get_task_rubric(task_key: str):
-    """Return this task's grading rubric for display/editing on /answer-format
-    and /overview.
+    """Return this task's grading rubric for display/editing on /answer-format.
 
     Reference text for manually coding free-text answers — it feeds no automatic
-    scoring. The task's RUBRIC constant is the default; an admin edit
-    (PATCH /tasks/{task_id} with a `rubric` field, stored on the Task document)
-    overrides it. `rubric` is `null` if neither exists.
+    scoring. Whatever an admin wrote (PATCH /tasks/{task_id} with a `rubric`
+    field, stored on the Task document) is it; `rubric` is `null` until someone
+    does, which is every task today. A module may still ship a `RUBRIC` constant
+    as a starting point — none currently does, because a rubric nobody has
+    reviewed is worse than an empty box that says a rubric is missing.
     """
     if task_key not in _TASK_MODULES:
         custom = dbc.get_custom_task_by_key(task_key)
@@ -1368,6 +1369,29 @@ async def get_experiment_stats(experiment_id: str):
     })
 
 
+def _remove_generated_output(exp: dict) -> list[str]:
+    """Delete this experiment's generated images; return the directories removed.
+
+    They live at data/{dataset_id}/output/{experiment_id}/, and the dataset ids
+    come from both the experiment's dataset_ids and its task_configs — a task
+    may target a dataset the experiment does not list. Uploaded and imported
+    images are not generated output (IDIOM_OVERRIDE_DIRECTORY holds those) and
+    are left alone.
+    """
+    experiment_id = exp["_id"]
+    dataset_ids = set(exp.get("dataset_ids", []) or [])
+    for tc in exp.get("task_configs", []):
+        if tc.get("dataset_id"):
+            dataset_ids.add(tc["dataset_id"])
+    removed = []
+    for dataset_id in sorted(dataset_ids):
+        out_dir = DATA_DIRECTORY / dataset_id / "output" / experiment_id
+        if out_dir.exists():
+            shutil.rmtree(out_dir, ignore_errors=True)
+            removed.append(f"{dataset_id}/output/{experiment_id}")
+    return removed
+
+
 @router.delete("/experiments/{experiment_id}", tags=["admin"])
 async def delete_experiment(experiment_id: str, force: bool = False):
     db = dbc.connect_to_database()
@@ -1409,22 +1433,9 @@ async def delete_experiment(experiment_id: str, force: bool = False):
     _remove_process_model_file(exp)
     idiom_files.remove_all_overrides(experiment_id)
 
-    # Remove the generated idiom SVGs for this experiment so they don't pile up as
-    # orphaned files on disk (mirrors dataset deletion's shutil.rmtree cleanup).
-    # The per-experiment output lives at data/{dataset_id}/output/{experiment_id}/;
-    # collect dataset ids from both the experiment's dataset_ids and its
-    # task_configs (a task may target a dataset not in dataset_ids).
-    dataset_ids = set(exp.get("dataset_ids", []) or [])
-    for tc in exp.get("task_configs", []):
-        if tc.get("dataset_id"):
-            dataset_ids.add(tc["dataset_id"])
-
-    removed_output_dirs = []
-    for dataset_id in dataset_ids:
-        out_dir = DATA_DIRECTORY / dataset_id / "output" / experiment_id
-        if out_dir.exists():
-            shutil.rmtree(out_dir, ignore_errors=True)
-            removed_output_dirs.append(f"{dataset_id}/output/{experiment_id}")
+    # Remove the generated idiom SVGs for this experiment so they don't pile up
+    # as orphaned files on disk (mirrors dataset deletion's rmtree cleanup).
+    removed_output_dirs = _remove_generated_output(exp)
 
     return JSONResponse(content={
         "message": "Experiment deleted.",
@@ -1443,6 +1454,21 @@ async def update_experiment_status(experiment_id: str, status: str):
     if not updated:
         raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
     return JSONResponse(content={"message": f"Experiment status updated to '{status}'."})
+
+
+def _keep_state_below_the_task_step(instances: list[dict], existing_by_task_id: dict) -> list[dict]:
+    """The /task step chooses *which* tasks the experiment asks — nothing else.
+
+    It posts the legacy flat shape, one row per task with an empty idiom_id and
+    no parameters, so rebuilding instances from it as-is strips the idioms, the
+    parameters and the answer shape from every task already configured: adding
+    one task at the end of the wizard cost the work done on the other twenty.
+
+    A task that survives the save therefore keeps everything the later steps
+    gave it. One the admin deselects is dropped together with its state, and
+    comes back empty if it is selected again — the admin said to remove it.
+    """
+    return [dict(existing_by_task_id.get(inst.get("task_id")) or inst) for inst in instances]
 
 
 def _freeze_task_snapshots(instances: list[dict], existing_by_task_id: dict) -> list[dict]:
@@ -1550,6 +1576,8 @@ async def update_experiment(experiment_id: str, update_data: ds.ExperimentUpdate
         else:
             configs = [tc.model_dump() for tc in update_data.task_configs]
             instances = task_configs_to_instances(configs)
+            if update_data.current_step == "task":
+                instances = _keep_state_below_the_task_step(instances, existing_by_task_id)
         instances = _freeze_task_snapshots(instances, existing_by_task_id)
         instances = _keep_imported_parameters(instances, existing_by_task_id)
         instances = _mark_image_backed_tasks_ready(instances, experiment_id)
@@ -1791,6 +1819,56 @@ def _run_generation_job(experiment_id: str):
         "task_instances": task_instances,
         "task_configs": task_instances_to_configs(task_instances),
     }})
+
+
+@router.delete("/experiments/{experiment_id}/generated-images", tags=["admin"])
+async def discard_generated_images(experiment_id: str):
+    """Throw away the images this experiment has generated, and mark its tasks
+    pending again.
+
+    Stepping back from /specify is what calls this. The images were drawn from
+    the idioms and parameters the admin is going back to change, so keeping them
+    would leave the experiment holding a mixture: tasks marked ready whose
+    images no longer match their configuration, and no way to tell which is
+    which from /overview.
+
+    Uploaded and imported images are not generated output — they live in
+    IDIOM_OVERRIDE_DIRECTORY and are released only by reverting the import — so
+    they survive, and a task whose every image comes from there keeps its
+    status.
+    """
+    exp = dbc.get_document("Experiment", {"_id": experiment_id})
+    if not exp:
+        raise HTTPException(status_code=404, detail=f"Experiment '{experiment_id}' not found.")
+    if exp.get("status", "draft") != "draft":
+        raise HTTPException(
+            status_code=409,
+            detail="Images can only be discarded while the experiment is a draft.",
+        )
+
+    removed_dirs = _remove_generated_output(exp)
+
+    keep = _fully_uploaded_task_ids(exp)
+    instances = exp.get("task_instances", []) or []
+    reset = 0
+    for ti in instances:
+        if ti.get("task_id") in keep or ti.get("generation_status") == "pending":
+            continue
+        ti["generation_status"] = "pending"
+        ti["generation_error"] = None
+        reset += 1
+    if reset:
+        dbc.update_document("Experiment", {"_id": experiment_id}, {"$set": {
+            "task_instances": instances,
+            "task_configs": task_instances_to_configs(instances),
+        }})
+
+    return JSONResponse(content={
+        "message": "Generated images discarded.",
+        "experiment_id": experiment_id,
+        "removed_output_dirs": removed_dirs,
+        "tasks_reset": reset,
+    })
 
 
 @router.post("/experiments/{experiment_id}/generate", tags=["admin"])

@@ -79,7 +79,10 @@ def get_split_strategy(task_key: str) -> Optional[str]:
 def get_rubric(task_key: str) -> Optional[str]:
     """Static grading rubric for manually coding this task's answers, or None.
 
-    Reference text only — it feeds no automatic scoring.
+    Reference text only — it feeds no automatic scoring. No module defines one:
+    the rubrics are written and edited in the admin panel (/answer-format),
+    where they are stored on the Task document. The hook stays so a module can
+    ship a reviewed default later.
     """
     return getattr(_module(task_key), "RUBRIC", None)
 

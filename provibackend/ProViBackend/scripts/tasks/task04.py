@@ -105,19 +105,6 @@ PARAM_SPEC = [
 ]
 
 
-RUBRIC = (
-    "A complete answer compares the two traces' conformance patterns. For each "
-    "trace it identifies where the execution conforms to the guideline and where "
-    "it deviates — an activity skipped relative to the model (move on model) or an "
-    "extra activity inserted (move on log) — and contrasts the two, e.g. 'Trace 1 "
-    "is fully conformant, whereas Trace 2 skips Approve Treatment and inserts an "
-    "extra step'. Award full marks for correctly naming the key deviation(s) in "
-    "each trace and stating which trace is more conformant; partial marks for "
-    "identifying the more-conformant trace without the specific deviations; deduct "
-    "marks for misidentifying which trace conforms more."
-)
-
-
 def validate_params(log, params) -> list:
     """Each level validates only its own half.
 

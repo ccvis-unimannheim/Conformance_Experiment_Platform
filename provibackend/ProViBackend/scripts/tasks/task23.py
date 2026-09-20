@@ -16,7 +16,7 @@ Public API:
 import logging
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "stacked_bar", "table", "table_and_bar_chart", "matrix",
+IDIOMS = ["bar_chart", "stacked_bar", "table", "matrix",
           "parallel_sets"]
 
 
@@ -34,19 +34,6 @@ def _param_spec():
 
 PARAM_SPEC = _param_spec()
 
-
-RUBRIC = (
-    "A complete answer names at least the two most frequent violation patterns with their "
-    "occurrence counts or relative frequencies, identifies which move type (Model Move, "
-    "Log Move, or Mismatch Move) dominates across all violations, and notes at least one "
-    "activity-level characteristic that distinguishes patterns from one another "
-    "(e.g. an activity that only appears as a Model Move, or the activity with the highest "
-    "total violation count). Award full marks for correctly covering frequency, move-type "
-    "distribution, and at least one distinguishing activity-level insight. Award partial "
-    "marks when frequency and move type are covered but no activity-level comparison is "
-    "made. Deduct marks for incorrect counts, wrong move-type attribution, or unsupported "
-    "claims about severity."
-)
 
 import os
 import numpy as np
@@ -72,9 +59,8 @@ _MOVE_DEFAULT = to_hex(CIVIDIS(0.50))          # mid (fallback for unknown move 
 _MOVE_COLORS = {
     "Model Move":    to_hex(CIVIDIS(0.85)),    # soft  (light end)
     "Log Move":      _MOVE_DEFAULT,            # mid
-    "Mismatch Move": to_hex(CIVIDIS(0.15)),    # strong (dark end)
 }
-_MOVE_ORDER  = ["Model Move", "Log Move", "Mismatch Move"]
+_MOVE_ORDER  = ["Model Move", "Log Move"]
 
 
 # ---------------------------------------------------------------------------
@@ -268,7 +254,6 @@ def generate(alignments, output_dir: str, log=None, activities=None):
             ("task23_bar_chart.svg",          "Top-N Violation Patterns"),
             ("task23_stacked_bar.svg",         "Violation Composition per Activity"),
             ("task23_table.svg",               "Violation Patterns"),
-            ("task23_table_and_bar_chart.svg", "Violation Patterns"),
             ("task23_matrix.svg",              "Violation Count Matrix"),
             ("task23_parallel_sets.svg",       "Move Type vs. Activity"),
         ]:
@@ -283,9 +268,6 @@ def generate(alignments, output_dir: str, log=None, activities=None):
                          filename="task23_matrix.svg", title_prefix=_TITLE_PREFIX)
     task11.task11_table(selected, coverage, n_traces, output_dir,
                         filename="task23_table.svg", title_prefix=_TITLE_PREFIX)
-    task11.task11_table_bar_chart(selected, coverage, n_traces, output_dir,
-                                  filename="task23_table_and_bar_chart.svg",
-                                  title_prefix=_TITLE_PREFIX)
 
     pat_df = _task23_build_pattern_df(alignments, activities=activities)
     task23_stacked_bar(pat_df, output_dir)

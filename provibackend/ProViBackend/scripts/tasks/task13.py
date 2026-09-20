@@ -70,26 +70,8 @@ def validate_params(log, params) -> list:
     return trace_features.validate_attribute_class(params, multi=True)
 
 
-PARAM_SPEC = [
-    *trace_features.attribute_params(),
-    *trace_features.split_params_for(),
-]
+PARAM_SPEC = [*trace_features.grouping_params()]
           # "flow_chart_table", "flow_chart_elaborate_table"  # commented out
-
-
-
-
-RUBRIC = (
-    "A strong answer identifies one or more process attributes (e.g. a case-level "
-    "data attribute, a resource, or a time-based measure) that are statistically "
-    "associated with guideline violations, and explains the direction of each "
-    "association (e.g. higher values of X correlate with more violations). "
-    "The answer should connect the observed pattern to a plausible process-level "
-    "reason rather than simply restating the numbers. "
-    "Partial credit for correctly naming an associated attribute without explaining "
-    "the direction or cause. No credit for vague statements unsupported by the "
-    "visualized evidence."
-)
 
 
 import os
@@ -702,7 +684,6 @@ def task13_flow_chart_elaborate_bpmn_table(ctx, ranking, model_path, output_dir)
         title="Where Violations Sit (flow) & Which Attributes Explain Them (table)",
         legend_items=[
             (GREY_MED,    "#444444", 3, "Model move (skipped step)"),
-            (GREY_LIGHT,  "#444444", 3, "Mismatch move"),
             (GREY_LIGHTER,   "#666666", 2, "Conform (synchronous)"),
             ("white", "#888888", 2, "Not on this trace"),
         ],

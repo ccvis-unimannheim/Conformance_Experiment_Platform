@@ -52,10 +52,7 @@ def validate_params(log, params) -> list:
     return trace_features.validate_attribute_class(params, multi=True)
 
 
-PARAM_SPEC = [
-    *trace_features.attribute_params(),
-    *trace_features.split_params_for(),
-]
+PARAM_SPEC = [*trace_features.grouping_params()]
 import os
 import numpy as np
 import pandas as pd
@@ -80,8 +77,8 @@ from shared import (
 # ---------------------------------------------------------------------------
 
 _FIT_THRESHOLD = 0.8
-_MOVE_TYPES    = ["Model Move", "Log Move", "Mismatch Move"]
-_MOVE_COLOR    = {"Model Move": GREY_MED, "Log Move": GREY_DARK, "Mismatch Move": GREY_LIGHT}
+_MOVE_TYPES    = ["Model Move", "Log Move"]
+_MOVE_COLOR    = {"Model Move": GREY_MED, "Log Move": GREY_DARK}
 _MISSING       = {"-", "None", "(skip)", ""}
 
 
@@ -294,7 +291,6 @@ def task16_flow_chart_table(alignments, fitness_df, s, output_dir):
         mpatches.Patch(facecolor=GREY_LIGHTER,  label="Synchronous Move"),
         mpatches.Patch(facecolor=GREY_MED,   label="Model Move"),
         mpatches.Patch(facecolor=GREY_DARK,    label="Log Move"),
-        mpatches.Patch(facecolor=GREY_LIGHT, label="Mismatch Move"),
     ]
     fig.legend(handles=legend_handles, loc="lower center",
                bbox_to_anchor=(0.5, 0.01), ncol=4,

@@ -12,7 +12,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["table", "tree", "bar_chart", "stacked_bar", "scatter_plot", "matrix", "heatmap"]
+IDIOMS = ["table", "bar_chart", "stacked_bar", "matrix", "heatmap"]
 
 
 PARAM_SPEC = [
@@ -51,13 +51,12 @@ import matplotlib.patches as mpatches
 import matplotlib.dates as mdates
 
 from shared import (
-    save_svg, make_table, draw_decision_tree, wrap_text,
-    format_threshold, GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT, draw_value_heatmap, render_empty_state_svg,
+    save_svg, make_table,
+    format_threshold, PAIR_COLORS, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT, draw_value_heatmap, render_empty_state_svg,
     infer_terminal_activity,
 )
 from tasks.task20 import (
     task20_trace_feature_dataframe,
-    _task20_gini,
     _task20_feature_label,
 )
 
@@ -70,9 +69,6 @@ _task20_format_threshold = format_threshold
 
 # Task 6 data + labeling helpers
 # Module-level outcome activity — overridden by generate() at runtime
-_TASK6_DURATION_FIRST_SPLIT_DAYS = 5.063008796296296
-_TASK6_DURATION_SECOND_SPLIT_DAYS = 29.986660115740737
-
 # ---------------------------------------------------------------------------
 # Shared fitness-band constants  (used by bar_chart, stacked_bar, matrix, heatmap)
 # ---------------------------------------------------------------------------
@@ -155,88 +151,7 @@ def _task31_condition_text(feature: str, threshold: float, side: str) -> str:
     return f"{_task31_feature_label(feature)} {op} {_task20_format_threshold(threshold)}"
 
 
-def _task31_branch_label(side: str) -> str:
-    """Label the root conformance branch for table annotations."""
-    return "conformance rate = 1.0 branch" if side == "left" else "conformance rate < 1.0 branch"
-
-
 # Task 6 tree helpers (data/model)
-def _task31_node_from_target(y: np.ndarray, depth: int, node_id: int):
-    positives = int(y.sum())
-    negatives = int(len(y) - positives)
-    return {
-        "id": node_id,
-        "depth": depth,
-        "gini": _task20_gini(y),
-        "samples": int(len(y)),
-        "value": [negatives, positives],
-        "class": "paid" if positives >= negatives else "not_paid",
-        "feature": None,
-        "threshold": None,
-        "left": None,
-        "right": None,
-    }
-
-
-def _task31_fit_tree(df: pd.DataFrame):
-    """Build the Task 6 explanatory tree: conformance first, duration splits next."""
-    if df.empty or df["positive_outcome"].nunique() < 2:
-        return None
-
-    y = df["positive_outcome"].astype(int).to_numpy()
-    if "duration_hours" not in df.columns or "is_not_fully_conformant" not in df.columns:
-        return None
-
-    root = _task31_node_from_target(y, depth=0, node_id=1)
-    root["feature"] = "is_not_fully_conformant"
-    root["threshold"] = 0.5
-    left_mask = df["is_not_fully_conformant"].to_numpy(dtype=float) <= 0.5
-    right_mask = ~left_mask
-    if left_mask.sum() == 0 or right_mask.sum() == 0:
-        return None
-
-    full_df = df.loc[left_mask]
-    non_full_df = df.loc[right_mask]
-    root["left"] = _task31_duration_subtree(full_df, depth=1, node_id=2)
-    root["right"] = _task31_node_from_target(non_full_df["positive_outcome"].astype(int).to_numpy(), depth=1, node_id=3)
-    _task31_relabel_tree(root)
-    return root
-
-
-def _task31_duration_subtree(df: pd.DataFrame, depth: int, node_id: int):
-    """Split the fully conformant branch by the two duration thresholds used in Task 6."""
-    y = df["positive_outcome"].astype(int).to_numpy()
-    node = _task31_node_from_target(y, depth=depth, node_id=node_id)
-    first_threshold = _TASK6_DURATION_FIRST_SPLIT_DAYS * 24
-    second_threshold = _TASK6_DURATION_SECOND_SPLIT_DAYS * 24
-    node["feature"] = "duration_hours"
-    node["threshold"] = first_threshold
-
-    short_mask = df["duration_hours"].astype(float).to_numpy() <= first_threshold
-    long_mask = ~short_mask
-    node["left"] = _task31_node_from_target(df.loc[short_mask, "positive_outcome"].astype(int).to_numpy(), depth=depth + 1, node_id=node_id * 2)
-
-    long_df = df.loc[long_mask]
-    long_y = long_df["positive_outcome"].astype(int).to_numpy()
-    long_node = _task31_node_from_target(long_y, depth=depth + 1, node_id=node_id * 2 + 1)
-    long_node["feature"] = "duration_hours"
-    long_node["threshold"] = second_threshold
-    within_mask = long_df["duration_hours"].astype(float).to_numpy() <= second_threshold
-    long_node["left"] = _task31_node_from_target(long_df.loc[within_mask, "positive_outcome"].astype(int).to_numpy(), depth=depth + 2, node_id=node_id * 4 + 2)
-    long_node["right"] = _task31_node_from_target(long_df.loc[~within_mask, "positive_outcome"].astype(int).to_numpy(), depth=depth + 2, node_id=node_id * 4 + 3)
-    node["right"] = long_node
-    return node
-
-
-def _task31_relabel_tree(node: dict):
-    negative, positive = node["value"]
-    node["class"] = "paid" if positive >= negative else "not_paid"
-    if node.get("left") is not None:
-        _task31_relabel_tree(node["left"])
-    if node.get("right") is not None:
-        _task31_relabel_tree(node["right"])
-
-
 def _task31_collect_table_rows(tree: dict):
     if tree is None:
         return []
@@ -266,161 +181,58 @@ def _task31_collect_table_rows(tree: dict):
     return leaves
 
 
-def _task31_summary_row(condition: str, positives: int, total: int) -> dict:
-    """Build one Task 6 table row."""
-    return {
-        "condition": condition,
-        "positive_cases": positives,
-        "total_cases": total,
-        "outcome_rate": positives / total if total else 0.0,
-    }
+def task31_summary_table_dataframe(df: pd.DataFrame):
+    """Positive-outcome rate per conformance band — the bar chart's payload.
 
-
-def _task31_child_split_rows(root_child: dict, branch_side: str):
-    """Return one-level split rows for a conformance branch, matching the reference table."""
-    if root_child is None or root_child.get("feature") is None:
-        return []
-    rows = []
-    for side in ["left", "right"]:
-        child = root_child.get(side)
-        if child is None:
-            continue
-        condition = _task31_condition_text(root_child["feature"], root_child["threshold"], side)
-        negatives, positives = child["value"]
-        total = child["samples"]
-        rows.append(_task31_summary_row(
-            f"{condition} ({_task31_branch_label(branch_side)})",
-            positives,
-            total,
-        ))
-    return rows
-
-
-def task31_summary_table_dataframe(df: pd.DataFrame, tree: dict):
-    """Summarize success rate by conformance root branches and branch split conditions."""
+    It used to list decision-tree branch conditions ("duration <= 5.1 days …"),
+    which are a different cut of the log from the bands every other idiom here
+    shows, and it added the case counts behind each rate. Same bands, same
+    numbers as the bar chart now.
+    """
+    cols = ["band", "n", "rate"]
     if df.empty:
-        return pd.DataFrame(columns=["condition", "positive_cases", "total_cases", "outcome_rate"])
+        return pd.DataFrame(columns=cols)
 
+    bands = _assign_fitness_band(df["fitness"], include_exact_one=True)
     rows = []
-    for label, mask in [
-        ("Conformance rate = 1.0", df["is_fully_conformant"] > 0.5),
-        ("Conformance rate < 1.0", df["is_fully_conformant"] <= 0.5),
-    ]:
-        subset = df.loc[mask]
-        total = len(subset)
-        positives = int(subset["positive_outcome"].sum())
-        rows.append(_task31_summary_row(label, positives, total))
-
-    if tree is not None:
-        full_branch = tree.get("left")
-        rows.extend(_task31_child_split_rows(full_branch, "left"))
-        longer_branch = full_branch.get("right") if full_branch is not None else None
-        if longer_branch is not None and longer_branch.get("feature") is not None:
-            for side in ["left", "right"]:
-                child = longer_branch.get(side)
-                if child is None:
-                    continue
-                condition = _task31_condition_text(longer_branch["feature"], longer_branch["threshold"], side)
-                _, positives = child["value"]
-                rows.append(_task31_summary_row(
-                    f"{condition} (conformance rate = 1.0, duration > 5.1 branch)",
-                    positives,
-                    child["samples"],
-                ))
-    return pd.DataFrame(rows)
+    for label in _FITNESS_BIN_LABELS_EXACT:
+        mask = bands == label
+        n = int(mask.sum())
+        n_pos = int(df.loc[mask, "positive_outcome"].sum()) if n else 0
+        rows.append({"band": label, "n": n,
+                     "rate": (n_pos / n * 100) if n else float("nan")})
+    return pd.DataFrame(rows, columns=cols)
 
 
 # Task 6 visualizations
 def task31_table(df_table: pd.DataFrame, output_dir: str):
-    """Task 6 table: approval rate by conformance and duration branch conditions."""
-    cell_text = []
-    for _, row in df_table.iterrows():
-        cell_text.append([
-            wrap_text(row["condition"], 46),
-            f"{int(row['positive_cases']):,}",
-            f"{int(row['total_cases']):,}",
-            f"{row['outcome_rate'] * 100:.1f}",
-        ])
+    """The bar chart's bands and rates, read as a table."""
+    cell_text = [
+        [row["band"],
+         f"{int(row['n']):,}",
+         "—" if pd.isna(row["rate"]) else f"{row['rate']:.1f}"]
+        for _, row in df_table.iterrows()
+    ]
 
     fig_h = max(3.3, 1.35 + len(cell_text) * 0.52)
-    fig, ax = plt.subplots(figsize=(10.6, fig_h))
+    fig, ax = plt.subplots(figsize=(8.5, fig_h))
     ax.axis("off")
     make_table(
         ax,
         cell_text=cell_text,
-        col_labels=["Attribute Condition", "Approved Cases", "Total Cases", "Approval Rate (%)"],
+        col_labels=["Conformance Category", "Traces",
+                    "Positive Outcome Rate (%)"],
         bbox=[0.04, 0.08, 0.92, 0.70],
-        col_widths=[0.50, 0.16, 0.22, 0.16],
+        col_widths=[0.40, 0.22, 0.38],
         font_size=10.5,
         scale_xy=(1, 1.85),
         header_color=GREY_DARK,
         zebra=True,
     )
-    ax.set_title("Conformance and Approval Rates", fontsize=FONT_TITLE, pad=12)
+    ax.set_title("Conformance Category vs. Positive Outcome Rate",
+                 fontsize=FONT_TITLE, pad=12)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task31_table.svg"))
-
-
-def _task31_draw_decision_tree(ax, tree: dict, title=True):
-    def wrap_width(text: str) -> int:
-        n = len("" if text is None else str(text))
-        if n <= 22:
-            return 30
-        if n <= 36:
-            return 26
-        return 22
-
-    draw_decision_tree(
-        ax,
-        tree,
-        title="Conformance and Outcome Predictors" if title else "",
-        title_fontsize=FONT_TITLE,
-        title_pad=8,
-        box_w=2.42,
-        base_font=7.8,
-        min_font=6.1,
-        line_height=0.18,
-        box_padding_h=0.16,
-        wrap_width_fn=wrap_width,
-        first_line_fn=lambda node: (
-            ""
-            if node.get("feature") is None
-            else "conformance_rate < 1.0"
-            if node["feature"] == "is_fully_conformant"
-            else "conformance_rate = 1.0"
-            if node["feature"] == "is_not_fully_conformant"
-            else f"Duration <= {_task31_format_duration_days(node['threshold'])}"
-            if node["feature"] == "duration_hours"
-            else f"{_task31_feature_label(node['feature'])} <= {_task20_format_threshold(node['threshold'])}"
-        ),
-        value_pair_fn=lambda node: (node["value"][0], node["value"][1]),
-        node_facecolor_fn=lambda node: (
-            GREY_DARK
-            if node["value"][1] > node["value"][0]
-            else GREY_LIGHTER
-            if node["value"][1] == node["value"][0]
-            else GREY_LIGHT
-        ),
-        edge_arrowprops=dict(arrowstyle="-|>", color=GREY_DARK, linewidth=1.35, shrinkA=5, shrinkB=5),
-        edge_label_fontsize=FONT_ANNOT,
-        edge_label_offset_y=0.14,
-        x_pad_factor=0.70,
-        y_pad_base=0.80,
-        y_top_pad=0.95,
-    )
-
-
-def task31_tree(tree: dict, output_dir: str):
-    """Standalone Task 31 decision tree."""
-    fig, ax = plt.subplots(figsize=(11.0, 6.6))
-    _task31_draw_decision_tree(ax, tree)
-    legend = [
-        mpatches.Patch(facecolor=GREY_LIGHT, edgecolor=GREY_DARK, label="Mostly not paid"),
-        mpatches.Patch(facecolor=GREY_DARK,  edgecolor=GREY_DARK, label="Mostly paid"),
-    ]
-    ax.legend(handles=legend, loc="lower center", bbox_to_anchor=(0.5, -0.03), ncol=2, frameon=False, fontsize=FONT_ANNOT)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, os.path.join(output_dir, "task31_tree.svg"))
 
 
 # ---------------------------------------------------------------------------
@@ -431,7 +243,7 @@ def task31_bar_chart(df: pd.DataFrame, output_dir: str):
     """Bar chart: positive outcome rate per conformance degree band (6 bands incl. exact 1.0)."""
     out_path = os.path.join(output_dir, "task31_bar_chart.svg")
     if df.empty:
-        render_empty_state_svg(out_path, "Conformance Degree vs. Positive Outcome Rate")
+        render_empty_state_svg(out_path, "Conformance Category vs. Positive Outcome Rate")
         return
 
     bands = _assign_fitness_band(df["fitness"], include_exact_one=True)
@@ -449,33 +261,42 @@ def task31_bar_chart(df: pd.DataFrame, output_dir: str):
     fig, ax = plt.subplots(figsize=(8.5, 5.2))
     ax.set_facecolor("#fafbfc")
 
-    bars = ax.bar(x, agg["rate"].fillna(0), width=0.58, color=GREY_MED, zorder=3, edgecolor="white")
+    ax.bar(x, agg["rate"].fillna(0), width=0.58, color=GREY_DARK, zorder=3,
+           edgecolor="white")
 
-    # Annotate each non-empty bar with "rate% (n=N)" above bar
-    max_rate = float(agg["rate"].fillna(0).max())
+    # "rate% (n=N)" above each non-empty bar — inside it near the ceiling, where
+    # a label above would fall outside the fixed 0-100 axis.
     for i, row in agg.iterrows():
         n = row["n"]
         rate = row["rate"]
         if n == 0 or np.isnan(rate):
             continue
-        ax.text(i, rate + max_rate * 0.02 + 0.5,
-                f"{rate:.1f}%  (n={n})",
-                ha="center", va="bottom", fontsize=FONT_ANNOT, color="#222222")
+        if rate > 93:
+            # Inside the bar, because above it would leave the 0-100 axis.
+            # On one line the label is wider than the bar, so its ends would
+            # be white on the white background; stacked, it stays on navy.
+            ax.text(i, rate - 3.0, f"{rate:.1f}%\n(n={n})",
+                    ha="center", va="top", fontsize=FONT_ANNOT - 1,
+                    color="#ffffff", linespacing=1.5, zorder=4)
+        else:
+            ax.text(i, rate + 2.0, f"{rate:.1f}%  (n={n})",
+                    ha="center", va="bottom", fontsize=FONT_ANNOT,
+                    color="#222222")
 
-    ax.set_ylim(0, max(max_rate * 1.20, 10))
+    # A rate cannot pass 100, and a headroom factor that lets the axis run to
+    # 120 makes the tallest bar look short of a ceiling that does not exist.
+    ax.set_ylim(0, 100)
     ax.set_xlim(-0.6, len(_FITNESS_BIN_LABELS_EXACT) - 0.4)
     ax.set_xticks(x)
     ax.set_xticklabels(_FITNESS_BIN_LABELS_EXACT, fontsize=FONT_ANNOT)
-    ax.set_xlabel("Conformance Degree (fitness)", fontsize=FONT_LABEL)
+    ax.set_xlabel("Conformance Category", fontsize=FONT_LABEL)
     ax.set_ylabel("Positive Outcome Rate (%)", fontsize=FONT_LABEL)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     ax.yaxis.grid(True, linestyle="--", alpha=0.45)
     ax.set_axisbelow(True)
-    ax.set_title("Conformance Degree vs. Positive Outcome Rate", fontsize=FONT_TITLE, pad=10)
+    ax.set_title("Conformance Category vs. Positive Outcome Rate", fontsize=FONT_TITLE, pad=10)
 
-    caption = "Bin '= 1.0' = fitness exactly 1.0"
-    fig.text(0.0, 0.01, caption, ha="left", fontsize=FONT_ANNOT - 1, color="#888888")
     fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
 
@@ -485,10 +306,16 @@ def task31_bar_chart(df: pd.DataFrame, output_dir: str):
 # ---------------------------------------------------------------------------
 
 def task31_stacked_bar(df: pd.DataFrame, output_dir: str):
-    """100%-stacked bar: positive vs negative outcome proportion per conformance band."""
+    """100%-stacked bar: positive vs negative outcome share per conformance category.
+
+    Every category keeps its slot, empty ones included — they carry NaN, so no
+    bar is drawn and none is annotated. Dropping them would give this idiom a
+    different x axis from the other four, which show the same empty categories
+    as a blank cell or a "—".
+    """
     out_path = os.path.join(output_dir, "task31_stacked_bar.svg")
     if df.empty:
-        render_empty_state_svg(out_path, "Outcome Composition by Conformance Band")
+        render_empty_state_svg(out_path, "Outcome Composition by Conformance Category")
         return
 
     bands = _assign_fitness_band(df["fitness"], include_exact_one=True)
@@ -496,34 +323,38 @@ def task31_stacked_bar(df: pd.DataFrame, output_dir: str):
     for label in _FITNESS_BIN_LABELS_EXACT:
         mask = bands == label
         n = int(mask.sum())
-        if n == 0:
-            continue
-        n_pos = int(df.loc[mask, "positive_outcome"].sum())
-        prop_pos = n_pos / n
-        prop_neg = 1.0 - prop_pos
-        band_data.append({"band": label, "n": n, "prop_pos": prop_pos, "prop_neg": prop_neg})
+        n_pos = int(df.loc[mask, "positive_outcome"].sum()) if n else 0
+        prop_pos = (n_pos / n) if n else float("nan")
+        band_data.append({"band": label, "n": n, "prop_pos": prop_pos,
+                          "prop_neg": 1.0 - prop_pos})
 
-    if not band_data:
-        render_empty_state_svg(out_path, "Outcome Composition by Conformance Band")
+    if all(d["n"] == 0 for d in band_data):
+        render_empty_state_svg(out_path, "Outcome Composition by Conformance Category")
         return
 
-    n_nonempty = len(band_data)
-    fig_w = max(6.5, min(11.0, 1.3 * n_nonempty + 2.0))
+    n_cats = len(band_data)
+    fig_w = max(6.5, min(11.0, 1.3 * n_cats + 2.0))
     fig, ax = plt.subplots(figsize=(fig_w, 5.2))
     ax.set_facecolor("#fafbfc")
 
-    x = np.arange(n_nonempty)
+    x = np.arange(n_cats)
     # Encode n= into x-tick labels (avoids below-axis collision)
     band_labels = [f"{d['band']}\n(n={d['n']})" for d in band_data]
     prop_pos_arr = np.array([d["prop_pos"] for d in band_data])
     prop_neg_arr = np.array([d["prop_neg"] for d in band_data])
 
     # Bottom segment = positive (darker), top = negative (lighter)
-    bars_pos = ax.bar(x, prop_pos_arr, color=GREY_DARK, edgecolor="white", label="Positive outcome")
-    bars_neg = ax.bar(x, prop_neg_arr, bottom=prop_pos_arr, color=GREY_LIGHT, edgecolor="white", label="Negative outcome")
+    # PAIR_COLORS is the palette's pair for two unordered groups: dark navy
+    # against cividis's bright yellow. GREY_LIGHT (#a99f73) sat in the olive
+    # middle and read as a third, muted category.
+    _POSITIVE, _NEGATIVE = PAIR_COLORS
+    ax.bar(x, prop_pos_arr, color=_POSITIVE, edgecolor="white",
+           label="Positive outcome")
+    ax.bar(x, prop_neg_arr, bottom=prop_pos_arr, color=_NEGATIVE,
+           edgecolor="white", label="Negative outcome")
 
     # Annotate segments
-    for i in range(n_nonempty):
+    for i in range(n_cats):
         # Positive segment
         if prop_pos_arr[i] >= 0.08:
             ax.text(i, prop_pos_arr[i] / 2, f"{prop_pos_arr[i] * 100:.0f}%",
@@ -537,9 +368,9 @@ def task31_stacked_bar(df: pd.DataFrame, output_dir: str):
     ax.set_yticklabels(["0%", "25%", "50%", "75%", "100%"], fontsize=FONT_ANNOT)
     ax.set_xticks(x)
     ax.set_xticklabels(band_labels, fontsize=FONT_ANNOT)
-    ax.set_xlabel("Conformance Band (fitness)", fontsize=FONT_LABEL)
+    ax.set_xlabel("Conformance Category", fontsize=FONT_LABEL)
     ax.set_ylabel("Proportion of Cases", fontsize=FONT_LABEL)
-    ax.set_xlim(-0.6, n_nonempty - 0.4)
+    ax.set_xlim(-0.6, n_cats - 0.4)
     ax.set_ylim(0, 1.0)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
@@ -547,13 +378,13 @@ def task31_stacked_bar(df: pd.DataFrame, output_dir: str):
     ax.set_axisbelow(True)
 
     legend_patches = [
-        mpatches.Patch(facecolor=GREY_DARK,  label="Positive outcome"),
-        mpatches.Patch(facecolor=GREY_LIGHT, label="Negative outcome"),
+        mpatches.Patch(facecolor=_POSITIVE, label="Positive outcome"),
+        mpatches.Patch(facecolor=_NEGATIVE, label="Negative outcome"),
     ]
     ax.legend(handles=legend_patches,
               loc="lower center", bbox_to_anchor=(0.5, -0.25),
               ncol=2, frameon=True, framealpha=0.9, fontsize=FONT_ANNOT)
-    ax.set_title("Outcome Composition by Conformance Band", fontsize=FONT_TITLE, pad=10)
+    ax.set_title("Outcome Composition by Conformance Category", fontsize=FONT_TITLE, pad=10)
 
     fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
@@ -563,156 +394,62 @@ def task31_stacked_bar(df: pd.DataFrame, output_dir: str):
 # New idiom 3: Scatter plot — trace-level fitness vs outcome + temporal panel
 # ---------------------------------------------------------------------------
 
-def _task31_extract_start_times(log, df):
-    """Extract start timestamps for traces in df, keyed by trace_index."""
-    ts_map = {}
-    for i, trace in enumerate(log):
-        if not trace:
-            continue
-        ts = trace[0].get("time:timestamp")
-        if ts is not None:
-            ts_map[i] = ts
-    if "trace_index" not in df.columns:
-        return {}
-    result = {}
-    for _, row in df.iterrows():
-        idx = int(row["trace_index"])
-        if idx in ts_map:
-            result[idx] = ts_map[idx]
-    return result
-
-
-def task31_scatter_plot(df: pd.DataFrame, log, output_dir: str):
-    """Scatter: trace-level fitness vs outcome with bin-mean trend line."""
-    out_path = os.path.join(output_dir, "task31_scatter_plot.svg")
-    if len(df) < 15:
-        render_empty_state_svg(out_path, "Conformance Degree vs. Outcome")
-        return
-
-    fitness = df["fitness"].astype(float).to_numpy()
-    outcome = df["positive_outcome"].astype(int).to_numpy()
-
-    # Downsample for scatter if needed
-    sampled = False
-    if len(df) > 2000:
-        rng = np.random.default_rng(42)
-        idx = rng.choice(len(df), size=2000, replace=False)
-        idx.sort()
-        fit_s = fitness[idx]
-        out_s = outcome[idx]
-        sampled = True
-    else:
-        fit_s = fitness
-        out_s = outcome
-
-    # Compute 10-bin trend line (use full data, not sampled)
-    bins = np.linspace(0, 1, 11)
-    bin_idx = np.digitize(fitness, bins[1:-1])
-    midpoints, rates, ses = [], [], []
-    for b in range(10):
-        mask = bin_idx == b
-        n_b = mask.sum()
-        if n_b >= 5:
-            mid = (bins[b] + bins[b + 1]) / 2
-            r = outcome[mask].mean()
-            se = np.sqrt(r * (1 - r) / n_b)
-            midpoints.append(mid)
-            rates.append(r)
-            ses.append(se)
-    midpoints = np.array(midpoints)
-    rates = np.array(rates)
-    ses = np.array(ses)
-
-    fig, ax = plt.subplots(figsize=(9.0, 5.2))
-
-    jitter = np.random.default_rng(42).uniform(-0.07, 0.07, size=len(out_s))
-    pos_mask_s = out_s == 1
-    neg_mask_s = out_s == 0
-    ax.scatter(fit_s[neg_mask_s], jitter[neg_mask_s],
-               color=GREY_LIGHT, s=18, alpha=0.35, marker="o", label="Negative outcome")
-    ax.scatter(fit_s[pos_mask_s], 1 + jitter[pos_mask_s],
-               color=GREY_DARK, s=18, alpha=0.35, marker="o", label="Positive outcome")
-
-    ax.set_ylim(-0.45, 1.45)
-    ax.set_yticks([-0.35, 1.35])
-    ax.set_yticklabels(["Negative", "Positive"], fontsize=FONT_ANNOT)
-    ax.set_xlim(-0.03, 1.03)
-    ax.set_xlabel("Conformance Degree (fitness)", fontsize=FONT_LABEL)
-    ax.set_ylabel("Outcome", fontsize=FONT_LABEL)
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
-    ax.set_axisbelow(True)
-    ax.set_title("Conformance Degree vs. Outcome", fontsize=FONT_TITLE, pad=8)
-    legend_patches = [
-        mpatches.Patch(color=GREY_DARK,  label="Positive outcome"),
-        mpatches.Patch(color=GREY_LIGHT, label="Negative outcome"),
-    ]
-    ax.legend(handles=legend_patches, loc="upper left", frameon=False, fontsize=FONT_ANNOT)
-
-    caption = "Scatter shows 2,000 sampled traces" if sampled else ""
-    fig.text(0.0, 0.01, caption, ha="left", fontsize=FONT_ANNOT - 1, color="#888888")
-
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, out_path)
-
-
 # ---------------------------------------------------------------------------
 # New idiom 4: Matrix — P(outcome | fitness band) exact rates
 # ---------------------------------------------------------------------------
 
-def task31_matrix(df: pd.DataFrame, output_dir: str):
-    """Annotated matrix: outcome rate (negative/positive) per 5 conformance bands + totals row."""
-    out_path = os.path.join(output_dir, "task31_matrix.svg")
-    if df.empty:
-        render_empty_state_svg(out_path, "Outcome Rate by Conformance Band")
-        return
+def _band_outcome_rates(df: pd.DataFrame):
+    """(counts, rates) per conformance band x {negative, positive}.
 
-    bands = _assign_fitness_band(df["fitness"], include_exact_one=False)
-    counts = np.zeros((5, 2), dtype=int)
-    for i, label in enumerate(_FITNESS_BIN_LABELS):
+    The matrix and the heatmap draw this same table — one as numbers, one as
+    colour — and the bar chart, the table and the stacked bar carry its positive
+    column. The bands are the bar chart's, `= 1.0` included: whether a trace is
+    perfectly conformant is the cut this task asks about, so a figure that bins
+    it away with 0.8-1.0 answers a coarser question than the rest.
+    """
+    bands = _assign_fitness_band(df["fitness"], include_exact_one=True)
+    counts = np.zeros((len(_FITNESS_BIN_LABELS_EXACT), 2), dtype=int)
+    for i, label in enumerate(_FITNESS_BIN_LABELS_EXACT):
         mask = bands == label
         n = int(mask.sum())
         n_pos = int(df.loc[mask, "positive_outcome"].sum()) if n > 0 else 0
-        counts[i, 0] = n - n_pos  # negative
-        counts[i, 1] = n_pos      # positive
+        counts[i, 0] = n - n_pos   # negative
+        counts[i, 1] = n_pos       # positive
+    totals = counts.sum(axis=1)
+    safe = np.where(totals[:, np.newaxis] == 0, 1, totals[:, np.newaxis])
+    # NaN, not 0.0, for a category no trace falls into. A zero would read as
+    # "none of these traces had a positive outcome", which is a finding; there
+    # are no traces. The matrix prints such a row as "—" and the heatmap leaves
+    # its cells blank.
+    rates = np.where(totals[:, np.newaxis] > 0, counts / safe * 100, np.nan)
+    return counts, rates, totals
 
-    # Check that at least 2 bands are non-empty
-    row_totals = counts.sum(axis=1)
-    if (row_totals > 0).sum() < 2:
-        render_empty_state_svg(out_path, "Outcome Rate by Conformance Band")
+
+def task31_matrix(df: pd.DataFrame, output_dir: str):
+    """The band x outcome table as numbers. The heatmap draws it as colour."""
+    out_path = os.path.join(output_dir, "task31_matrix.svg")
+    if df.empty:
+        render_empty_state_svg(out_path, "Outcome Rate by Conformance Category")
         return
 
-    # Totals row
-    totals_row = counts.sum(axis=0, keepdims=True)
-    counts_full = np.vstack([counts, totals_row])
-    row_totals_full = counts_full.sum(axis=1)
+    counts_full, rate_matrix, row_totals_full = _band_outcome_rates(df)
+    if (row_totals_full > 0).sum() < 2:
+        render_empty_state_svg(out_path, "Outcome Rate by Conformance Category")
+        return
 
-    # Rate matrix (row-normalized)
-    rate_matrix = np.where(
-        row_totals_full[:, np.newaxis] > 0,
-        counts_full / row_totals_full[:, np.newaxis] * 100,
-        0.0,
-    )
-
-    fig_h = max(3.8, min(7.0, 1.3 + 6 * 0.72))
+    fig_h = max(3.8, min(7.0, 1.3 + len(_FITNESS_BIN_LABELS_EXACT) * 0.72))
     fig, ax = plt.subplots(figsize=(6.0, fig_h))
 
     draw_value_heatmap(
         fig, ax,
         data=np.nan_to_num(rate_matrix, nan=0.0),
-        row_labels=_FITNESS_BIN_LABELS + ["All bands"],
+        row_labels=_FITNESS_BIN_LABELS_EXACT,
         col_labels=["Negative Outcome", "Positive Outcome"],
         xlabel="Outcome Category",
-        cbar_label="% of traces in band",
         annotate=False,   # manual two-line annotations added below
         rotate_xticks=0,
+        colorless=True,
     )
-
-    # Set colorbar limits
-    images = ax.get_images()
-    if images:
-        images[0].set_clim(0, 100)
 
     # Manual cell annotation
     n_rows, n_cols = rate_matrix.shape
@@ -725,183 +462,60 @@ def task31_matrix(df: pd.DataFrame, output_dir: str):
                 ax.text(c, r, "—", ha="center", va="center",
                         fontsize=FONT_ANNOT, color="#AAAAAA")
             else:
-                text_color = "#ffffff" if rate > 55 else "#222222"
                 ax.text(c, r, f"{rate:.1f}%\n(n={int(count)})",
                         ha="center", va="center", fontsize=FONT_ANNOT - 1,
-                        color=text_color, linespacing=1.4)
+                        color=GREY_DARK, linespacing=1.4)
 
-    # Dashed separator above totals row
-    ax.axhline(y=4.5, color="#AAAAAA", lw=1.0, ls="--")
-
-    ax.set_ylabel("Fitness Band", fontsize=FONT_LABEL)
+    ax.set_ylabel("Conformance Category", fontsize=FONT_LABEL)
     # Matrix convention: keep all four spines (bounding box of the color grid)
-    ax.set_title("Outcome Rate by Conformance Band", fontsize=FONT_TITLE, pad=10)
+    ax.set_title("Outcome Rate by Conformance Category", fontsize=FONT_TITLE, pad=10)
 
     fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
 
 
 # ---------------------------------------------------------------------------
-# New idiom 5: Heatmap — outcome rate by conformance band and calendar period
+# Idiom 5: Heatmap — the matrix, encoded as colour
 # ---------------------------------------------------------------------------
 
-_HEATMAP_MIN_CELL_N = 5
+def task31_heatmap(df: pd.DataFrame, output_dir: str):
+    """The same band x outcome table as the matrix, as colour instead of numbers.
 
-
-def task31_heatmap(df: pd.DataFrame, log, output_dir: str):
-    """Heatmap: positive outcome rate per fitness band x calendar period."""
+    It used to cut the bands by calendar quarter as well. That is a second
+    variable no other idiom here carries, and it answers a different question —
+    whether the link between conformance and outcome moves over time — so the
+    five idioms were not comparable.
+    """
     out_path = os.path.join(output_dir, "task31_heatmap.svg")
     if df.empty:
-        render_empty_state_svg(out_path, "Positive Outcome Rate by Conformance Band and Period")
+        render_empty_state_svg(out_path, "Outcome Rate by Conformance Category")
         return
 
-    # Extract timestamps
-    ts_map = _task31_extract_start_times(log, df)
-    if "trace_index" not in df.columns or len(ts_map) < 10:
-        render_empty_state_svg(out_path, "Positive Outcome Rate by Conformance Band and Period")
+    _counts, rate_matrix, row_totals = _band_outcome_rates(df)
+    if (row_totals > 0).sum() < 2:
+        render_empty_state_svg(out_path, "Outcome Rate by Conformance Category")
         return
 
-    try:
-        ts_series = df["trace_index"].map(ts_map)
-        valid_mask = ts_series.notna()
-        if valid_mask.sum() < 10:
-            render_empty_state_svg(out_path, "Positive Outcome Rate by Conformance Band and Period")
-            return
-        df_t = df.loc[valid_mask].copy()
-        # Normalize to tz-naive UTC so mixed-tz timestamps don't raise TypeError
-        raw_ts = pd.to_datetime(ts_series[valid_mask], utc=True, errors="coerce")
-        df_t["_start_time"] = raw_ts.dt.tz_localize(None)
-    except Exception:
-        render_empty_state_svg(out_path, "Positive Outcome Rate by Conformance Band and Period")
-        return
-
-    # Determine granularity
-    min_ts = df_t["_start_time"].min()
-    max_ts = df_t["_start_time"].max()
-    n_quarters = (max_ts.year - min_ts.year) * 4 + (max_ts.quarter - min_ts.quarter) + 1
-    if n_quarters >= 3:
-        granularity = "Q"
-        granularity_label = "quarterly"
-        df_t["_period"] = df_t["_start_time"].dt.to_period("Q")
-        def fmt_period(p):
-            return f"Q{p.quarter} '{str(p.year)[-2:]}"
-    else:
-        granularity = "M"
-        granularity_label = "monthly"
-        df_t["_period"] = df_t["_start_time"].dt.to_period("M")
-        _month_abbr = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
-        def fmt_period(p):
-            return f"{_month_abbr[p.month - 1]} '{str(p.year)[-2:]}"
-
-    periods_sorted = sorted(df_t["_period"].unique())
-    if len(periods_sorted) < 2:
-        render_empty_state_svg(out_path, "Positive Outcome Rate by Conformance Band and Period")
-        return
-
-    period_labels = [fmt_period(p) for p in periods_sorted]
-    n_periods = len(periods_sorted)
-
-    # 5-band binning
-    bands = _assign_fitness_band(df_t["fitness"], include_exact_one=False)
-    df_t["_band"] = bands
-
-    # Build matrix: rows = bands (low→high), cols = periods
-    matrix_counts = np.zeros((5, n_periods), dtype=int)
-    matrix_pos = np.zeros((5, n_periods), dtype=int)
-    period_to_idx = {p: i for i, p in enumerate(periods_sorted)}
-    for bi, blabel in enumerate(_FITNESS_BIN_LABELS):
-        band_mask = df_t["_band"] == blabel
-        sub = df_t.loc[band_mask]
-        for _, row in sub.iterrows():
-            pi = period_to_idx.get(row["_period"])
-            if pi is not None:
-                matrix_counts[bi, pi] += 1
-                if row["positive_outcome"]:
-                    matrix_pos[bi, pi] += 1
-
-    # Rate matrix with NaN for insufficient cells
-    rate_matrix = np.full((5, n_periods), np.nan)
-    for bi in range(5):
-        for pi in range(n_periods):
-            n = matrix_counts[bi, pi]
-            if n >= _HEATMAP_MIN_CELL_N:
-                rate_matrix[bi, pi] = matrix_pos[bi, pi] / n * 100
-
-    # Display order: high fitness at top → reverse rows
-    matrix_disp = rate_matrix[::-1, :]
-    counts_disp = matrix_counts[::-1, :]
-    pos_disp = matrix_pos[::-1, :]
-    row_labels_disp = list(reversed(_FITNESS_BIN_LABELS))
-
-    fig_w = max(7.0, min(18.0, 1.8 + n_periods * 1.1))
-    fig_h = max(4.0, min(7.0, 1.5 + 5 * 0.75))
-    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+    fig_h = max(3.8, min(7.0, 1.3 + len(_FITNESS_BIN_LABELS_EXACT) * 0.72))
+    fig, ax = plt.subplots(figsize=(6.4, fig_h))
 
     draw_value_heatmap(
         fig, ax,
-        data=np.nan_to_num(matrix_disp, nan=0.0),
-        row_labels=row_labels_disp,
-        col_labels=period_labels,
-        xlabel="Period",
-        cbar_label="Positive Outcome Rate (%)",
+        data=rate_matrix,   # NaN rows stay blank rather than reading as 0%
+        row_labels=_FITNESS_BIN_LABELS_EXACT,
+        col_labels=["Negative Outcome", "Positive Outcome"],
+        xlabel="Outcome Category",
+        cbar_label="% of traces in category",
         annotate=False,
-        rotate_xticks=30,
+        rotate_xticks=0,
+        vmax=100,
     )
-
-    images = ax.get_images()
-    if images:
-        images[0].set_clim(0, 100)
-
-    # NaN cell overlay (grey rectangle)
-    for bi in range(5):
-        for pi in range(n_periods):
-            n = counts_disp[bi, pi]
-            rate = matrix_disp[bi, pi]
-            if np.isnan(rate):
-                rect = plt.Rectangle(
-                    (pi - 0.5, bi - 0.5), 1, 1,
-                    facecolor="#F0F0F0", edgecolor="none", zorder=2,
-                )
-                ax.add_patch(rect)
-
-    # Manual cell annotations
-    for bi in range(5):
-        for pi in range(n_periods):
-            n = counts_disp[bi, pi]
-            rate = matrix_disp[bi, pi]
-            if n >= _HEATMAP_MIN_CELL_N:
-                text_color = "#ffffff" if rate > 55 else "#222222"
-                ax.text(pi, bi, f"{rate:.0f}%\n(n={n})",
-                        ha="center", va="center", fontsize=FONT_ANNOT,
-                        color=text_color, linespacing=1.4, zorder=3)
-            elif n > 0:
-                ax.text(pi, bi, f"n={n}", ha="center", va="center",
-                        fontsize=FONT_ANNOT, color="#AAAAAA", zorder=3)
-            else:
-                ax.text(pi, bi, "—", ha="center", va="center",
-                        fontsize=FONT_ANNOT, color="#DDDDDD", zorder=3)
-
-    ax.set_ylabel("Conformance Band (fitness)", fontsize=FONT_LABEL)
-    # Heatmap convention: keep all four spines (bounding box of the color matrix)
-    ax.set_title("Positive Outcome Rate by Conformance Band and Period", fontsize=FONT_TITLE, pad=10)
-
-    footnote = (
-        f"Cells with n < {_HEATMAP_MIN_CELL_N} shown in grey"
-        f"  ·  Granularity: {granularity_label}"
-    )
-    fig.text(0.01, 0.01, footnote, ha="left",
-             fontsize=FONT_ANNOT - 1, color="#888888")
+    ax.set_ylabel("Conformance Category", fontsize=FONT_LABEL)
+    ax.set_title("Outcome Rate by Conformance Category", fontsize=FONT_TITLE, pad=10)
 
     fig.tight_layout(pad=1.2)
     save_svg(fig, out_path)
 
-
-# ---------------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------------
-# Public entry point
-# ---------------------------------------------------------------------------
 
 def generate(log, alignments, output_dir: str, outcome_activity: str = ""):
     """Generate all Task 6 SVGs into output_dir.
@@ -922,14 +536,11 @@ def generate(log, alignments, output_dir: str, outcome_activity: str = ""):
     if df.empty:
         logger.warning("      Skipped Task 31: no trace-level outcome features found.")
         return
-    tree = _task31_fit_tree(df)
-    table = task31_summary_table_dataframe(df, tree)
+    table = task31_summary_table_dataframe(df)
     positive_rate = float(df["positive_outcome"].mean())
     logger.info(f"      -> Ends with '{outcome_activity}': {int(df['positive_outcome'].sum())}/{len(df)} ({positive_rate:.2%})")
     task31_table(table, output_dir)
-    task31_tree(tree, output_dir)
     task31_bar_chart(df, output_dir)
     task31_stacked_bar(df, output_dir)
-    task31_scatter_plot(df, log, output_dir)
     task31_matrix(df, output_dir)
-    task31_heatmap(df, log, output_dir)
+    task31_heatmap(df, output_dir)

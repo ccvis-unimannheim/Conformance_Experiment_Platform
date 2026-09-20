@@ -3,11 +3,14 @@ tasks/task20.py – Task ID 20: Explain / Discover / Reasons for guideline viola
 (the Decision-Tree member of the Reasons triad — though, as below, the tree
 itself is no longer drawn).
 
-Information-equivalent idiom set (7 idioms, see IDIOMS). Every idiom renders the
+Information-equivalent idiom set (5 idioms, see IDIOMS). Every idiom renders the
 SAME kernel — per selected attribute, the guideline-violation rate (%) per bucket:
-    rate-only:    bar_chart, table, table_bar_chart, matrix, heatmap, tile_metric
+    rate-only:    bar_chart, table, matrix, tile_metric
     rate+counts:  parallel_sets
 (generate() explains why stacked_bar, pie_chart, sunburst and tree_map were dropped.)
+table_bar_chart and heatmap are commented out of IDIOMS/generate() for now, but the
+renderer functions stay defined — task22 and task33 still call task20_table_bar_chart
+(and task33 also task20_heatmap) as shared renderers.
 
 The bucket data comes from task13's helpers (_build_evidence_frame / _bucket_rates),
 consumed here via _task20_attribute_panels(). The former decision-tree, flow-chart and
@@ -25,8 +28,11 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "table", "table_bar_chart", "matrix", "heatmap",
-          "tile_metric", "parallel_sets"]
+IDIOMS = [
+    "bar_chart", "table", "matrix", "tile_metric", "parallel_sets",
+    # "table_bar_chart",
+    # "heatmap",
+]
 
 
 
@@ -40,25 +46,7 @@ def validate_params(log, params) -> list:
     return trace_features.validate_attribute_class(params, multi=True)
 
 
-PARAM_SPEC = [
-    *trace_features.attribute_params(),
-    *trace_features.split_params_for(),
-]
-
-
-RUBRIC = (
-    "A strong answer identifies one or more concrete attributes — of the "
-    "control-flow (e.g. trace length, a present/absent activity), data (e.g. a "
-    "case-level value such as requested amount), resource, or time (e.g. case "
-    "duration) — that distinguish violating from conforming cases, and states the "
-    "direction of each effect (e.g. longer cases, or amounts above a threshold, "
-    "exhibit more violations). The answer should read the evidence as a root cause "
-    "(the attribute condition under which violations concentrate) rather than "
-    "merely restating frequencies. Partial credit for correctly naming a "
-    "discriminating attribute without giving its direction or threshold. No credit "
-    "for vague claims unsupported by the visualized decision-tree / attribute "
-    "evidence."
-)
+PARAM_SPEC = [*trace_features.grouping_params()]
 
 
 import os
@@ -1236,9 +1224,9 @@ def generate(log, alignments, output_dir: str, model_path=None, attribute_set=No
     # empty-state SVG when ``panels`` is empty, so every registered idiom resolves.
     task20_bar_chart(panels, output_dir)
     task20_table(panels, output_dir)
-    task20_table_bar_chart(panels, output_dir)
+    # task20_table_bar_chart(panels, output_dir)
     task20_matrix(panels, output_dir)
-    task20_heatmap(panels, output_dir)
+    # task20_heatmap(panels, output_dir)
     task20_tile_metric(panels, output_dir)
     task20_parallel_sets(panels, output_dir)
 

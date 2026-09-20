@@ -68,10 +68,13 @@ non-synchronous move, which needs no cut — so task01's `conformant_threshold`,
 which reached no drawing at all (`_task01_group_stats` took it, but
 `task01.generate` never passed it), is gone rather than propagated.
 
-task27's threshold is threaded as an explicit argument through the eleven
-renderers that read it. A module-level default would have been one line, but
-generation can run for two experiments at once and a mutable module global would
-let one experiment's threshold decide the other's figures.
+task27's threshold is threaded as an explicit argument through the four
+renderers that read it directly (`bar_chart`, `parallel_sets`, `matrix`,
+`heatmap`) plus `_task27_trace_df`, which carries it into the stacked bar and the
+box plot, and `_selected_indices`, which splits the automatic selection by it. A
+module-level default would have been one line, but generation can run for two
+experiments at once and a mutable module global would let one experiment's
+threshold decide the other's figures.
 
 ## Picking traces that have something to show
 
@@ -205,7 +208,14 @@ but they are no longer a reason to keep a defect:
    262 SVGs against a baseline**, so a difference is always a deliberate one
    that can be named.
 
-Against the baseline the class now differs in fifteen files, all accounted for:
+**The figure set is eight files smaller than the counts below.** task24 and
+task25 each lost `flow_chart_table`, task27 lost the six named above, and task24's
+`flow_chart_elaborate` no longer juxtaposes a graphviz DFG. Re-measured on BPIC12
+with a shared alignment cache: 265 SVGs before, 257 after, of which 256 of the
+257 survivors are byte-identical once normalised — the single changed file is
+task24's. Every number in this section predates that change.
+
+Against the baseline the class then differed in fifteen files, all accounted for:
 task04's eight, because its selection no longer includes a conformant trace;
 task09's and task28's chevron, BPMN and table, which move from log-aggregate to
 trace-level; and task27's table, which now shows the traces it selected rather
@@ -255,11 +265,35 @@ one process already disagree), and pm4py exposes no deterministic tie-break. So:
 * **task27**'s table is the class's activity × trace table. It used to list the
   top fifteen variants regardless of the selection, so an admin asking for one
   conformant and one non-conformant variant got a table contradicting the two
-  strips beside it. The aggregate variant view remains as `bar_chart` and
-  `table_bar_chart`.
-* **task28** is task09 explored rather than presented. Same parameters, same
-  figures; the difference is `HIGHLIGHT_VIOLATIONS = False`, a task property
-  rather than an admin choice.
+  strips beside it.
+* **task27 follows a *named* selection in every idiom.** Fixing the table alone
+  left the same contradiction in the eight figures beside it: `trace_ids` reached
+  three idioms out of nine while the rest kept slicing the top fifteen variants.
+  The selection now resolves once, in `_selected_indices`, and when the admin
+  names traces `_selected_variant_df` hands every idiom one row per named trace —
+  same schema as `build_variant_df`, so the renderers are unchanged and only
+  their wording branches. `count` stays the frequency of that trace's behaviour
+  in the whole log, because how common a behaviour is, is what the frequency
+  idioms report.
+* **Under the automatic rule the aggregate idioms keep the log's variants.** The
+  rule picks `trace_count` per status, one by default, and two rows are not a
+  narrower bar chart but a broken box plot: one value per group, no median, no
+  quartiles, and three percentile buckets holding two items. The trace-level trio
+  is built for that count; the frequency and distribution idioms are not.
+* **task27 lost six idioms** — scatterplot, flow chart & table, table & bar
+  chart, gantt chart, flow chart+ & table and calendar — leaving `bar_chart`,
+  `table`, `parallel_sets`, `matrix`, `flow_chart_basic`, `flow_chart_elaborate`,
+  `stacked_bar`, `box_plot` and `heatmap`. The aggregate variant view is now
+  `bar_chart` alone.
+* **task28** is task09 explored rather than presented. Same parameters, and the
+  trace-level trio is literally task09's renderers; the difference is
+  `HIGHLIGHT_VIOLATIONS = False`, a task property rather than an admin choice.
+  **The two no longer offer the same idiom set**: task28 has dropped its
+  scatter plot, flow chart & table, table & bar chart, flow chart+ & table and
+  network diagram, leaving `flow_chart_basic`, `flow_chart_elaborate`, `table`,
+  `bar_chart`, `stacked_bar`, `boxplot`, `matrix` and `heatmap`. task09 still
+  declares all five of the dropped ones. Trimming task09 to match is the open
+  half of that decision.
 * **task34** draws one trace exactly as before; two or more go through task04's
   renderers. The per-activity summaries (bar, stacked bar, heatmap, matrix) stay
   on the first trace — stacking one of those per trace answers a different

@@ -21,8 +21,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = ["bar_chart", "table", "table_bar_chart",
-          "parallel_sets", "stacked_bar", "matrix",
+IDIOMS = ["bar_chart", "table", "parallel_sets", "stacked_bar", "matrix",
           "heatmap"]
 
 
@@ -35,30 +34,13 @@ import trace_features
 import trace_response
 
 PARAM_SPEC = [
-    *trace_features.attribute_params(multi=False),
-    *trace_features.split_params_for(),
+    *trace_features.grouping_params(),
     trace_response.PATTERN_TOP_N_PARAM,
 ]
 
 
-RUBRIC = (
-    "A complete answer identifies which sub-log has a higher conformance rate and names "
-    "at least one violation pattern that is more prevalent in one sub-log than the other, "
-    "with the correct direction. Award full marks for correctly identifying both the "
-    "conformance direction and the top distinguishing violation patterns with approximate "
-    "rates. Award partial marks for correct conformance direction only. Deduct marks for "
-    "incorrect directions."
-)
-
-
 def validate_params(log, params) -> list:
-    errors = trace_features.validate_attribute_class(params, multi=False)
-    if errors:
-        return errors
-    attr = params.get("compare_attribute")
-    if not attr or not str(attr).strip():
-        return ["An attribute to split the log by is required."]
-    return []
+    return trace_features.validate_attribute_class(params, multi=True)
 
 
 import os
@@ -67,7 +49,6 @@ import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib import gridspec
 from matplotlib.colors import to_hex
 
 from shared import (
@@ -125,7 +106,8 @@ def _as_float(value):
         return None
 
 
-def split_by_attribute(log, attr: str, max_groups: int = MAX_CATEGORICAL_GROUPS):
+def split_by_attribute(log, attr: str, max_groups: int = MAX_CATEGORICAL_GROUPS,
+                       strategy: str = None):
     """Split cases into labelled sub-logs by a case-level data attribute.
 
     Returns (group_labels, assignment, meta):
@@ -148,8 +130,11 @@ def split_by_attribute(log, attr: str, max_groups: int = MAX_CATEGORICAL_GROUPS)
 
     # This call site cuts a case attribute in two at its median; task13's
     # quantile ranges are the same operation under a different strategy, which
-    # is why both now go through the shared splitter.
-    strategy = "binary" if value_type == "numeric" else "nominal_n"
+    # is why both now go through the shared splitter. `strategy` is the admin's
+    # choice from the shared split parameter — the three tasks that call this
+    # offer it, and used to ignore it here while honouring it in their panel
+    # idioms, so one figure cut the attribute differently from the next.
+    strategy = strategy or ("binary" if value_type == "numeric" else "nominal_n")
     result = trace_features.split(values, value_type, strategy=strategy,
                                   cap=max_groups, label_prefix=attr)
     if not result:
@@ -321,51 +306,35 @@ def task30_bar_chart(agg_df, groups, attr, output_dir):
 
 
 def _pattern_table_data(agg_df, groups):
-    """(cell_text, col_labels, col_widths) for the violation-pattern section."""
-    col_labels = ["Violation Pattern"] + [f"{g}\n(n / rate)" for g in groups] + ["Total"]
-    w_pat, w_tot = 0.34, 0.08
-    w_grp = (1.0 - w_pat - w_tot) / max(len(groups), 1)
-    col_widths = [w_pat] + [w_grp] * len(groups) + [w_tot]
-    cell_text = []
-    for _, row in agg_df.iterrows():
-        cells = [row["pattern"]]
-        for g in groups:
-            cells.append(f"{int(row[f'{g}__count'])} ({row[f'{g}__rate']:.1f}%)")
-        cells.append(str(int(row["total"])))
-        cell_text.append(cells)
+    """(cell_text, col_labels, col_widths) for the violation-pattern table.
+
+    Rates only. The counts and the Total column were a second measure beside the
+    rate; comparing sub-logs of different size is what this task asks, a raw
+    count answers a different question, and no other idiom here carries one.
+    Dropping them also frees the header from its "(n / rate)" second line, which
+    is what made the group names look boxed in.
+    """
+    col_labels = ["Violation Pattern"] + list(groups)
+    w_pat = 0.40
+    w_grp = (1.0 - w_pat) / max(len(groups), 1)
+    col_widths = [w_pat] + [w_grp] * len(groups)
+    cell_text = [
+        [row["pattern"]] + [f"{row[f'{g}__rate']:.1f}%" for g in groups]
+        for _, row in agg_df.iterrows()
+    ]
     return cell_text, col_labels, col_widths
 
 
-def task30_table(agg_df, stats_df, groups, attr, output_dir):
-    """Two sections: sub-log summary (conformance level) + pattern rates."""
-    summary_text = [
-        [row["group"], str(int(row["n"])), f"{row['pct_conform']:.1f}%",
-         f"{row['mean_fitness']:.4f}"]
-        for _, row in stats_df.iterrows()
-    ]
+def task30_table(agg_df, groups, attr, output_dir):
+    """Violation-pattern rates per sub-log.
+
+    The sub-log summary that sat above this table — #Traces, % Conformant, Mean
+    Fitness — is gone. It stated a conformance level none of the other idioms
+    carry, so this one idiom answered more than the rest.
+    """
     n_pat_rows = max(len(agg_df), 1)
-    fig_h = max(4.5, 2.0 + len(summary_text) * 0.5 + n_pat_rows * 0.46)
-    fig = plt.figure(figsize=(13, fig_h))
-    gs = gridspec.GridSpec(2, 1,
-                           height_ratios=[1.0 + len(summary_text) * 0.5,
-                                          1.0 + n_pat_rows * 0.46],
-                           hspace=0.55)
-
-    ax_sum = fig.add_subplot(gs[0])
-    ax_sum.axis("off")
-    make_table(
-        ax_sum,
-        cell_text=summary_text,
-        col_labels=["Sub-log", "#Traces", "% Conformant", "Mean Fitness"],
-        bbox=[0.05, 0.05, 0.90, 0.80],
-        col_widths=[0.40, 0.18, 0.21, 0.21],
-        font_size=10,
-        scale_xy=(1, 1.7),
-        cell_pad=0.10,
-    )
-    ax_sum.set_title(f"Conformance per Sub-log ({attr})", fontsize=FONT_TITLE, pad=8)
-
-    ax_pat = fig.add_subplot(gs[1])
+    fig_h = max(3.2, 1.6 + n_pat_rows * 0.46)
+    fig, ax_pat = plt.subplots(figsize=(13, fig_h))
     ax_pat.axis("off")
     if agg_df.empty:
         ax_pat.text(0.5, 0.5, "No violations found.", ha="center", va="center",
@@ -376,81 +345,34 @@ def task30_table(agg_df, stats_df, groups, attr, output_dir):
             ax_pat,
             cell_text=cell_text,
             col_labels=col_labels,
-            bbox=[0.01, 0.05, 0.98, 0.86],
+            bbox=[0.01, 0.02, 0.98, 0.88],
             col_widths=col_widths,
-            font_size=9,
-            scale_xy=(1, 1.7),
-            cell_pad=0.09,
+            font_size=9.5,
+            scale_xy=(1, 1.9),
+            cell_pad=0.14,
         )
-    ax_pat.set_title(f"Top-{len(agg_df)} Violation Patterns per Sub-log",
-                     fontsize=FONT_TITLE, pad=8)
+    ax_pat.set_title(f"Top-{len(agg_df)} Violation Patterns per Sub-log ({attr})",
+                     fontsize=FONT_TITLE, pad=10)
     fig.tight_layout(pad=1.2)
     save_svg(fig, os.path.join(output_dir, "task30_table.svg"))
 
 
-def task30_table_and_bar_chart(agg_df, groups, attr, output_dir):
-    """Pattern table (left) + horizontal grouped rate bars (right)."""
-    if agg_df.empty:
-        render_empty_state_svg(
-            os.path.join(output_dir, "task30_table_and_bar_chart.svg"),
-            "Violation Patterns per Sub-log", "No violations found.")
-        return
-
-    fig = plt.figure(figsize=(16, max(5.0, 1.5 + len(agg_df) * 0.50)))
-    gs = gridspec.GridSpec(1, 2, width_ratios=[1.5, 1.0], wspace=0.35)
-
-    ax_tbl = fig.add_subplot(gs[0])
-    ax_tbl.axis("off")
-    cell_text, col_labels, col_widths = _pattern_table_data(agg_df, groups)
-    make_table(
-        ax_tbl,
-        cell_text=cell_text,
-        col_labels=col_labels,
-        bbox=[0.01, 0.05, 0.98, 0.85],
-        col_widths=col_widths,
-        font_size=8.5,
-        scale_xy=(1, 1.7),
-        cell_pad=0.09,
-    )
-
-    ax_bar = fig.add_subplot(gs[1])
-    patterns = agg_df["pattern"].tolist()
-    x = draw_grouped_rate_bars(ax_bar, len(patterns), groups,
-                               _rates(agg_df, groups), _group_colors(groups),
-                               horizontal=True)
-    ax_bar.set_yticks(x)
-    ax_bar.set_yticklabels(patterns, fontsize=FONT_ANNOT - 1)
-    ax_bar.invert_yaxis()
-    ax_bar.set_xlabel("% of sub-log traces", fontsize=FONT_LABEL)
-    ax_bar.legend(
-        loc="lower center", bbox_to_anchor=(0.5, -0.28),
-        ncol=len(groups), frameon=True, framealpha=0.9, fontsize=FONT_ANNOT - 1,
-    )
-    ax_bar.spines[["top", "right"]].set_visible(False)
-    ax_bar.xaxis.grid(True, linestyle="--", alpha=0.5)
-    ax_bar.set_axisbelow(True)
-
-    # Title centred over both subplots
-    fig.suptitle(f"Top-{len(agg_df)} Violation Patterns ({attr})",
-                 fontsize=FONT_TITLE)
-    fig.tight_layout(pad=1.2, rect=[0, 0.12, 1, 0.95])
-    save_svg(fig, os.path.join(output_dir, "task30_table_and_bar_chart.svg"))
-
-
 def task30_parallel_sets(agg_df, viol_df, stats_df, groups, attr, output_dir):
-    """Parallel Sets: sub-log × violation pattern (top-N + Other); ribbon = count."""
-    patterns = agg_df["pattern"].tolist() if not agg_df.empty else []
-    cats = patterns + (["Other"] if not viol_df.empty else [])
+    """Parallel Sets: sub-log × violation pattern (top-N); ribbon = count.
+
+    The top-N patterns and nothing else. An "Other" bucket said how much of each
+    sub-log's deviation the table, bar chart and matrix leave out — a residual
+    none of them carry, and enough on its own to rank the sub-logs by total
+    deviation.
+    """
+    cats = agg_df["pattern"].tolist() if not agg_df.empty else []
 
     matrix = np.zeros((len(groups), max(len(cats), 1)), dtype=int)
     if not viol_df.empty:
-        top_set = set(patterns)
         for gi, g in enumerate(groups):
             sub = viol_df[viol_df["group"] == g]
-            for ci, pat in enumerate(patterns):
+            for ci, pat in enumerate(cats):
                 matrix[gi, ci] = int((sub["pattern"] == pat).sum())
-            if len(cats) > len(patterns):
-                matrix[gi, -1] = int((~sub["pattern"].isin(top_set)).sum())
 
     group_n = dict(zip(stats_df["group"], stats_df["n"]))
     left_labels = [f"{g}\n(n={group_n.get(g, 0)})" for g in groups]
@@ -526,8 +448,8 @@ def task30_matrix(agg_df, groups, attr, output_dir):
     fig_h = max(3.0, 0.55 * len(patterns) + 1.2)
     fig, ax = plt.subplots(figsize=(max(5, len(groups) * 2.2), fig_h))
     draw_value_heatmap(fig, ax, data, patterns, groups,
-                       xlabel=f"Sub-log ({attr})", cbar_label="Rate (%)",
-                       cell_fmt="{:.1f}%", annotate=True, cmap="cividis_r")
+                       xlabel=f"Sub-log ({attr})",
+                       cell_fmt="{:.1f}%", annotate=True, colorless=True)
     ax.set_xticklabels(
         [g.replace(" ≤ ", "\n≤ ").replace(" > ", "\n> ").replace(" = ", "\n= ")
          for g in groups],
@@ -563,8 +485,7 @@ def task30_heatmap(agg_df, groups, attr, output_dir):
 
 _ALL_FNAMES_TITLES = [
     ("task30_bar_chart.svg",           "Violation Rates by Sub-log"),
-    ("task30_table.svg",               "Conformance per Sub-log"),
-    ("task30_table_and_bar_chart.svg", "Violation Patterns per Sub-log"),
+    ("task30_table.svg",               "Violation Patterns per Sub-log"),
     ("task30_parallel_sets.svg",       "Sub-log vs. Violation Pattern"),
     ("task30_stacked_bar.svg",         "Violation Composition per Sub-log"),
     ("task30_matrix.svg",              "Violation Rate Matrix"),
@@ -573,12 +494,24 @@ _ALL_FNAMES_TITLES = [
 
 
 def generate(log, fitness_df, alignments, output_dir: str,
-             compare_attribute: str = "AMOUNT_REQ"):
-    """Generate all Task ID 30 SVGs into output_dir."""
+             attribute_set=None, split_strategy=None, group_cap=None):
+    """Generate all Task ID 30 SVGs into output_dir.
+
+    Every idiom here compares the sub-logs of ONE attribute, so of the selected
+    set the first is the one that cuts the log — the same way task22 and task33
+    treat their distribution idioms. The picker is the family's shared one
+    (trace_features.grouping_params) so the eight tasks of the family differ
+    only in what they measure per group, not in what they ask the admin for.
+    """
     os.makedirs(output_dir, exist_ok=True)
     logger.info("\n--- Generating Task 30 visualizations ---")
 
-    groups, assignment, meta = split_by_attribute(log, compare_attribute)
+    attrs = list(attribute_set) if attribute_set else []
+    logger.info(f"      -> attributes: {attrs}")
+    compare_attribute = attrs[0] if attrs else ""
+    groups, assignment, meta = split_by_attribute(
+        log, compare_attribute, max_groups=group_cap or MAX_CATEGORICAL_GROUPS,
+        strategy=split_strategy)
     if groups is None:
         available = _available_case_attributes(log)
         logger.error(
@@ -619,8 +552,7 @@ def generate(log, fitness_df, alignments, output_dir: str,
             logger.warning(f"      task30: sub-log '{g}' has no violations.")
 
     task30_bar_chart(agg_df, groups, compare_attribute, output_dir)
-    task30_table(agg_df, stats_df, groups, compare_attribute, output_dir)
-    task30_table_and_bar_chart(agg_df, groups, compare_attribute, output_dir)
+    task30_table(agg_df, groups, compare_attribute, output_dir)
     task30_parallel_sets(agg_df, viol_df, stats_df, groups, compare_attribute, output_dir)
     task30_stacked_bar(agg_df, groups, compare_attribute, output_dir)
     task30_matrix(agg_df, groups, compare_attribute, output_dir)

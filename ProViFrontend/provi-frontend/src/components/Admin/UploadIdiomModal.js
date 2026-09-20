@@ -114,7 +114,9 @@ const UploadIdiomModal = ({ experimentId, tasks, onClose, onUploaded }) => {
           />
         </div>
 
-        <FileUploadCard label="Upload Image / SVG" icon="image" onFileSelect={setFile} />
+        <FileUploadCard label="Upload Image / SVG" icon="image"
+                        accept=".svg,.png,.jpg,.jpeg" hint="SVG, PNG or JPEG."
+                        onFileSelect={setFile} />
 
         <div className="flex flex-col gap-2">
           <label className="text-xs font-semibold text-on-surface">Applies to task(s)</label>

@@ -7,7 +7,7 @@ import ExperimentSetupHeader from "../../../../components/Admin/ExperimentSetupH
 import Toast from "../../../../components/Admin/Toast";
 import EditTaskModal from "../../../../components/Admin/EditTaskModal";
 import AddCustomTaskModal from "../../../../components/Admin/AddCustomTaskModal";
-import { saveWizardStep } from "../../../../utils/wizardSave";
+import { queueWizardSave } from "../../../../utils/wizardSave";
 
 // ---------------------------------------------------------------------------
 // Static classification characteristics from the task taxonomy.
@@ -93,15 +93,20 @@ export default function TaskSelectionPage() {
     if (!experimentId) router.replace("/admin/experiments/new");
   }, [experimentId, router]);
 
-  // Resume: pre-select tasks already saved on this draft experiment
+  // Resume: pre-select tasks already saved on this draft experiment. Read
+  // task_instances — one entry per task. task_configs is the legacy flat
+  // mirror with one row per idiom, so a task with three idioms came back three
+  // times and the "N selected" count was whatever that added up to.
   useEffect(() => {
     if (!experimentId) return;
     fetch(`/api/admin/experiments/${encodeURIComponent(experimentId)}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((exp) => {
-        if (exp?.task_configs?.length) {
-          setSelectedIds(exp.task_configs.map((tc) => tc.task_id));
-        }
+        const saved = exp?.task_instances?.length
+          ? exp.task_instances.map((ti) => ti.task_id)
+          : (exp?.task_configs || []).map((tc) => tc.task_id);
+        const unique = [...new Set(saved.filter(Boolean))];
+        if (unique.length) setSelectedIds(unique);
       })
       .catch(() => {});
   }, [experimentId]);
@@ -231,7 +236,7 @@ export default function TaskSelectionPage() {
     setSelectedIds((prev) => {
       const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
       if (experimentId) {
-        saveWizardStep(experimentId, "task", { task_configs: buildTaskConfigs(next) })
+        queueWizardSave(experimentId, "task", { task_configs: buildTaskConfigs(next) })
           .catch((e) => showToast(`Failed to save tasks: ${e.message}`, true));
       }
       return next;
@@ -248,7 +253,7 @@ export default function TaskSelectionPage() {
       return;
     }
     try {
-      await saveWizardStep(experimentId, "task", { task_configs: buildTaskConfigs(selectedIds) });
+      await queueWizardSave(experimentId, "task", { task_configs: buildTaskConfigs(selectedIds) });
     } catch (e) {
       showToast(`Failed to save tasks: ${e.message}`, true);
       return;
@@ -547,7 +552,7 @@ export default function TaskSelectionPage() {
       <div className="border-t border-border-subtle bg-white sticky bottom-0">
         <div className="max-w-[1140px] mx-auto px-8 py-4 flex justify-between items-center">
           <Link
-            href="/admin/experiments/new"
+            href={`/admin/experiments/concepts${experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""}`}
             className="text-sm text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors"
           >
             <span className="material-symbols-outlined text-sm">arrow_back</span> Previous Step

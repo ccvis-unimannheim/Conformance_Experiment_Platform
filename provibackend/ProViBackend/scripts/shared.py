@@ -48,7 +48,7 @@ CIVIDIS_R = matplotlib.colormaps["cividis_r"]  # reversed: 0=yellow, high=dark
 _CIV      = CIVIDIS
 GREY_DARK    = to_hex(_CIV(0.15))  # dark navy    (strongest emphasis / Log Move)
 GREY_MED     = to_hex(_CIV(0.45))  # olive-grey   (primary category / Model Move)
-GREY_LIGHT   = to_hex(_CIV(0.68))  # light olive  (secondary category / Mismatch)
+GREY_LIGHT   = to_hex(_CIV(0.68))  # light olive  (secondary category)
 GREY_LIGHTER = to_hex(_CIV(0.90))  # yellow-green (conformant / Synchronous)
 
 # ---------------------------------------------------------------------------
@@ -82,7 +82,6 @@ PAIR_COLORS = (GREY_DARK, GREY_LIGHTER)
 # Alignment move types, one colour each across all tasks.
 MOVE_LOG      = to_hex(_CIV(0.10))  # deep navy
 MOVE_MODEL    = to_hex(_CIV(0.25))  # slate blue
-MOVE_MISMATCH = to_hex(_CIV(0.75))  # ochre
 MOVE_SYNC     = GREY_LIGHTER        # yellow — conformant
 
 # The stretches of cividis that are not grey, used by categorical_colors().
@@ -259,12 +258,12 @@ def auto_col_widths(col_labels, cell_text, header_weight: float = 1.15,
 # Two levels of abstraction:
 #   classify_step(obs_raw, exp_raw) -> (activity, type) | (None, None)
 #       Low-level primitive.  Returns the activity name + one of:
-#       "Model Move" / "Log Move" / "Mismatch Move".
+#       "Model Move" / "Log Move".
 #
 #   alignment_pairs_to_rows(alignment) -> list[dict]
 #       High-level parser producing display rows with step/log_move/model_move/
 #       status/moveType fields.  moveType adds "Synchronous Move" to the same
-#       three names.
+#       two names.
 #
 # The two used to disagree — classify_step said "Move on Model" where this said
 # "Model Move" — and both names reached participants: task09 showed one, task11
@@ -331,9 +330,21 @@ def alignment_pairs_to_rows(alignment):
                 "status": "Conformant", "moveType": "Synchronous Move",
             })
         elif observed not in SKIP_ALIGNMENT_TOKENS and expected not in SKIP_ALIGNMENT_TOKENS:
+            # Both sides carry a label and they differ. pm4py's alignments never
+            # produce this — a deviation there always has ">>" on one side — but
+            # such a pair says two things at once: this activity was executed,
+            # that one was prescribed. It is split into the two moves it is made
+            # of, so the figures keep one vocabulary (log move / model move)
+            # instead of carrying a third category that the intro pages do not
+            # teach and that no log has ever filled.
             rows_out.append({
-                "step": step_num, "log_move": observed, "model_move": expected,
-                "status": "Deviation", "moveType": "Mismatch Move",
+                "step": step_num, "log_move": observed, "model_move": "None",
+                "status": "Deviation", "moveType": "Log Move",
+            })
+            step_num += 1
+            rows_out.append({
+                "step": step_num, "log_move": "(skip)", "model_move": expected,
+                "status": "Deviation", "moveType": "Model Move",
             })
         elif observed in SKIP_ALIGNMENT_TOKENS and expected not in SKIP_ALIGNMENT_TOKENS:
             rows_out.append({
@@ -368,8 +379,11 @@ def classify_step(observed_raw, expected_raw):
     Naming convention:
         "Model Move"  – activity required by the model but absent in the trace
         "Log Move"    – extra activity present in the trace but not in the model
-        "Mismatch Move"  – both present but with different labels
-        (None, None)     – Synchronous Move (conformant) or tau/hidden transition
+        (None, None)  – Synchronous Move (conformant) or tau/hidden transition
+
+    A step with a different label on each side is counted as the log move it
+    contains; see alignment_pairs_to_rows, which splits the same step into its
+    two moves. pm4py's alignments do not produce one.
     """
     obs = (str(observed_raw) if observed_raw else "").strip()
     exp = (str(expected_raw) if expected_raw else "").strip()
@@ -381,7 +395,7 @@ def classify_step(observed_raw, expected_raw):
     if not obs_skip and not exp_skip:
         if obs == exp:
             return None, None
-        return obs, "Mismatch Move"
+        return obs, "Log Move"
     if obs_skip:
         return exp, "Model Move"
     return obs, "Log Move"
@@ -1007,14 +1021,33 @@ def draw_composition_stacked_bars(ax, group_labels, pattern_labels, rates,
             bottoms[g] += h
 
 
+def draw_cell_grid(ax, n_rows: int, n_cols: int, color: str = "#CCCCCC",
+                   linewidth: float = 0.8):
+    """Rule an imshow grid into cells.
+
+    A colourless matrix has no fill to separate its cells, so the rules are what
+    make it a table rather than floating numbers.
+    """
+    ax.set_xticks(np.arange(-0.5, n_cols), minor=True)
+    ax.set_yticks(np.arange(-0.5, n_rows), minor=True)
+    ax.grid(which="minor", color=color, linewidth=linewidth)
+    ax.tick_params(which="minor", length=0)
+
+
 def draw_value_heatmap(fig, ax, data, row_labels, col_labels,
                        xlabel: str = "", cbar_label: str = "Rate (%)",
                        cell_fmt: str = "{:.1f}%", annotate: bool = True,
-                       cmap=None, rotate_xticks: int = 0, vmax: float = None):
-    """Colour-encoded matrix/heatmap with optional per-cell value labels + colorbar.
+                       cmap=None, rotate_xticks: int = 0, vmax: float = None,
+                       colorless: bool = False):
+    """Matrix/heatmap with optional per-cell value labels + colorbar.
 
     Convention used across the platform: Matrix = annotated grid (annotate=True);
     Heatmap = continuous colour intensity (annotate=False).
+
+    ``colorless=True`` makes it a matrix in the strict sense: empty cells, ruled
+    into a grid, the value carried by the printed number alone, and no colorbar.
+    Without it a Matrix is a Heatmap that also prints its numbers, which encodes
+    one variable twice and leaves the two idioms differing only in annotation.
 
     data: array-like of shape (len(row_labels), len(col_labels)).
     vmax: upper bound of the colour scale. When None it adapts to the data
@@ -1023,13 +1056,21 @@ def draw_value_heatmap(fig, ax, data, row_labels, col_labels,
     """
     import matplotlib as _mpl
     from matplotlib.colors import to_hex as _to_hex, Normalize as _Norm
+    from matplotlib.colors import ListedColormap as _Listed
 
     data = np.asarray(data, dtype=float)
     if cmap is None:
         cmap = CIVIDIS_R
     if vmax is None:
         vmax = max(data.max(), 1.0) if data.size else 1.0
-    im = ax.imshow(data, cmap=cmap, vmin=0, vmax=vmax, aspect="auto")
+    if colorless:
+        # Still an image, so the axes keep a heatmap's geometry and the cell
+        # coordinates the callers annotate against.
+        im = ax.imshow(np.zeros_like(data), cmap=_Listed(["white"]),
+                       vmin=0, vmax=1, aspect="auto")
+        draw_cell_grid(ax, len(row_labels), len(col_labels))
+    else:
+        im = ax.imshow(data, cmap=cmap, vmin=0, vmax=vmax, aspect="auto")
 
     ax.set_xticks(range(len(col_labels)))
     ax.set_xticklabels(col_labels, fontsize=FONT_ANNOT,
@@ -1048,20 +1089,23 @@ def draw_value_heatmap(fig, ax, data, row_labels, col_labels,
                 cell_hex = _to_hex(_cmap_obj(_norm(val)))
                 ax.text(ci, ri, cell_fmt.format(val),
                         ha="center", va="center", fontsize=FONT_ANNOT,
-                        color=contrasting_text_color(cell_hex))
+                        color=GREY_DARK if colorless
+                        else contrasting_text_color(cell_hex))
 
-    cbar = fig.colorbar(im, ax=ax, fraction=0.04, pad=0.02)
-    cbar.set_label(cbar_label, fontsize=FONT_ANNOT)
+    if not colorless:
+        cbar = fig.colorbar(im, ax=ax, fraction=0.04, pad=0.02)
+        cbar.set_label(cbar_label, fontsize=FONT_ANNOT)
     return im
 
 
 def draw_rate_matrix(fig, ax, data, row_labels, col_labels,
                      xlabel: str = "", cbar_label: str = "Rate (%)",
-                     cell_fmt: str = "{:.1f}%"):
+                     cell_fmt: str = "{:.1f}%", colorless: bool = False):
     """Annotated rate matrix — thin wrapper over draw_value_heatmap(annotate=True)."""
     return draw_value_heatmap(fig, ax, data, row_labels, col_labels,
                               xlabel=xlabel, cbar_label=cbar_label,
-                              cell_fmt=cell_fmt, annotate=True)
+                              cell_fmt=cell_fmt, annotate=True,
+                              colorless=colorless)
 
 
 def draw_grouped_box_plot(ax, data, labels, colors, *, ylabel: str = "",
@@ -2256,7 +2300,7 @@ def chevron_nodes_from_alignment_rows(rows):
     """Map alignment rows (alignment_pairs_to_rows output) to chevron nodes.
 
     Colors follow the established move-type palette:
-    sync = GREY_LIGHTER, model move = GREY_MED, mismatch = GREY_LIGHT, log move = GREY_DARK.
+    sync = GREY_LIGHTER, model move = GREY_MED, log move = GREY_DARK.
     """
     nodes = []
     for row in rows:
@@ -2265,8 +2309,6 @@ def chevron_nodes_from_alignment_rows(rows):
             nodes.append({"label": str(label), "color": GREY_LIGHTER})
         elif row["moveType"] == "Model Move":
             nodes.append({"label": str(row["model_move"]), "color": GREY_MED})
-        elif row["moveType"] == "Mismatch Move":
-            nodes.append({"label": f"{row['log_move']} / {row['model_move']}", "color": GREY_LIGHT})
         else:
             nodes.append({"label": str(row["log_move"]), "color": GREY_DARK})
     return nodes
@@ -2276,12 +2318,12 @@ def alignment_violation_node_style(rep_rows):
     """Return a BPMN node_style_fn marking a trace's deviating / conform tasks.
 
     Maps the alignment rows (alignment_pairs_to_rows output) of one representative
-    trace onto the desired model: model moves -> GREY_MED (skipped step), mismatch
-    moves -> GREY_LIGHT, synchronous moves -> GREY_LIGHTER, everything else -> white. Shared
-    by the "Reasons" family (task13/task18/task21) so the elaborate flow idiom
+    trace onto the desired model: model moves -> GREY_MED (skipped step),
+    synchronous moves -> GREY_LIGHTER, everything else -> white. Shared by the
+    "Reasons" family (task13/task18/task21) so the elaborate flow idiom
     annotates violations identically. node_style_fn(eid, elem) ->
     (fill, stroke, stroke_width, text_color)."""
-    skipped, mismatch, conform = set(), set(), set()
+    skipped, conform = set(), set()
     for row in rep_rows:
         mt = row["moveType"]
         if mt == "Synchronous Move":
@@ -2290,16 +2332,12 @@ def alignment_violation_node_style(rep_rows):
             conform.add(lbl)
         elif mt == "Model Move":
             skipped.add(str(row["model_move"]))
-        elif mt == "Mismatch Move":
-            mismatch.add(str(row["model_move"]))
 
     def _style(eid, elem):
         name = elem.get("name", "")
         if elem.get("kind") == "task":
             if name in skipped:
                 return (GREY_MED, "#444444", 3, contrasting_text_color(GREY_MED))
-            if name in mismatch:
-                return (GREY_LIGHT, "#444444", 3, contrasting_text_color(GREY_LIGHT))
             if name in conform:
                 return (GREY_LIGHTER, "#666666", 2, contrasting_text_color(GREY_LIGHTER))
         return ("white", "#888888", 2, "#333333")

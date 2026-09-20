@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import AdminNav from "../../../../components/Admin/AdminNav";
 import ProcessModelImage from "../../../../components/General/ProcessModelImage";
 import IntroCitation from "../../../../components/General/IntroCitation";
-import { saveWizardStep } from "../../../../utils/wizardSave";
+import { queueWizardSave } from "../../../../utils/wizardSave";
 import {
   CONCEPT_SECTIONS,
   TASKINTRO_SECTIONS,
@@ -125,7 +126,7 @@ export default function IntroPagesSetupPage() {
 
   function save(sections, cites) {
     if (!experimentId) return;
-    saveWizardStep(experimentId, "concepts", body(sections, cites), { endpoint: "intro-pages" })
+    queueWizardSave(experimentId, "concepts", body(sections, cites), { endpoint: "intro-pages" })
       .catch((e) => setSaveError(e.message));
   }
 
@@ -481,7 +482,13 @@ export default function IntroPagesSetupPage() {
 
         {saveError && <p className="mt-6 text-body-sm text-error">{saveError}</p>}
 
-        <div className="mt-12 flex justify-end">
+        <div className="mt-12 flex justify-between items-center">
+          <Link
+            href={`/admin/experiments/knowledge${experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""}`}
+            className="text-sm text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors"
+          >
+            <span className="material-symbols-outlined text-sm">arrow_back</span> Previous Step
+          </Link>
           <button
             type="button"
             onClick={handleNext}

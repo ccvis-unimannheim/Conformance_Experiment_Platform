@@ -8,7 +8,7 @@ import Toast from "../../../../components/Admin/Toast";
 import EditTaskModal from "../../../../components/Admin/EditTaskModal";
 import { IdiomImportButton, IdiomImportResult } from "../../../../components/Admin/IdiomImport";
 import { resolveIdiomLabel } from "../../../../utils/idiomLabels";
-import { saveWizardStep } from "../../../../utils/wizardSave";
+import { queueWizardSave } from "../../../../utils/wizardSave";
 
 function IdiomPreviewModal({ experimentId, taskKey, idiomKey, idiomLabel, datasetTitle, paramsSummary, version, onClose }) {
   const [status, setStatus] = useState("loading");
@@ -407,7 +407,7 @@ function ExperimentOverviewContent() {
       setExperiment(exp);
       setStatus(exp.status || "draft");
       if (exp.status === "draft") {
-        saveWizardStep(experimentId, "overview", {}).catch(() => {});
+        queueWizardSave(experimentId, "overview", {}).catch(() => {});
       }
 
       const tMap = {};
@@ -736,12 +736,12 @@ function ExperimentOverviewContent() {
             </span>
             No task-idiom assignments found.
             <br />
-            <button
-              onClick={() => router.back()}
+            <Link
+              href={`/admin/experiments/idiom${experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""}`}
               className="text-xs text-primary mt-1 inline-block hover:underline"
             >
               ← Go back to assign idioms
-            </button>
+            </Link>
           </div>
         ) : (
           <div className="flex flex-col gap-6">
@@ -935,12 +935,12 @@ function ExperimentOverviewContent() {
       {/* Footer action bar */}
       <div className={`border-t sticky bottom-0 ${status === "published" ? "border-green-200 bg-green-50" : "border-border-subtle bg-white"}`}>
         <div className="max-w-[1140px] mx-auto px-8 py-4 flex justify-between items-center">
-          <button
-            onClick={() => router.back()}
+          <Link
+            href={`/admin/experiments/answer-format${experimentId ? `?experiment_id=${encodeURIComponent(experimentId)}` : ""}`}
             className="text-sm text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors"
           >
             <span className="material-symbols-outlined text-sm">arrow_back</span> Previous Step
-          </button>
+          </Link>
           {status === "published" ? (
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-2 text-sm font-semibold text-green-700">

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 
-const FileUploadCard = ({ label, icon, onFileSelect }) => {
+const FileUploadCard = ({ label, icon, onFileSelect, accept, hint }) => {
   const fileInputRef = useRef(null);
   const [selectedFile, setSelectedFile] = useState(null);
 
@@ -30,6 +30,12 @@ const FileUploadCard = ({ label, icon, onFileSelect }) => {
 
       <h3 className="text-h3 mb-2">{label}</h3>
 
+      {hint && (
+        <p className="text-body-sm text-on-surface-variant text-center mb-3 px-2">
+          {hint}
+        </p>
+      )}
+
       <button
         type="button"
         onClick={(e) => {
@@ -44,6 +50,7 @@ const FileUploadCard = ({ label, icon, onFileSelect }) => {
       <input
         type="file"
         ref={fileInputRef}
+        accept={accept}
         onChange={handleChange}
         className="hidden"
       />
