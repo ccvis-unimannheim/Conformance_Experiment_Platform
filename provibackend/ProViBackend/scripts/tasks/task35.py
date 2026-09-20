@@ -55,9 +55,12 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+from matplotlib.colors import to_hex
+
 from shared import (most_common_stable, save_svg, GREY_DARK, GREY_MED,
                     FONT_TITLE, FONT_ANNOT, classify_step as _classify_step,
-                    parse_bpmn_model, render_bpmn_annotated, render_empty_state_svg)
+                    parse_bpmn_model, render_bpmn_annotated, render_empty_state_svg,
+                    contrasting_text_color, CIVIDIS_R)
 
 _C_DARK = GREY_DARK
 _C_MED  = GREY_MED
@@ -95,17 +98,24 @@ def _extract_data(alignments, move_types=None):
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-def _violation_shade(rate: float) -> str:
-    """Light (#F0F0F0) → dark (#444444) as rate goes 0 → 1.
+#: The span of cividis the shading uses. Not the full range: at 0.0 cividis is
+#: a saturated yellow, which would make an activity with no violations at all
+#: the loudest thing on the model.
+_SHADE_LO, _SHADE_HI = 0.18, 0.88
 
-    The ramp the other violation-shaded models use, to the byte — task15 and
-    task16 answer a neighbouring question about the same model and a reader
-    comparing them should be comparing the models, not two greys.
+
+def _violation_shade(rate: float) -> str:
+    """Light cividis → dark cividis as rate goes 0 → 1.
+
+    Cividis, like every other continuous scale in the platform. It used to be a
+    greyscale ramp (#F0F0F0 to #444444) held byte-identical with task09,
+    task15 and task16, which annotate the same model for neighbouring
+    questions. **That agreement is now broken and those three are still grey.**
+    They should follow when they come up for review; until then a reader
+    comparing task35's model with task15's compares two palettes.
     """
     rate = max(0.0, min(1.0, rate))
-    lo, hi = 0xF0, 0x44
-    v = int(round(lo + (hi - lo) * rate))
-    return f"#{v:02X}{v:02X}{v:02X}"
+    return to_hex(CIVIDIS_R(_SHADE_LO + (_SHADE_HI - _SHADE_LO) * rate))
 
 
 def _short(label, n=26):
@@ -248,8 +258,7 @@ def _make_bpmn_svg(activity_type, activity_totals, model_path):
         rate  = name_to_rate.get(name, 0.0)
         fill  = _violation_shade(rate) if kind == "task" else "#f0f0f0"
         stroke = "#777"
-        v_int  = int(fill[1:3], 16)
-        tc     = "white" if v_int < 140 else _C_DARK
+        tc     = contrasting_text_color(fill)
 
         if kind == "task":
             mom   = activity_type.get((name, "Model Move"), 0)
@@ -281,7 +290,10 @@ def _make_bpmn_svg(activity_type, activity_totals, model_path):
                     f"{esc(line)}</text>"
                 )
             if has_ann:
-                ann_tc    = "white" if v_int < 155 else _C_MED
+                # The annotation is a muted second line, so it takes the
+                # dimmer grey wherever the fill is light enough to carry it.
+                ann_tc    = ("white" if contrasting_text_color(fill) == "white"
+                             else _C_MED)
                 ann       = f"↑{mom}  ↓{mol}"
                 ann_fs    = max(6, fs - 1.5)
                 max_ann_w = w - 6
@@ -377,8 +389,11 @@ def task35_flow_chart_elaborate_bpmn(activity_type, activity_totals, model_path,
 
     The per-node skip/insert counts the hand-built version printed under each
     label are gone with it: the shared renderer fits one label to a node and has
-    nowhere to put a second line. The counts are in the table idiom, and the
-    move-type parameter draws skips and inserts separately when they matter.
+    nowhere to put a second line. This used to say the counts were "in the table
+    idiom" — but `flow_chart_elaborate_table` is not in IDIOMS, so they are in
+    no idiom this task offers. What remains is the shading, which ranks the
+    activities without giving their counts, and the move-type parameter, which
+    draws skips and inserts separately when they need telling apart.
     """
     out_path = os.path.join(output_dir, "task35_flow_chart_elaborate_bpmn.svg")
     title = "Guideline Violations in Process Model"
@@ -403,26 +418,28 @@ def task35_flow_chart_elaborate_bpmn(activity_type, activity_totals, model_path,
         if kind == "task":
             rate = (activity_totals.get(name, 0) / max_v) if max_v else 0.0
             fill = _violation_shade(rate)
-            tc = "white" if int(fill[1:3], 16) < 0x99 else "#222222"
+            tc = contrasting_text_color(fill)
             return fill, "#777777", 1.2, tc
         if kind in {"exclusiveGateway", "parallelGateway"}:
             return "#FFFFFF", "#777777", 1.2, "#333333"
         return "#EFEFEF", "#777777", 1.5, "#333333"
 
+    # Taken from the ramp rather than written out, so a swatch cannot drift
+    # away from the shade it stands for.
     legend_items = [
-        ("#F0F0F0", "#777777", 1.0, "Few / no violations"),
-        ("#9A9A9A", "#777777", 1.0, "Some violations"),
-        ("#444444", "#777777", 1.0, "Most violations"),
+        (_violation_shade(0.0), "#777777", 1.0, "Few / no violations"),
+        (_violation_shade(0.5), "#777777", 1.0, "Some violations"),
+        (_violation_shade(1.0), "#777777", 1.0, "Most violations"),
     ]
-    top_act, top_n = "", 0
-    if activity_totals:
-        top_act, top_n = most_common_stable(activity_totals, 1)[0]
+    # No subtitle. It restated the legend ("lighter = fewer violations") and
+    # then added two figures the legend does not carry — the log's total
+    # violation count and the worst activity by name. The second is the answer
+    # to "where does the recorded behaviour violate which guidelines" written
+    # out above the model that is supposed to show it.
     render_bpmn_annotated(
         parsed, out_path,
         title=title,
-        summary=("Activity shade: lighter = fewer violations · darker = more violations"
-                 f"   |   {sum(activity_totals.values())} violations"
-                 f" · most: {top_act} ({top_n})"),
+        summary="",
         node_style_fn=node_style_fn,
         legend_items=legend_items,
         legend_center=True,
@@ -609,8 +626,7 @@ def task35_petri_net(activity_type, activity_totals, model_path, output_dir):
                 total = activity_totals.get(name, 0)
                 rate  = total / max_v
                 fill  = _violation_shade(rate)
-                v_int = int(fill[1:3], 16)
-                fc    = "white" if v_int < 140 else _C_DARK
+                fc    = contrasting_text_color(fill)
                 # Wrap long names at underscore
                 disp  = name.replace("_", "\\n")
                 ann   = f"\\n↑{skip} ↓{ins}" if total > 0 else ""
@@ -634,8 +650,7 @@ def task35_petri_net(activity_type, activity_totals, model_path, output_dir):
             for lvl, lbl in [(0.0, "0%"), (0.33, "33%"), (0.66, "66%"), (1.0, "100%")]:
                 nid  = f"_leg_{int(lvl*100)}"
                 fill = _violation_shade(lvl)
-                v    = int(fill[1:3], 16)
-                fc   = "white" if v < 140 else _C_DARK
+                fc   = contrasting_text_color(fill)
                 leg.node(nid, label=lbl, shape="rectangle",
                          style="filled", fillcolor=fill, fontcolor=fc,
                          fontsize="8", width="0.7", height="0.35",
@@ -698,8 +713,7 @@ def task35_flow_chart_elaborate_dfg(activity_type, activity_totals, log, output_
             total = activity_totals.get(act, 0)
             rate  = total / max_v
             fill  = _violation_shade(rate)
-            v_int = int(fill[1:3], 16)
-            fc    = "white" if v_int < 140 else _C_DARK
+            fc    = contrasting_text_color(fill)
 
             ann  = f"\\n↑{skip} ↓{ins}" if total > 0 else ""
             disp = act.replace("_", "\\n")
@@ -751,8 +765,7 @@ def task35_flow_chart_elaborate_dfg(activity_type, activity_totals, log, output_
             for lvl, lbl in [(0.0, "0%"), (0.33, "33%"), (0.66, "66%"), (1.0, "100%")]:
                 nid  = f"_dleg_{int(lvl*100)}"
                 fill = _violation_shade(lvl)
-                v    = int(fill[1:3], 16)
-                fc   = "white" if v < 140 else _C_DARK
+                fc   = contrasting_text_color(fill)
                 leg.node(nid, label=lbl, shape="rectangle",
                          style="filled", fillcolor=fill, fontcolor=fc,
                          fontsize="8", width="0.7", height="0.3",
