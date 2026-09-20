@@ -2,6 +2,76 @@
 
 Tracks files modified or created during development sessions.
 
+## Session: Task 24 Discovers a Model and Compares It (2026-09-20)
+
+### Problem solved
+
+task24 claimed to discover a model and never drew one. It built a
+directly-follows graph in a `Counter`, compared that edge set to the reference
+BPMN, and painted the result onto **the guideline**: faded nodes for tasks the
+log never showed, thick borders on the endpoints of unmodelled transitions. The
+task asks where two models differ; the answer was one model and a legend.
+
+It now discovers a real model. pm4py's inductive miner produces a sound process
+tree, converts it to BPMN and lays it out; written to a temporary file it is an
+ordinary BPMN with diagram interchange, so `shared.parse_bpmn_model` reads it
+into exactly the structure the guideline arrives in. Both sides of the
+comparison are the same kind of object, which is what lets one renderer draw
+them both. The directly-follows graph stays inside pm4py — a step towards the
+model, not something this platform draws.
+
+Three idioms, each comparing like with like:
+
+- `flow_chart_elaborate` — both models as BPMN panels, one above the other,
+  through `shared.compose_bpmn_panels`.
+- `flow_chart_basic` — both models as a chevron strip, one above the other.
+- `table` — both models as a column, the cell holding the step the activity has
+  in that model, so the table says what is missing *and* what moved.
+
+All three read one payload (`_model_diff`): each activity's category — in both
+models, only in the desired one, only in the discovered one — and its position
+in each. One palette across the three: white for shared, cividis navy for
+desired-only, cividis bright yellow for discovered-only.
+
+The comparison is symmetric for the first time. It used to set a smoothed set
+of model edges against raw directly-follows pairs counted off the log, so any
+rare path in the log became a structural difference against the guideline.
+
+`noise_threshold` becomes a real admin parameter (0.0-0.4, default 0.2),
+replacing a hard-coded minimum edge count no admin could see. Verified to move
+the discovered model: on the sample guideline 21 elements / 24 flows at 0.0 and
+0.2, 19 / 21 at 0.3.
+
+### Files changed
+
+- `provibackend/ProViBackend/scripts/tasks/task24.py` — rewritten.
+  `_discover_model`, `_named_tasks`, `_linearise`, `_model_diff`,
+  `_difference_summary`, `_node_style_fn` and the three idiom renderers added;
+  `_discover_dfg`, `_compute_diff`, `_build_diff_panel` and `_model_task_edges`
+  deleted. `IDIOMS` now holds canonical keys — it declared the
+  `flow_chart_elaborate_bpmn` file stem, which is not a key the Idiom
+  collection knows.
+- `provibackend/ProViBackend/scripts/create_all_visualizations.py` — the task24
+  lambda passes `noise_threshold`.
+- `docs/TASK_IDIOM_MAPPING.md` — the two added idioms, and why.
+
+### Known costs
+
+`_linearise` presses a graph into a line for the chevron and the table: two
+models differing only in whether A and B are concurrent produce the same strip
+and the same step numbers. The BPMN idiom is in the set because of it. Depth is
+the longest path from the start event, not the shortest — with an exclusive
+choice the shortest path reaches post-choice activities through whichever
+branch is briefest, which put "Close Case" ahead of the long branch's
+activities on the sample guideline.
+
+No edge-level difference is drawn. Collapsing gateways to get comparable
+task-to-task edges turns each model into a reachability closure, and two models
+built by different means differ in dozens of closure pairs while describing the
+same behaviour — sixteen of them on the sample guideline, none with a
+reader-visible meaning. Each panel draws its own flows; the comparison lives in
+the nodes.
+
 ## Session: Task 27 on the Trace Level (2026-09-20)
 
 ### Problem solved
