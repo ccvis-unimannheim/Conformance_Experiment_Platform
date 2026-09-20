@@ -28,17 +28,31 @@ Design (settled):
     and the normalization made each kind's strongest candidate 1.00 whatever
     its real strength. Showing only what was selected outranks avoiding overlap
     with task13, and that overlap is accepted deliberately.
-  * Top-N candidate reasons (TOP_N).
+  * Top-N candidate reasons (TOP_N), ranked by association strength.
+  * **Category-level breakdown, for every ranked candidate — not just the
+    strongest one.** bar_chart, table and parallel_sets each render one panel
+    per ranked candidate, showing that attribute's own buckets and their
+    violation rates. A single association number was not enough on its own —
+    the analyst needs to see *which* category of an attribute drives the
+    association, for every candidate being compared, not only the top-ranked
+    one.
+  * **Own rendering, task13's data only.** The three idioms below are task21's
+    own matplotlib code — they only reuse task13's small, pure data helpers
+    (`_build_evidence_frame`, `_rank_attributes`, `_bucket_rates`,
+    `_bucket_assign`), never task13's chart-drawing functions directly. That
+    keeps the two tasks' figures independently changeable: a future tweak to
+    task13's own bar_chart/table/parallel_sets does not silently change
+    task21's, and vice versa, even though both currently look similar.
 
-Scope = the 7 "High" idioms (Priority column of docs/TASK_IDIOM_MAPPING.md).
+Scope = 3 idioms (bar_chart, table, parallel_sets). table_bar_chart,
+flow_chart_table and flow_chart_elaborate_table were dropped: each just
+bundled the same candidate ranking next to something unrelated to the
+ranking itself (an arbitrary single trace's flow/BPMN), without adding new
+information.
 Stems → canonical slug after the pipeline rename:
-    task21_bar_chart.svg                       → bar_chart
-    task21_scatter_plot.svg                    → scatterplot   (reuses task13's scatter)
-    task21_table.svg                           → table
-    task21_table_and_bar_chart.svg             → table_bar_chart
-    task21_parallel_sets.svg                   → parallel_sets
-    task21_flow_chart_and_table.svg            → flow_chart_table
-    task21_flow_chart_elaborate_bpmn_table.svg → flow_chart_elaborate_table
+    task21_bar_chart.svg     → bar_chart
+    task21_table.svg         → table
+    task21_parallel_sets.svg → parallel_sets
 
 Public API:
     generate(log, alignments, model_path, output_dir, candidate_attributes=None)
@@ -48,10 +62,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-IDIOMS = [
-    "bar_chart", "table", "table_bar_chart",
-    "parallel_sets", "flow_chart_table", "flow_chart_elaborate_table",
-]
+IDIOMS = ["bar_chart", "table", "parallel_sets"]
 
 
 # What this task measures per group, and how it cuts the log — task
@@ -72,26 +83,24 @@ PARAM_SPEC = [*trace_features.grouping_params(
     levels=trace_features.TRACE_COMPARING_LEVELS)]
 import os
 import numpy as np
-import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib import gridspec
 
 from shared import (
     save_svg, make_table, draw_parallel_sets, render_empty_state_svg, wrap_text,
-    chevron_nodes_from_alignment_rows, draw_chevron_strip, chevron_figure_width,
-    parse_bpmn_model, compose_bpmn_panels, alignment_violation_node_style,
     GREY_MED, GREY_LIGHT, GREY_LIGHTER, GREY_DARK, FONT_TITLE, FONT_LABEL, FONT_ANNOT,
 )
 
 # This task builds on task13's attribute evidence. Fail loudly if it cannot be
-# imported (per spec).
+# imported (per spec). Only task13's *data* helpers are reused (see the module
+# docstring) — bar_chart/table/parallel_sets below are task21's own rendering.
 try:
-    import tasks.task13 as task13
-    from tasks.task13 import _build_evidence_frame, _rank_attributes, _bucket_assign, discover_candidate_attributes
+    from tasks.task13 import (
+        _build_evidence_frame, _rank_attributes, _bucket_rates, _bucket_assign,
+        discover_candidate_attributes,
+    )
     from tasks.task20 import task20_trace_feature_dataframe
-    from tasks.task28 import build_task28_context
 except ImportError as e:   # pragma: no cover - import-time guard
     raise ImportError(
         "task21 is the exploratory member of the Reasons family and depends on "
@@ -102,293 +111,151 @@ except ImportError as e:   # pragma: no cover - import-time guard
 
 TOP_N = 12   # candidate reasons kept
 
-# One neutral colour for every candidate: the ranking is the only ordering the
-# figure asserts, and no candidate is pre-highlighted as "the" reason.
-_CANDIDATE_COLOR = GREY_MED
+# Shared heading for bar_chart/table/parallel_sets.
+_TITLE = "Candidate Reasons for Guideline Violations"
+
+# 4-shade rotation for a candidate's own buckets in parallel_sets (mirrors the
+# same grey ramp task13 uses for its own per-attribute panels).
+_GREY_PALETTE = [GREY_MED, GREY_LIGHT, GREY_DARK, GREY_LIGHTER]
 
 _EMPTY_STEMS = [
-    ("task21_bar_chart.svg",                       "Candidate Reason Ranking"),
-    ("task21_scatter_plot.svg",                    "Attribute Value vs. Violations"),
-    ("task21_table.svg",                           "Candidate Reasons"),
-    ("task21_table_and_bar_chart.svg",             "Candidate Reasons"),
-    ("task21_parallel_sets.svg",                   "Candidate Reason vs. Violation"),
-    ("task21_flow_chart_and_table.svg",            "Violation Flow & Candidate Reasons"),
-    ("task21_flow_chart_elaborate_bpmn_table.svg", "Violation Locations & Candidate Reasons"),
+    ("task21_bar_chart.svg",     "Candidate Reason Ranking"),
+    ("task21_table.svg",         "Candidate Reasons"),
+    ("task21_parallel_sets.svg", "Candidate Reason vs. Violation"),
 ]
 
 
 # ---------------------------------------------------------------------------
-# Unified candidate-reason assembly
+# Idiom renderers (neutral, non-concluding). Own rendering code — only the
+# data helpers above (_bucket_rates/_bucket_assign, from task13) are reused.
 # ---------------------------------------------------------------------------
 
-def _candidates(attr_ranking, top_n=TOP_N):
-    """The admin's attributes, ranked by how strongly each is associated with
-    violating traces.
-
-    `score` is the association itself — point-biserial |r| for a numeric
-    attribute, Cramér's V for a categorical one, both already on [0, 1]. It used
-    to be min-max-normalized because responsible activities (task18) were ranked
-    alongside the attributes on a share-of-violations scale, and the two scales
-    had to be made comparable. That normalization made the strongest candidate
-    of each kind 1.00 whatever its actual strength: an attribute with r = 0.14
-    topped the chart. With only the attributes left, the raw number is both
-    comparable and meaningful, so it is what the figures plot.
-    """
-    candidates = [{
-        "reason": r["label"],
-        "score": r["strength"],
-        "raw": f"{r['measure']} {r['strength']:.2f}",
-        "evidence": r["direction"],
-        "_attr_col": r["col"],
-        "_attr_type": r["type"],
-    } for r in attr_ranking]
-    candidates.sort(key=lambda c: c["score"], reverse=True)
-    return candidates[:top_n]
-
-
-def _candidate_table_data(candidates):
-    """(cell_text, col_labels, col_widths) for the unified candidate-reasons table.
-    Long cells are wrapped so they stay within their column (matplotlib tables don't
-    auto-wrap)."""
-    col_labels = ["Candidate reason", "Association", "Evidence note"]
-    col_widths = [0.30, 0.13, 0.57]
-    cell_text = [[wrap_text(c["reason"], 22), f"{c['score']:.2f}",
-                  wrap_text(f"{c['raw']} — {c['evidence']}", 40)] for c in candidates]
-    return cell_text, col_labels, col_widths
-
-
-def _candidate_rows_singleline(candidates, note_max: int = 46):
-    """Single-line rows for the SVG (compose_bpmn_panels) table, which can't wrap;
-    the evidence note is truncated instead."""
-    def _short(s):
-        return s if len(s) <= note_max else s[:note_max - 1] + "…"
-    rows = [[c["reason"], f"{c['score']:.2f}",
-             _short(f"{c['raw']} — {c['evidence']}")] for c in candidates]
-    return rows, ["Candidate reason", "Association", "Evidence note"]
-
-
-def _parallel_matrix(bucket_per_trace, left_labels, violation):
-    """Build a (len(left_labels) x 2) matrix: Dim2 = violation present (yes/no)."""
-    matrix = np.zeros((len(left_labels), 2))
-    index_of = {lab: i for i, lab in enumerate(left_labels)}
-    for b, viol in zip(bucket_per_trace, violation):
-        if b is None or b not in index_of:
-            continue
-        matrix[index_of[b], 0 if viol else 1] += 1
-    return matrix
-
-
-# ---------------------------------------------------------------------------
-# Idiom renderers (neutral, non-concluding)
-# ---------------------------------------------------------------------------
-
-def task21_bar_chart(candidates, output_dir):
-    """Candidate-reason ranking on a single axis. No candidate is
-    pre-highlighted; the analyst reads the evidence and concludes."""
+def task21_bar_chart(ranking, evidence_df, output_dir):
+    """Small multiples: one bar-group panel per ranked candidate, showing that
+    attribute's own buckets and violation rate — not just one aggregate
+    association number. Panels stay in `ranking`'s order (strongest first)."""
     path = os.path.join(output_dir, "task21_bar_chart.svg")
-    if not candidates:
+    if not ranking or evidence_df is None or evidence_df.empty:
         render_empty_state_svg(path, "Candidate Reason Ranking", "No candidate reasons found.")
         return
-    labels = [c["reason"] for c in candidates][::-1]
-    scores = [c["score"] for c in candidates][::-1]
+    violation = evidence_df["violation"].to_numpy()
+    panels = []
+    for r in ranking:
+        res = _bucket_rates(evidence_df[r["col"]].tolist(), r["type"], violation)
+        if res is not None:
+            panels.append((r, res))
+    if not panels:
+        render_empty_state_svg(path, _TITLE, "No candidate attribute had enough variance to bucket.")
+        return
 
-    fig, ax = plt.subplots(figsize=(11, max(4.0, len(candidates) * 0.5 + 1.5)))
-    y = np.arange(len(labels))
-    ax.barh(y, scores, color=_CANDIDATE_COLOR, edgecolor="white")
-    ax.set_yticks(y)
-    ax.set_yticklabels(labels, fontsize=FONT_ANNOT)
-    ax.set_xlim(0, 1.0)
-    ax.set_xlabel("Association with violating traces (|r| / Cramér's V)",
-                  fontsize=FONT_LABEL)
-    for i, s in enumerate(scores):
-        ax.text(min(s + 0.01, 0.99), i, f"{s:.2f}", va="center", fontsize=FONT_ANNOT - 1)
-    ax.set_title("Candidate Reasons for Guideline Violations",
-                 fontsize=FONT_TITLE)
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.xaxis.grid(True, linestyle="--", alpha=0.45)
-    ax.set_axisbelow(True)
+    ncols = len(panels)
+    fig, axes = plt.subplots(1, ncols, figsize=(max(5.0, ncols * 4.2), 5.0), squeeze=False)
+    for ax, (r, (labels, rates, counts)) in zip(axes[0], panels):
+        pos = np.arange(len(labels))
+        ax.bar(pos, rates, color=GREY_MED, edgecolor="white")
+        for p, rate, c in zip(pos, rates, counts):
+            ax.text(p, rate + 1.5, f"{rate:.0f}%\n(n={c})", ha="center", va="bottom",
+                    fontsize=FONT_ANNOT - 1, color="#333333")
+        ax.set_xticks(pos)
+        ax.set_xticklabels(labels, fontsize=FONT_ANNOT - 1)
+        ax.set_xlabel(f"{r['label']}  (assoc.={r['strength']:.2f})", fontsize=FONT_LABEL)
+        ax.set_ylim(0, 100)
+        ax.spines[["top", "right"]].set_visible(False)
+        ax.yaxis.grid(True, linestyle="--", alpha=0.45)
+        ax.set_axisbelow(True)
+    axes[0][0].set_ylabel("Violation rate (%)", fontsize=FONT_LABEL)
+    fig.suptitle(_TITLE, fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 
-def task21_scatter_plot(attr_meta, evidence_df, output_dir):
-    """Reuse task13's scatter (x = strongest numeric attribute candidate, y =
-    violation count, colour = conformant / non-conformant), renamed to the task21
-    stem. Evidence to explore — no trend line."""
-    path = os.path.join(output_dir, "task21_scatter_plot.svg")
-    if not attr_meta or evidence_df is None or evidence_df.empty:
-        render_empty_state_svg(path, "Attribute Value vs. Violations",
-                               "No attribute evidence to plot.")
-        return
-    # Reuse the task13 renderer verbatim, then rename its output stem.
-    task13.task13_scatter_plot(attr_meta, evidence_df, output_dir)
-    src = os.path.join(output_dir, "task13_scatter_plot.svg")
-    if os.path.exists(src):
-        os.replace(src, path)
-
-
-def task21_table(candidates, output_dir):
-    """Unified candidate-reasons table: Candidate reason | Kind | Score | Evidence note."""
+def task21_table(ranking, evidence_df, output_dir):
+    """Small multiples: one bucket-breakdown table per ranked candidate
+    (Bucket | # Traces | Violation Rate), instead of one row per candidate
+    with just its aggregate score."""
     path = os.path.join(output_dir, "task21_table.svg")
-    if not candidates:
+    if not ranking or evidence_df is None or evidence_df.empty:
         render_empty_state_svg(path, "Candidate Reasons", "No candidate reasons found.")
         return
-    cell_text, col_labels, col_widths = _candidate_table_data(candidates)
-    fig_h = max(3.0, 1.4 + len(cell_text) * 0.48)
-    fig, ax = plt.subplots(figsize=(13, fig_h))
-    ax.axis("off")
-    make_table(ax, cell_text=cell_text, col_labels=col_labels,
-               bbox=[0.02, 0.05, 0.96, 0.84], col_widths=col_widths,
-               font_size=9.5, cell_pad=0.08)
-    ax.set_title("Candidate Reasons for Guideline Violations (ranked, for exploration)",
-                 fontsize=FONT_TITLE, pad=10)
-    save_svg(fig, path)
-
-
-def task21_table_and_bar_chart(candidates, output_dir):
-    """Unified candidate-reasons table (left) + the unified ranking bar (right)."""
-    path = os.path.join(output_dir, "task21_table_and_bar_chart.svg")
-    if not candidates:
-        render_empty_state_svg(path, "Candidate Reasons", "No candidate reasons found.")
+    violation = evidence_df["violation"].to_numpy()
+    panels = []
+    for r in ranking:
+        res = _bucket_rates(evidence_df[r["col"]].tolist(), r["type"], violation)
+        if res is not None:
+            panels.append((r, res))
+    if not panels:
+        render_empty_state_svg(path, _TITLE, "No candidate attribute had enough variance to bucket.")
         return
-    cell_text, col_labels, col_widths = _candidate_table_data(candidates)
 
-    fig = plt.figure(figsize=(17, max(3.4, 1.6 + len(candidates) * 0.5)))
-    gs = gridspec.GridSpec(1, 2, width_ratios=[1.7, 1.0], wspace=0.40)
-
-    ax_t = fig.add_subplot(gs[0])
-    ax_t.axis("off")
-    make_table(ax_t, cell_text=cell_text, col_labels=col_labels,
-               bbox=[0.02, 0.05, 0.96, 0.84], col_widths=col_widths,
-               font_size=9, cell_pad=0.07)
-    ax_t.set_title("Candidate Reasons (ranked)", fontsize=FONT_TITLE, pad=8)
-
-    ax_b = fig.add_subplot(gs[1])
-    labels = [c["reason"] for c in candidates][::-1]
-    scores = [c["score"] for c in candidates][::-1]
-    y = np.arange(len(labels))
-    ax_b.barh(y, scores, color=_CANDIDATE_COLOR, edgecolor="white")
-    ax_b.set_yticks(y)
-    ax_b.set_yticklabels(labels, fontsize=FONT_ANNOT - 1)
-    ax_b.set_xlim(0, 1.0)
-    ax_b.set_xlabel("Association", fontsize=FONT_LABEL)
-    for i, s in enumerate(scores):
-        ax_b.text(min(s + 0.02, 0.98), i, f"{s:.2f}", va="center", fontsize=FONT_ANNOT - 1)
-    ax_b.spines[["top", "right"]].set_visible(False)
-    ax_b.set_title("Ranking", fontsize=FONT_TITLE, pad=8)
+    ncols = len(panels)
+    max_rows = max(len(labels) for _, (labels, _, _) in panels)
+    fig_h = max(3.2, 1.6 + max_rows * 0.5)
+    fig, axes = plt.subplots(1, ncols, figsize=(max(5.0, ncols * 3.8), fig_h), squeeze=False)
+    for ax, (r, (labels, rates, counts)) in zip(axes[0], panels):
+        ax.axis("off")
+        cell_text = [[lab, str(c), f"{rate:.0f}%"] for lab, rate, c in zip(labels, rates, counts)]
+        make_table(
+            ax,
+            cell_text=cell_text,
+            col_labels=["Bucket", "# Traces", "Violation Rate"],
+            bbox=[0.02, 0.06, 0.96, 0.74],
+            col_widths=[0.46, 0.27, 0.27],
+            font_size=9.5,
+            cell_pad=0.08,
+        )
+        ax.set_title(f"{r['label']}\n(assoc.={r['strength']:.2f})", fontsize=FONT_LABEL, pad=8)
+    fig.suptitle(_TITLE, fontsize=FONT_TITLE)
     fig.tight_layout(pad=1.2)
     save_svg(fig, path)
 
 
-def task21_parallel_sets(candidates, evidence_df, output_dir):
-    """Dimension 1 = the top candidate attribute's buckets, Dimension 2 =
-    violation present (yes / no); ribbon width = #traces."""
+def task21_parallel_sets(ranking, evidence_df, output_dir):
+    """Small multiples: one parallel-sets diagram per ranked candidate (bucket
+    vs. violation present), not just the single top-ranked one — every
+    candidate being compared gets its category breakdown shown, side by side."""
     path = os.path.join(output_dir, "task21_parallel_sets.svg")
-    if not candidates or evidence_df is None or evidence_df.empty:
+    if not ranking or evidence_df is None or evidence_df.empty:
         render_empty_state_svg(path, "Candidate Reason vs. Violation",
                                "No candidate reasons to explore.")
         return
-
-    top = candidates[0]
     violation = evidence_df["violation"].to_numpy()
+    right_labels = ["Violation", "No violation"]
 
-    res = _bucket_assign(evidence_df[top["_attr_col"]].tolist(), top["_attr_type"])
-    if res is None:
+    panels = []
+    for r in ranking:
+        res = _bucket_assign(evidence_df[r["col"]].tolist(), r["type"])
+        if res is None:
+            continue
+        bucket_per_trace, left_labels = res
+        matrix = np.zeros((len(left_labels), 2))
+        index_of = {lab: i for i, lab in enumerate(left_labels)}
+        for b, viol in zip(bucket_per_trace, violation):
+            if b is None:
+                continue
+            matrix[index_of[b], 0 if viol else 1] += 1
+        panels.append((r, left_labels, matrix))
+
+    if not panels:
         render_empty_state_svg(path, "Candidate Reason vs. Violation",
-                               "Top attribute candidate cannot be bucketed.")
+                               "No candidate attribute could be bucketed.")
         return
-    bucket_per_trace, left_labels = res
-    left_title = top["reason"]
 
-    matrix = _parallel_matrix(bucket_per_trace, left_labels, violation)
-    fig, ax = plt.subplots(figsize=(9, max(6, len(left_labels) * 0.5 + 2)))
-    ax.axis("off")
-    left_colors = [GREY_MED if i % 2 == 0 else GREY_LIGHT for i in range(len(left_labels))]
-    draw_parallel_sets(
-        ax, left_labels, ["Violation", "No violation"], matrix, left_colors,
-        right_colors=[GREY_DARK, GREY_LIGHTER],
-        left_title=left_title, right_title="Guideline violation",
-    )
-    # Title above the column headers (which draw_parallel_sets places at y=1.08).
-    fig.suptitle("Top Candidate Reason vs. Guideline Violation", fontsize=FONT_TITLE, y=0.99)
-    fig.subplots_adjust(top=0.80)
+    ncols = len(panels)
+    fig, axes = plt.subplots(1, ncols, figsize=(max(7.0, ncols * 5.0), 6.0), squeeze=False)
+    for ax, (r, left_labels, matrix) in zip(axes[0], panels):
+        ax.axis("off")
+        left_colors = [_GREY_PALETTE[i % len(_GREY_PALETTE)] for i in range(len(left_labels))]
+        draw_parallel_sets(
+            ax, left_labels, right_labels, matrix, left_colors,
+            right_colors=[GREY_DARK, GREY_LIGHTER],
+            # No right_title: the bars below are already individually labelled
+            # "Violation"/"No violation", so a column header would be redundant
+            # and, with panels this narrow, collide with a long left_title.
+            left_title=wrap_text(r["label"].replace("_", " "), 14), right_title="",
+        )
+    fig.suptitle(_TITLE, fontsize=FONT_TITLE, y=0.99)
+    fig.subplots_adjust(top=0.78, wspace=0.5)
     save_svg(fig, path)
-
-
-def task21_flow_chart_and_table(ctx, candidates, output_dir):
-    """Chevron of a representative violating trace + the unified candidate-reasons table.
-    Stem 'flow_chart_and_table' → canonical slug 'flow_chart_table'."""
-    path = os.path.join(output_dir, "task21_flow_chart_and_table.svg")
-    if ctx is None or not candidates:
-        render_empty_state_svg(path, "Violation Flow & Candidate Reasons",
-                               "No usable alignment / no candidate reasons.")
-        return
-
-    nodes = chevron_nodes_from_alignment_rows(ctx["rows"])
-    cell_text, col_labels, col_widths = _candidate_table_data(candidates)
-
-    fig_w = max(14.0, chevron_figure_width(nodes))
-    fig_h = max(7.0, 3.4 + len(candidates) * 0.48)
-    fig = plt.figure(figsize=(fig_w, fig_h))
-    gs = gridspec.GridSpec(2, 1, height_ratios=[1.0, max(1.4, 0.48 * len(candidates) + 0.8)],
-                           hspace=0.30)
-
-    ax_flow = fig.add_subplot(gs[0])
-    draw_chevron_strip(ax_flow, nodes, fontsize=10)
-    ax_flow.set_title(
-        f"Representative Violating Trace ({ctx['trace_label']}, fitness={ctx['fitness']:.3f})",
-        fontsize=FONT_TITLE, pad=6)
-
-    ax_tab = fig.add_subplot(gs[1])
-    ax_tab.axis("off")
-    make_table(ax_tab, cell_text=cell_text, col_labels=col_labels,
-               bbox=[0.03, 0.05, 0.94, 0.84], col_widths=col_widths,
-               font_size=9, cell_pad=0.07)
-    ax_tab.set_title("Candidate Reasons to Explore (ranked)",
-                     fontsize=FONT_TITLE, pad=6)
-    fig.tight_layout(pad=1.2)
-    save_svg(fig, path)
-
-
-def task21_flow_chart_elaborate_bpmn_table(ctx, candidates, model_path, output_dir):
-    """Desired model with violation locations annotated + the unified candidate-reasons
-    table. Stem → canonical slug 'flow_chart_elaborate_table'."""
-    path = os.path.join(output_dir, "task21_flow_chart_elaborate_bpmn_table.svg")
-    if ctx is None or not model_path or not candidates:
-        render_empty_state_svg(path, "Violation Locations & Candidate Reasons",
-                               "No alignment, model, or candidate reasons available.")
-        return
-    try:
-        parsed = parse_bpmn_model(model_path)
-    except Exception as e:
-        logger.warning(f"      task21: BPMN parse failed: {e}")
-        render_empty_state_svg(path, "Violation Locations & Candidate Reasons",
-                               "BPMN model could not be parsed.")
-        return
-    if not parsed.get("elements"):
-        render_empty_state_svg(path, "Violation Locations & Candidate Reasons",
-                               "No BPMN geometry to render.")
-        return
-
-    panels = [{
-        "parsed": parsed,
-        "node_style_fn": alignment_violation_node_style(ctx["rows"]),
-        "subtitle": (f"Violation locations on the desired model "
-                     f"({ctx['trace_label']}, fitness={ctx['fitness']:.3f})"),
-    }]
-    table_rows, table_cols = _candidate_rows_singleline(candidates)
-    compose_bpmn_panels(
-        panels,
-        path,
-        title="Where Violations Sit (flow) & Candidate Reasons to Explore (table)",
-        legend_items=[
-            (GREY_MED,    "#444444", 3, "Model move (skipped step)"),
-            (GREY_LIGHTER,   "#666666", 2, "Conform (synchronous)"),
-            ("white", "#888888", 2, "Not on this trace"),
-        ],
-        table_rows=table_rows,
-        table_cols=table_cols,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -431,22 +298,17 @@ def generate(log, alignments, model_path, output_dir: str, candidate_attributes=
         return
 
     attr_ranking = _rank_attributes(evidence_df, attr_meta) if attr_meta else []
-    candidates = _candidates(attr_ranking)
-    if not candidates:
+    ranking = attr_ranking[:TOP_N]
+    if not ranking:
         logger.warning("      task21: no candidate reasons assembled — emitting empty-state SVGs.")
         _emit_all_empty(output_dir, "No candidate reasons could be assembled.")
         return
 
     logger.info(f"      -> attributes: {candidate_attributes}")
     logger.info("      task21: candidates — " +
-                ", ".join(f"{c['reason']}={c['score']:.2f}" for c in candidates[:5]) +
-                (" …" if len(candidates) > 5 else ""))
+                ", ".join(f"{r['label']}={r['strength']:.2f}" for r in ranking[:5]) +
+                (" …" if len(ranking) > 5 else ""))
 
-    ctx = build_task28_context(alignments)
-
-    task21_bar_chart(candidates, output_dir)
-    task21_table(candidates, output_dir)
-    task21_table_and_bar_chart(candidates, output_dir)
-    task21_parallel_sets(candidates, evidence_df, output_dir)
-    task21_flow_chart_and_table(ctx, candidates, output_dir)
-    task21_flow_chart_elaborate_bpmn_table(ctx, candidates, model_path, output_dir)
+    task21_bar_chart(ranking, evidence_df, output_dir)
+    task21_table(ranking, evidence_df, output_dir)
+    task21_parallel_sets(ranking, evidence_df, output_dir)
