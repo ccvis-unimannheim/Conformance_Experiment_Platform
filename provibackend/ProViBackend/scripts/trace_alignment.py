@@ -776,8 +776,12 @@ def _verdict_colors():
 
 
 def draw_value_chevrons(records, output_dir, filename, *, view, attribute="",
-                        fontsize=17):
-    """One chevron strip per trace, each step coloured by its value verdict."""
+                        fontsize=17, uniform_width=False):
+    """One chevron strip per trace, each step coloured by its value verdict.
+
+    ``uniform_width`` makes every chevron the same width (widest label wins)
+    instead of sizing each to its own label. Opt-in, default keeps the
+    existing per-label sizing."""
     import os
     import matplotlib.pyplot as plt
     import matplotlib.patches as mpatches
@@ -798,14 +802,15 @@ def draw_value_chevrons(records, output_dir, filename, *, view, attribute="",
         for record in records
     ]
 
-    fig_w = max((chevron_figure_width(n) for n in nodes_per_trace if n), default=9.0)
+    fig_w = max((chevron_figure_width(n, uniform_width=uniform_width)
+                for n in nodes_per_trace if n), default=9.0)
     fig_h = 1.9 * len(records) + 1.6
     fig = plt.figure(figsize=(fig_w, fig_h))
     gs = gridspec.GridSpec(len(records), 1, hspace=0.9)
     for r, (record, nodes) in enumerate(zip(records, nodes_per_trace)):
         ax = fig.add_subplot(gs[r])
         if nodes:
-            draw_chevron_strip(ax, nodes, fontsize=fontsize)
+            draw_chevron_strip(ax, nodes, fontsize=fontsize, uniform_width=uniform_width)
         else:
             ax.axis("off")
         # The value is the finding here, so it is named next to the trace rather

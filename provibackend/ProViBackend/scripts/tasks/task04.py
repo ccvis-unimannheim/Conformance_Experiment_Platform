@@ -395,7 +395,7 @@ def _trace_caption(trace, show_fitness: bool) -> str:
 
 def task04_flow_chart_basic(selected, output_dir: str, model_path=None, *,
                             filename="task04_flow_chart_basic.svg", title=None,
-                            show_fitness=False):
+                            show_fitness=False, uniform_width=False):
     """Chevron flow chart: one horizontal chevron strip per selected trace, stacked
     so the two traces sit side by side (top vs bottom). Each activity chevron is
     coloured by its alignment move type — Synchronous Move, Model Move or Log Move;
@@ -411,6 +411,10 @@ def task04_flow_chart_basic(selected, output_dir: str, model_path=None, *,
     because it answers task04's question — the overall degree of conformance —
     and the other tasks in this class ask about the deviations themselves, where
     a fitness number would be an extra payload no other idiom of theirs carries.
+
+    ``uniform_width`` makes every chevron in a strip the same width (widest
+    label wins) instead of sizing each to its own label. Opt-in — default keeps
+    every existing caller's current per-label sizing.
     """
     path = os.path.join(output_dir, filename)
     if not selected:
@@ -422,7 +426,8 @@ def task04_flow_chart_basic(selected, output_dir: str, model_path=None, *,
 
     nodes_per_trace = [chevron_nodes_from_alignment_rows(t["rows"]) for t in selected]
 
-    fig_w = max((chevron_figure_width(n) for n in nodes_per_trace if n), default=9.0)
+    fig_w = max((chevron_figure_width(n, uniform_width=uniform_width)
+                for n in nodes_per_trace if n), default=9.0)
     n_rows = len(selected)
     fig_h = 1.9 * n_rows + 1.6
 
@@ -431,7 +436,7 @@ def task04_flow_chart_basic(selected, output_dir: str, model_path=None, *,
     for r, (trace, nodes) in enumerate(zip(selected, nodes_per_trace)):
         ax = fig.add_subplot(gs[r])
         if nodes:
-            draw_chevron_strip(ax, nodes, fontsize=_CHEVRON_FONT)
+            draw_chevron_strip(ax, nodes, fontsize=_CHEVRON_FONT, uniform_width=uniform_width)
         else:
             ax.axis("off")
             ax.text(0.5, 0.5, "(empty trace)", ha="center", va="center",
