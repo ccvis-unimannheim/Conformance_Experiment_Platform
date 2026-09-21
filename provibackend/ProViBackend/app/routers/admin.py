@@ -879,6 +879,14 @@ def _is_custom_task_key(task_key: str | None) -> bool:
     return bool(task_key) and task_key not in _TASK_MODULES
 
 
+def _renders_nothing(task_key: str | None) -> bool:
+    """Tasks whose only images are uploaded custom idioms: custom tasks, and
+    built-in tasks set custom-idiom-only (task_registry.CUSTOM_IDIOM_ONLY).
+    Generation, preview and parameter validation leave them alone — their
+    module's PARAM_SPEC is not offered on /specify, so it cannot be demanded."""
+    return _is_custom_task_key(task_key) or task_registry.is_custom_idiom_only(task_key or "")
+
+
 def _remove_custom_task_idioms(task_keys: list[str]):
     """Unscope custom idioms from deleted custom tasks.
 
@@ -1564,7 +1572,7 @@ def _validate_task_instances(exp: dict, skip_task_ids: set[str] = frozenset()) -
         if ti.get("task_id") in skip_task_ids:
             continue
         task_key = _task_key_for(ti.get("task_id"))
-        if not task_key or task_key not in _TASK_MODULES:
+        if not task_key or _renders_nothing(task_key):
             continue
         dataset_id = ti.get("dataset_id") or ""
         params = ti.get("parameters") or {}
@@ -1640,7 +1648,7 @@ def _run_generation_job(experiment_id: str):
         ds = ti.get("dataset_id")
         task_key = _task_key_for(ti.get("task_id"))
         meta[ti.get("task_id")] = task_key
-        if not ds or not task_key or _is_custom_task_key(task_key):
+        if not ds or not task_key or _renders_nothing(task_key):
             continue
         by_dataset.setdefault(ds, []).append({
             "task_key": task_key,
@@ -1663,7 +1671,7 @@ def _run_generation_job(experiment_id: str):
             continue
         ds = ti.get("dataset_id")
         task_key = meta.get(ti.get("task_id"))
-        if _is_custom_task_key(task_key):
+        if _renders_nothing(task_key):
             # Only static uploaded idioms — nothing to render.
             ti["generation_status"] = "ready"
             ti["generation_error"] = None
@@ -1832,7 +1840,7 @@ def _run_preview_job(experiment_id: str, mode: str):
         insts = []
         for ti in task_instances:
             task_key = _task_key_for(ti.get("task_id"))
-            if task_key and not _is_custom_task_key(task_key):
+            if task_key and not _renders_nothing(task_key):
                 insts.append({
                     "task_key": task_key,
                     "parameters": ti.get("parameters") or {},
@@ -1853,7 +1861,7 @@ def _run_preview_job(experiment_id: str, mode: str):
         for ti in task_instances:
             ds_id    = ti.get("dataset_id")
             task_key = _task_key_for(ti.get("task_id"))
-            if ds_id and task_key and not _is_custom_task_key(task_key):
+            if ds_id and task_key and not _renders_nothing(task_key):
                 by_dataset.setdefault(ds_id, []).append({
                     "task_key": task_key,
                     "parameters": ti.get("parameters") or {},
@@ -1920,7 +1928,7 @@ async def start_preview(
         tk = _task_key_for(ti.get("task_id"))
         if tk:
             # Custom tasks only have static idioms, so their preview is ready at once.
-            task_statuses[tk] = "ready" if _is_custom_task_key(tk) else "running"
+            task_statuses[tk] = "ready" if _renders_nothing(tk) else "running"
 
     _preview_status.setdefault(experiment_id, {})[mode] = task_statuses
     background_tasks.add_task(_run_preview_job, experiment_id, mode)
@@ -2138,7 +2146,7 @@ async def generate_idiom_preview(task_key: str, background_tasks: BackgroundTask
     """Serve this task's previews if this container already drew them;
     otherwise draw them in the background and report "generating"."""
     # Custom tasks have no generator; their idioms are served as static assets.
-    if _is_custom_task_key(task_key):
+    if _renders_nothing(task_key):
         return JSONResponse({"status": "ready"})
 
     if generate_for_task_instances is None:
