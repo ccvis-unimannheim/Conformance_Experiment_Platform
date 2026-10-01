@@ -1,0 +1,40 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - develop
+
+jobs:
+  build-and-deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          clean: false
+
+      - name: Write .env
+        env:
+          SECRET_ENV: ${{ secrets.SECRET_ENV }}
+        run: echo "$SECRET_ENV" > .env
+
+      # Never reclaimed otherwise: it filled the disk within a week and took MongoDB down (2026-09-14).
+      - name: Cap build cache
+        run: |
+          docker builder prune -af --max-used-space 10GB
+          docker image prune -f
+
+      # Build services one at a time. provibackend and dfgbackend share an
+      # identical layer chain, and exporting both in parallel races on the
+      # shared snapshots ("parent snapshot ... does not exist: not found").
+      - name: Build images
+        run: |
+          for service in $(docker compose config --services); do
+            docker compose build "$service"
+          done
+
+      # Reached only if every image built, so a failed build leaves the old containers serving.
+      - name: Deploy
+        run: docker compose up -d

@@ -1,0 +1,50 @@
+# Local-only scratch files
+.codegraph/
+.cursor/
+check_idioms.py
+PALETTE_GUIDE.md
+/2604/
+# Working notes written for the report, not part of the docs the repo ships.
+docs/analysis/
+docs/report-input/
+
+# Secrets and per-machine setup
+.env
+docker-compose.override.yml
+.htpasswd
+
+# Runtime data: uploaded datasets and everything generated from them.
+# Note the capital B in ProViBackend — a wrong case matches on Windows but
+# not on Linux, where the server and CI run.
+data/
+provibackend/ProViBackend/data/
+provibackend/ProViBackend/output/
+provibackend/ProViBackend/new_output/
+# Copied from new_input/ at startup by scripts/generate_sample_data.py.
+provibackend/ProViBackend/scripts/sample_data/input/EventLog.csv
+provibackend/ProViBackend/scripts/sample_data/cache/
+# Select Idiom page previews: drawn at runtime by the current generator code,
+# so a committed copy would go stale (see admin.py, "Idiom-level sample preview").
+provibackend/ProViBackend/scripts/sample_data/output/__idiom_preview/
+
+# Source spreadsheets, except the one the backend ships with.
+*.xlsx
+!provibackend/ProViBackend/app/static/*.xlsx
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+
+# Next.js / Node
+.next/
+node_modules/
+npm-debug.log*

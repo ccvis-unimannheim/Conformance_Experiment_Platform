@@ -1,47 +1,45 @@
+"use client";
+
 import Link from "next/link";
-import Image from "next/image";
-import ProjectLogo from "../../public/images/logo-no-background.png";
-import UniLogo from "../../public/images/Logo_UMA_EN_RGB.png";
 
 const Footer = () => {
   return (
-    <div className="flex flex-row justify-between px-8 py-4 bg-white shadow-md">
-      <div className="flex flex-row items-center">
-        <div className="py-2">
-          <Image
-            priority
-            src={ProjectLogo}
-            width={100}
-            height={100}
-            alt="Project Logo"
-          />
-        </div>
-        <div>
-          <Image
-            priority
-            src={UniLogo}
-            width={200}
-            height={200}
-            alt="Uni Logo"
-          />
+    <footer style={{
+      position: "fixed", bottom: 0, left: 0, width: "100%",
+      padding: "0.75rem 2rem",
+      backgroundColor: "rgba(255,255,255,0.85)",
+      backdropFilter: "blur(8px)",
+      borderTop: "1px solid #e4e9ea",
+      zIndex: 40,
+      boxSizing: "border-box",
+    }}>
+      <div style={{
+        maxWidth: "56rem", margin: "0 auto",
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+      }}>
+        <span style={{
+          fontSize: "10px", color: "#5a6061",
+          textTransform: "uppercase", letterSpacing: "0.15em", fontWeight: 500,
+        }}>
+          © University of Mannheim
+        </span>
+        <div style={{ display: "flex", gap: "1.5rem" }}>
+          {[
+            { label: "Imprint",                    href: "/imprint" },
+            { label: "About",                      href: "/about" },
+            { label: "Data Protection Declaration", href: "/dataprotection" },
+          ].map(({ label, href }) => (
+            <Link key={label} href={href} style={{
+              fontSize: "10px", color: "#5a6061",
+              textTransform: "uppercase", letterSpacing: "0.15em", fontWeight: 500,
+              textDecoration: "none",
+            }}>
+              {label}
+            </Link>
+          ))}
         </div>
       </div>
-      <div className="flex flex-col pr-10 ">
-        <h3 className="text-xl font-bold">Legal</h3>
-        <Link
-          href="/imprint"
-          className="pt-1 font-medium text-gray-600 hover:text-gray-900"
-        >
-          Imprint
-        </Link>
-        <Link
-          href="/dataprotection"
-          className="pt-1 font-medium text-gray-600 hover:text-gray-900"
-        >
-          Data Protection Declaration
-        </Link>
-      </div>
-    </div>
+    </footer>
   );
 };
 

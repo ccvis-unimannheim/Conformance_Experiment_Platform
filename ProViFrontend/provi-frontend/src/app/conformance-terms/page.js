@@ -1,0 +1,506 @@
+"use client";
+
+import React from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+
+import { hasKnowledgeQuestions } from "../../utils/knowledgeStep";
+import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
+
+import HeaderLogos from "../../components/General/HeaderLogos";
+import ProcessModelImage from "../../components/General/ProcessModelImage";
+import IntroCitation from "../../components/General/IntroCitation";
+import {
+  CONCEPT_DEFINITION_SECTIONS,
+  fetchIntroPages,
+  pageAfterConcepts,
+  showsCitation,
+} from "../../utils/introPages";
+
+const C = {
+  primary:       "#00305e",
+  primaryDim:    "#002345",
+  surface:       "#f9f9f9",
+  containerLow:  "#f2f4f4",
+  container:     "#ebeeef",
+  containerHigh: "#e4e9ea",
+  onSurface:     "#2d3435",
+  onVariant:     "#5a6061",
+  outline:       "#757c7d",
+  outlineVar:    "#adb3b4",
+  white:         "#ffffff",
+};
+
+function Collapsible({ label, children }) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <div style={{ marginTop: "0.875rem", borderRadius: "0.375rem", border: `1px solid ${C.containerHigh}`, overflow: "hidden" }}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center",
+          padding: "0.625rem 1rem",
+          backgroundColor: C.containerLow,
+          border: "none", cursor: "pointer",
+          fontSize: "0.8125rem", fontWeight: 600, color: C.onVariant,
+          textAlign: "left",
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = C.container; }}
+        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = C.containerLow; }}
+      >
+        <span>{label}</span>
+        <span
+          className="material-symbols-outlined"
+          style={{ fontSize: "1.1rem", transition: "transform 0.2s", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
+        >
+          expand_more
+        </span>
+      </button>
+      {open && (
+        <div style={{ padding: "1rem 1rem 1rem", backgroundColor: C.white }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ImageLightbox({ children, onClose }) {
+  React.useEffect(() => {
+    const onKeyDown = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 200,
+        backgroundColor: "rgba(20,24,25,1)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close"
+        style={{
+          position: "absolute", top: "1.25rem", right: "1.5rem",
+          width: "2.5rem", height: "2.5rem", borderRadius: "50%",
+          border: "none", backgroundColor: "rgba(255,255,255,0.15)", color: C.white,
+          fontSize: "1.5rem", lineHeight: 1, cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}
+      >
+        <span className="material-symbols-outlined">close</span>
+      </button>
+      <p style={{
+        position: "absolute", top: "1.5rem", left: "1.5rem",
+        color: "rgba(255,255,255,0.7)", fontSize: "0.8125rem",
+      }}>
+        Scroll or pinch to zoom · drag to pan · click outside to close
+      </p>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: "90vw", height: "85vh", display: "flex", alignItems: "center", justifyContent: "center" }}
+      >
+        <TransformWrapper initialScale={1} minScale={0.5} maxScale={8} centerOnInit>
+          <TransformComponent>
+            <div style={{ backgroundColor: C.white, borderRadius: "0.75rem", padding: "1.5rem", display: "flex" }}>
+              {children}
+            </div>
+          </TransformComponent>
+        </TransformWrapper>
+      </div>
+    </div>
+  );
+}
+
+export default function ConformanceTermsPage() {
+  const router = useRouter();
+  const [imageZoomOpen, setImageZoomOpen] = React.useState(false);
+  const [cfg, setCfg] = React.useState(null);
+
+  // Going back to a step the admin emptied would land on a page that
+  // immediately forwards here again, so Back would look broken. Skip to the
+  // step before it instead.
+  const handleBack = async () => {
+    router.push(
+      (await hasKnowledgeQuestions()) ? "/knowledgequestion" : "/prequestionnaire"
+    );
+  };
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetchIntroPages().then((c) => {
+      if (cancelled) return;
+      // The admin switched this page off: go straight on to whatever comes next.
+      if (c.concept_sections.length === 0) {
+        router.replace(pageAfterConcepts(c));
+        return;
+      }
+      setCfg(c);
+    });
+    return () => { cancelled = true; };
+  }, [router]);
+
+  const shown = new Set(cfg?.concept_sections ?? []);
+  const modelUrl = cfg?.process_model_url ?? null;
+  // Only point at "the diagram at the top" when it's actually there, and only
+  // name order-to-cash when that's the diagram being shown.
+  const diagramRef = shown.has("process_model")
+    ? (modelUrl ? " — the diagram shown at the top of this page" : " — the order-to-cash diagram shown at the top of this page")
+    : "";
+  const hr = <hr style={{ border: "none", borderTop: `1px solid ${C.containerHigh}`, margin: 0 }} />;
+
+  const definitionSections = [];
+  if (shown.has("event_log")) definitionSections.push(
+              <section key="event_log">
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
+                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>table_rows</span>
+                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
+                    Process, Event, Case, Trace &amp; Event Log
+                  </h2>
+                </div>
+                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: "0 0 1rem" }}>
+                  Five nested concepts describe how this study&apos;s data is structured, from the overall
+                  process down to individual recorded events:
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                  {[
+                    ["hub",        "#15803d", "#f0fdf4", "#bbf7d0", "Process",    `A set of activities executed in a coordinated manner to achieve a goal — e.g. order-to-cash${shown.has("process_model") && !modelUrl ? ", shown at the top of this page" : ""}.`],
+                    ["bolt",       "#7c3aed", "#f5f3ff", "#ddd6fe", "Event",      "A single recorded occurrence, indicating the time, the activity, and the case it belongs to."],
+                    ["assignment", "#1d4ed8", "#eff6ff", "#bfdbfe", "Case",       "An instance of the process — e.g. one customer order."],
+                    ["linear_scale","#b45309", "#fffbeb", "#fde68a", "Trace",     "The recorded representation of a case — i.e. all events sharing the same case identifier."],
+                    ["table_rows", "#0f766e", "#f0fdfa", "#99f6e4", "Event Log",  "A collection of events. Events sharing a case identifier form a trace."],
+                  ].map(([icon, color, bg, border, label, desc]) => (
+                    <div key={label} style={{
+                      display: "flex", alignItems: "flex-start", gap: "0.875rem",
+                      padding: "0.875rem 1rem", backgroundColor: bg,
+                      border: `1px solid ${border}`, borderRadius: "0.5rem",
+                    }}>
+                      <span className="material-symbols-outlined" style={{ color, fontSize: "1.1rem", flexShrink: 0, marginTop: "0.15rem" }}>{icon}</span>
+                      <p style={{ margin: 0, fontSize: "0.875rem", color: C.onSurface, lineHeight: 1.7 }}>
+                        <strong>{label}:</strong> {desc}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                <Collapsible label="See an example trace">
+                  <div style={{
+                    fontFamily: "monospace", fontSize: "0.9375rem", color: C.onSurface,
+                    backgroundColor: C.containerLow, borderRadius: "0.375rem",
+                    padding: "0.75rem 1rem",
+                  }}>
+                    ⟨ Receive Order, Check Credit, Confirm Order, Cancel Order ⟩
+                  </div>
+                  <p style={{ fontSize: "0.8125rem", color: C.onVariant, marginTop: "0.75rem", lineHeight: 1.6 }}>
+                    Read from left to right: this is the order in which the activities were executed —
+                    Receive Order happened first, Cancel Order last.
+                  </p>
+                </Collapsible>
+                <Collapsible label="See an example event log">
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem", color: C.onSurface }}>
+                      <thead>
+                        <tr style={{ backgroundColor: C.containerLow }}>
+                          {["Event", "Case ID", "Activity", "Timestamp"].map(h => (
+                            <th key={h} style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600, borderBottom: `1px solid ${C.containerHigh}` }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[
+                          ["e₁","id-4","Receive Order","01.01.24  09:00"],
+                          ["e₂","id-4","Check Credit","01.01.24  09:14"],
+                          ["e₃","id-4","Confirm Order","01.01.24  09:28"],
+                          ["e₄","id-4","Ship Order","01.01.24  09:57"],
+                          ["e₅","id-4","Receive Payment","01.01.24  10:20"],
+                          ["e₆","id-7","Receive Order","01.01.24  11:12"],
+                          ["e₇","id-7","Confirm Order","01.01.24  11:55"],
+                          ["e₈","id-7","Check Credit","01.01.24  12:38"],
+                          ["e₉","id-7","Cancel Order","01.01.24  13:21"],
+                        ].map(([ev, cid, act, ts], i) => (
+                          <tr key={i} style={{ backgroundColor: i % 2 === 0 ? C.white : C.surface }}>
+                            <td style={{ padding: "0.4rem 0.75rem", fontStyle: "italic" }}>{ev}</td>
+                            <td style={{ padding: "0.4rem 0.75rem" }}>{cid}</td>
+                            <td style={{ padding: "0.4rem 0.75rem", fontWeight: 600 }}>{act}</td>
+                            <td style={{ padding: "0.4rem 0.75rem", color: C.onVariant }}>{ts}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <p style={{ fontSize: "0.8125rem", color: C.onVariant, marginTop: "0.75rem", lineHeight: 1.6 }}>
+                      Events e₁–e₅ (Case id-4) form one trace: Receive Order→Check Credit→Confirm Order→Ship Order→Receive Payment.
+                      Events e₆–e₉ (Case id-7) form another: Receive Order→Confirm Order→Check Credit→Cancel Order.
+                    </p>
+                  </div>
+                </Collapsible>
+              </section>
+  );
+  if (shown.has("attribute")) definitionSections.push(
+              <section key="attribute">
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
+                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>tune</span>
+                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
+                    Attribute
+                  </h2>
+                </div>
+                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: "0 0 1rem" }}>
+                  Events may be characterised by various <strong>attributes</strong>; for example, an event may
+                  have a timestamp, correspond to an activity, be executed by a particular person, or have
+                  associated costs.
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                  {[
+                    ["compare_arrows", "#15803d", "#f0fdf4", "#bbf7d0", "Control-flow attribute", "The activity label itself — which step was performed (e.g. \"Check Credit\" or \"Ship Order\")."],
+                    ["storage",        "#1d4ed8", "#eff6ff", "#bfdbfe", "Data attribute",         "Captures data values associated with an event or case (e.g. amount, category, status)."],
+                    ["person",         "#7c3aed", "#f5f3ff", "#ddd6fe", "Resource attribute",     "Records who or what performed an activity (e.g. a specific employee or system)."],
+                    ["schedule",       "#b45309", "#fffbeb", "#fde68a", "Time attribute",          "Captures when an activity occurred or how long it took (e.g. timestamp, duration)."],
+                  ].map(([icon, color, bg, border, label, desc]) => (
+                    <div key={label} style={{
+                      display: "flex", alignItems: "flex-start", gap: "0.875rem",
+                      padding: "0.875rem 1rem", backgroundColor: bg,
+                      border: `1px solid ${border}`, borderRadius: "0.5rem",
+                    }}>
+                      <span className="material-symbols-outlined" style={{ color, fontSize: "1.1rem", flexShrink: 0, marginTop: "0.15rem" }}>{icon}</span>
+                      <p style={{ margin: 0, fontSize: "0.875rem", color: C.onSurface, lineHeight: 1.7 }}>
+                        <strong>{label}:</strong> {desc}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+  );
+  if (shown.has("guideline")) definitionSections.push(
+              <section key="guideline">
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
+                  <span className="material-symbols-outlined" style={{ color: C.primary, fontSize: "1.5rem" }}>account_tree</span>
+                  <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: C.onSurface, margin: 0 }}>
+                    Guideline
+                  </h2>
+                </div>
+                <p style={{ fontSize: "0.9375rem", color: C.onSurface, lineHeight: 1.8, margin: 0 }}>
+                  A <strong>guideline</strong> is the technology-agnostic expression of a process model, where a
+                  process model serves as an abstract representation of the process for specific modelling goals
+                  and describes the allowed execution sequences for different process cases. In this study, we
+                  represent multiple guidelines collectively in an imperative process model as a{" "}
+                  <strong>BPMN</strong>{" "}(Business Process Model and Notation) diagram{diagramRef}.
+                  &ldquo;Guideline&rdquo; and &ldquo;process
+                  model&rdquo; therefore refer to the same underlying reference behaviour and are used
+                  interchangeably throughout.
+                </p>
+              </section>
+  );
+
+  return (
+    <div style={{ backgroundColor: C.surface, color: C.onSurface, minHeight: "100vh", fontFamily: "'Inter', Arial, sans-serif" }}>
+
+      {/* ── Top Nav */}
+      <header style={{
+        position: "fixed", top: 0, left: 0, width: "100%", zIndex: 50,
+        backgroundColor: C.white,
+        borderBottom: `1px solid ${C.containerHigh}`,
+        height: "4rem",
+        display: "flex", alignItems: "center", padding: "0 2rem",
+        boxSizing: "border-box",
+      }}>
+        <div style={{
+          maxWidth: "56rem", margin: "0 auto", width: "100%",
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+        }}>
+          <HeaderLogos />
+        </div>
+      </header>
+
+      {/* ── Main */}
+      <main style={{ paddingTop: "6rem", paddingBottom: "6rem", minHeight: "100vh" }}>
+        <div style={{ maxWidth: "48rem", margin: "0 auto", padding: "0 1.5rem" }}>
+
+          {/* Page heading */}
+          <header style={{ marginBottom: "2.5rem", textAlign: "center" }}>
+            <h1 style={{
+              fontFamily: "'Work Sans', 'Inter', sans-serif",
+              fontSize: "1.875rem", fontWeight: 700,
+              color: C.primary, letterSpacing: "-0.02em", marginBottom: "0.5rem",
+            }}>
+              Key Concepts in Conformance Checking
+            </h1>
+            <p style={{ fontSize: "0.875rem", color: C.onVariant, maxWidth: "36rem", margin: "0 auto", lineHeight: 1.6 }}>
+              Before you begin the tasks, please read the following definitions. They explain the core concepts used throughout this study.
+            </p>
+          </header>
+
+          {!cfg ? (
+            <p style={{ textAlign: "center", fontSize: "0.875rem", color: C.onVariant }}>Loading…</p>
+          ) : (<>
+
+          {/* Process model illustration */}
+          {shown.has("process_model") && (
+          <div style={{
+            backgroundColor: C.white,
+            border: `1px solid ${C.containerHigh}`,
+            borderRadius: "0.75rem",
+            boxShadow: "0 1px 4px rgba(45,52,53,0.06)",
+            padding: "1.5rem 1.5rem 1.25rem",
+            marginBottom: "1.5rem",
+          }}>
+            <p style={{ fontSize: "0.8125rem", color: C.onVariant, margin: "0 0 0.75rem", lineHeight: 1.6 }}>
+              This is the <strong>process model (guideline)</strong> used throughout this study
+              {modelUrl ? "." : " — an order-to-cash process."}
+              {definitionSections.length > 0 && " The definitions below refer back to it."} Click the diagram to enlarge.
+            </p>
+            <button
+              type="button"
+              onClick={() => setImageZoomOpen(true)}
+              aria-label="Enlarge process model diagram"
+              style={{
+                display: "block", width: "100%", padding: 0, border: "none", background: "none", cursor: "zoom-in",
+                overflowX: "auto",
+              }}
+            >
+              <ProcessModelImage
+                url={modelUrl}
+                style={{ width: "100%", height: "auto", borderRadius: "0.5rem" }}
+              />
+            </button>
+          </div>
+          )}
+
+          {imageZoomOpen && (
+            <ImageLightbox onClose={() => setImageZoomOpen(false)}>
+              <ProcessModelImage
+                url={modelUrl}
+                style={{ maxWidth: "85vw", maxHeight: "80vh", borderRadius: "0.5rem" }}
+              />
+            </ImageLightbox>
+          )}
+
+          {/* Content card */}
+          <div style={{
+            backgroundColor: C.white,
+            border: `1px solid ${C.containerHigh}`,
+            borderRadius: "0.75rem",
+            boxShadow: "0 1px 4px rgba(45,52,53,0.06)",
+            overflow: "hidden",
+          }}>
+            {definitionSections.length > 0 && (
+            <div style={{ padding: "2.5rem 3rem", display: "flex", flexDirection: "column", gap: "1.75rem" }}>
+
+              {definitionSections.flatMap((section, i) =>
+                i === 0 ? [section] : [<React.Fragment key={`hr-${i}`}>{hr}</React.Fragment>, section]
+              )}
+
+              {cfg.taskintro_sections.length > 0 && (
+                <>
+                  {hr}
+
+                  <p style={{ fontSize: "0.8125rem", color: C.onVariant, lineHeight: 1.6, fontStyle: "italic" }}>
+                    How guideline violations are detected (alignment, log/model moves), and how fitness is
+                    computed from them, is explained on the next page, right before you start the tasks.
+                  </p>
+                </>
+              )}
+
+              {showsCitation(cfg.concept_citation, shown, CONCEPT_DEFINITION_SECTIONS) && (
+                <>
+                  {hr}
+
+                  <section>
+                    <IntroCitation text={cfg.concept_citation.text} />
+                  </section>
+                </>
+              )}
+
+            </div>
+            )}
+
+            {/* CTA area */}
+            <div style={{
+              backgroundColor: C.containerLow,
+              borderTop: `1px solid ${C.containerHigh}`,
+              padding: "2rem 3rem",
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+            }}>
+              <button
+                type="button"
+                onClick={handleBack}
+                style={{
+                  padding: "0.75rem 2rem", borderRadius: "0.5rem", border: "none",
+                  backgroundColor: "transparent", color: C.onVariant,
+                  fontWeight: 600, fontSize: "0.875rem", cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: "0.5rem",
+                  transition: "background-color 0.15s ease",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = C.container; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: "1.1rem" }}>arrow_back</span>
+                Back
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push(pageAfterConcepts(cfg))}
+                style={{
+                  padding: "0.75rem 2.5rem", borderRadius: "0.5rem", border: "none",
+                  backgroundColor: C.primary, color: C.white,
+                  fontWeight: 700, fontSize: "0.875rem",
+                  cursor: "pointer",
+                  boxShadow: "0 2px 8px rgba(0,48,94,0.25)",
+                  display: "flex", alignItems: "center", gap: "0.5rem",
+                  transition: "background-color 0.15s ease",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = C.primaryDim; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = C.primary; }}
+              >
+                Continue
+                <span className="material-symbols-outlined" style={{ fontSize: "1.1rem" }}>arrow_forward</span>
+              </button>
+            </div>
+          </div>
+          </>)}
+
+        </div>
+      </main>
+
+      {/* ── Sticky Footer */}
+      <footer style={{
+        position: "fixed", bottom: 0, left: 0, width: "100%",
+        padding: "0.75rem 2rem",
+        backgroundColor: "rgba(255,255,255,0.85)",
+        backdropFilter: "blur(8px)",
+        borderTop: `1px solid ${C.containerHigh}`,
+        zIndex: 40, boxSizing: "border-box",
+      }}>
+        <div style={{
+          maxWidth: "56rem", margin: "0 auto",
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+        }}>
+          <span style={{ fontSize: "10px", color: C.onVariant, textTransform: "uppercase", letterSpacing: "0.15em", fontWeight: 500 }}>
+            © University of Mannheim
+          </span>
+          <div style={{ display: "flex", gap: "1.5rem" }}>
+            {[
+              { label: "Imprint",                    href: "/imprint" },
+              { label: "About",                       href: "/about" },
+              { label: "Data Protection Declaration", href: "/dataprotection" },
+            ].map(({ label, href }) => (
+              <Link key={label} href={href} style={{
+                fontSize: "10px", color: C.onVariant,
+                textTransform: "uppercase", letterSpacing: "0.15em", fontWeight: 500,
+                textDecoration: "none", transition: "color 0.15s ease",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = C.primary; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = C.onVariant; }}
+              >
+                {label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}

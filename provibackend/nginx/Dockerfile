@@ -6,6 +6,7 @@ RUN rm /etc/nginx/conf.d/default.conf
 
 # Copy your custom Nginx configuration into the container
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY hash_bucket.conf /etc/nginx/conf.d/hash_bucket.conf
 
 # Expose HTTP and HTTPS ports
 EXPOSE 80
