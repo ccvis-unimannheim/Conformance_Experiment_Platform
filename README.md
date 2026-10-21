@@ -2,6 +2,7 @@
 
 ## Previous and Current Versions
 
+- server IP: 134.155.106.59 (only accessible in uni mannheim intranet or with a VPN to uni mannheim intranet)
 - `/`: the starting page
 - `/dfg/admin`: set up an experiment with a directly-follows graph
 - `/admin`: set up an experiment with multiple tasks and idioms
