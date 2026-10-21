@@ -24,6 +24,10 @@ RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt --default-tim
 # only the patched version's metadata remains.
 RUN pip install --no-cache-dir --force-reinstall --no-deps "msgpack>=1.2.1" "setuptools>=78.1.1"
 
+# pip is only needed at build time. Its vendored urllib3 lags behind the
+# patched site-packages copy and gets flagged by security scanners, so drop it.
+RUN pip uninstall -y pip
+
 RUN apt-get update -y
 
 RUN apt-get install -y graphviz

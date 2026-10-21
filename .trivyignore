@@ -55,20 +55,3 @@ CVE-2025-47273
 # nonetheless reports the pre-override version as "Installed Version".
 # Re-evaluate (and drop this line) after upgrading Trivy past v0.70.0.
 CVE-2026-69152
-
-# CVE-2026-69192 — ip-address inconsistent parsing leading to SSRF
-# CVE-2026-73566 — tar DoS via crafted long-path archive
-# Affected (per Trivy): provifrontend image, ip-address 10.2.0 / tar 7.5.19.
-# Why ignored (for now, genuinely unresolved — not a false positive):
-# neither package appears anywhere in this project's own dependency tree
-# (confirmed via `npm ls` locally on a clean install — no result for either).
-# They are believed to be vendored inside the global npm CLI installed via
-# `npm install -g npm@latest` in the Dockerfile (npm uses tar for package
-# extraction and ip-address for proxy support), which our package.json
-# overrides cannot reach. A prior attempt to patch npm's own node_modules
-# directly in the Dockerfile broke the real build-and-deploy pipeline
-# (npm tried to reconcile npm's internal-only dependencies and failed with a
-# 404) and was reverted. Needs a safer fix — e.g. pinning a specific patched
-# npm version, or not upgrading npm globally at all — before re-attempting.
-CVE-2026-69192
-CVE-2026-73566
