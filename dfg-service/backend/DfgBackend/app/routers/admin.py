@@ -48,14 +48,19 @@ def _register_dataset(file_path: pl.Path):
 
 @router.post("/upload", tags=["admin"])
 async def upload_xes_file(file: UploadFile, background_tasks: BackgroundTasks):
+    # Keep only the base name so a crafted filename ("../...") cannot write
+    # outside output/. The stem also becomes the dataset's directory name.
+    filename = pl.Path(file.filename or "").name
+    if not filename.endswith(".xes") or filename == ".xes":
+        raise HTTPException(status_code=400, detail="Please upload a .xes file.")
     try:
         contents = file.file.read()
-        file_path = config.BASE_DIRECTORY / "output" / file.filename
+        file_path = config.BASE_DIRECTORY / "output" / filename
         file_path.parent.mkdir(parents=True, exist_ok=True)
         with open(utils.convert_path_to_str(file_path), "wb") as f:
             f.write(contents)
         background_tasks.add_task(process_xes_file, file_path)
-        return {"message": f"Successfully uploaded {file.filename}. File is being processed in the background — this can take a few minutes."}
+        return {"message": f"Successfully uploaded {filename}. File is being processed in the background — this can take a few minutes."}
     except Exception:
         raise HTTPException(status_code=500, detail="Failed to upload file")
     finally:

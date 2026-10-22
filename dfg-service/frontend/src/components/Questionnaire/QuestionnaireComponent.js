@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useContext } from "react";
 import Papa from "papaparse";
+import { useRouter } from "next/navigation";
 import { UITrackingContext } from "../../utils/usertracking";
 
 const QuestionnaireComponent = ({ onQuestionSubmit }) => {
+  const router = useRouter();
   const { trackingData, addTrackingChange } = useContext(UITrackingContext);
   const [questions, setQuestions] = useState([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -233,9 +235,9 @@ const QuestionnaireComponent = ({ onQuestionSubmit }) => {
       // Send UI tracking data after successfully submitting the answer
       await sendUITrackingData();
   
-      // /endpage lives on the main app, not this standalone DFG frontend —
-      // needs a full navigation, not the Next.js client-side router.
-      window.location.href = "/endpage";
+      // The DFG study's own end page (basePath makes this /dfg/endpage), not
+      // the main app's /endpage, which would act on the visitor's ProVi session.
+      router.push("/endpage");
     } else {
       console.error("Failed to submit final answer.");
     }

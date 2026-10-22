@@ -14,7 +14,8 @@ const jsonFetcher = async (url) => {
     credentials: "include",
   });
   if (!response.ok) {
-    throw new Error("Failed to fetch mapping.");
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.message || `Failed to fetch mapping (${response.status}).`);
   }
   return response.json();
 };
@@ -104,9 +105,10 @@ const GraphVisualComponent = ({ zoomResetTrigger }) => {
     }
   }, [dfgMapping]);
 
-  // Effect to update selectedSVG
+  // Effect to update selectedSVG. Not gated on sliderAValue being truthy:
+  // an activity count of 0 is a valid mapping key.
   useEffect(() => {
-    if (dfgMapping && sliderAValue) {
+    if (dfgMapping) {
       const currentActivity = sliderAValue.toString();
       const selectedPath = `${currentActivity}_${sliderCValue}`;
 
@@ -118,6 +120,15 @@ const GraphVisualComponent = ({ zoomResetTrigger }) => {
       }
     }
   }, [sliderAValue, sliderCValue, dfgMapping]);
+
+  if (error) {
+    return (
+      <div className="flex flex-col p-6 bg-white rounded-md shadow-md">
+        <h2 className="text-lg font-semibold">Directly-Follows Graph</h2>
+        <p className="mt-4 text-red-700">Could not load the graph: {error.message}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col p-6 bg-white rounded-md shadow-md">

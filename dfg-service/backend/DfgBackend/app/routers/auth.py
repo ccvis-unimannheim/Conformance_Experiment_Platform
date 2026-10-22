@@ -65,4 +65,10 @@ async def start_session(_: StartSessionRequest | None = None):
 async def check_for_cookie(dfg_user_id: Annotated[str | None, Cookie()] = None):
     if dfg_user_id is None:
         return JSONResponse(content={"message": "No cookie detected! Please call POST /auth/ to receive a cookie"})
+    # A cookie whose user Redis no longer knows cannot be served a dataset;
+    # report it as absent so the frontend starts a fresh session.
+    try:
+        redis_handler.get_value_from_redis(dfg_user_id)
+    except ValueError:
+        return JSONResponse(content={"message": "Unknown session. Please call POST /auth/ to start a new one"})
     return JSONResponse(content={"message": "Cookie detected.", "user_id": dfg_user_id})

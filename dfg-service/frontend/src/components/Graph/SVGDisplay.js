@@ -24,7 +24,8 @@ const fetcher = async (route) => {
     }
   );
   if (!response.ok) {
-    throw new Error("Failed to fetch SVG");
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.message || `Failed to fetch SVG (${response.status}).`);
   }
   const svgData = await response.text();
 
@@ -114,6 +115,14 @@ const SVGDisplay = ({ selectedSVG, zoomResetTrigger }) => {
       previousSVGRef.current = selectedSVG;
     }
   }, [selectedSVG, zoomResetTrigger]);
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-red-700">Could not load the graph: {error.message}</p>
+      </div>
+    );
+  }
 
   if (!svgContent) {
     return (

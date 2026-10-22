@@ -89,8 +89,15 @@ services:
       LOCAL_DATABASE_USERNAME: ${MONGO_USERNAME:-root}
       LOCAL_DATABASE_PASSWORD: ${MONGO_PASSWORD:-example}
       REDIS_PASSWORD: ${REDIS_PASSWORD}
+    # No /srv/provi-data mount: that is ProVi's data, and DFG never reads it.
     volumes:
-      - /srv/provi-data:/code/DfgBackend/data
+      # Uploaded XES logs, their generated DFG SVGs, and the uploaded
+      # questionnaire are written here at runtime. Without host mounts they
+      # vanish whenever the container is recreated, while MongoDB and Redis
+      # still list the datasets, so participants get a graph that never loads.
+      # Kept outside /srv/provi-data so the two studies never share files.
+      - /srv/dfg-data/output:/code/DfgBackend/output
+      - /srv/dfg-data/static:/code/DfgBackend/app/static
     depends_on:
       mongo:
         condition: service_healthy

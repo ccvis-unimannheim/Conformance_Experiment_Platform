@@ -15,6 +15,8 @@ router = APIRouter(
 
 @router.get("/questionnaire", tags=["questionnaire"])
 async def get_questionnaire():
+    if not QUESTIONNAIRE_FILE_PATH.is_file():
+        return JSONResponse(content={"message": "No questionnaire uploaded. Upload one in /dfg/admin."}, status_code=404)
     return FileResponse(QUESTIONNAIRE_FILE_PATH, filename="questionnaire.csv")
 
 
