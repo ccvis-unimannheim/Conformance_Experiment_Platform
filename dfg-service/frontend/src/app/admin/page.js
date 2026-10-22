@@ -3,7 +3,6 @@
 import Head from "next/head";
 import { useEffect, useState } from "react";
 
-import LoginModal from "../../components/Admin/LoginModal";
 import DatasetUploadBox from "../../components/Admin/DatasetUploadBox";
 import QuestionnaireUploadBox from "../../components/Admin/QuestionnaireUploadBox";
 import DownloadBox from "../../components/Admin/DownloadBox";
@@ -18,7 +17,6 @@ export default function AdminPage() {
   const [userCountDataset1, setuserCountDataset1] = useState("");
   const [userCountDataset2, setuserCountDataset2] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   const fetchDatasets = async () => {
     try {
@@ -70,18 +68,8 @@ export default function AdminPage() {
   };
 
   useEffect(() => {
-    if (isLoggedIn) {
-      fetchDatasets();
-    }
-  }, [isLoggedIn]);
-
-  const handleLoginSuccess = () => {
-    setIsLoggedIn(true);
-  };
-
-  if (!isLoggedIn) {
-    return <LoginModal onLoginSuccess={handleLoginSuccess} />;
-  }
+    fetchDatasets();
+  }, []);
 
   const handleCompareDatasets = async () => {
     if (dataset1 && dataset2) {
